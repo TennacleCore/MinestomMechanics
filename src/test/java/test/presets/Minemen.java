@@ -17,7 +17,7 @@ public final class Minemen {
     /** Returns AttackConfig based on Vanilla18 with 1-tick hit queue buffer. */
     public static AttackConfig atk() {
         return AttackConfig.builder(Vanilla18.atk())
-                .hitQueueBuffer(10)
+                .hitQueueBuffer(1)
                 .build();
     }
 
@@ -47,9 +47,9 @@ public final class Minemen {
                 .frictionExtraH(0.0)
                 .frictionExtraV(6.884)
                 .useAbsFrictionEV()
-                .rangeStartExtraH(3.25)
-                .rangeFactorExtraH(0.433)
-                .rangeMaxH(0.45)
+                .rangeStartExtraH(3.0)
+                .rangeFactorExtraH(0.40)
+                .rangeMaxH(0.35)
                 .build();
     }
 
