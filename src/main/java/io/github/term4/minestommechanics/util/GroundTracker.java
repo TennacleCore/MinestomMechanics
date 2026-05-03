@@ -1,6 +1,7 @@
 package io.github.term4.minestommechanics.util;
 
 import net.minestom.server.MinecraftServer;
+import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
@@ -19,6 +20,9 @@ public final class GroundTracker {
     public static final Tag<TickState> LAST_AIRBORNE_STATE = Tag.Transient("mm:last-airborne-state");
     /** Tick when entity was last on ground. Used to compute ticks-in-air for gravity-predicted velocity. */
     public static final Tag<Long> LAST_GROUND_TICK = Tag.Transient("mm:last-ground-tick");
+    private static final double TPS = ServerFlag.SERVER_TICKS_PER_SECOND;
+    // TODO: Make this landing epsilon value configurable in the presets
+    private static final double LANDING_EPSILON = 0.01;
 
     public GroundTracker() {}
 
@@ -35,7 +39,7 @@ public final class GroundTracker {
     private void tick() {
         long now = TickClock.now();
         for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
-            if (p.isOnGround()) {
+            if (p.isOnGround() || predictsLandingSoon(p)) {
                 p.setTag(LAST_GROUND_TICK, now);
             } else {
                 p.setTag(LAST_AIRBORNE_STATE, new TickState(now, 0));
@@ -70,23 +74,39 @@ public final class GroundTracker {
     }
 
     /**
-     * Returns true if the entity is falling and will intersect a solid block within the next tick.
-     * Used for knockback friction tier logic instead of isOnGround (which arrives 1 tick late from client).
-     * Fallback: if instance is null or block lookup fails, returns entity.isOnGround().
+     * Returns true if the entity should be treated as "landing soon" for knockback logic.
+     * Uses a small feet-distance epsilon while falling and a short lookahead so we do not rely on
+     * the client onGround flag, which can be 1 tick late.
      */
     public static boolean predictsLandingSoon(Entity entity) {
         if (entity == null) return false;
         Instance instance = entity.getInstance();
         if (instance == null) return entity.isOnGround();
+        if (entity.isOnGround()) return true;
 
         Vec vel = entity.getVelocity();
-        if (vel.y() >= 0) return entity.isOnGround();
+        double vyTick = vel.y() / TPS;
+        if (vyTick >= 0) return false;
 
-        double nextY = entity.getPosition().y() + vel.y();
-        int bx = (int) Math.floor(entity.getPosition().x());
-        int bz = (int) Math.floor(entity.getPosition().z());
-        int by = (int) Math.floor(nextY) - 1;
+        double x = entity.getPosition().x();
+        double y = entity.getPosition().y();
+        double z = entity.getPosition().z();
 
+        if (isSolidWithinEpsilon(instance, x, y, z, LANDING_EPSILON)) return true;
+
+        double nextY = y + vyTick;
+        if (isSolidWithinEpsilon(instance, x, nextY, z, LANDING_EPSILON)) return true;
+
+        // 2nd-tick lookahead (vanilla-ish): v = v * 0.98 - 0.08
+        double vyNext = (vyTick * 0.98) - 0.08;
+        double next2Y = nextY + vyNext;
+        return isSolidWithinEpsilon(instance, x, next2Y, z, LANDING_EPSILON);
+    }
+
+    private static boolean isSolidWithinEpsilon(Instance instance, double x, double y, double z, double epsilon) {
+        int bx = (int) Math.floor(x);
+        int bz = (int) Math.floor(z);
+        int by = (int) Math.floor(y - epsilon);
         Block block = instance.getBlock(bx, by, bz);
         return block != null && !block.isAir() && block.isSolid();
     }

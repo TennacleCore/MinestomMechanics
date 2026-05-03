@@ -143,10 +143,10 @@ public final class VelocityEstimator {
      * Closed form: vy(t) = 0.42 * scale^t - gravity * (1 - scale^t) / (1 - scale).
      */
     public static Vec getVelocityGravityPredicted(Entity entity, Double gravityPerTick, Double scale) {
-        int ticks = GroundTracker.getTicksInAir(entity);
-        if (ticks <= 0) return Vec.ZERO;
         double g = gravityPerTick != null ? gravityPerTick : GRAVITY_PER_TICK;
         double s = scale != null ? scale : DEFAULT_GRAVITY_SCALE;
+        int ticks = GroundTracker.getTicksInAir(entity);
+        if (ticks <= 0) return new Vec(0, -g * s, 0);
         double scalePow = Math.pow(s, ticks);
         double vy = BASE_JUMP_Y * scalePow - g * (1 - scalePow) / (1 - s);
         vy = Math.max(TERMINAL_VY, Math.min(BASE_JUMP_Y, vy));

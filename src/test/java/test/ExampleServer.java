@@ -58,7 +58,7 @@ public class ExampleServer {
         DamageSystem.install(mm, new DamageConfig());
 
         // 3. Initialize combat system
-        AttackSystem.install(mm, Minemen.atk());
+        AttackSystem.install(mm, Vanilla18.atk());
 
         // Create the instance (world)
         InstanceManager instanceManager = MinecraftServer.getInstanceManager();
@@ -76,7 +76,7 @@ public class ExampleServer {
             player.setRespawnPoint(new Pos(0, 42, 0));
 
             if (player instanceof OptimizedPlayer opt) {
-                opt.setPositionBroadcastInterval(2);
+                opt.setPositionBroadcastInterval(1);
             }
 
             // Example of how to get a players protocol on login (with multiple attempts, stops once protocol is known)
@@ -102,11 +102,10 @@ public class ExampleServer {
 
             player.getInventory().addItemStack(ItemStack.of(Material.WHITE_WOOL, 1000));
 
-            /*player.getAttribute(net.minestom.server.entity.attribute.Attribute.MOVEMENT_SPEED)
+            /* player.getAttribute(net.minestom.server.entity.attribute.Attribute.MOVEMENT_SPEED)
                     .setBaseValue(0.1 * (1 + (0.2 * 2))); // Speed II
 
              */
-
         });
         
         // Start the server

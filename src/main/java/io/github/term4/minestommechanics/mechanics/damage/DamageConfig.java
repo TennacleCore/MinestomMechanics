@@ -6,7 +6,7 @@ package io.github.term4.minestommechanics.mechanics.damage;
 public final class DamageConfig {
 
     /** Ticks an entity is "invulnerable" for after taking damage */
-    public int invulTicks = 10;    // default 10 ticks, 500ms
+    public int invulTicks = 9;    // default 10 ticks, 500ms
 
     public DamageConfig() {}
 
