@@ -33,7 +33,7 @@ public final class Vanilla18 {
                 .vertical(0.4)
                 .extraHorizontal(0.5)
                 .extraVertical(0.1)
-                .verticalBounds(null, 0.4)
+                .verticalBounds(null, 0.4000000059604645)
                 .yawWeight(0.0)
                 .extraYawWeight(1.0)
                 .pitchWeight(0.0)
@@ -64,7 +64,7 @@ public final class Vanilla18 {
                 .sweepFactorExtraH(0.0)
                 .sweepFactorExtraV(0.0)
                 .knockbackFormula(KnockbackConfig.KnockbackFormula.CLASSIC)
-                .velocityMethod(KnockbackConfig.VelocityMethod.DELTA)
+                .velocityMethod(KnockbackConfig.VelocityMethod.LEGACY)
                 .build();
     }
 }
