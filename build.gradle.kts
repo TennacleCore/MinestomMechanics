@@ -5,7 +5,7 @@ plugins {
 
 description = "A library for Minestom 1.8 mechanics"
 group = "io.github.term4"
-version = "0.1.0"
+version = "0.1.3"
 java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 mavenPublishing {
