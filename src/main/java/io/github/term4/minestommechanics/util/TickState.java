@@ -3,7 +3,7 @@ package io.github.term4.minestommechanics.util;
 /** Event at eventTick, effective for duration ticks. Use isActiveWithin(ticks) when duration is passed at check time. */
 public record TickState(long eventTick, int duration) {
 
-    /** True if now < eventTick + duration. */
+    /** True if {@code now < eventTick + duration}. */
     public boolean isActive() {
         return TickClock.now() < eventTick + duration;
     }
