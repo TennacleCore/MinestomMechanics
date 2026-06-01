@@ -8,7 +8,7 @@ public final class Hypixel {
     private Hypixel() {}
 
     public static KnockbackConfig kb() {
-        int buffer = 1;
+        //  int buffer = 1; I think this is unnecessary but leaving here just in case
 
         return KnockbackConfig.builder(Vanilla18.kb())
                 .velocityModeH(KnockbackConfig.VelocityMethod.INPUT)
@@ -17,7 +17,7 @@ public final class Hypixel {
                 .velocityModeExtraV(KnockbackConfig.VelocityMethod.GRAVITY_PREDICTED)
                 .gravityPredictScale(0.98)
                 .gravityPredictPerTick(0.08)
-                .sprintBuffer(buffer)
+                //  .sprintBuffer(buffer)
                 .extraVertical(0.07)
                 .frictionH(1.0)
                 .frictionExtraH(1.0)
