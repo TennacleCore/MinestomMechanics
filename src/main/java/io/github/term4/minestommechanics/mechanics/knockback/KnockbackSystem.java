@@ -5,7 +5,7 @@ import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.KnockbackEvent;
 import io.github.term4.minestommechanics.Vanilla18;
-import io.github.term4.minestommechanics.util.GroundTracker;
+import io.github.term4.minestommechanics.tracking.GroundTracker;
 import io.github.term4.minestommechanics.util.TickClock;
 import io.github.term4.minestommechanics.util.TickState;
 import net.minestom.server.coordinate.Vec;
@@ -49,7 +49,7 @@ public final class KnockbackSystem {
         // Knockback requires a target
         if (finalSnap.target() == null) return;
 
-        // Early return if target is invulnerable TODO: Update to use KNOCKBACK invul specifically, not general
+        // Early return if target is in its knockback invul window (event.invulnerable() uses INVUL_KNOCKBACK).
         if (event.invulnerable() && !event.bypassInvul()) return;
 
         // Build knockback velocity vector
@@ -99,6 +99,12 @@ public final class KnockbackSystem {
         if (!(e instanceof LivingEntity le)) return false;
         TickState s = le.getTag(INVUL_KNOCKBACK);
         return s != null && s.isActive();
+    }
+
+    /** Remaining knockback invul ticks for the entity. 0 if not invulnerable. */
+    public static int remainingKnockbackInvulTicks(LivingEntity le) {
+        TickState s = le.getTag(INVUL_KNOCKBACK);
+        return s != null ? s.remainingTicks() : 0;
     }
 
 }

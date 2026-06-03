@@ -2,29 +2,39 @@ package test.presets;
 
 import io.github.term4.minestommechanics.Vanilla18;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
+import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfigResolver;
-import io.github.term4.minestommechanics.util.SprintTracker;
+import io.github.term4.minestommechanics.tracking.SprintTracker;
+import io.github.term4.minestommechanics.tracking.VelocityRule;
 import net.minestom.server.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 // TODO: Try with piecewise function of some sort
 
 public final class Minemen {
-
+    // TODO: Disable damage override when both the initial damage and replacement damage are melee dealt with the same item.
     private Minemen() {}
 
-    /** Returns AttackConfig based on Vanilla18 with 1-tick hit queue buffer. */
+    /** Returns AttackConfig based on Vanilla18 with a 1-tick hit queue buffer against the damage invul window. */
     public static AttackConfig atk() {
         return AttackConfig.builder(Vanilla18.atk())
                 .hitQueueBuffer(1)
+                .hitQueueInvulSource(AttackConfig.HitQueueInvulSource.DAMAGE)
+                .build();
+    }
+
+    /** Returns DamageConfig based on Vanilla18 with overdamage enabled and applied silently (no hurt animation). */
+    public static DamageConfig dmg() {
+        return DamageConfig.builder(Vanilla18.dmg())
+                .overdamageSilent(true)
                 .build();
     }
 
     public static KnockbackConfig kb() {
         int buffer = 8;
         return KnockbackConfig.builder(Vanilla18.kb())
-                .velocityMethod(KnockbackConfig.VelocityMethod.DELTA)
+                .velocityMethod(VelocityRule.delta())
                 .sprintBuffer(buffer)
                 .horizontal(0.52725)
                 .vertical(0.3724) // or 0.3736, 0.3724

@@ -1,5 +1,7 @@
-package io.github.term4.minestommechanics.util;
+package io.github.term4.minestommechanics.tracking;
 
+import io.github.term4.minestommechanics.util.TickClock;
+import io.github.term4.minestommechanics.util.TickState;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.EventFilter;
@@ -10,8 +12,6 @@ import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-// Subject to be moved later. Here now because I don't see where else to put it (maybe a tracker class? Player class?)
 
 public final class SprintTracker {
 

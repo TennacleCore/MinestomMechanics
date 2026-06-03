@@ -1,48 +1,46 @@
 package io.github.term4.minestommechanics.mechanics.attack;
 
-import io.github.term4.minestommechanics.mechanics.attack.rulesets.AttackProcessor;
+import io.github.term4.minestommechanics.Vanilla18;
+import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.config.Config;
+import io.github.term4.minestommechanics.config.FieldValue;
+import io.github.term4.minestommechanics.mechanics.attack.AttackConfigResolver.AttackContext;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Function;
 
 /** Immutable attack config. Use {@link #builder()}, {@link #toBuilder()}. */
-public final class AttackConfig {
+public final class AttackConfig extends Config<AttackContext, AttackConfig> {
 
-    public record FieldValue<T>(Function<AttackConfigResolver.AttackContext, T> fn) {
-        static <T> FieldValue<T> constant(T v) { return new FieldValue<>(ctx -> v); }
-        static <T> FieldValue<T> of(Function<AttackConfigResolver.AttackContext, T> f) { return new FieldValue<>(f); }
-        static <T> FieldValue<T> ofWithFallback(T fallback, Function<AttackConfigResolver.AttackContext, T> fn) {
-            return new FieldValue<>(ctx -> { T r = fn.apply(ctx); return r != null ? r : fallback; });
-        }
-        T resolve(AttackConfigResolver.AttackContext ctx) { return fn.apply(ctx); }
-        FieldValue<T> or(FieldValue<T> fallback) {
-            return new FieldValue<>(ctx -> { T r = fn.apply(ctx); return r != null ? r : fallback.fn.apply(ctx); });
-        }
+    /** Which invulnerability window the hit-queue buffer measures against. */
+    public enum HitQueueInvulSource {
+        /** The attack-invul window ({@code atkInvulnTicks}). */
+        ATTACK,
+        /** The damage-invul window. */
+        DAMAGE,
+        /** The knockback-invul window. */
+        KNOCKBACK,
+        /** Attack-invul window when {@code atkInvulnTicks > 0}, otherwise the damage window. */ //TODO: Maybe update / remove this in the future
+        AUTO
     }
 
-    private static <T> FieldValue<T> merge(@Nullable FieldValue<T> a, @Nullable FieldValue<T> b) {
-        if (b == null) return a;
-        if (a == null) return b;
-        return a.or(b);
-    }
-
-    @Nullable public final Function<AttackConfigResolver.AttackContext, AttackConfig> subConfig;
-
-    public final FieldValue<Boolean> enabled;
-    public final FieldValue<Integer> idleTimeout;
-    public final FieldValue<Integer> atkInvulnTicks;
-    public final FieldValue<Integer> sprintBuffer;
-    public final FieldValue<Integer> hitQueueBuffer;
-    public final FieldValue<Boolean> packetHits;
-    public final FieldValue<Boolean> swingHits;
-    public final FieldValue<Double> packetReach;
-    public final FieldValue<Double> swingReach;
-    public final FieldValue<Double> packetPadding;
-    public final FieldValue<Double> swingPadding;
-    public final FieldValue<AttackProcessor.Ruleset> ruleset;
+    public final FieldValue<AttackContext, Boolean> enabled;
+    public final FieldValue<AttackContext, Integer> idleTimeout;
+    public final FieldValue<AttackContext, Integer> atkInvulnTicks;
+    public final FieldValue<AttackContext, Integer> sprintBuffer;
+    public final FieldValue<AttackContext, Integer> hitQueueBuffer;
+    public final FieldValue<AttackContext, Boolean> packetHits;
+    public final FieldValue<AttackContext, Boolean> swingHits;
+    public final FieldValue<AttackContext, Double> packetReach;
+    public final FieldValue<AttackContext, Double> swingReach;
+    public final FieldValue<AttackContext, Double> packetPadding;
+    public final FieldValue<AttackContext, Double> swingPadding;
+    public final FieldValue<AttackContext, AttackEvent.AttackRule.Ruleset> ruleset;
+    public final AttackEvent.CriticalRule criticalRule;
+    public final HitQueueInvulSource hitQueueInvulSource;
 
     private AttackConfig(Builder b) {
-        subConfig = b.subConfig;
+        super(b.subConfig);
         enabled = b.enabled;
         idleTimeout = b.idleTimeout;
         atkInvulnTicks = b.atkInvulnTicks;
@@ -55,6 +53,8 @@ public final class AttackConfig {
         packetPadding = b.packetPadding;
         swingPadding = b.swingPadding;
         ruleset = b.ruleset;
+        criticalRule = b.criticalRule;
+        hitQueueInvulSource = b.hitQueueInvulSource;
     }
 
     /** Merges this config over base. */
@@ -73,6 +73,8 @@ public final class AttackConfig {
                 .packetPadding(merge(packetPadding, base.packetPadding))
                 .swingPadding(merge(swingPadding, base.swingPadding))
                 .ruleset(merge(ruleset, base.ruleset))
+                .criticalRule(criticalRule != null ? criticalRule : base.criticalRule)
+                .hitQueueInvulSource(hitQueueInvulSource != null ? hitQueueInvulSource : base.hitQueueInvulSource)
                 .build();
     }
 
@@ -85,19 +87,21 @@ public final class AttackConfig {
     public static AttackConfig defaultConfig() { return builder().build(); }
 
     public static final class Builder {
-        private Function<AttackConfigResolver.AttackContext, AttackConfig> subConfig;
-        private FieldValue<Boolean> enabled;
-        private FieldValue<Integer> idleTimeout;
-        private FieldValue<Integer> atkInvulnTicks;
-        private FieldValue<Integer> sprintBuffer;
-        private FieldValue<Integer> hitQueueBuffer;
-        private FieldValue<Boolean> packetHits;
-        private FieldValue<Boolean> swingHits;
-        private FieldValue<Double> packetReach;
-        private FieldValue<Double> swingReach;
-        private FieldValue<Double> packetPadding;
-        private FieldValue<Double> swingPadding;
-        private FieldValue<AttackProcessor.Ruleset> ruleset;
+        private Function<AttackContext, AttackConfig> subConfig;
+        private FieldValue<AttackContext, Boolean> enabled;
+        private FieldValue<AttackContext, Integer> idleTimeout;
+        private FieldValue<AttackContext, Integer> atkInvulnTicks;
+        private FieldValue<AttackContext, Integer> sprintBuffer;
+        private FieldValue<AttackContext, Integer> hitQueueBuffer;
+        private FieldValue<AttackContext, Boolean> packetHits;
+        private FieldValue<AttackContext, Boolean> swingHits;
+        private FieldValue<AttackContext, Double> packetReach;
+        private FieldValue<AttackContext, Double> swingReach;
+        private FieldValue<AttackContext, Double> packetPadding;
+        private FieldValue<AttackContext, Double> swingPadding;
+        private FieldValue<AttackContext, AttackEvent.AttackRule.Ruleset> ruleset;
+        private AttackEvent.CriticalRule criticalRule;
+        private HitQueueInvulSource hitQueueInvulSource;
 
         Builder() {
             enabled = FieldValue.constant(true);
@@ -111,7 +115,9 @@ public final class AttackConfig {
             swingReach = FieldValue.constant(3.0);
             packetPadding = FieldValue.constant(2.0);
             swingPadding = FieldValue.constant(0.0);
-            ruleset = FieldValue.constant(AttackProcessor.legacy());
+            ruleset = FieldValue.constant(Vanilla18.legacyAttack());
+            criticalRule = null;
+            hitQueueInvulSource = HitQueueInvulSource.AUTO;
         }
 
         Builder(AttackConfig c) {
@@ -128,42 +134,76 @@ public final class AttackConfig {
             packetPadding = c.packetPadding;
             swingPadding = c.swingPadding;
             ruleset = c.ruleset;
+            criticalRule = c.criticalRule;
+            hitQueueInvulSource = c.hitQueueInvulSource;
         }
 
-        public Builder subConfig(Function<AttackConfigResolver.AttackContext, AttackConfig> fn) { subConfig = fn; return this; }
-        public Builder enabled(Boolean v) { enabled = FieldValue.constant(v); return this; }
-        public Builder enabled(Function<AttackConfigResolver.AttackContext, Boolean> fn) { enabled = FieldValue.of(fn); return this; }
-        public Builder idleTimeout(Integer v) { idleTimeout = FieldValue.constant(v); return this; }
-        public Builder idleTimeout(Function<AttackConfigResolver.AttackContext, Integer> fn) { idleTimeout = FieldValue.of(fn); return this; }
-        public Builder atkInvulnTicks(Integer v) { atkInvulnTicks = FieldValue.constant(v); return this; }
-        public Builder atkInvulnTicks(Function<AttackConfigResolver.AttackContext, Integer> fn) { atkInvulnTicks = FieldValue.of(fn); return this; }
-        public Builder atkInvulnTicks(Integer fallback, Function<AttackConfigResolver.AttackContext, Integer> fn) { atkInvulnTicks = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder sprintBuffer(Integer v) { sprintBuffer = FieldValue.constant(v); return this; }
-        public Builder sprintBuffer(Function<AttackConfigResolver.AttackContext, Integer> fn) { sprintBuffer = FieldValue.of(fn); return this; }
-        public Builder hitQueueBuffer(Integer v) { hitQueueBuffer = FieldValue.constant(v); return this; }
-        public Builder hitQueueBuffer(Function<AttackConfigResolver.AttackContext, Integer> fn) { hitQueueBuffer = FieldValue.of(fn); return this; }
-        public Builder hitQueueBuffer(Integer fallback, Function<AttackConfigResolver.AttackContext, Integer> fn) { hitQueueBuffer = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder packetHits(Boolean v) { packetHits = FieldValue.constant(v); return this; }
-        public Builder swingHits(Boolean v) { swingHits = FieldValue.constant(v); return this; }
-        public Builder packetReach(Double v) { packetReach = FieldValue.constant(v); return this; }
-        public Builder swingReach(Double v) { swingReach = FieldValue.constant(v); return this; }
-        public Builder packetPadding(Double v) { packetPadding = FieldValue.constant(v); return this; }
-        public Builder swingPadding(Double v) { swingPadding = FieldValue.constant(v); return this; }
-        public Builder ruleset(AttackProcessor.Ruleset v) { ruleset = FieldValue.constant(v); return this; }
-        public Builder ruleset(Function<AttackConfigResolver.AttackContext, AttackProcessor.Ruleset> fn) { ruleset = FieldValue.of(fn); return this; }
+        public Builder subConfig(Function<AttackContext, AttackConfig> fn) { subConfig = fn; return this; }
 
-        Builder enabled(FieldValue<Boolean> v) { enabled = v; return this; }
-        Builder idleTimeout(FieldValue<Integer> v) { idleTimeout = v; return this; }
-        Builder atkInvulnTicks(FieldValue<Integer> v) { atkInvulnTicks = v; return this; }
-        Builder sprintBuffer(FieldValue<Integer> v) { sprintBuffer = v; return this; }
-        Builder hitQueueBuffer(FieldValue<Integer> v) { hitQueueBuffer = v; return this; }
-        Builder packetHits(FieldValue<Boolean> v) { packetHits = v; return this; }
-        Builder swingHits(FieldValue<Boolean> v) { swingHits = v; return this; }
-        Builder packetReach(FieldValue<Double> v) { packetReach = v; return this; }
-        Builder swingReach(FieldValue<Double> v) { swingReach = v; return this; }
-        Builder packetPadding(FieldValue<Double> v) { packetPadding = v; return this; }
-        Builder swingPadding(FieldValue<Double> v) { swingPadding = v; return this; }
-        Builder ruleset(FieldValue<AttackProcessor.Ruleset> v) { ruleset = v; return this; }
+        public Builder enabled(Boolean v) { enabled = FieldValue.constant(v); return this; }
+        public Builder enabled(Function<AttackContext, Boolean> fn) { enabled = FieldValue.of(fn); return this; }
+        public Builder enabled(Boolean fallback, Function<AttackContext, Boolean> fn) { enabled = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder idleTimeout(Integer v) { idleTimeout = FieldValue.constant(v); return this; }
+        public Builder idleTimeout(Function<AttackContext, Integer> fn) { idleTimeout = FieldValue.of(fn); return this; }
+        public Builder idleTimeout(Integer fallback, Function<AttackContext, Integer> fn) { idleTimeout = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder atkInvulnTicks(Integer v) { atkInvulnTicks = FieldValue.constant(v); return this; }
+        public Builder atkInvulnTicks(Function<AttackContext, Integer> fn) { atkInvulnTicks = FieldValue.of(fn); return this; }
+        public Builder atkInvulnTicks(Integer fallback, Function<AttackContext, Integer> fn) { atkInvulnTicks = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder sprintBuffer(Integer v) { sprintBuffer = FieldValue.constant(v); return this; }
+        public Builder sprintBuffer(Function<AttackContext, Integer> fn) { sprintBuffer = FieldValue.of(fn); return this; }
+        public Builder sprintBuffer(Integer fallback, Function<AttackContext, Integer> fn) { sprintBuffer = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder hitQueueBuffer(Integer v) { hitQueueBuffer = FieldValue.constant(v); return this; }
+        public Builder hitQueueBuffer(Function<AttackContext, Integer> fn) { hitQueueBuffer = FieldValue.of(fn); return this; }
+        public Builder hitQueueBuffer(Integer fallback, Function<AttackContext, Integer> fn) { hitQueueBuffer = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder packetHits(Boolean v) { packetHits = FieldValue.constant(v); return this; }
+        public Builder packetHits(Function<AttackContext, Boolean> fn) { packetHits = FieldValue.of(fn); return this; }
+        public Builder packetHits(Boolean fallback, Function<AttackContext, Boolean> fn) { packetHits = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder swingHits(Boolean v) { swingHits = FieldValue.constant(v); return this; }
+        public Builder swingHits(Function<AttackContext, Boolean> fn) { swingHits = FieldValue.of(fn); return this; }
+        public Builder swingHits(Boolean fallback, Function<AttackContext, Boolean> fn) { swingHits = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder packetReach(Double v) { packetReach = FieldValue.constant(v); return this; }
+        public Builder packetReach(Function<AttackContext, Double> fn) { packetReach = FieldValue.of(fn); return this; }
+        public Builder packetReach(Double fallback, Function<AttackContext, Double> fn) { packetReach = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder swingReach(Double v) { swingReach = FieldValue.constant(v); return this; }
+        public Builder swingReach(Function<AttackContext, Double> fn) { swingReach = FieldValue.of(fn); return this; }
+        public Builder swingReach(Double fallback, Function<AttackContext, Double> fn) { swingReach = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder packetPadding(Double v) { packetPadding = FieldValue.constant(v); return this; }
+        public Builder packetPadding(Function<AttackContext, Double> fn) { packetPadding = FieldValue.of(fn); return this; }
+        public Builder packetPadding(Double fallback, Function<AttackContext, Double> fn) { packetPadding = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder swingPadding(Double v) { swingPadding = FieldValue.constant(v); return this; }
+        public Builder swingPadding(Function<AttackContext, Double> fn) { swingPadding = FieldValue.of(fn); return this; }
+        public Builder swingPadding(Double fallback, Function<AttackContext, Double> fn) { swingPadding = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder ruleset(AttackEvent.AttackRule.Ruleset v) { ruleset = FieldValue.constant(v); return this; }
+        public Builder ruleset(Function<AttackContext, AttackEvent.AttackRule.Ruleset> fn) { ruleset = FieldValue.of(fn); return this; }
+        public Builder ruleset(AttackEvent.AttackRule.Ruleset fallback, Function<AttackContext, AttackEvent.AttackRule.Ruleset> fn) { ruleset = FieldValue.ofWithFallback(fallback, fn); return this; }
+
+        public Builder criticalRule(AttackEvent.CriticalRule v) { criticalRule = v; return this; }
+
+        public Builder hitQueueInvulSource(HitQueueInvulSource v) { hitQueueInvulSource = v; return this; }
+
+        Builder enabled(FieldValue<AttackContext, Boolean> v) { enabled = v; return this; }
+        Builder idleTimeout(FieldValue<AttackContext, Integer> v) { idleTimeout = v; return this; }
+        Builder atkInvulnTicks(FieldValue<AttackContext, Integer> v) { atkInvulnTicks = v; return this; }
+        Builder sprintBuffer(FieldValue<AttackContext, Integer> v) { sprintBuffer = v; return this; }
+        Builder hitQueueBuffer(FieldValue<AttackContext, Integer> v) { hitQueueBuffer = v; return this; }
+        Builder packetHits(FieldValue<AttackContext, Boolean> v) { packetHits = v; return this; }
+        Builder swingHits(FieldValue<AttackContext, Boolean> v) { swingHits = v; return this; }
+        Builder packetReach(FieldValue<AttackContext, Double> v) { packetReach = v; return this; }
+        Builder swingReach(FieldValue<AttackContext, Double> v) { swingReach = v; return this; }
+        Builder packetPadding(FieldValue<AttackContext, Double> v) { packetPadding = v; return this; }
+        Builder swingPadding(FieldValue<AttackContext, Double> v) { swingPadding = v; return this; }
+        Builder ruleset(FieldValue<AttackContext, AttackEvent.AttackRule.Ruleset> v) { ruleset = v; return this; }
 
         public AttackConfig build() { return new AttackConfig(this); }
     }

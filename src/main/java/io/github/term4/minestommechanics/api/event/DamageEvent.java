@@ -1,58 +1,110 @@
 package io.github.term4.minestommechanics.api.event;
 
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import net.minestom.server.entity.Entity;
-import net.minestom.server.entity.damage.DamageType;
+import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.event.Event;
-import net.minestom.server.registry.RegistryKey;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-// TODO: JavaDocs
-// This is the public facing API users can hook into to get information or change how a damage event happens
+/**
+ * Public API for inspecting and modifying a damage instance before it is applied. Wraps the
+ * {@link DamageSnapshot} and follows the same shape as {@link KnockbackEvent}: an immutable
+ * original {@link #snapshot()} plus a mutable {@link #finalSnap()} used for application.
+ */
 public final class DamageEvent implements Event {
 
-    private final Entity target;
-    private final RegistryKey<@NotNull DamageType> type;
-    private @Nullable Entity source;
-    private final boolean invulnerable;
-    private final int remainingInvul;
-    private boolean bypassInvul;
-    private DamageConfig config;
+    private final DamageSnapshot snap;
+    private @Nullable DamageSnapshot finalSnap;
 
     private float amount;
+    private final boolean invulnerable;
+    private final int remainingInvul;
+    private final float stored;
+    private boolean bypassInvul;
+
     private boolean cancelled;
 
-    public DamageEvent(Entity target, RegistryKey<@NotNull DamageType> type, @Nullable Entity source, Float amount, boolean  invulnerable, int remainingInvul, DamageConfig config) {
-        this.target = target;
-        this.type = type;
-        this.source = source;
+    public DamageEvent(DamageSnapshot snap, float amount) {
+        this.snap = snap;
         this.amount = amount;
-        this.invulnerable = invulnerable;
-        this.remainingInvul = remainingInvul;
-        this.config = config;
+        this.invulnerable = DamageSystem.isInvulnerableToDamage(snap.target());
+        this.remainingInvul = snap.target() instanceof LivingEntity le
+                ? DamageSystem.remainingDamageInvulTicks(le) : 0;
+        this.stored = snap.target() instanceof LivingEntity le
+                ? DamageSystem.lastDamage(le) : 0f;
     }
 
-    public Entity target() { return target; }
-    public RegistryKey<@NotNull DamageType> type() { return type; }
+    /** Original damage data (immutable). */
+    public DamageSnapshot snapshot() { return snap; }
 
-    public @Nullable Entity source() { return source; }
-    public void source(@Nullable Entity source) { this.source = source; }
+    /**
+     * Snapshot used when applying damage.
+     * Set via {@code event.finalSnap(event.snapshot().toBuilder().target(x).build())}.
+     */
+    public DamageSnapshot finalSnap() { return finalSnap != null ? finalSnap : snap; }
+    public void finalSnap(DamageSnapshot snap) { this.finalSnap = snap; }
 
-    public boolean invulnerable() { return invulnerable; }
-    public int remainingInvul() { return remainingInvul; }
-    public boolean bypassInvul() { return bypassInvul; }
-    public void bypassInvul(boolean bypass) { this.bypassInvul = bypass; }
-
-    public DamageConfig config() { return config; }
-    public void config(DamageConfig config) {
-        this.config = config;
-    }
-
+    /** Final damage amount to apply (mutable). */
     public float amount() { return amount; }
     public void amount(float amount) { this.amount = amount; }
 
-    public boolean cancelled() { return cancelled; }
-    public void cancel() {  this.cancelled = true; }
+    /** Damage config used for resolution. Override by setting {@link #finalSnap(DamageSnapshot)} with a new config. */
+    public @Nullable DamageConfig config() { return finalSnap().config(); }
 
+    public boolean invulnerable() { return invulnerable; }
+    public int remainingInvul() { return remainingInvul; }
+
+    /**
+     * The "last damage" highwater stored on the target for the current invulnerability window: the
+     * largest amount applied so far while invulnerable. Used by {@link OverdamageRule} to decide how
+     * much of an incoming hit replaces the stored damage. {@code 0} when the target is fresh.
+     */
+    public float stored() { return stored; }
+
+    public boolean bypassInvul() { return bypassInvul; }
+    /** Apply damage even if the target is invulnerable. */
+    public void bypassInvul(boolean bypass) { this.bypassInvul = bypass; }
+
+    public boolean cancelled() { return cancelled; }
+    /** Cancel the damage event. */
+    public void cancel() { this.cancelled = true; }
+
+    // delegating accessors
+    public DamageType type() { return finalSnap().type(); }
+    public Entity target() { return finalSnap().target(); }
+    public @Nullable Entity source() { return finalSnap().source(); }
+
+    /**
+     * Defines the 1.8 "overdamage" (damage-replacement) behavior: when a hit lands while the target is
+     * still inside its damage invulnerability window, this rule decides how much damage to apply.
+     * Supplied via {@code DamageConfig.overdamageRule(...)} (global) or per-type via
+     * {@code DamageTypeConfig.overdamageRule(...)}, mirroring how {@link AttackEvent.CriticalRule}
+     * works on attacks.
+     *
+     * <p>A rule receives the full {@link DamageEvent}, so it can branch on the incoming
+     * {@link DamageEvent#amount()} and the {@link DamageEvent#stored()} highwater (and anything else
+     * on the event). Returning {@code 0} applies nothing.
+     */
+    @FunctionalInterface
+    public interface OverdamageRule {
+
+        /** Rule used when a damage config does not specify one. */
+        OverdamageRule DEFAULT = vanilla();
+
+        /** Amount to actually apply during an active invulnerability window ({@code 0} = nothing). */
+        float overdamage(DamageEvent event);
+
+        /** Vanilla 1.8: replace only the delta when the new hit exceeds the stored hit. */
+        static OverdamageRule vanilla() {
+            return e -> e.amount() > e.stored() ? e.amount() - e.stored() : 0f;
+        }
+
+        /** Never replaces (no overdamage even when enabled). */
+        static OverdamageRule never() {
+            return e -> 0f;
+        }
+    }
 }

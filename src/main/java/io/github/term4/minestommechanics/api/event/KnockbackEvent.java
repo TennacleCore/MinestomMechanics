@@ -14,8 +14,6 @@ public final class KnockbackEvent implements Event {
 
     private final KnockbackSnapshot snap;
     private KnockbackSnapshot finalSnap;
-    private Cause cause;
-    private KnockbackConfig config;
     private @Nullable Vec velocity;
     private @Nullable Vec direction;
     private final boolean invulnerable;
@@ -40,13 +38,11 @@ public final class KnockbackEvent implements Event {
     }
     public void finalSnap(KnockbackSnapshot snap) { this.finalSnap = snap; }
 
-    /** Knockback config used for calculation (mutable) */
-    public KnockbackConfig config() { return config; }
-    public void config(KnockbackConfig config) { this.config = config; }
+    /** Knockback config used for calculation. Override by setting {@link #finalSnap(KnockbackSnapshot)} with a new config. */
+    public @Nullable KnockbackConfig config() { return finalSnap().config(); }
 
-    /** Knockback cause (derived from attack cause) */
-    public Cause cause() { return snap.cause(); }
-    public void cause(Cause c) { this.cause = c; }
+    /** Knockback cause. Override by setting {@link #finalSnap(KnockbackSnapshot)} with a new cause. */
+    public Cause cause() { return finalSnap().cause(); }
 
     /** If set, used instead of running the calculator */
     public @Nullable Vec velocity() { return velocity; }

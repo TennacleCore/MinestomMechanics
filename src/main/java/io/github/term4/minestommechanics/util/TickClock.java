@@ -4,6 +4,7 @@ import net.minestom.server.MinecraftServer;
 import net.minestom.server.timer.TaskSchedule;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tick based timing for MinestomMechanics
@@ -11,20 +12,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class TickClock {
     private static final AtomicBoolean STARTED = new AtomicBoolean(false);
-    private static volatile long tick = 0;
+    private static final AtomicLong tick = new AtomicLong(0);
 
     private TickClock() {}
 
     /** Returns the current server tick */
     public static long now() {
-        return tick;
+        return tick.get();
     }
 
     /** Starts the global tick clock */
     public static void start() {
         if (!STARTED.compareAndSet(false, true)) return;
         MinecraftServer.getSchedulerManager()
-                .buildTask(() -> tick++)
+                .buildTask(tick::incrementAndGet)
                 .repeat(TaskSchedule.tick(1))
                 .schedule();
     }

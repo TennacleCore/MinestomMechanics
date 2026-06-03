@@ -1,8 +1,9 @@
 package io.github.term4.minestommechanics.mechanics.attack;
 
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.platform.Constants;
-import io.github.term4.minestommechanics.mechanics.attack.rulesets.AttackProcessor;
+import io.github.term4.minestommechanics.Vanilla18;
+import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.config.FieldValue;
 import org.jetbrains.annotations.Nullable;
 
 /** Resolves AttackConfig with context into plain values. */
@@ -25,13 +26,9 @@ public final class AttackConfigResolver {
             if (sub != null) cfg = sub.fromBase(cfg);
         }
 
+        // Attack invul defaults to 0: the damage and knockback systems own their own invul windows.
         Integer atkInvulVal = resolve(cfg.atkInvulnTicks, ctx);
-        if (atkInvulVal == null && ctx.services().damage() != null) {
-            atkInvulVal = ctx.services().damage().config().invulTicks;
-        }
-        if (atkInvulVal == null) {
-            atkInvulVal = Constants.DEFAULT_INVUL_TICKS;
-        }
+        if (atkInvulVal == null) atkInvulVal = 0;
 
         Integer hitQueueVal = resolve(cfg.hitQueueBuffer, ctx);
         if (hitQueueVal == null) hitQueueVal = 0;
@@ -43,7 +40,7 @@ public final class AttackConfigResolver {
         Double swingReachVal = resolve(cfg.swingReach, ctx);
         Double packetPaddingVal = resolve(cfg.packetPadding, ctx);
         Double swingPaddingVal = resolve(cfg.swingPadding, ctx);
-        AttackProcessor.Ruleset rulesetVal = resolve(cfg.ruleset, ctx);
+        AttackEvent.AttackRule.Ruleset rulesetVal = resolve(cfg.ruleset, ctx);
 
         return new ResolvedAttackConfig(
                 enabledVal != null ? enabledVal : true,
@@ -57,11 +54,13 @@ public final class AttackConfigResolver {
                 swingReachVal != null ? swingReachVal : 3.0,
                 packetPaddingVal != null ? packetPaddingVal : 2.0,
                 swingPaddingVal != null ? swingPaddingVal : 0.0,
-                rulesetVal != null ? rulesetVal : AttackProcessor.legacy()
+                rulesetVal != null ? rulesetVal : Vanilla18.legacyAttack(),
+                cfg.criticalRule != null ? cfg.criticalRule : AttackEvent.CriticalRule.DEFAULT,
+                cfg.hitQueueInvulSource != null ? cfg.hitQueueInvulSource : AttackConfig.HitQueueInvulSource.AUTO
         );
     }
 
-    private static <T> T resolve(@Nullable AttackConfig.FieldValue<T> fv, AttackContext ctx) {
+    private static <T> T resolve(@Nullable FieldValue<AttackContext, T> fv, AttackContext ctx) {
         return fv != null ? fv.resolve(ctx) : null;
     }
 
@@ -78,13 +77,15 @@ public final class AttackConfigResolver {
             double swingReach,
             double packetPadding,
             double swingPadding,
-            @Nullable AttackProcessor.Ruleset ruleset
+            @Nullable AttackEvent.AttackRule.Ruleset ruleset,
+            @Nullable AttackEvent.CriticalRule criticalRule,
+            AttackConfig.HitQueueInvulSource hitQueueInvulSource
     ) {
         public static ResolvedAttackConfig defaults() {
             return new ResolvedAttackConfig(
                     true,
                     null,
-                    Constants.DEFAULT_INVUL_TICKS,
+                    0,
                     null,
                     0,
                     true,
@@ -93,7 +94,9 @@ public final class AttackConfigResolver {
                     3.0,
                     2.0,
                     0.0,
-                    AttackProcessor.legacy()
+                    Vanilla18.legacyAttack(),
+                    AttackEvent.CriticalRule.DEFAULT,
+                    AttackConfig.HitQueueInvulSource.AUTO
             );
         }
     }

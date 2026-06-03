@@ -3,7 +3,6 @@ package test;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Vanilla18;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
-import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
@@ -23,8 +22,6 @@ import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.timer.TaskSchedule;
 import test.presets.Minemen;
-
-import java.util.Set;
 
 public class ExampleServer {
     static void main() {
@@ -56,7 +53,7 @@ public class ExampleServer {
         KnockbackSystem.install(mm, Hypixel.kb());
 
         // 2. Initialize damage system
-        DamageSystem.install(mm, new DamageConfig());
+        DamageSystem.install(mm, Hypixel.dmg());
 
         // 3. Initialize combat system
         AttackSystem.install(mm, Vanilla18.atk());
@@ -102,6 +99,7 @@ public class ExampleServer {
             }
 
             player.getInventory().addItemStack(ItemStack.of(Material.WHITE_WOOL, 1000));
+            player.getInventory().addItemStack(ItemStack.of(Material.DIAMOND_SWORD, 1));
 
             /* player.getAttribute(net.minestom.server.entity.attribute.Attribute.MOVEMENT_SPEED)
                     .setBaseValue(0.1 * (1 + (0.2 * 2))); // Speed II

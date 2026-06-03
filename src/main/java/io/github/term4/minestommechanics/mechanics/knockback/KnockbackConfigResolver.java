@@ -2,8 +2,9 @@ package io.github.term4.minestommechanics.mechanics.knockback;
 
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.platform.Constants;
-import io.github.term4.minestommechanics.util.GroundTracker;
-import io.github.term4.minestommechanics.util.SprintTracker;
+import io.github.term4.minestommechanics.tracking.GroundTracker;
+import io.github.term4.minestommechanics.tracking.SprintTracker;
+import io.github.term4.minestommechanics.tracking.VelocityRule;
 import net.minestom.server.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,11 +18,7 @@ public final class KnockbackConfigResolver {
             return new KnockbackContext(snap, services);
         }
         public boolean victimOnGround() {
-            var t = snap.target();
-            if (t == null) return false;
-            if (t.isOnGround()) return true;
-            var g = services.groundTracker();
-            return g != null && GroundTracker.predictsLandingSoon(t);
+            return GroundTracker.isGrounded(snap.target(), services.groundTracker() != null);
         }
         public boolean sprint() {
             var a = snap.source();
@@ -38,7 +35,7 @@ public final class KnockbackConfigResolver {
         }
         Integer kbVal = resolve(cfg.kbInvulTicks, ctx);
         if (kbVal == null && ctx.services().damage() != null) {
-            kbVal = ctx.services().damage().config().invulTicks;
+            kbVal = ctx.services().damage().defaultInvulTicks();
         }
         if (kbVal == null) {
             kbVal = Constants.DEFAULT_INVUL_TICKS;
@@ -92,9 +89,7 @@ public final class KnockbackConfigResolver {
                 resolve(cfg.velocityModeH, ctx),
                 resolve(cfg.velocityModeV, ctx),
                 resolve(cfg.velocityModeExtraH, ctx),
-                resolve(cfg.velocityModeExtraV, ctx),
-                resolve(cfg.gravityPredictPerTick, ctx),
-                resolve(cfg.gravityPredictScale, ctx)
+                resolve(cfg.velocityModeExtraV, ctx)
         );
     }
 
@@ -148,12 +143,10 @@ public final class KnockbackConfigResolver {
             @Nullable Double sweepFactorExtraH,
             @Nullable Double sweepFactorExtraV,
             @Nullable KnockbackConfig.KnockbackFormula knockbackFormula,
-            @Nullable KnockbackConfig.VelocityMethod velocityMethod,
-            @Nullable KnockbackConfig.VelocityMethod velocityModeH,
-            @Nullable KnockbackConfig.VelocityMethod velocityModeV,
-            @Nullable KnockbackConfig.VelocityMethod velocityModeExtraH,
-            @Nullable KnockbackConfig.VelocityMethod velocityModeExtraV,
-            @Nullable Double gravityPredictPerTick,
-            @Nullable Double gravityPredictScale
+            @Nullable VelocityRule velocityMethod,
+            @Nullable VelocityRule velocityModeH,
+            @Nullable VelocityRule velocityModeV,
+            @Nullable VelocityRule velocityModeExtraH,
+            @Nullable VelocityRule velocityModeExtraV
     ) {}
 }

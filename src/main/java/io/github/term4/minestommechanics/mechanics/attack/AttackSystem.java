@@ -3,8 +3,10 @@ package io.github.term4.minestommechanics.mechanics.attack;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.Cause;
+import io.github.term4.minestommechanics.mechanics.attack.AttackConfig.HitQueueInvulSource;
 import io.github.term4.minestommechanics.mechanics.attack.hitdetection.PacketHit;
-import io.github.term4.minestommechanics.mechanics.attack.rulesets.AttackProcessor;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.util.TickClock;
 import io.github.term4.minestommechanics.util.TickState;
 import net.minestom.server.MinecraftServer;
@@ -17,9 +19,7 @@ import net.minestom.server.tag.Tag;
 import net.minestom.server.timer.TaskSchedule;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayDeque;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class AttackSystem {
@@ -31,8 +31,8 @@ public final class AttackSystem {
     private final EventNode<@NotNull Event> apiEvents;
     private final EventNode<@NotNull Event> node;
 
-    /** Queue of attacks keyed by target. Processed when target's attack invul expires. */
-    private final Map<LivingEntity, Queue<AttackSnapshot>> hitQueue = new ConcurrentHashMap<>();
+    /** At most one pending buffered hit per target, applied as a fresh hit when its window opens. */
+    private final Map<LivingEntity, AttackEvent> pendingHit = new ConcurrentHashMap<>();
 
     public AttackSystem(MinestomMechanics mm, AttackConfig config) {
         this.mm = mm;
@@ -49,7 +49,7 @@ public final class AttackSystem {
         }
 
         node.addListener(EntityDespawnEvent.class, e -> {
-            if (e.getEntity() instanceof LivingEntity le) hitQueue.remove(le);
+            if (e.getEntity() instanceof LivingEntity le) pendingHit.remove(le);
         });
 
         MinecraftServer.getSchedulerManager()
@@ -64,27 +64,65 @@ public final class AttackSystem {
 
         if (api.cancelled() || !api.process()) return;
 
-        Entity target = snap.target();
-        if (api.invulnerable() && !api.bypassInvul()) {
-            if (target instanceof LivingEntity le) {
-                var resolved = api.resolvedConfig();
-                int buffer = resolved.hitQueueBuffer();
-                if (buffer > 0 && remainingAttackInvulTicks(le) <= buffer) {
-                    hitQueue.computeIfAbsent(le, k -> new ArrayDeque<>()).add(snap);
-                    return;
-                }
+        // Buffer a hit that lands within `buffer` ticks of the chosen invul window's end, applying it
+        // as a fresh hit when the window opens. Otherwise forward to processing: the damage system
+        // (overdamage) and knockback system each self-gate on their own invul windows.
+        if (snap.target() instanceof LivingEntity le) {
+            var resolved = api.resolvedConfig();
+            int buffer = resolved.hitQueueBuffer();
+            HitQueueInvulSource src = resolved.hitQueueInvulSource();
+            int atkInvul = resolved.atkInvulnTicks();
+            if (!api.bypassInvul() && buffer > 0
+                    && queueInvulnerable(le, src, atkInvul) && queueRemaining(le, src, atkInvul) <= buffer) {
+                pendingHit.put(le, api); // buffer the fired event (last-wins); collapses high-ping bursts
+                return;
             }
-            return;
+            // Processing immediately: drain an already-ready queued hit first so the older hit lands
+            // before this one, regardless of packet-vs-tickQueue ordering within the tick.
+            flushPending(le, services);
         }
 
-        processAttack(snap, services, api);
+        processAttack(api.finalSnap(), services, api);
+    }
+
+    /**
+     * Applies a pending hit for {@code le} if its buffered window has expired, claiming the slot
+     * atomically so a concurrent {@link #tickQueue()} cannot process the same event twice.
+     */
+    private void flushPending(LivingEntity le, io.github.term4.minestommechanics.Services services) {
+        AttackEvent pending = pendingHit.get(le);
+        if (pending == null) return;
+        var resolved = pending.resolvedConfig();
+        if (queueInvulnerable(le, resolved.hitQueueInvulSource(), resolved.atkInvulnTicks())) return; // window still open
+        if (!pendingHit.remove(le, pending)) return; // claimed elsewhere
+        processAttack(pending.finalSnap(), services, pending);
+    }
+
+    /** Whether the target is in the invul window the hit-queue buffers against, per the configured source. */
+    private static boolean queueInvulnerable(LivingEntity le, HitQueueInvulSource src, int atkInvul) {
+        return switch (src) {
+            case ATTACK    -> isInvulnerableToAttack(le);
+            case DAMAGE    -> DamageSystem.isInvulnerableToDamage(le);
+            case KNOCKBACK -> KnockbackSystem.isInvulnerableToKnockback(le);
+            case AUTO      -> atkInvul > 0 ? isInvulnerableToAttack(le) : DamageSystem.isInvulnerableToDamage(le);
+        };
+    }
+
+    /** Remaining ticks in the invul window the hit-queue buffers against, per the configured source. */
+    private static int queueRemaining(LivingEntity le, HitQueueInvulSource src, int atkInvul) {
+        return switch (src) {
+            case ATTACK    -> remainingAttackInvulTicks(le);
+            case DAMAGE    -> DamageSystem.remainingDamageInvulTicks(le);
+            case KNOCKBACK -> KnockbackSystem.remainingKnockbackInvulTicks(le);
+            case AUTO      -> atkInvul > 0 ? remainingAttackInvulTicks(le) : DamageSystem.remainingDamageInvulTicks(le);
+        };
     }
 
     private void processAttack(AttackSnapshot snap, io.github.term4.minestommechanics.Services services, AttackEvent api) {
-        AttackProcessor proc = api.processor() != null
+        AttackEvent.AttackRule proc = api.processor() != null
                 ? api.processor().create(services)
                 : api.resolvedConfig().ruleset().create(services);
-        proc.processAttack(api.finalSnap());
+        proc.processAttack(api);
         Entity target = api.finalSnap().target();
         if (target != null) {
             int duration = api.resolvedConfig().atkInvulnTicks();
@@ -94,24 +132,22 @@ public final class AttackSystem {
 
     private void tickQueue() {
         var services = mm.services();
-        for (Map.Entry<LivingEntity, Queue<AttackSnapshot>> entry : hitQueue.entrySet()) {
+        for (Map.Entry<LivingEntity, AttackEvent> entry : pendingHit.entrySet()) {
             LivingEntity target = entry.getKey();
             if (target.isRemoved()) {
-                hitQueue.remove(target);
+                pendingHit.remove(target);
                 continue;
             }
-            if (!isInvulnerableToAttack(target)) {
-                Queue<AttackSnapshot> q = entry.getValue();
-                AttackSnapshot snap = q.poll();
-                if (snap != null) {
-                    if (q.isEmpty()) hitQueue.remove(target);
-                    AttackEvent api = new AttackEvent(snap, services);
-                    apiEvents.call(api);
-                    if (!api.cancelled() && api.process() && !api.invulnerable()) {
-                        processAttack(api.finalSnap(), services, api);
-                    }
-                }
-            }
+
+            AttackEvent api = entry.getValue();
+            // Wait until the buffered window (per the configured source) has expired before applying.
+            var resolved = api.resolvedConfig();
+            if (queueInvulnerable(target, resolved.hitQueueInvulSource(), resolved.atkInvulnTicks())) continue;
+
+            // Window open: claim the slot atomically so a concurrent put isn't lost without being processed.
+            // The event was already fired at detection; apply it directly without re-dispatching.
+            if (!pendingHit.remove(target, api)) continue;
+            processAttack(api.finalSnap(), services, api);
         }
     }
 

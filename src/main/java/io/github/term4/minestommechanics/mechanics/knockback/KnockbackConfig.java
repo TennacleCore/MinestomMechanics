@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.knockback;
 
+import io.github.term4.minestommechanics.tracking.VelocityRule;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Function;
@@ -10,17 +11,6 @@ public final class KnockbackConfig {
     public enum DegenerateFallback { LOOK, RANDOM }
     public enum DirectionMode { SCALAR, VECTOR_ADDITION }
     public enum KnockbackFormula { CLASSIC, MODERN }
-    /** Velocity source for friction term. LEGACY=entity+sj, DELTA=position delta, INPUT=input-only, GRAVITY_PREDICTED=vy from ticks-in-air. */
-    public enum VelocityMethod {
-        /** Entity velocity + sprint-jump injection. */
-        LEGACY,
-        /** Position delta (includes knockback). */
-        DELTA,
-        /** Input-only: 0 or sprint-jump horizontal/vertical (excludes knockback). */
-        INPUT,
-        /** Gravity-predicted: vy from ticks-in-air, horizontal=0. Excludes knockback. */
-        GRAVITY_PREDICTED
-    }
 
     /** Lower and upper bound for knockback components. Null means no bound. */
     public record Bounds(@Nullable Double lower, @Nullable Double upper) {
@@ -93,13 +83,11 @@ public final class KnockbackConfig {
     public final FieldValue<Double> sweepFactorExtraH;
     public final FieldValue<Double> sweepFactorExtraV;
     public final FieldValue<KnockbackFormula> knockbackFormula;
-    public final FieldValue<VelocityMethod> velocityMethod;
-    public final FieldValue<VelocityMethod> velocityModeH;
-    public final FieldValue<VelocityMethod> velocityModeV;
-    public final FieldValue<VelocityMethod> velocityModeExtraH;
-    public final FieldValue<VelocityMethod> velocityModeExtraV;
-    public final FieldValue<Double> gravityPredictPerTick;
-    public final FieldValue<Double> gravityPredictScale;
+    public final FieldValue<VelocityRule> velocityMethod;
+    public final FieldValue<VelocityRule> velocityModeH;
+    public final FieldValue<VelocityRule> velocityModeV;
+    public final FieldValue<VelocityRule> velocityModeExtraH;
+    public final FieldValue<VelocityRule> velocityModeExtraV;
 
     private KnockbackConfig(Builder b) {
         subConfig = b.subConfig;
@@ -152,8 +140,6 @@ public final class KnockbackConfig {
         velocityModeV = b.velocityModeV;
         velocityModeExtraH = b.velocityModeExtraH;
         velocityModeExtraV = b.velocityModeExtraV;
-        gravityPredictPerTick = b.gravityPredictPerTick;
-        gravityPredictScale = b.gravityPredictScale;
     }
 
     /** Merges this config over base. */
@@ -209,8 +195,6 @@ public final class KnockbackConfig {
                 .velocityModeV(merge(velocityModeV, base.velocityModeV))
                 .velocityModeExtraH(merge(velocityModeExtraH, base.velocityModeExtraH))
                 .velocityModeExtraV(merge(velocityModeExtraV, base.velocityModeExtraV))
-                .gravityPredictPerTick(merge(gravityPredictPerTick, base.gravityPredictPerTick))
-                .gravityPredictScale(merge(gravityPredictScale, base.gravityPredictScale))
                 .build();
     }
 
@@ -282,13 +266,11 @@ public final class KnockbackConfig {
         private FieldValue<Double> sweepFactorExtraH;
         private FieldValue<Double> sweepFactorExtraV;
         private FieldValue<KnockbackFormula> knockbackFormula;
-        private FieldValue<VelocityMethod> velocityMethod;
-        private FieldValue<VelocityMethod> velocityModeH;
-        private FieldValue<VelocityMethod> velocityModeV;
-        private FieldValue<VelocityMethod> velocityModeExtraH;
-        private FieldValue<VelocityMethod> velocityModeExtraV;
-        private FieldValue<Double> gravityPredictPerTick;
-        private FieldValue<Double> gravityPredictScale;
+        private FieldValue<VelocityRule> velocityMethod;
+        private FieldValue<VelocityRule> velocityModeH;
+        private FieldValue<VelocityRule> velocityModeV;
+        private FieldValue<VelocityRule> velocityModeExtraH;
+        private FieldValue<VelocityRule> velocityModeExtraV;
 
         Builder() {}
 
@@ -343,8 +325,6 @@ public final class KnockbackConfig {
             velocityModeV = c.velocityModeV;
             velocityModeExtraH = c.velocityModeExtraH;
             velocityModeExtraV = c.velocityModeExtraV;
-            gravityPredictPerTick = c.gravityPredictPerTick;
-            gravityPredictScale = c.gravityPredictScale;
         }
 
         public Builder subConfig(Function<KnockbackConfigResolver.KnockbackContext, KnockbackConfig> fn) { subConfig = fn; return this; }
@@ -488,27 +468,21 @@ public final class KnockbackConfig {
         public Builder knockbackFormula(KnockbackFormula v) { knockbackFormula = FieldValue.constant(v); return this; }
         public Builder knockbackFormula(Function<KnockbackConfigResolver.KnockbackContext, KnockbackFormula> fn) { knockbackFormula = FieldValue.of(fn); return this; }
         public Builder knockbackFormula(KnockbackFormula fallback, Function<KnockbackConfigResolver.KnockbackContext, KnockbackFormula> fn) { knockbackFormula = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityMethod(VelocityMethod v) { velocityMethod = FieldValue.constant(v); return this; }
-        public Builder velocityMethod(Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityMethod = FieldValue.of(fn); return this; }
-        public Builder velocityMethod(VelocityMethod fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityMethod = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityModeH(VelocityMethod v) { velocityModeH = FieldValue.constant(v); return this; }
-        public Builder velocityModeH(Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityModeH = FieldValue.of(fn); return this; }
-        public Builder velocityModeH(VelocityMethod fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityModeH = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityModeV(VelocityMethod v) { velocityModeV = FieldValue.constant(v); return this; }
-        public Builder velocityModeV(Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityModeV = FieldValue.of(fn); return this; }
-        public Builder velocityModeV(VelocityMethod fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityModeV = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityModeExtraH(VelocityMethod v) { velocityModeExtraH = FieldValue.constant(v); return this; }
-        public Builder velocityModeExtraH(Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityModeExtraH = FieldValue.of(fn); return this; }
-        public Builder velocityModeExtraH(VelocityMethod fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityModeExtraH = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityModeExtraV(VelocityMethod v) { velocityModeExtraV = FieldValue.constant(v); return this; }
-        public Builder velocityModeExtraV(Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityModeExtraV = FieldValue.of(fn); return this; }
-        public Builder velocityModeExtraV(VelocityMethod fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityMethod> fn) { velocityModeExtraV = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder gravityPredictPerTick(Double v) { gravityPredictPerTick = FieldValue.constant(v); return this; }
-        public Builder gravityPredictPerTick(Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { gravityPredictPerTick = FieldValue.of(fn); return this; }
-        public Builder gravityPredictPerTick(Double fallback, Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { gravityPredictPerTick = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder gravityPredictScale(Double v) { gravityPredictScale = FieldValue.constant(v); return this; }
-        public Builder gravityPredictScale(Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { gravityPredictScale = FieldValue.of(fn); return this; }
-        public Builder gravityPredictScale(Double fallback, Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { gravityPredictScale = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder velocityMethod(VelocityRule v) { velocityMethod = FieldValue.constant(v); return this; }
+        public Builder velocityMethod(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityMethod = FieldValue.of(fn); return this; }
+        public Builder velocityMethod(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityMethod = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder velocityModeH(VelocityRule v) { velocityModeH = FieldValue.constant(v); return this; }
+        public Builder velocityModeH(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeH = FieldValue.of(fn); return this; }
+        public Builder velocityModeH(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeH = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder velocityModeV(VelocityRule v) { velocityModeV = FieldValue.constant(v); return this; }
+        public Builder velocityModeV(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeV = FieldValue.of(fn); return this; }
+        public Builder velocityModeV(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeV = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder velocityModeExtraH(VelocityRule v) { velocityModeExtraH = FieldValue.constant(v); return this; }
+        public Builder velocityModeExtraH(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraH = FieldValue.of(fn); return this; }
+        public Builder velocityModeExtraH(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraH = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder velocityModeExtraV(VelocityRule v) { velocityModeExtraV = FieldValue.constant(v); return this; }
+        public Builder velocityModeExtraV(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraV = FieldValue.of(fn); return this; }
+        public Builder velocityModeExtraV(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraV = FieldValue.ofWithFallback(fallback, fn); return this; }
 
         Builder kbInvulnTicks(FieldValue<Integer> v) { kbInvulnTicks = v; return this; }
         Builder sprintBuffer(FieldValue<Integer> v) { sprintBuffer = v; return this; }
@@ -554,13 +528,11 @@ public final class KnockbackConfig {
         Builder sweepFactorExtraH(FieldValue<Double> v) { sweepFactorExtraH = v; return this; }
         Builder sweepFactorExtraV(FieldValue<Double> v) { sweepFactorExtraV = v; return this; }
         Builder knockbackFormula(FieldValue<KnockbackFormula> v) { knockbackFormula = v; return this; }
-        Builder velocityMethod(FieldValue<VelocityMethod> v) { velocityMethod = v; return this; }
-        Builder velocityModeH(FieldValue<VelocityMethod> v) { velocityModeH = v; return this; }
-        Builder velocityModeV(FieldValue<VelocityMethod> v) { velocityModeV = v; return this; }
-        Builder velocityModeExtraH(FieldValue<VelocityMethod> v) { velocityModeExtraH = v; return this; }
-        Builder velocityModeExtraV(FieldValue<VelocityMethod> v) { velocityModeExtraV = v; return this; }
-        Builder gravityPredictPerTick(FieldValue<Double> v) { gravityPredictPerTick = v; return this; }
-        Builder gravityPredictScale(FieldValue<Double> v) { gravityPredictScale = v; return this; }
+        Builder velocityMethod(FieldValue<VelocityRule> v) { velocityMethod = v; return this; }
+        Builder velocityModeH(FieldValue<VelocityRule> v) { velocityModeH = v; return this; }
+        Builder velocityModeV(FieldValue<VelocityRule> v) { velocityModeV = v; return this; }
+        Builder velocityModeExtraH(FieldValue<VelocityRule> v) { velocityModeExtraH = v; return this; }
+        Builder velocityModeExtraV(FieldValue<VelocityRule> v) { velocityModeExtraV = v; return this; }
 
         public KnockbackConfig build() {
             return new KnockbackConfig(this);

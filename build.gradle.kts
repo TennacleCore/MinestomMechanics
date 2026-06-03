@@ -18,8 +18,6 @@ mavenPublishing {
         description = project.description
         url = "https://github.com/Term4/MinestomMechanics"
 
-        // I think maven central requires a license and email for publishing, but I just commented them out
-
         licenses {
             license {
                 name = "MIT License"
