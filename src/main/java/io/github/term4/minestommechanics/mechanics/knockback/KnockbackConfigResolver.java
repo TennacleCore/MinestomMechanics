@@ -18,7 +18,7 @@ public final class KnockbackConfigResolver {
             return new KnockbackContext(snap, services);
         }
         public boolean victimOnGround() {
-            return GroundTracker.isGrounded(snap.target(), services.groundTracker() != null);
+            return GroundTracker.isGrounded(snap.target());
         }
         public boolean sprint() {
             var a = snap.source();

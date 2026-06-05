@@ -8,7 +8,6 @@ import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.platform.client.ClientInfoService;
 import io.github.term4.minestommechanics.platform.client.VersionDetector;
 import io.github.term4.minestommechanics.tracking.GroundTracker;
-import io.github.term4.minestommechanics.tracking.MovementTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.util.TickClock;
 import net.minestom.server.MinecraftServer;
@@ -74,7 +73,6 @@ public final class MinestomMechanics {
 
         // Enable always-necessary functions
         TickClock.start();
-        MovementTracker.install(root);
 
         if (metaFix) {
             EchoFix.install();
@@ -90,6 +88,7 @@ public final class MinestomMechanics {
         if (installGroundTracker) {
             var tracker = new GroundTracker();
             tracker.start();
+            root.addChild(tracker.node());
             registerGroundTracker(tracker);
         }
 

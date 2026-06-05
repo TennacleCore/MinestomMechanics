@@ -82,7 +82,7 @@ public final class Vanilla18 {
                 .sweepFactorExtraH(0.0)
                 .sweepFactorExtraV(0.0)
                 .knockbackFormula(KnockbackConfig.KnockbackFormula.CLASSIC)
-                .velocityMethod(VelocityRule.legacy())
+                .velocityMethod(VelocityRule.vanilla())
                 .build();
     }
 

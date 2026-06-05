@@ -50,10 +50,10 @@ public class ExampleServer {
         mm.init();
 
         // 1. Initialize knockback system
-        KnockbackSystem.install(mm, Hypixel.kb());
+        KnockbackSystem.install(mm, Vanilla18.kb());
 
         // 2. Initialize damage system
-        DamageSystem.install(mm, Hypixel.dmg());
+        DamageSystem.install(mm, Vanilla18.dmg());
 
         // 3. Initialize combat system
         AttackSystem.install(mm, Vanilla18.atk());

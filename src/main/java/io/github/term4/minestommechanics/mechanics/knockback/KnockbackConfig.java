@@ -483,7 +483,6 @@ public final class KnockbackConfig {
         public Builder velocityModeExtraV(VelocityRule v) { velocityModeExtraV = FieldValue.constant(v); return this; }
         public Builder velocityModeExtraV(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraV = FieldValue.of(fn); return this; }
         public Builder velocityModeExtraV(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraV = FieldValue.ofWithFallback(fallback, fn); return this; }
-
         Builder kbInvulnTicks(FieldValue<Integer> v) { kbInvulnTicks = v; return this; }
         Builder sprintBuffer(FieldValue<Integer> v) { sprintBuffer = v; return this; }
         Builder horizontal(FieldValue<Double> v) { horizontal = v; return this; }

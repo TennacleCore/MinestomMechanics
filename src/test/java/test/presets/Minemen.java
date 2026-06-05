@@ -31,6 +31,7 @@ public final class Minemen {
                 .build();
     }
 
+    // TODO: Double check this with our new velocity stuff
     public static KnockbackConfig kb() {
         int buffer = 8;
         return KnockbackConfig.builder(Vanilla18.kb())

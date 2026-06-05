@@ -21,14 +21,12 @@ public final class Hypixel {
         //  int buffer = 1; I think this is unnecessary but leaving here just in case
 
         return KnockbackConfig.builder(Vanilla18.kb())
-                .velocityModeH(VelocityRule.input())
-                .velocityModeV(VelocityRule.gravityPredicted(0.08, 0.98))
-                .velocityModeExtraH(VelocityRule.input())
-                .velocityModeExtraV(VelocityRule.gravityPredicted(0.08, 0.98))
+                .velocityModeH(VelocityRule.hypixel())
+                .velocityModeV(VelocityRule.hypixel())
+                .velocityModeExtraH(VelocityRule.hypixel())
+                .velocityModeExtraV(VelocityRule.hypixel())
                 //  .sprintBuffer(buffer)
                 .extraVertical(0.07)
-                .frictionH(1.0)
-                .frictionExtraH(1.0)
                 .build();
     }
 }

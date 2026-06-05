@@ -75,15 +75,9 @@ public final class AttackEvent implements Event {
         return SprintTracker.wasRecentlySprinting(services.sprintTracker(), p, buffer);
     }
 
-    /** Attacker is off the ground and descending (a melee crit precondition), using the ground tracker when available. */
-    public boolean attackerFalling() { return attackerFalling(true); }
-
-    /**
-     * Attacker is off the ground and descending. When {@code useTracker} is true the custom ground tracker
-     * is consulted (more accurate for players); when false only Minestom's onGround flag is used.
-     */
-    public boolean attackerFalling(boolean useTracker) {
-        return GroundTracker.isFalling(attacker(), useTracker && services.groundTracker() != null);
+    /** Attacker is off the ground and descending (a melee crit precondition). */
+    public boolean attackerFalling() {
+        return GroundTracker.isFalling(attacker());
     }
 
     /** Whether the attacker is a flying player (creative/spectator flight or granted flight). */
