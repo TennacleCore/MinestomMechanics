@@ -2,11 +2,13 @@ package io.github.term4.minestommechanics.mechanics.knockback;
 
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.platform.Constants;
-import io.github.term4.minestommechanics.tracking.GroundTracker;
+import io.github.term4.minestommechanics.tracking.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.VelocityRule;
 import net.minestom.server.entity.Player;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 /** Resolves KnockbackConfig with context into plain values. */
 public final class KnockbackConfigResolver {
@@ -18,7 +20,7 @@ public final class KnockbackConfigResolver {
             return new KnockbackContext(snap, services);
         }
         public boolean victimOnGround() {
-            return GroundTracker.isGrounded(snap.target());
+            return MotionTracker.isGrounded(snap.target());
         }
         public boolean sprint() {
             var a = snap.source();
@@ -62,12 +64,8 @@ public final class KnockbackConfigResolver {
                 resolve(cfg.degenerateFallback, ctx),
                 resolve(cfg.frictionH, ctx),
                 resolve(cfg.frictionV, ctx),
-                resolve(cfg.frictionExtraH, ctx),
-                resolve(cfg.frictionExtraV, ctx),
-                resolve(cfg.useAbsFrictionH, ctx),
-                resolve(cfg.useAbsFrictionV, ctx),
-                resolve(cfg.useAbsFrictionEH, ctx),
-                resolve(cfg.useAbsFrictionEV, ctx),
+                resolve(cfg.frictionModeH, ctx),
+                resolve(cfg.frictionModeV, ctx),
                 resolve(cfg.rangeStartH, ctx),
                 resolve(cfg.rangeFactorH, ctx),
                 resolve(cfg.rangeStartV, ctx),
@@ -85,11 +83,9 @@ public final class KnockbackConfigResolver {
                 resolve(cfg.sweepFactorExtraH, ctx),
                 resolve(cfg.sweepFactorExtraV, ctx),
                 resolve(cfg.knockbackFormula, ctx),
-                resolve(cfg.velocityMethod, ctx),
-                resolve(cfg.velocityModeH, ctx),
-                resolve(cfg.velocityModeV, ctx),
-                resolve(cfg.velocityModeExtraH, ctx),
-                resolve(cfg.velocityModeExtraV, ctx)
+                resolve(cfg.velocity, ctx),
+                resolve(cfg.verticalLaunchHold, ctx),
+                cfg.customComponents
         );
     }
 
@@ -120,12 +116,8 @@ public final class KnockbackConfigResolver {
             @Nullable KnockbackConfig.DegenerateFallback degenerateFallback,
             @Nullable Double frictionH,
             @Nullable Double frictionV,
-            @Nullable Double frictionExtraH,
-            @Nullable Double frictionExtraV,
-            @Nullable Boolean useAbsFrictionH,
-            @Nullable Boolean useAbsFrictionV,
-            @Nullable Boolean useAbsFrictionEH,
-            @Nullable Boolean useAbsFrictionEV,
+            @Nullable KnockbackConfig.FrictionMode frictionModeH,
+            @Nullable KnockbackConfig.FrictionMode frictionModeV,
             @Nullable Double rangeStartH,
             @Nullable Double rangeFactorH,
             @Nullable Double rangeStartV,
@@ -143,10 +135,8 @@ public final class KnockbackConfigResolver {
             @Nullable Double sweepFactorExtraH,
             @Nullable Double sweepFactorExtraV,
             @Nullable KnockbackConfig.KnockbackFormula knockbackFormula,
-            @Nullable VelocityRule velocityMethod,
-            @Nullable VelocityRule velocityModeH,
-            @Nullable VelocityRule velocityModeV,
-            @Nullable VelocityRule velocityModeExtraH,
-            @Nullable VelocityRule velocityModeExtraV
+            @Nullable VelocityRule velocity,
+            @Nullable Double verticalLaunchHold,
+            @Nullable List<KnockbackComponent> customComponents
     ) {}
 }

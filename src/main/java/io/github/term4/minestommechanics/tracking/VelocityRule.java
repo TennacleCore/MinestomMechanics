@@ -1,171 +1,208 @@
 package io.github.term4.minestommechanics.tracking;
 
+import net.minestom.server.collision.PhysicsUtils;
 import net.minestom.server.coordinate.Vec;
+import net.minestom.server.entity.Entity;
 
 /**
- * Strategy for estimating an entity's velocity (blocks/tick) used by the knockback friction term.
- * Mirrors the rule pattern of {@code AttackEvent.CriticalRule} / {@code DamageEvent.OverdamageRule}:
- * a single-method interface with a {@link #DEFAULT} and static factories for the built-in strategies.
+ * Strategy for estimating an entity's velocity (b/t) for the knockback friction term. A single-method interface
+ * with a {@link #DEFAULT} and static factories, mirroring {@code AttackEvent.CriticalRule}.
  *
- * <p>{@link #estimate(VelocityContext)} receives a rich {@link VelocityContext}, so a rule supplied
- * from outside the library composes the same public primitives the built-ins use - an open rule, not
- * a fixed menu. Wire one in via {@code KnockbackConfig.velocityMethod(...)} (or the per-axis
- * {@code velocityMode*} setters).
- *
- * <p>Built-ins:
+ * <p>Two base rules, mixable per axis with {@link #split}:
  * <ul>
- *   <li>{@link #delta()} - trust the client's reported motion (raw position-delta blocks/tick).</li>
- *   <li>{@link #vanilla()} - 1:1 vanilla reconstruction: the gravity-predicted vertical (iterated with
- *       vanilla's near-zero apex reseed) plus the decayed sprint-jump horizontal impulse.</li>
- *   <li>{@link #vanillaClosed()} - {@link #vanilla()} with the closed-form vertical arc (skips the apex
- *       reseed, ~0.0015 b/t high in {@code kb.y} on a descending hit); a cheaper approximation.</li>
- *   <li>{@link #hypixel()} - the closed-form gravity arc one tick further along (offset {@code -1}), which
- *       is what lines up 1:1 with Hypixel's whole-tick velocity sheet.</li>
+ *   <li>{@link #simulated(ArcSpec)} - reconstruct the launch arc: seed the jump ({@link Physics#jumpVelocity()})
+ *       and the sprint-jump impulse (folded into {@code seedH} by {@link MotionTracker}), then advance per tick
+ *       with Minestom's {@link PhysicsUtils#updateVelocity}. Per-axis {@link ArcStyle}.</li>
+ *   <li>{@link #delta()} - trust the client's reported motion (position delta, which includes knockback).</li>
  * </ul>
  */
 @FunctionalInterface
 public interface VelocityRule {
 
-    /** Estimated velocity (blocks/tick) for the knockback friction term. */
+    /** How the {@link #simulated(ArcSpec) simulated} arc evaluates an axis. */
+    enum ArcStyle {
+        /**
+         * Step per tick via {@link PhysicsUtils#updateVelocity}, zeroing {@code motY} below {@link Physics#clampY()}
+         * before each step so the apex reseeds from 0 - vanilla-faithful 1.8.
+         */
+        PER_TICK,
+        /** Analytic {@code v0*s^t - g*s*(1 - s^t)/(1 - s)} (no per-tick loop); smooths through the apex - cheaper. */
+        CLOSED
+    }
+
+    /** Estimated velocity (b/t) for the knockback friction term. */
     Vec estimate(VelocityContext ctx);
 
-    /** Rule used when a config does not specify one. */
-    VelocityRule DEFAULT = vanilla();
+    /**
+     * Air-tick correction: vanilla's server-side {@code this.motY} arc lags the victim's true (client) air-time by
+     * ~2 ticks, so a hit clocked at {@code ticksInAir = T} folds what vanilla folds at {@code T - 2}. Calibrated 1:1
+     * against a local vanilla 1.8 server; also the basis the launched horizontal residual decays on.
+     */
+    int VANILLA_LAUNCH_OFFSET = -2;
 
-    /** Position delta (trusts the client's reported motion, includes knockback). */
+    /**
+     * Hypixel's offset, one tick further along than vanilla. Their vertical KB is a pure air-tick gravity prediction
+     * (fixed {@code jumpVelocity} seed, never re-seeded by the hit just dealt), whose whole-tick velocity sheet lines
+     * up with the victim's true air-time at {@code -1} - calibrated 1:1 against the sheet: a chained hit at air-tick
+     * 19 reads the sheet's tick-19 value ({@code -0.020750}), not a re-seeded pop. (The {@code -2} that briefly looked
+     * right was the old per-hit motY re-seed inflating the late-combo fold; with the re-seed gone, {@code -1} matches
+     * the sheet at both the early {@code t:9} and the late {@code t:19} anchors.)
+     */
+    int HYPIXEL_LAUNCH_OFFSET = -1;
+
+    /** Rule used when a config does not specify one (the default {@link #simulated()} arc). */
+    VelocityRule DEFAULT = simulated();
+
+    /** Position delta - trusts the client's reported motion. Unclamped. */
     static VelocityRule delta() { return VelocityContext::positionDelta; }
 
     /**
-     * 1:1 vanilla reconstruction. The vertical is the launched-aware gravity arc on whole air ticks: vanilla
-     * advances the victim's server-side {@code motY} once per tick, so a hit folds exactly {@code vy(t)} for an
-     * integer air-tick {@code t}. The horizontal is the player's own sprint-jump impulse, bled by air friction
-     * (x{@code 0.91}/tick, as vanilla's {@code g(0,0)} does).
+     * Position delta averaged over {@code sampleRate} ticks. TODO: scaffolded - honouring {@code sampleRate > 1}
+     * needs an N-tick position history in {@link MotionTracker}; until then this is the 1-tick {@link #delta()}.
      */
-    static VelocityRule vanilla() {
-        return clampNearZero(gravityRule(VelocityContext.VANILLA_LAUNCH_OFFSET, true), VelocityContext.NEAR_ZERO_CLAMP);
-    }
+    static VelocityRule delta(int sampleRate) { return VelocityContext::positionDelta; }
 
-    /**
-     * {@link #vanilla()} with the closed-form arc ({@code v0*0.98^t - 3.92*(1-0.98^t)}) instead of the
-     * clamp-iterated one. It skips vanilla's apex reseed, so it runs ~0.003 b/t shallow per descending tick
-     * (air-tick 7: {@code -0.15234} vs vanilla's {@code -0.15523}). Same {@code -2} offset; a cheaper
-     * closed-form approximation.
-     */
-    static VelocityRule vanillaClosed() {
-        return clampNearZero(gravityRule(VelocityContext.VANILLA_LAUNCH_OFFSET, false), VelocityContext.NEAR_ZERO_CLAMP);
-    }
+    /** Reconstructed launch arc with vanilla-default knobs. */
+    static VelocityRule simulated() { return simulated(ArcSpec.defaults()); }
 
-    /**
-     * Hypixel's velocity tracking: the closed-form gravity arc one tick further along than vanilla (offset
-     * {@code -1} vs {@code -2}). The closed form - not vanilla's clamp-iterated arc with its apex reseed - is
-     * what matches Hypixel's whole-tick velocity sheet 1:1 on the vertical.
-     */
-    static VelocityRule hypixel() {
-        return clampNearZero(gravityRule(-1, false), VelocityContext.NEAR_ZERO_CLAMP);
-    }
+    /** Reconstructed launch arc with the given {@link ArcSpec}. */
+    static VelocityRule simulated(ArcSpec spec) { return ctx -> arc(ctx, spec); }
 
-    /**
-     * Wraps a rule so each component of its estimate is zeroed when {@code |component| < threshold}, mirroring
-     * vanilla {@code m()}'s near-zero velocity clamp ({@code motX/motY/motZ < 0.005 -> 0}). Configurable per
-     * rule by design: the gravity-arc rules ({@link #vanilla()}/{@link #hypixel()}) use the vanilla
-     * {@link VelocityContext#NEAR_ZERO_CLAMP} (0.005), while a {@link #delta()} rule (unclamped by default) can
-     * be wrapped with its own threshold, e.g. {@code clampNearZero(delta(), 0.0001)}. {@code threshold <= 0}
-     * returns the rule unchanged.
-     */
-    static VelocityRule clampNearZero(VelocityRule rule, double threshold) {
-        if (threshold <= 0) return rule;
+    /** Mixes two rules per axis: horizontal (x/z) from {@code horizontal}, vertical (y) from {@code vertical}. */
+    static VelocityRule split(VelocityRule horizontal, VelocityRule vertical) {
         return ctx -> {
-            Vec v = rule.estimate(ctx);
-            return new Vec(
-                    Math.abs(v.x()) < threshold ? 0.0 : v.x(),
-                    Math.abs(v.y()) < threshold ? 0.0 : v.y(),
-                    Math.abs(v.z()) < threshold ? 0.0 : v.z());
+            Vec h = horizontal.estimate(ctx);
+            return new Vec(h.x(), vertical.estimate(ctx).y(), h.z());
         };
     }
 
+    /** Wraps a rule, zeroing each component below its threshold (vanilla {@code m()} near-zero clamp). */
+    static VelocityRule clampNearZero(VelocityRule rule, double x, double y, double z) {
+        return ctx -> clamp(rule.estimate(ctx), x, y, z);
+    }
+
+    /** Fluent per-axis composition: pick a {@link #simulated()}/{@link #delta()} source per axis + a unified output clamp. */
+    static Builder builder() { return new Builder(); }
+
     /**
-     * Builds a gravity-arc rule. {@code launchOffset} is the per-rule whole-tick anchor for the launched arc
-     * (vanilla {@code -2}, Hypixel {@code -1}). {@code clampArc} picks the vertical arc: {@code true} iterates
-     * with the near-zero apex reseed ({@link #gravityVy}, vanilla-faithful), {@code false} uses the closed form
-     * ({@link #gravityVyClosed}).
+     * Reconstructs the launch arc: seeds the jump + sprint-jump (from {@code seedH}), advances by
+     * {@code ticksInAir + launchOffset} ticks (a walk-off seeds from rest at {@code ticksInAir + 1}), evaluates each
+     * axis by its {@link ArcStyle}, and applies the per-component clamp. The air clock free-runs through a combo (the
+     * vertical seed is the fixed jump velocity planted at launch, never re-seeded from the knockback just dealt), so a
+     * juggled victim's fold decays down the gravity curve and the combo ends naturally. Constants come from the spec's
+     * {@link ArcSpec#physics()} override, else the entity's own {@link VelocityContext#physics()}.
+     *
+     * <p>The air clock is gated on the spec's {@link ArcSpec#groundRule()} (a per-entity override still wins): a
+     * grounded victim resets to {@code ticksInAir = 0}, unlaunched, so it folds the resting {@code -g*s} step rather
+     * than a stale descent. This mirrors vanilla, which clocks its {@code this.motY} arc off the {@code move()}
+     * collision result, not the client {@code onGround} flag - so a laggy victim that has truly landed takes ground
+     * knockback, not air knockback, exactly as vanilla.
      */
-    private static VelocityRule gravityRule(int launchOffset, boolean clampArc) {
-        return ctx -> gravityArc(ctx, launchOffset, clampArc);
+    private static Vec arc(VelocityContext ctx, ArcSpec spec) {
+        Physics ph = spec.physics() != null ? spec.physics() : ctx.physics();
+        boolean grounded = ctx.grounded(spec.groundRule());
+        boolean launched = !grounded && ctx.launched();
+        int air = grounded ? 0 : ctx.ticksInAir();
+        int ticks = launched ? air + spec.launchOffset() : air + 1;
+        MotionTracker.JumpInfo j = ctx.recentJump();
+        Vec seedH = j != null ? j.seedH() : Vec.ZERO;
+        double seedY = spec.seed() != null ? spec.seed() : ph.jumpVelocity();
+        // TODO (jumpBoost scaffold): when spec.jumpBoost(), add (JUMP amplifier + 1) * 0.1 to seedY.
+        Vec seed = launched ? new Vec(seedH.x(), seedY, seedH.z()) : Vec.ZERO;
+
+        boolean usePerTick = spec.horizontalStyle() == ArcStyle.PER_TICK || spec.verticalStyle() == ArcStyle.PER_TICK;
+        boolean useClosed = spec.horizontalStyle() == ArcStyle.CLOSED || spec.verticalStyle() == ArcStyle.CLOSED;
+        Vec stepped = usePerTick ? simulate(ctx.entity(), ph, seed, ticks) : Vec.ZERO;
+        Vec analytic = useClosed ? closedArc(ph, seed, ticks, launched) : Vec.ZERO;
+
+        Vec h = spec.horizontalStyle() == ArcStyle.CLOSED ? analytic : stepped;
+        Vec v = spec.verticalStyle() == ArcStyle.CLOSED ? analytic : stepped;
+        return clamp(new Vec(h.x(), v.y(), h.z()), ph.clampX(), ph.clampY(), ph.clampZ());
     }
 
     /**
-     * The shared "air-tick gravity tracked value": the sprint-jump horizontal impulse (when launched and
-     * sprinting), decayed by air friction ({@code 0.91} per air tick, mirroring vanilla's {@code g(0,0)}
-     * {@code motX *= 0.91}), plus the gravity-predicted vertical for the current air-time.
+     * Advances {@code seed} by {@code ticks} airborne ticks via {@link PhysicsUtils#updateVelocity} (gravity + air
+     * resistance, {@code onGround=false}), zeroing {@code motY} below {@link Physics#clampY()} before each step. The
+     * block getter is unused while airborne, so a null instance is harmless.
      */
-    private static Vec gravityArc(VelocityContext ctx, int launchOffset, boolean clampArc) {
-        VelocityContext.JumpInfo j = ctx.recentJump();
-        double hx = 0, hz = 0;
-        if (j != null) {
-            // seedH is the player's actual this.motX/motZ at takeoff that the tracker maintained exactly like
-            // vanilla: each bF() folds a 0.2 boost onto the surviving residual (prior takeoff bled by air
-            // friction in flight and ground friction while grounded). So a jump from rest seeds ~0.2 and a
-            // continuous bunny-hop seeds ~0.248 - no fixed magic number. We then bleed it by motX *= 0.91 over
-            // the same air-tick count the vertical arc uses (launchOffset aligns our clock to vanilla's).
-            Vec h = j.seedH();
-            double decayTicks = Math.max(0.0, ctx.ticksInAir() + launchOffset);
-            double decay = Math.pow(VelocityContext.AIR_FRICTION_H, decayTicks);
-            hx = h.x() * decay;
-            hz = h.z() * decay;
+    private static Vec simulate(Entity entity, Physics ph, Vec seed, int ticks) {
+        if (ticks <= 0) return seed;
+        Vec vel = seed;
+        var aero = ph.toAerodynamics();
+        var pos = entity.getPosition();
+        var blocks = entity.getInstance();
+        double clampY = ph.clampY();
+        for (int t = 0; t < ticks; t++) {
+            if (Math.abs(vel.y()) < clampY) vel = vel.withY(0);
+            vel = PhysicsUtils.updateVelocity(pos, vel, blocks, aero, true, false, false, false);
         }
-        double vy = clampArc ? gravityVy(ctx, launchOffset) : gravityVyClosed(ctx, launchOffset);
+        return vel;
+    }
+
+    /**
+     * Analytic arc: horizontal {@code seedH * hAir^ticks}, vertical {@code v0*s^t - g*s*(1 - s^t)/(1 - s)}. No apex
+     * reseed (~0.003 b/t shallow per descending tick vs {@link #simulate}). {@code ticks <= 0} returns the
+     * launch-tick {@code -g*s}.
+     */
+    private static Vec closedArc(Physics ph, Vec seed, int ticks, boolean launched) {
+        double g = ph.gravity();
+        double s = ph.verticalAirResistance();
+        double hpow = Math.pow(ph.horizontalAirResistance(), Math.max(0, ticks));
+        double hx = seed.x() * hpow;
+        double hz = seed.z() * hpow;
+        double vy;
+        if (ticks <= 0) {
+            vy = -g * s;
+        } else {
+            double scalePow = Math.pow(s, ticks);
+            double v0 = launched ? seed.y() : 0.0;
+            vy = v0 * scalePow - g * s * (1 - scalePow) / (1 - s);
+            vy = Math.max(ph.terminalVy(), Math.min(ph.jumpVelocity(), vy));
+        }
         return new Vec(hx, vy, hz);
     }
 
-    /**
-     * Gravity-predicted vertical (b/t), iterated EXACTLY as vanilla 1.8 evolves {@code motY}: each tick
-     * {@code if (|motY| < 0.005) motY = 0} (the {@code m()} near-zero clamp), then {@code motY = (motY-0.08)*0.98}.
-     * Seeded with {@code v0 = 0.42} when launched, else a walk-off from rest.
-     *
-     * <p>The clamp is load-bearing: at the apex the carried {@code motY} drops below {@code 0.005} and is
-     * zeroed, so the descent reseeds from 0 (the closed form smooths through and runs ~0.003 b/t shallow per
-     * descending tick). {@code launchOffset} aligns our clock to the folded air-tick ({@code -2} vanilla,
-     * {@code -1} Hypixel; see {@link VelocityContext#VANILLA_LAUNCH_OFFSET}); walk-off uses {@code ticksInAir + 1}.
-     */
-    private static double gravityVy(VelocityContext ctx, int launchOffset) {
-        boolean launched = ctx.launched();
-        int ticks = launched ? ctx.ticksInAir() + launchOffset : ctx.ticksInAir() + 1;
-        return arcVy(ticks, launched);
+    private static Vec clamp(Vec v, double cx, double cy, double cz) {
+        return new Vec(
+                Math.abs(v.x()) < cx ? 0.0 : v.x(),
+                Math.abs(v.y()) < cy ? 0.0 : v.y(),
+                Math.abs(v.z()) < cz ? 0.0 : v.z());
     }
 
     /**
-     * The vanilla 1.8 vertical arc value (b/t) after {@code ticks} whole gravity ticks from the launch
-     * ({@code v0 = 0.42}) or walk-off (rest) seed, iterated with the {@code m()} near-zero clamp so the apex
-     * reseed is exact (see {@link #gravityVy}). {@code ticks <= 0} returns the seed.
+     * Per-axis composition of two source rules plus one unified output clamp. Both axes default to
+     * {@link #simulated()}; override either via {@link #horizontal}/{@link #vertical}, then optionally {@link #clamp}
+     * the final vector. {@link #build()} folds to {@link #split} (wrapped in {@link #clampNearZero} when a clamp is set).
      */
-    private static double arcVy(int ticks, boolean launched) {
-        if (ticks <= 0) return launched ? VelocityContext.JUMP_Y : 0.0;
-        double g = VelocityContext.GRAVITY_PER_TICK;
-        double s = VelocityContext.GRAVITY_SCALE;
-        double clamp = VelocityContext.NEAR_ZERO_CLAMP;
-        double motY = launched ? VelocityContext.JUMP_Y : 0.0;
-        for (int i = 0; i < ticks; i++) {
-            if (Math.abs(motY) < clamp) motY = 0.0; // vanilla m() near-zero clamp: zeroes the apex -> reseeds the fall
-            motY = (motY - g) * s;
-            if (motY < VelocityContext.TERMINAL_VY) motY = VelocityContext.TERMINAL_VY;
+    final class Builder {
+        private VelocityRule horizontal = DEFAULT;
+        private VelocityRule vertical = DEFAULT;
+        private double clampX, clampY, clampZ;
+        private boolean clamp;
+
+        Builder() {}
+
+        /** Source for the x/z axes (default {@link #simulated()}). */
+        public Builder horizontal(VelocityRule rule) { this.horizontal = rule; return this; }
+
+        /** Source for the y axis (default {@link #simulated()}). */
+        public Builder vertical(VelocityRule rule) { this.vertical = rule; return this; }
+
+        /** Uniform near-zero output clamp on every axis. */
+        public Builder clamp(double all) { return clamp(all, all, all); }
+
+        /** Per-axis near-zero output clamp on the composed vector. */
+        public Builder clamp(double x, double y, double z) {
+            this.clampX = x;
+            this.clampY = y;
+            this.clampZ = z;
+            this.clamp = true;
+            return this;
         }
-        return motY;
-    }
 
-    /**
-     * Closed-form vanilla arc {@code v0*0.98^t - 3.92*(1 - 0.98^t)} used by {@link #vanillaClosed()} and
-     * {@link #hypixel()}. No apex reseed (it smooths straight through {@code motY = 0}), so it runs ~0.003 b/t
-     * shallow per descending tick versus {@link #gravityVy}.
-     */
-    private static double gravityVyClosed(VelocityContext ctx, int launchOffset) {
-        double g = VelocityContext.GRAVITY_PER_TICK;
-        double s = VelocityContext.GRAVITY_SCALE;
-        boolean launched = ctx.launched();
-        int ticks = launched ? ctx.ticksInAir() + launchOffset : ctx.ticksInAir() + 1;
-        if (ticks <= 0) return -g * s; // matches the old closed-form rule's launch-tick value (Hypixel 1:1)
-        double scalePow = Math.pow(s, ticks);
-        double v0 = launched ? VelocityContext.JUMP_Y : 0.0;
-        double vy = v0 * scalePow - g * s * (1 - scalePow) / (1 - s);
-        return Math.max(VelocityContext.TERMINAL_VY, Math.min(VelocityContext.JUMP_Y, vy));
+        public VelocityRule build() {
+            VelocityRule rule = split(horizontal, vertical);
+            return clamp ? clampNearZero(rule, clampX, clampY, clampZ) : rule;
+        }
     }
 }

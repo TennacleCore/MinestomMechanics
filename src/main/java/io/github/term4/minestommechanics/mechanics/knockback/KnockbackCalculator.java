@@ -2,13 +2,19 @@ package io.github.term4.minestommechanics.mechanics.knockback;
 
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.Cause;
+import io.github.term4.minestommechanics.tracking.GroundSpec;
+import io.github.term4.minestommechanics.tracking.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.VelocityContext;
 import io.github.term4.minestommechanics.tracking.VelocityRule;
+import io.github.term4.minestommechanics.util.TickClock;
 import net.minestom.server.ServerFlag;
+import net.minestom.server.collision.CollisionUtils;
+import net.minestom.server.collision.PhysicsResult;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -21,6 +27,13 @@ public final class KnockbackCalculator {
 
     private static final double MIN_DIST = 1e-6; // distance at which position delta direction is degenerate
     private final double tps = ServerFlag.SERVER_TICKS_PER_SECOND;
+
+    /**
+     * Debug: when {@code true}, each {@link #compute} hit prints the victim's ground decision (resolved
+     * {@code GroundRule} vs the raw client flag vs the collision probe) and the folded vertical velocity, so
+     * air-vs-ground knockback under lag can be read straight off the log. Off by default; the test server flips it.
+     */
+    public static volatile boolean DEBUG_GROUND = false;
 
     public KnockbackCalculator(Services services, KnockbackConfig defaults) {
         this.services = services;
@@ -65,27 +78,27 @@ public final class KnockbackCalculator {
             kbe = applySweeping(kbe, cause, cfg, true);
         }
 
-        Double fHVal = kbe != null ? cfg.frictionExtraH() : cfg.frictionH();
-        Double fVVal = kbe != null ? cfg.frictionExtraV() : cfg.frictionV();
-        double fH = fHVal != null ? fHVal : 0;
-        double fV = fVVal != null ? fVVal : 0;
-        double iFH = fH > 0 ? 1.0 / fH : 0;
-        double iFV = fV > 0 ? 1.0 / fV : 0;
-        boolean useAbsH = Boolean.TRUE.equals(kbe != null ? cfg.useAbsFrictionEH() : cfg.useAbsFrictionH());
-        boolean useAbsV = Boolean.TRUE.equals(kbe != null ? cfg.useAbsFrictionEV() : cfg.useAbsFrictionV());
-        boolean extra = kbe != null;
-        VelocityRule modeH = extra ? cfg.velocityModeExtraH() : cfg.velocityModeH();
-        VelocityRule modeV = extra ? cfg.velocityModeExtraV() : cfg.velocityModeV();
-        VelocityRule fallback = cfg.velocityMethod() != null ? cfg.velocityMethod() : VelocityRule.DEFAULT;
-        if (modeH == null) modeH = fallback;
-        if (modeV == null) modeV = fallback;
-        VelocityContext vctx = VelocityContext.of(t);
-        Vec velH = modeH.estimate(vctx);
-        Vec velV = modeV.estimate(vctx);
-        double motX = useAbsH ? -Math.abs(velH.x()) : velH.x();
-        double motY = useAbsV ? -Math.abs(velV.y()) : velV.y();
-        double motZ = useAbsH ? -Math.abs(velH.z()) : velH.z();
-        kb = new Vec(motX * iFH + kb.x(), motY * iFV + kb.y(), motZ * iFH + kb.z());
+        double iFH = frictionCoeff(or(cfg.frictionH(), 0), cfg.frictionModeH());
+        double iFV = frictionCoeff(or(cfg.frictionV(), 0), cfg.frictionModeV());
+        VelocityRule velRule = cfg.velocity() != null ? cfg.velocity() : VelocityRule.DEFAULT;
+        Vec vel = velRule.estimate(VelocityContext.of(t, services.sprintTracker()));
+        // The vertical fold (vel.y() * iFV) is our analog of 1.8's knockback motY re-seed: legacy EntityLiving.a()
+        // ALWAYS folds the victim's running motY (motY = min(0.4, motY/2 + 0.4)), airborne or grounded - so with
+        // iFV = 0.5 this reproduces the motY/2 term and `vertical`/cap is the +0.4. TODO(modern): 1.20+
+        // LivingEntity.knockback() only folds the vertical when grounded; airborne it leaves motY untouched
+        // (onGround() ? min(0.4, motY/2 + power) : motY). To target modern, gate this vertical fold (and the
+        // cap-hold below) on the victim's ground state. We intentionally emulate 1.8 - what Minemen/Hypixel tune to.
+        kb = new Vec(vel.x() * iFH + kb.x(), vel.y() * iFV + kb.y(), vel.z() * iFH + kb.z());
+
+        // Vertical launch cap-hold: while the launch arc is still rising / barely falling (friction-term vertical
+        // velocity above the release threshold), pin vertical knockback to its cap instead of letting the friction
+        // term sag it down. This is what keeps a jump's cap-hold longer than a walk-off's; it releases into the
+        // normal base + v/frictionV decay once the fall builds past the threshold. No-op unless a cap is configured.
+        Double launchHold = cfg.verticalLaunchHold();
+        if (launchHold != null && cfg.verticalBounds() != null && cfg.verticalBounds().upper() != null
+                && vel.y() > launchHold) {
+            kb = new Vec(kb.x(), cfg.verticalBounds().upper(), kb.z());
+        }
 
         if (cfg.horizontalBounds() != null) kb = applyHorizontalBounds(kb, cfg.horizontalBounds());
         if (cfg.verticalBounds() != null) kb = applyVerticalBounds(kb, cfg.verticalBounds());
@@ -96,8 +109,58 @@ public final class KnockbackCalculator {
             if (cfg.extraHorizontalBounds() != null) kbVec = applyHorizontalBounds(kbVec, cfg.extraHorizontalBounds());
             if (cfg.extraVerticalBounds() != null) kbVec = applyVerticalBounds(kbVec, cfg.extraVerticalBounds());
         }
+        
+        // Pluggable additive terms (blocks/tick) summed on top of the final knockback. Each component self-gates.
+        if (cfg.customComponents() != null) {
+            for (KnockbackComponent comp : cfg.customComponents()) {
+                Vec add = comp.contribute(ctx);
+                if (add != null) kbVec = kbVec.add(add);
+            }
+        }
 
+        if (DEBUG_GROUND) logGround(t, vel, iFV, kbVec, hasExtra);
         return new Vec(kbVec.x() * tps, kbVec.y() * tps, kbVec.z() * tps);
+    }
+
+    /**
+     * Debug ({@link #DEBUG_GROUND}): one rich line per hit so a juggle/float can be read straight off consecutive
+     * lines. The key tells:
+     * <ul>
+     *   <li>{@code air} climbing vs reset across hits - is the air clock counting through the juggle, or did a
+     *       ground-touch reset it?</li>
+     *   <li>{@code grounded}/{@code flag}/{@code collision} ({@code <DIVERGE>} when flag != collision) - which ground
+     *       verdict won, and whether the collision probe over-grounded a still-airborne victim,</li>
+     *   <li>{@code gap} - blocks from the victim's feet to the floor; {@code grounded=true} with a large {@code gap}
+     *       is over-grounding,</li>
+     *   <li>{@code predVy} vs {@code velY} - {@code predVy} is the reconstructed fall the sweep uses; {@code velY} is
+     *       what the arc actually folded. They match while airborne; a divergence ({@code velY} near the resting
+     *       {@code -0.0784} while {@code predVy} is deep) means the arc collapsed to ground (air clock ignored),</li>
+     *   <li>{@code applied} - the knockback vector (b/s) actually handed back.</li>
+     * </ul>
+     */
+    private void logGround(Entity t, Vec vel, double iFV, Vec kbVec, boolean sprint) {
+        boolean flag = t.isOnGround();
+        boolean collision = MotionTracker.isGroundedByCollision(t, GroundSpec.defaults());
+        boolean grounded = MotionTracker.isGrounded(t);
+        String name = t instanceof Player p ? p.getUsername() : String.valueOf(t.getEntityId());
+        System.out.printf(java.util.Locale.ROOT,
+                "[KB-HIT] %s tick=%d sprint=%b | air=%d launched=%b | grounded=%b flag=%b collision=%b%s | posY=%.3f gap=%.3f | dY=%.5f predVy=%.5f velY=%.5f iFV=%.4f | applied=(%.4f, %.4f, %.4f)%n",
+                name, TickClock.now(), sprint,
+                MotionTracker.ticksInAir(t), MotionTracker.launched(t),
+                grounded, flag, collision, flag != collision ? " <DIVERGE>" : "",
+                t.getPosition().y(), groundGap(t),
+                MotionTracker.positionDelta(t).y(), MotionTracker.predictedFallVy(t), vel.y(), iFV,
+                kbVec.x() * tps, kbVec.y() * tps, kbVec.z() * tps);
+    }
+
+    /**
+     * Diagnostic only: blocks from the victim's feet to the first block below (a 5-block downward collision probe),
+     * capped at the probe depth. {@code grounded=true} with a non-trivial gap is the near-ground over-grounding tell.
+     */
+    private static double groundGap(Entity t) {
+        if (t.getInstance() == null) return -1;
+        PhysicsResult r = CollisionUtils.handlePhysics(t, new Vec(0, -5.0, 0));
+        return t.getPosition().y() - r.newPosition().y();
     }
 
     public KnockbackConfigResolver.ResolvedKnockbackConfig resolveConfig(KnockbackSnapshot snap) {
@@ -316,4 +379,10 @@ public final class KnockbackCalculator {
     }
 
     private static double or(Double v, double def) { return v != null ? v : def; }
+
+    /** Friction term coefficient: {@code FACTOR} multiplies mot by the value directly; {@code DIVISOR} (default, incl. null) uses {@code 1/value}. */
+    private static double frictionCoeff(double f, @Nullable KnockbackConfig.FrictionMode mode) {
+        if (mode == KnockbackConfig.FrictionMode.FACTOR) return f;
+        return f > 0 ? 1.0 / f : 0;
+    }
 }

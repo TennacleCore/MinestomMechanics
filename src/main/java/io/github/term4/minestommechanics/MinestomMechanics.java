@@ -7,7 +7,7 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.platform.client.ClientInfoService;
 import io.github.term4.minestommechanics.platform.client.VersionDetector;
-import io.github.term4.minestommechanics.tracking.GroundTracker;
+import io.github.term4.minestommechanics.tracking.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.util.TickClock;
 import net.minestom.server.MinecraftServer;
@@ -28,8 +28,8 @@ public final class MinestomMechanics {
 
     /** When enabled MinestomMechanics manually tracks a players sprinting status (useful for combat). Default: true */
     public boolean installSprintTracker = true;
-    /** When enabled, tracks ground state for "on ground in past N ticks" predicates. Default: true */
-    public boolean installGroundTracker = true;
+    /** When enabled, tracks per-entity air-time, launch state, and position-delta motion (drives knockback velocity). Default: true */
+    public boolean installMotionTracker = true;
 
     public boolean metaFix = true;
 
@@ -42,19 +42,19 @@ public final class MinestomMechanics {
 
     // Optional registry
     private @Nullable SprintTracker sprintTracker;
-    private @Nullable GroundTracker groundTracker;
+    private @Nullable MotionTracker motionTracker;
     private @Nullable AttackSystem attackSystem;
     private @Nullable KnockbackSystem knockbackSystem;
     private @Nullable DamageSystem damageSystem;
 
     void registerSprintTracker(SprintTracker s) { sprintTracker = s; }
-    void registerGroundTracker(GroundTracker g) { groundTracker = g; }
+    void registerMotionTracker(MotionTracker g) { motionTracker = g; }
     public void registerAttack(AttackSystem a) { attackSystem = a; }
     public void registerKnockback(KnockbackSystem k) { knockbackSystem = k; }
     public void registerDamage(DamageSystem d) { damageSystem = d; }
 
     public @Nullable SprintTracker sprintTracker() { return sprintTracker; }
-    public @Nullable GroundTracker groundTracker() { return groundTracker; }
+    public @Nullable MotionTracker motionTracker() { return motionTracker; }
     public @Nullable AttackSystem attackSystem() { return attackSystem; }
     public @Nullable KnockbackSystem knockbackSystem() { return knockbackSystem; }
     public @Nullable DamageSystem damageSystem() { return damageSystem; }
@@ -85,11 +85,11 @@ public final class MinestomMechanics {
             registerSprintTracker(tracker);
             root.addChild(tracker.node());
         }
-        if (installGroundTracker) {
-            var tracker = new GroundTracker();
+        if (installMotionTracker) {
+            var tracker = new MotionTracker();
             tracker.start();
             root.addChild(tracker.node());
-            registerGroundTracker(tracker);
+            registerMotionTracker(tracker);
         }
 
         clientInfo = new ClientInfoService();

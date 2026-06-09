@@ -63,8 +63,8 @@ public final class Vanilla18 {
                 .degenerateFallback(KnockbackConfig.DegenerateFallback.RANDOM)
                 .frictionH(2.0)
                 .frictionV(2.0)
-                .frictionExtraH(2.0)
-                .frictionExtraV(2.0)
+                .frictionModeH(KnockbackConfig.FrictionMode.DIVISOR)
+                .frictionModeV(KnockbackConfig.FrictionMode.DIVISOR)
                 .rangeStartH(0.0)
                 .rangeFactorH(0.0)
                 .rangeStartV(0.0)
@@ -82,7 +82,7 @@ public final class Vanilla18 {
                 .sweepFactorExtraH(0.0)
                 .sweepFactorExtraV(0.0)
                 .knockbackFormula(KnockbackConfig.KnockbackFormula.CLASSIC)
-                .velocityMethod(VelocityRule.vanilla())
+                .velocity(VelocityRule.simulated())
                 .build();
     }
 
@@ -105,6 +105,11 @@ public final class Vanilla18 {
             if (kb != null) {
                 var kbSnap = new KnockbackSnapshot(event.target(), event.cause(), event.attacker(), null, null, kb.config());
                 kb.apply(kbSnap);
+                if (kbSnap.target().isOnGround()) {
+                    System.out.println("WAS ON GROUND");
+                } else {
+                    System.out.println("WAS IN AIRs");
+                }
             }
             // 3. Reset attacker sprint
             if (event.attacker() instanceof LivingEntity le) {

@@ -5,7 +5,7 @@ import io.github.term4.minestommechanics.mechanics.attack.AttackConfigResolver;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.mechanics.Cause;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
-import io.github.term4.minestommechanics.tracking.GroundTracker;
+import io.github.term4.minestommechanics.tracking.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
@@ -77,7 +77,7 @@ public final class AttackEvent implements Event {
 
     /** Attacker is off the ground and descending (a melee crit precondition). */
     public boolean attackerFalling() {
-        return GroundTracker.isFalling(attacker());
+        return MotionTracker.isFalling(attacker());
     }
 
     /** Whether the attacker is a flying player (creative/spectator flight or granted flight). */

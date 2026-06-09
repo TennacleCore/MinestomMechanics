@@ -5,7 +5,6 @@ import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.KnockbackEvent;
 import io.github.term4.minestommechanics.Vanilla18;
-import io.github.term4.minestommechanics.tracking.GroundTracker;
 import io.github.term4.minestommechanics.util.TickClock;
 import io.github.term4.minestommechanics.util.TickState;
 import net.minestom.server.coordinate.Vec;
@@ -26,7 +25,6 @@ public final class KnockbackSystem {
     private final EventNode<@NotNull Event> apiEvents;
     private final KnockbackConfig config;
     private final KnockbackCalculator calc;
-    private final @Nullable GroundTracker groundTracker;
 
     public KnockbackSystem(MinestomMechanics mm, KnockbackConfig config) {
         this.mm = mm;
@@ -35,7 +33,6 @@ public final class KnockbackSystem {
         Services services = mm.services();
         KnockbackConfig defaults = Vanilla18.kb();
         this.calc = new KnockbackCalculator(services, defaults);
-        this.groundTracker = services.groundTracker();
     }
 
     public void apply(KnockbackSnapshot snap) {

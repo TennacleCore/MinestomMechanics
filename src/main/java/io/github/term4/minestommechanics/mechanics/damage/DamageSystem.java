@@ -35,6 +35,13 @@ public final class DamageSystem {
     /** Amount of the hit that opened the current invulnerability window (for overdamage replacement). */
     private static final Tag<Float> LAST_DAMAGE = Tag.Transient("mm:last-damage");
 
+    /**
+     * Debug (temporary): when {@code true}, {@code minecraft:player_attack} hits run the full hit (hurt flash +
+     * knockback + invul window) but cost no health - the bar drops and instantly refills. Lets a victim be
+     * combo/float-tested indefinitely without dying. Off by default; the test server flips it.
+     */
+    public static volatile boolean DEBUG_ZERO_MELEE_DAMAGE = false;
+
     private final MinestomMechanics mm;
     private final EventNode<@NotNull Event> apiEvents;
     private final DamageConfig config;
@@ -121,6 +128,17 @@ public final class DamageSystem {
     }
 
     private void applyDamage(LivingEntity living, DamageType type, DamageSnapshot snap, float amount, boolean silent) {
+        // DEBUG (temporary): melee flashes + knocks back + opens its invul window like a real hit, but costs no
+        // health - the bar drops then instantly refills (a clear "0 damage" tell). Knockback is applied separately
+        // by the attack ruleset, so it is unaffected. Restoring to the pre-hit health keeps the victim at full, so a
+        // single sub-20 melee hit never reaches the death path.
+        if (DEBUG_ZERO_MELEE_DAMAGE && PlayerAttack.KEY.equals(type.key())) {
+            float before = living.getHealth();
+            Entity src = snap.source();
+            living.damage(new Damage(type.minecraftType(), src, src, snap.point(), amount));
+            living.setHealth(before);
+            return;
+        }
         // Non-lethal silent hits update health via the no-hurt path; lethal hits fall through to
         // living.damage() so Minestom handles death (message, drops, respawn).
         float newHealth = (float) Math.max(0, living.getHealth() - amount);

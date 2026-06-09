@@ -3,6 +3,8 @@ package io.github.term4.minestommechanics.mechanics.knockback;
 import io.github.term4.minestommechanics.tracking.VelocityRule;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 /** Immutable knockback config. Use {@link #builder()}, {@link #toBuilder()}. */
@@ -11,6 +13,13 @@ public final class KnockbackConfig {
     public enum DegenerateFallback { LOOK, RANDOM }
     public enum DirectionMode { SCALAR, VECTOR_ADDITION }
     public enum KnockbackFormula { CLASSIC, MODERN }
+    /** How a friction value is applied to the reconstructed victim velocity in the friction term. */
+    public enum FrictionMode {
+        /** {@code mot / value} - the value is a divisor (default; vanilla-style). */
+        DIVISOR,
+        /** {@code mot * value} - the value is a multiplier, so coefficients (incl. negatives) read directly. */
+        FACTOR
+    }
 
     /** Lower and upper bound for knockback components. Null means no bound. */
     public record Bounds(@Nullable Double lower, @Nullable Double upper) {
@@ -60,12 +69,8 @@ public final class KnockbackConfig {
     public final FieldValue<DegenerateFallback> degenerateFallback;
     public final FieldValue<Double> frictionH;
     public final FieldValue<Double> frictionV;
-    public final FieldValue<Double> frictionExtraH;
-    public final FieldValue<Double> frictionExtraV;
-    public final FieldValue<Boolean> useAbsFrictionH;
-    public final FieldValue<Boolean> useAbsFrictionV;
-    public final FieldValue<Boolean> useAbsFrictionEH;
-    public final FieldValue<Boolean> useAbsFrictionEV;
+    public final FieldValue<FrictionMode> frictionModeH;
+    public final FieldValue<FrictionMode> frictionModeV;
     public final FieldValue<Double> rangeStartH;
     public final FieldValue<Double> rangeFactorH;
     public final FieldValue<Double> rangeStartV;
@@ -83,11 +88,23 @@ public final class KnockbackConfig {
     public final FieldValue<Double> sweepFactorExtraH;
     public final FieldValue<Double> sweepFactorExtraV;
     public final FieldValue<KnockbackFormula> knockbackFormula;
-    public final FieldValue<VelocityRule> velocityMethod;
-    public final FieldValue<VelocityRule> velocityModeH;
-    public final FieldValue<VelocityRule> velocityModeV;
-    public final FieldValue<VelocityRule> velocityModeExtraH;
-    public final FieldValue<VelocityRule> velocityModeExtraV;
+    /** How the friction term reconstructs the victim's velocity (see {@link VelocityRule}). */
+    public final FieldValue<VelocityRule> velocity;
+    /**
+     * Vertical launch cap-hold (blocks/tick). While the friction term's vertical velocity (see {@link #velocity}) is
+     * still above this threshold - rising or only just starting to fall - vertical knockback is pinned to its
+     * {@link #verticalBounds} upper bound instead of being sagged by the friction term. Once the fall builds past it,
+     * the normal {@code base + v/frictionV} decay resumes. This is what makes a jump's cap hold longer than a
+     * walk-off's (the rise keeps velocity above the threshold). {@code null} disables it (vanilla/Hypixel).
+     */
+    public final FieldValue<Double> verticalLaunchHold;
+    /**
+     * Extra additive terms summed onto the <em>final</em> knockback vector (blocks/tick, i.e. the client-decoded
+     * packet units), after all base/extra/friction/range/bounds logic. Each {@link KnockbackComponent} self-gates
+     * and may apply non-linear logic the base pipeline cannot (e.g. axis snapping). Applied in order; {@code null}
+     * or empty means none. See {@link KnockbackComponent}.
+     */
+    @Nullable public final List<KnockbackComponent> customComponents;
 
     private KnockbackConfig(Builder b) {
         subConfig = b.subConfig;
@@ -112,12 +129,8 @@ public final class KnockbackConfig {
         degenerateFallback = b.degenerateFallback;
         frictionH = b.frictionH;
         frictionV = b.frictionV;
-        frictionExtraH = b.frictionExtraH;
-        frictionExtraV = b.frictionExtraV;
-        useAbsFrictionH = b.useAbsFrictionH;
-        useAbsFrictionV = b.useAbsFrictionV;
-        useAbsFrictionEH = b.useAbsFrictionEH;
-        useAbsFrictionEV = b.useAbsFrictionEV;
+        frictionModeH = b.frictionModeH;
+        frictionModeV = b.frictionModeV;
         rangeStartH = b.rangeStartH;
         rangeFactorH = b.rangeFactorH;
         rangeStartV = b.rangeStartV;
@@ -135,11 +148,9 @@ public final class KnockbackConfig {
         sweepFactorExtraH = b.sweepFactorExtraH;
         sweepFactorExtraV = b.sweepFactorExtraV;
         knockbackFormula = b.knockbackFormula;
-        velocityMethod = b.velocityMethod;
-        velocityModeH = b.velocityModeH;
-        velocityModeV = b.velocityModeV;
-        velocityModeExtraH = b.velocityModeExtraH;
-        velocityModeExtraV = b.velocityModeExtraV;
+        velocity = b.velocity;
+        verticalLaunchHold = b.verticalLaunchHold;
+        customComponents = b.customComponents;
     }
 
     /** Merges this config over base. */
@@ -167,12 +178,8 @@ public final class KnockbackConfig {
                 .degenerateFallback(merge(degenerateFallback, base.degenerateFallback))
                 .frictionH(merge(frictionH, base.frictionH))
                 .frictionV(merge(frictionV, base.frictionV))
-                .frictionExtraH(merge(frictionExtraH, base.frictionExtraH))
-                .frictionExtraV(merge(frictionExtraV, base.frictionExtraV))
-                .useAbsFrictionH(merge(useAbsFrictionH, base.useAbsFrictionH))
-                .useAbsFrictionV(merge(useAbsFrictionV, base.useAbsFrictionV))
-                .useAbsFrictionEH(merge(useAbsFrictionEH, base.useAbsFrictionEH))
-                .useAbsFrictionEV(merge(useAbsFrictionEV, base.useAbsFrictionEV))
+                .frictionModeH(merge(frictionModeH, base.frictionModeH))
+                .frictionModeV(merge(frictionModeV, base.frictionModeV))
                 .rangeStartH(merge(rangeStartH, base.rangeStartH))
                 .rangeFactorH(merge(rangeFactorH, base.rangeFactorH))
                 .rangeStartV(merge(rangeStartV, base.rangeStartV))
@@ -190,11 +197,9 @@ public final class KnockbackConfig {
                 .sweepFactorExtraH(merge(sweepFactorExtraH, base.sweepFactorExtraH))
                 .sweepFactorExtraV(merge(sweepFactorExtraV, base.sweepFactorExtraV))
                 .knockbackFormula(merge(knockbackFormula, base.knockbackFormula))
-                .velocityMethod(merge(velocityMethod, base.velocityMethod))
-                .velocityModeH(merge(velocityModeH, base.velocityModeH))
-                .velocityModeV(merge(velocityModeV, base.velocityModeV))
-                .velocityModeExtraH(merge(velocityModeExtraH, base.velocityModeExtraH))
-                .velocityModeExtraV(merge(velocityModeExtraV, base.velocityModeExtraV))
+                .velocity(merge(velocity, base.velocity))
+                .verticalLaunchHold(merge(verticalLaunchHold, base.verticalLaunchHold))
+                .customComponents(customComponents != null ? customComponents : base.customComponents)
                 .build();
     }
 
@@ -243,12 +248,8 @@ public final class KnockbackConfig {
         private FieldValue<DegenerateFallback> degenerateFallback;
         private FieldValue<Double> frictionH;
         private FieldValue<Double> frictionV;
-        private FieldValue<Double> frictionExtraH;
-        private FieldValue<Double> frictionExtraV;
-        private FieldValue<Boolean> useAbsFrictionH;
-        private FieldValue<Boolean> useAbsFrictionV;
-        private FieldValue<Boolean> useAbsFrictionEH;
-        private FieldValue<Boolean> useAbsFrictionEV;
+        private FieldValue<FrictionMode> frictionModeH;
+        private FieldValue<FrictionMode> frictionModeV;
         private FieldValue<Double> rangeStartH;
         private FieldValue<Double> rangeFactorH;
         private FieldValue<Double> rangeStartV;
@@ -266,11 +267,9 @@ public final class KnockbackConfig {
         private FieldValue<Double> sweepFactorExtraH;
         private FieldValue<Double> sweepFactorExtraV;
         private FieldValue<KnockbackFormula> knockbackFormula;
-        private FieldValue<VelocityRule> velocityMethod;
-        private FieldValue<VelocityRule> velocityModeH;
-        private FieldValue<VelocityRule> velocityModeV;
-        private FieldValue<VelocityRule> velocityModeExtraH;
-        private FieldValue<VelocityRule> velocityModeExtraV;
+        private FieldValue<VelocityRule> velocity;
+        private FieldValue<Double> verticalLaunchHold;
+        private List<KnockbackComponent> customComponents;
 
         Builder() {}
 
@@ -297,12 +296,8 @@ public final class KnockbackConfig {
             degenerateFallback = c.degenerateFallback;
             frictionH = c.frictionH;
             frictionV = c.frictionV;
-            frictionExtraH = c.frictionExtraH;
-            frictionExtraV = c.frictionExtraV;
-            useAbsFrictionH = c.useAbsFrictionH;
-            useAbsFrictionV = c.useAbsFrictionV;
-            useAbsFrictionEH = c.useAbsFrictionEH;
-            useAbsFrictionEV = c.useAbsFrictionEV;
+            frictionModeH = c.frictionModeH;
+            frictionModeV = c.frictionModeV;
             rangeStartH = c.rangeStartH;
             rangeFactorH = c.rangeFactorH;
             rangeStartV = c.rangeStartV;
@@ -320,11 +315,9 @@ public final class KnockbackConfig {
             sweepFactorExtraH = c.sweepFactorExtraH;
             sweepFactorExtraV = c.sweepFactorExtraV;
             knockbackFormula = c.knockbackFormula;
-            velocityMethod = c.velocityMethod;
-            velocityModeH = c.velocityModeH;
-            velocityModeV = c.velocityModeV;
-            velocityModeExtraH = c.velocityModeExtraH;
-            velocityModeExtraV = c.velocityModeExtraV;
+            velocity = c.velocity;
+            verticalLaunchHold = c.verticalLaunchHold;
+            customComponents = c.customComponents;
         }
 
         public Builder subConfig(Function<KnockbackConfigResolver.KnockbackContext, KnockbackConfig> fn) { subConfig = fn; return this; }
@@ -395,28 +388,12 @@ public final class KnockbackConfig {
         public Builder frictionV(Double v) { frictionV = FieldValue.constant(v); return this; }
         public Builder frictionV(Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { frictionV = FieldValue.of(fn); return this; }
         public Builder frictionV(Double fallback, Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { frictionV = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder frictionExtraH(Double v) { frictionExtraH = FieldValue.constant(v); return this; }
-        public Builder frictionExtraH(Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { frictionExtraH = FieldValue.of(fn); return this; }
-        public Builder frictionExtraH(Double fallback, Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { frictionExtraH = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder frictionExtraV(Double v) { frictionExtraV = FieldValue.constant(v); return this; }
-        public Builder frictionExtraV(Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { frictionExtraV = FieldValue.of(fn); return this; }
-        public Builder frictionExtraV(Double fallback, Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { frictionExtraV = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder useAbsFrictionH() { useAbsFrictionH = FieldValue.constant(true); return this; }
-        public Builder useAbsFrictionH(Boolean v) { useAbsFrictionH = FieldValue.constant(v); return this; }
-        public Builder useAbsFrictionH(Function<KnockbackConfigResolver.KnockbackContext, Boolean> fn) { useAbsFrictionH = FieldValue.of(fn); return this; }
-        public Builder useAbsFrictionH(Boolean fallback, Function<KnockbackConfigResolver.KnockbackContext, Boolean> fn) { useAbsFrictionH = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder useAbsFrictionV() { useAbsFrictionV = FieldValue.constant(true); return this; }
-        public Builder useAbsFrictionV(Boolean v) { useAbsFrictionV = FieldValue.constant(v); return this; }
-        public Builder useAbsFrictionV(Function<KnockbackConfigResolver.KnockbackContext, Boolean> fn) { useAbsFrictionV = FieldValue.of(fn); return this; }
-        public Builder useAbsFrictionV(Boolean fallback, Function<KnockbackConfigResolver.KnockbackContext, Boolean> fn) { useAbsFrictionV = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder useAbsFrictionEH() { useAbsFrictionEH = FieldValue.constant(true); return this; }
-        public Builder useAbsFrictionEH(Boolean v) { useAbsFrictionEH = FieldValue.constant(v); return this; }
-        public Builder useAbsFrictionEH(Function<KnockbackConfigResolver.KnockbackContext, Boolean> fn) { useAbsFrictionEH = FieldValue.of(fn); return this; }
-        public Builder useAbsFrictionEH(Boolean fallback, Function<KnockbackConfigResolver.KnockbackContext, Boolean> fn) { useAbsFrictionEH = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder useAbsFrictionEV() { useAbsFrictionEV = FieldValue.constant(true); return this; }
-        public Builder useAbsFrictionEV(Boolean v) { useAbsFrictionEV = FieldValue.constant(v); return this; }
-        public Builder useAbsFrictionEV(Function<KnockbackConfigResolver.KnockbackContext, Boolean> fn) { useAbsFrictionEV = FieldValue.of(fn); return this; }
-        public Builder useAbsFrictionEV(Boolean fallback, Function<KnockbackConfigResolver.KnockbackContext, Boolean> fn) { useAbsFrictionEV = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder frictionModeH(FrictionMode v) { frictionModeH = FieldValue.constant(v); return this; }
+        public Builder frictionModeH(Function<KnockbackConfigResolver.KnockbackContext, FrictionMode> fn) { frictionModeH = FieldValue.of(fn); return this; }
+        public Builder frictionModeH(FrictionMode fallback, Function<KnockbackConfigResolver.KnockbackContext, FrictionMode> fn) { frictionModeH = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder frictionModeV(FrictionMode v) { frictionModeV = FieldValue.constant(v); return this; }
+        public Builder frictionModeV(Function<KnockbackConfigResolver.KnockbackContext, FrictionMode> fn) { frictionModeV = FieldValue.of(fn); return this; }
+        public Builder frictionModeV(FrictionMode fallback, Function<KnockbackConfigResolver.KnockbackContext, FrictionMode> fn) { frictionModeV = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder rangeStartH(Double v) { rangeStartH = FieldValue.constant(v); return this; }
         public Builder rangeStartH(Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { rangeStartH = FieldValue.of(fn); return this; }
         public Builder rangeStartH(Double fallback, Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { rangeStartH = FieldValue.ofWithFallback(fallback, fn); return this; }
@@ -468,21 +445,19 @@ public final class KnockbackConfig {
         public Builder knockbackFormula(KnockbackFormula v) { knockbackFormula = FieldValue.constant(v); return this; }
         public Builder knockbackFormula(Function<KnockbackConfigResolver.KnockbackContext, KnockbackFormula> fn) { knockbackFormula = FieldValue.of(fn); return this; }
         public Builder knockbackFormula(KnockbackFormula fallback, Function<KnockbackConfigResolver.KnockbackContext, KnockbackFormula> fn) { knockbackFormula = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityMethod(VelocityRule v) { velocityMethod = FieldValue.constant(v); return this; }
-        public Builder velocityMethod(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityMethod = FieldValue.of(fn); return this; }
-        public Builder velocityMethod(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityMethod = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityModeH(VelocityRule v) { velocityModeH = FieldValue.constant(v); return this; }
-        public Builder velocityModeH(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeH = FieldValue.of(fn); return this; }
-        public Builder velocityModeH(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeH = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityModeV(VelocityRule v) { velocityModeV = FieldValue.constant(v); return this; }
-        public Builder velocityModeV(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeV = FieldValue.of(fn); return this; }
-        public Builder velocityModeV(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeV = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityModeExtraH(VelocityRule v) { velocityModeExtraH = FieldValue.constant(v); return this; }
-        public Builder velocityModeExtraH(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraH = FieldValue.of(fn); return this; }
-        public Builder velocityModeExtraH(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraH = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder velocityModeExtraV(VelocityRule v) { velocityModeExtraV = FieldValue.constant(v); return this; }
-        public Builder velocityModeExtraV(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraV = FieldValue.of(fn); return this; }
-        public Builder velocityModeExtraV(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocityModeExtraV = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder velocity(VelocityRule v) { velocity = FieldValue.constant(v); return this; }
+        public Builder velocity(Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocity = FieldValue.of(fn); return this; }
+        public Builder velocity(VelocityRule fallback, Function<KnockbackConfigResolver.KnockbackContext, VelocityRule> fn) { velocity = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder verticalLaunchHold(Double v) { verticalLaunchHold = FieldValue.constant(v); return this; }
+        public Builder verticalLaunchHold(Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { verticalLaunchHold = FieldValue.of(fn); return this; }
+        public Builder verticalLaunchHold(Double fallback, Function<KnockbackConfigResolver.KnockbackContext, Double> fn) { verticalLaunchHold = FieldValue.ofWithFallback(fallback, fn); return this; }
+        /** Appends to the current/inherited components (copying first, so shared lists aren't mutated). */
+        public Builder addCustomComponent(KnockbackComponent component) {
+            List<KnockbackComponent> list = customComponents == null ? new ArrayList<>() : new ArrayList<>(customComponents);
+            list.add(component);
+            customComponents = list;
+            return this;
+        }
         Builder kbInvulnTicks(FieldValue<Integer> v) { kbInvulnTicks = v; return this; }
         Builder sprintBuffer(FieldValue<Integer> v) { sprintBuffer = v; return this; }
         Builder horizontal(FieldValue<Double> v) { horizontal = v; return this; }
@@ -504,12 +479,8 @@ public final class KnockbackConfig {
         Builder degenerateFallback(FieldValue<DegenerateFallback> v) { degenerateFallback = v; return this; }
         Builder frictionH(FieldValue<Double> v) { frictionH = v; return this; }
         Builder frictionV(FieldValue<Double> v) { frictionV = v; return this; }
-        Builder frictionExtraH(FieldValue<Double> v) { frictionExtraH = v; return this; }
-        Builder frictionExtraV(FieldValue<Double> v) { frictionExtraV = v; return this; }
-        Builder useAbsFrictionH(FieldValue<Boolean> v) { useAbsFrictionH = v; return this; }
-        Builder useAbsFrictionV(FieldValue<Boolean> v) { useAbsFrictionV = v; return this; }
-        Builder useAbsFrictionEH(FieldValue<Boolean> v) { useAbsFrictionEH = v; return this; }
-        Builder useAbsFrictionEV(FieldValue<Boolean> v) { useAbsFrictionEV = v; return this; }
+        Builder frictionModeH(FieldValue<FrictionMode> v) { frictionModeH = v; return this; }
+        Builder frictionModeV(FieldValue<FrictionMode> v) { frictionModeV = v; return this; }
         Builder rangeStartH(FieldValue<Double> v) { rangeStartH = v; return this; }
         Builder rangeFactorH(FieldValue<Double> v) { rangeFactorH = v; return this; }
         Builder rangeStartV(FieldValue<Double> v) { rangeStartV = v; return this; }
@@ -527,11 +498,9 @@ public final class KnockbackConfig {
         Builder sweepFactorExtraH(FieldValue<Double> v) { sweepFactorExtraH = v; return this; }
         Builder sweepFactorExtraV(FieldValue<Double> v) { sweepFactorExtraV = v; return this; }
         Builder knockbackFormula(FieldValue<KnockbackFormula> v) { knockbackFormula = v; return this; }
-        Builder velocityMethod(FieldValue<VelocityRule> v) { velocityMethod = v; return this; }
-        Builder velocityModeH(FieldValue<VelocityRule> v) { velocityModeH = v; return this; }
-        Builder velocityModeV(FieldValue<VelocityRule> v) { velocityModeV = v; return this; }
-        Builder velocityModeExtraH(FieldValue<VelocityRule> v) { velocityModeExtraH = v; return this; }
-        Builder velocityModeExtraV(FieldValue<VelocityRule> v) { velocityModeExtraV = v; return this; }
+        Builder velocity(FieldValue<VelocityRule> v) { velocity = v; return this; }
+        Builder verticalLaunchHold(FieldValue<Double> v) { verticalLaunchHold = v; return this; }
+        Builder customComponents(List<KnockbackComponent> v) { customComponents = v; return this; }
 
         public KnockbackConfig build() {
             return new KnockbackConfig(this);
