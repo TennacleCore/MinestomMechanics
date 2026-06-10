@@ -131,7 +131,8 @@ public class ExampleServer {
             player.getInventory().addItemStack(ItemStack.of(Material.WHITE_WOOL, 1000));
             player.getInventory().addItemStack(ItemStack.of(Material.DIAMOND_SWORD, 1));
 
-            /* player.getAttribute(net.minestom.server.entity.attribute.Attribute.MOVEMENT_SPEED)
+            /*
+            player.getAttribute(net.minestom.server.entity.attribute.Attribute.MOVEMENT_SPEED)
                     .setBaseValue(0.1 * (1 + (0.2 * 2))); // Speed II
              */
         });

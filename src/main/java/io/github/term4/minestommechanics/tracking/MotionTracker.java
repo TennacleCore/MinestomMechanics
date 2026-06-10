@@ -142,8 +142,9 @@ public final class MotionTracker {
 
         if (wasOnGround) {
             // Ground -> air: the client's rising packet = its true jump tick. Anchor the arc's tick-zero here and
-            // fold the 0.2 boost onto the maintained motX residual. (Vanilla's folded this.motY re-sim seeds ~2
-            // ticks later off the server onGround flag, which VANILLA_LAUNCH_OFFSET re-applies.)
+            // fold the 0.2 boost onto the maintained motX residual. (The arc's one-tick VANILLA_LAUNCH_OFFSET is an
+            // intra-tick packet-ordering phase - the hit is processed before the victim's move packet that tick - not
+            // a server-side motY re-sim; vanilla folds this.motY directly and restores it after, see EntityHuman.attack.)
             if (dy > 0) latchLaunch(p, now, newPos.yaw()); // rising = launched, else walk-off
             p.setTag(AIR_START_TICK, now);
         } else {

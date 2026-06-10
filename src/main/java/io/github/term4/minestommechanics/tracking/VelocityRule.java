@@ -34,19 +34,24 @@ public interface VelocityRule {
     Vec estimate(VelocityContext ctx);
 
     /**
-     * Air-tick correction: vanilla's server-side {@code this.motY} arc lags the victim's true (client) air-time by
-     * ~2 ticks, so a hit clocked at {@code ticksInAir = T} folds what vanilla folds at {@code T - 2}. Calibrated 1:1
-     * against a local vanilla 1.8 server; also the basis the launched horizontal residual decays on.
+     * Air-tick phase correction for the reconstructed arc ({@code -1}) - <strong>not</strong> a gravity lag. Vanilla
+     * never re-simulates the victim's {@code motY}: the 1.8 server folds {@code this.motY} as-is, and for a player it
+     * saves the pre-hit motion, forwards the velocity packet, then restores it ({@code EntityHuman.attack}), so there
+     * is no server-side gravity arc to "trail" the client. The offset is an intra-tick packet-ordering phase instead -
+     * {@link MotionTracker#ticksInAir} is read off the server clock ({@code TickClock.now()}), but the attacker's hit
+     * packet is processed before the victim's move packet that same tick, so the victim's freshest PROCESSED motion is
+     * one tick behind the clock. {@code arc(ticksInAir - 1)} therefore reproduces the victim's last-reported
+     * {@code motY} (== {@link MotionTracker#positionDelta}), which is exactly what the fold consumes. Pure phase, so it
+     * is identical for {@link ArcStyle#CLOSED} and {@link ArcStyle#PER_TICK}. (The old {@code -2} was an artifact of
+     * the since-removed per-hit motY re-seed, not a real extra tick of lag.)
      */
-    int VANILLA_LAUNCH_OFFSET = -2;
+    int VANILLA_LAUNCH_OFFSET = -1;
 
     /**
-     * Hypixel's offset, one tick further along than vanilla. Their vertical KB is a pure air-tick gravity prediction
-     * (fixed {@code jumpVelocity} seed, never re-seeded by the hit just dealt), whose whole-tick velocity sheet lines
-     * up with the victim's true air-time at {@code -1} - calibrated 1:1 against the sheet: a chained hit at air-tick
-     * 19 reads the sheet's tick-19 value ({@code -0.020750}), not a re-seeded pop. (The {@code -2} that briefly looked
-     * right was the old per-hit motY re-seed inflating the late-combo fold; with the re-seed gone, {@code -1} matches
-     * the sheet at both the early {@code t:9} and the late {@code t:19} anchors.)
+     * Hypixel's offset - empirically identical to {@link #VANILLA_LAUNCH_OFFSET} ({@code -1}). Both fold the victim's
+     * last-reported {@code motY}, so both carry the same one-tick packet-ordering phase; calibrated 1:1 against the
+     * Hypixel vertical-KB sheet (a chained hit at air-tick 19 reads the sheet's tick-19 value, {@code -0.020750}).
+     * TODO(cleanup): now equal to {@link #VANILLA_LAUNCH_OFFSET} - fold into one constant.
      */
     int HYPIXEL_LAUNCH_OFFSET = -1;
 

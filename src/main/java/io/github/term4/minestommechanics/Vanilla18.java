@@ -43,7 +43,26 @@ public final class Vanilla18 {
                 .build();
     }
 
-    /** Returns a KnockbackConfig with all vanilla 1.8 values set (no nulls). */
+    /**
+     * Returns a KnockbackConfig with all vanilla 1.8 values set (no nulls).
+     *
+     * <p>TODO(modern): notes for a future 1.20+ variant of this preset - the knockback math itself differs from 1.8
+     * (verified against 26.1 {@code LivingEntity.knockback} / {@code travelInAir}). Do NOT configure here yet; these
+     * are reference notes only:
+     * <ul>
+     *   <li><b>Vertical fold is grounded-only.</b> 1.8 always folds {@code motY = min(0.4, motY/2 + 0.4)}, airborne or
+     *       not; modern only folds when on ground ({@code onGround() ? min(0.4, motY/2 + power) : motY}) - an airborne
+     *       hit leaves {@code motY} untouched. Biggest juggle-feel difference; gate the vertical fold + the cap-hold on
+     *       the victim's ground state (mirrors KnockbackCalculator's existing vertical-fold TODO).</li>
+     *   <li><b>Vertical add tracks horizontal power.</b> 1.8 adds a fixed {@code 0.4}; modern adds {@code power} (the
+     *       knockback-resisted horizontal strength), still capped at {@code 0.4}.</li>
+     *   <li><b>Knockback resistance is a scale, not a gate.</b> 1.8 rolls {@code random >= resistance} and skips KB
+     *       entirely on success; modern always scales {@code power *= (1 - resistance)}.</li>
+     *   <li><b>Near-zero motion clamp {@code 0.005 -> 0.003}</b> ({@code MIN_MOVEMENT_DISTANCE}), plus a modern
+     *       near-apex gravity micro-step ({@code -0.003} / {@code gravity/16}) that 1.8 lacks - nudges the apex.</li>
+     *   <li>Decay law is unchanged across versions: {@code motY = (motY - 0.08) * 0.98} each air tick.</li>
+     * </ul>
+     */
     public static KnockbackConfig kb() {
         return KnockbackConfig.builder()
                 .sprintBuffer(0)
