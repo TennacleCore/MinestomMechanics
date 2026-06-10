@@ -3,23 +3,25 @@ package io.github.term4.minestommechanics;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
+import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * A bundle of mechanics configs assignable to a scope (player / instance / global) via
  * {@link MechanicsProfiles}. Members are nullable: a partial profile (e.g. knockback only) overrides just
- * that system and lets the rest fall through to the next scope. Presets compose directly:
+ * that member and lets the rest fall through to the next scope. Presets compose directly:
  * {@code MechanicsProfile.of(Vanilla18.atk(), Vanilla18.dmg(), Vanilla18.kb())}.
  */
 public record MechanicsProfile(
         @Nullable AttackConfig attack,
         @Nullable DamageConfig damage,
-        @Nullable KnockbackConfig knockback
+        @Nullable KnockbackConfig knockback,
+        @Nullable PlayerConfig player
 ) {
 
-    /** Full profile with all three systems set. */
+    /** Full profile with all three combat systems set (no player platform config). */
     public static MechanicsProfile of(AttackConfig attack, DamageConfig damage, KnockbackConfig knockback) {
-        return new MechanicsProfile(attack, damage, knockback);
+        return new MechanicsProfile(attack, damage, knockback, null);
     }
 
     public Builder toBuilder() { return new Builder(this); }
@@ -29,6 +31,7 @@ public record MechanicsProfile(
         private @Nullable AttackConfig attack;
         private @Nullable DamageConfig damage;
         private @Nullable KnockbackConfig knockback;
+        private @Nullable PlayerConfig player;
 
         Builder() {}
 
@@ -36,14 +39,16 @@ public record MechanicsProfile(
             attack = p.attack;
             damage = p.damage;
             knockback = p.knockback;
+            player = p.player;
         }
 
         public Builder attack(@Nullable AttackConfig v) { attack = v; return this; }
         public Builder damage(@Nullable DamageConfig v) { damage = v; return this; }
         public Builder knockback(@Nullable KnockbackConfig v) { knockback = v; return this; }
+        public Builder player(@Nullable PlayerConfig v) { player = v; return this; }
 
         public MechanicsProfile build() {
-            return new MechanicsProfile(attack, damage, knockback);
+            return new MechanicsProfile(attack, damage, knockback, player);
         }
     }
 }

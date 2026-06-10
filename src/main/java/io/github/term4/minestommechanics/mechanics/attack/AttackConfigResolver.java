@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.attack;
 
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.config.FieldValue;
 import org.jetbrains.annotations.Nullable;

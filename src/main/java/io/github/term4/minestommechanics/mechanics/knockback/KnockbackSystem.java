@@ -4,10 +4,11 @@ import io.github.term4.minestommechanics.MechanicsProfiles;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.KnockbackEvent;
-import io.github.term4.minestommechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.event.Event;
+import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -20,15 +21,15 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class KnockbackSystem {
 
-    private final EventNode<@NotNull Event> apiEvents;
     private final KnockbackConfig config;
     private final KnockbackCalculator calc;
     private final MechanicsProfiles profiles;
+    private final EventNode<@NotNull Event> node;
 
     public KnockbackSystem(MinestomMechanics mm, KnockbackConfig config) {
         this.config = config;
-        this.apiEvents = mm.events();
         this.profiles = mm.profiles();
+        this.node = EventNode.all("mm:knockback");
         Services services = mm.services();
         KnockbackConfig defaults = Vanilla18.kb();
         this.calc = new KnockbackCalculator(services, defaults);
@@ -41,12 +42,11 @@ public final class KnockbackSystem {
     }
 
     public void apply(KnockbackSnapshot snap) {
-
         // KnockbackEvent API (the resolver hook backs event.resolvedConfig(): it previews the exact values
         // compute() will use for whatever finalSnap the listeners settle on)
         var event = new KnockbackEvent(snap,
                 s -> calc.resolveConfig(s.config() != null ? s : s.withConfig(configFor(s.target()))));
-        apiEvents.call(event);
+        EventDispatcher.call(event);
         if (event.isCancelled()) return;
         KnockbackSnapshot finalSnap = event.finalSnap();
 
@@ -79,14 +79,17 @@ public final class KnockbackSystem {
             Entity target = finalSnap.target();
             target.setVelocity(velocity);
         }
-
     }
 
     public KnockbackConfig config() { return config; }
 
+    /** This system's listener node ({@code mm:knockback}). Empty today - future hooks mount here. */
+    public EventNode<@NotNull Event> node() { return node; }
+
     public static KnockbackSystem install(MinestomMechanics mm, KnockbackConfig config) {
         var system = new KnockbackSystem(mm, config);
         mm.registerKnockback(system);
+        mm.install(system.node);
         return system;
     }
 

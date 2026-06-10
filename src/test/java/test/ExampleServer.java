@@ -1,13 +1,13 @@
 package test;
 
+import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
-import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import test.presets.Hypixel;
-import io.github.term4.minestommechanics.platform.client.ClientInfoService;
+import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import net.minestom.server.Auth;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.command.builder.Command;
@@ -26,11 +26,6 @@ import net.minestom.server.item.Material;
 import net.minestom.server.timer.TaskSchedule;
 
 public class ExampleServer {
-    /** Debug: default simulated inbound packet latency (ticks) applied to the test account below. ~300ms @ 20 TPS. */
-    private static final long SIM_LAG_TICKS = 6;
-    /** Debug: account that auto-gets {@link #SIM_LAG_TICKS} of {@link LagSimulator} lag so the laggy-landing knockback is reproducible locally. */
-    private static final String SIM_LAG_USERNAME = "NotXaylahhLol";
-
     static void main() {
         // Could wrap these in compatibility methods (mm.legacyProperties(mode: 1.7, 1.8, etc)
 
@@ -74,6 +69,10 @@ public class ExampleServer {
         // 3. Initialize combat system
         AttackSystem.install(mm, Vanilla18.atk());
 
+        // Player platform knobs go through the profile system (player -> instance -> global scope),
+        // applied at spawn. Vanilla18: broadcast position every 2 ticks (1.8 tracker frequency).
+        mm.profiles().setGlobal(MechanicsProfile.builder().player(Vanilla18.player()).build());
+
         // Create the instance (world)
         InstanceManager instanceManager = MinecraftServer.getInstanceManager();
         InstanceContainer instanceContainer = instanceManager.createInstanceContainer();
@@ -89,18 +88,6 @@ public class ExampleServer {
             event.setSpawningInstance(instanceContainer);
             player.setRespawnPoint(new Pos(0, 42, 0));
 
-            // Debug: give a known test account simulated packet lag so the laggy-landing knockback is reproducible
-            // without a real high-ping client (a low-ping client clears the air clock the instant it lands).
-            // /lag <ticks> tunes it at runtime on any account.
-            if (player.getUsername().equals(SIM_LAG_USERNAME)) {
-                lag.setDelay(player, SIM_LAG_TICKS);
-                System.out.println("[sim-lag] " + player.getUsername() + " inbound packet latency = " + SIM_LAG_TICKS + " ticks");
-            }
-
-            if (player instanceof OptimizedPlayer opt) {
-                opt.setPositionBroadcastInterval(2);
-            }
-
             // Example of how to get a players protocol on login (with multiple attempts, stops once protocol is known)
             if (mm.viaProxyDetails) {
                 var scheduler = MinecraftServer.getSchedulerManager();
@@ -113,7 +100,7 @@ public class ExampleServer {
                     // Returns -1 until ViaVersion/proxy handshake completes
                     int protocol = mm.clientInfo().getProtocol(player);
 
-                    if (protocol == ClientInfoService.UNKNOWN_PROTOCOL) {
+                    if (protocol == ClientInfoTracker.UNKNOWN_PROTOCOL) {
                         return (++runs[0] >= maxRuns)
                                 ? TaskSchedule.stop() : TaskSchedule.tick(20);
                     }

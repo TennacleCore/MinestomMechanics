@@ -1,6 +1,6 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.tracking.VelocityConfig;

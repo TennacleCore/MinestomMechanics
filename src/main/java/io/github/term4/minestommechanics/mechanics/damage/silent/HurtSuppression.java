@@ -1,6 +1,5 @@
 package io.github.term4.minestommechanics.mechanics.damage.silent;
 
-import io.github.term4.minestommechanics.MinestomMechanics;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
@@ -24,8 +23,8 @@ public final class HurtSuppression {
 
     private HurtSuppression() {}
 
-    /** Installs the packet-out listener once. Safe to call from every {@code DamageSystem.install}. */
-    public static synchronized void install(MinestomMechanics mm) {
+    /** Installs the packet-out listener once, under the damage system's node. Safe to call from every {@code DamageSystem.install}. */
+    public static synchronized void install(EventNode<@NotNull Event> parent) {
         if (installed) return;
         installed = true;
 
@@ -41,7 +40,7 @@ public final class HurtSuppression {
             }
         });
         node.addListener(PlayerDisconnectEvent.class, e -> e.getPlayer().removeTag(SUPPRESS));
-        mm.install(node);
+        parent.addChild(node);
     }
 
     /** Toggle suppression of health packets for a player (set before setHealth, clear after). */

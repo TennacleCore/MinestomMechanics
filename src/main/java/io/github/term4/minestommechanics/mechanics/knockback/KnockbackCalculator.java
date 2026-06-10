@@ -45,7 +45,8 @@ public final class KnockbackCalculator {
 
         DirContext dctx = dirCtx(snap);
         if (dctx == null) return null;
-        boolean hasExtra = extra(snap, cfg) > 0;
+        int extraLevel = extraLevel(snap, cfg);
+        boolean hasExtra = extraLevel > 0;
 
         Entity t = snap.target();
         Point oPt = dctx.oPt();
@@ -62,7 +63,11 @@ public final class KnockbackCalculator {
         DirAndStrength extraKb = hasExtra ? resolveDS(raw, cfg, true) : null;
 
         Vec kb = normKb.direction().mul(normKb.h(), normKb.v(), normKb.h());
-        Vec kbe = extraKb != null ? extraKb.direction().mul(extraKb.h(), extraKb.v(), extraKb.h()) : null;
+        // Vanilla scales the extra HORIZONTALLY by the level (i * 0.5F in EntityHuman.attack) while the
+        // vertical stays fixed regardless of level - extraHorizontal is the per-level unit.
+        Vec kbe = extraKb != null
+                ? extraKb.direction().mul(extraKb.h() * extraLevel, extraKb.v(), extraKb.h() * extraLevel)
+                : null;
 
         double iFH = frictionCoeff(or(cfg.frictionH(), 0), cfg.frictionModeH());
         double iFV = frictionCoeff(or(cfg.frictionV(), 0), cfg.frictionModeV());
@@ -92,13 +97,20 @@ public final class KnockbackCalculator {
         return new Vec(kbVec.x() * tps, kbVec.y() * tps, kbVec.z() * tps);
     }
 
-    /** 1 when the extra (sprint) knockback applies to this hit: a melee hit by a recently sprinting attacker. */
-    private int extra(KnockbackSnapshot snap, KnockbackConfigResolver.ResolvedKnockbackConfig cfg) {
-        if (!snap.cause().isMelee()) return 0;
+    /**
+     * The extra-knockback level for this hit - vanilla {@code EntityHuman.attack}'s {@code i}: the Knockback
+     * enchant level plus {@code 1} when the attacker is (recently) sprinting, applied only to melee hits. The
+     * extra term's horizontal magnitude scales linearly with it. {@code 0} = no extra.
+     */
+    private int extraLevel(KnockbackSnapshot snap, KnockbackConfigResolver.ResolvedKnockbackConfig cfg) {
+        if (!snap.melee()) return 0;
         Entity a = snap.source();
         if (a == null) return 0;
+        int level = 0;
+        // TODO(enchants): + the weapon's Knockback enchant level once item enchants/attributes exist.
         int sprBuf = cfg.sprintBuffer() != null ? cfg.sprintBuffer() : 0;
-        return SprintTracker.wasRecentlySprinting(services.sprintTracker(), a, sprBuf) ? 1 : 0;
+        if (SprintTracker.wasRecentlySprinting(services.sprintTracker(), a, sprBuf)) level++;
+        return level;
     }
 
     /** Gets the direction context for this knockback. */

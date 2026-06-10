@@ -18,6 +18,7 @@ import net.minestom.server.timer.TaskSchedule;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+// TODO: Look into ladders, liquid, potion effects
 /**
  * Single authority for an entity's ground/air timeline and per-tick motion. A {@link PlayerMoveEvent} listener
  * anchors the air clock to the client's rising move-packet (its true jump tick) and records each move-packet
@@ -33,7 +34,7 @@ import org.jetbrains.annotations.Nullable;
  * <p>Physics constants are read live (entity {@link Aerodynamics}, per-block ground friction); only the vanilla
  * numbers Minestom does not model ({@link #SPRINT_IMPULSE}, near-zero clamp) are fixed here.
  */
-public final class MotionTracker {
+public final class MotionTracker implements Tracker {
 
     /** Server tick of the client's rising move-packet (its true jump tick); the gravity-arc anchor. */
     private static final Tag<Long> AIR_START_TICK = Tag.Transient("mm:air-start-tick");
@@ -72,6 +73,7 @@ public final class MotionTracker {
     public MotionTracker() {}
 
     /** Starts the per-tick ground-state fallback poll (a tick behind {@link #onMove}; catches status-only onGround packets). */
+    @Override
     public void start() {
         MinecraftServer.getSchedulerManager()
                 .buildTask(this::tick)
@@ -80,6 +82,7 @@ public final class MotionTracker {
     }
 
     /** Listener anchoring the air clock + move-delta to the client's own move packets (ping-invariant). */
+    @Override
     public EventNode<@NotNull PlayerEvent> node() {
         EventNode<@NotNull PlayerEvent> node = EventNode.type("mm:motion-tracker", EventFilter.PLAYER);
         node.addListener(PlayerMoveEvent.class, this::onMove);

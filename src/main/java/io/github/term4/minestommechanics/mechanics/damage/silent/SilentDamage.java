@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.silent;
 
-import io.github.term4.minestommechanics.platform.client.ClientInfoService;
+import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.attribute.Attribute;
 
@@ -22,9 +22,9 @@ public final class SilentDamage {
 
     private SilentDamage() {}
 
-    public static void setHealthWithoutHurtEffect(Player player, float newHealth, ClientInfoService clientInfo) {
-        int protocol = clientInfo != null ? clientInfo.getProtocol(player) : ClientInfoService.UNKNOWN_PROTOCOL;
-        boolean legacy = protocol != ClientInfoService.UNKNOWN_PROTOCOL && protocol <= LEGACY_PROTOCOL_MAX;
+    public static void setHealthWithoutHurtEffect(Player player, float newHealth, ClientInfoTracker clientInfo) {
+        int protocol = clientInfo != null ? clientInfo.getProtocol(player) : ClientInfoTracker.UNKNOWN_PROTOCOL;
+        boolean legacy = protocol != ClientInfoTracker.UNKNOWN_PROTOCOL && protocol <= LEGACY_PROTOCOL_MAX;
 
         if (legacy) {
             HurtSuppression.setSuppressHealthPackets(player, true);

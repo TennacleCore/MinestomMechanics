@@ -3,6 +3,7 @@ package io.github.term4.minestommechanics;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
+import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
@@ -14,7 +15,8 @@ import java.util.function.Function;
 /**
  * Scoped {@link MechanicsProfile} registry: assign profiles per player, per instance (world), or globally,
  * and swap them at runtime (configs are immutable, so a swap is atomic and takes effect on the next hit -
- * nothing is cached). Resolution is per <em>member</em>, highest scope first:
+ * nothing is cached; the {@code player} platform member is pushed by {@code PlayerConfigApplier} at
+ * spawn and whenever an assignment changes). Resolution is per <em>member</em>, highest scope first:
  * <pre>player profile -> instance profile -> global profile -> the system's install config</pre>
  * so a partial profile (e.g. knockback only) overrides just that system. A server may boot with nothing
  * assigned - every hit then uses the install configs exactly as before.
@@ -31,17 +33,30 @@ public final class MechanicsProfiles {
     private static final Tag<MechanicsProfile> PROFILE = Tag.Transient("mm:profile");
 
     private volatile @Nullable MechanicsProfile global;
+    /** Notified after any assignment changes; init registers the player platform config push here. */
+    private volatile @Nullable Runnable changeHook;
 
     MechanicsProfiles() {}
 
+    void onChange(Runnable hook) { this.changeHook = hook; }
+
+    private void changed() {
+        Runnable hook = changeHook;
+        if (hook != null) hook.run();
+    }
+
     /** Sets (or with {@code null} clears) the server-wide fallback profile. */
-    public void setGlobal(@Nullable MechanicsProfile profile) { this.global = profile; }
+    public void setGlobal(@Nullable MechanicsProfile profile) {
+        this.global = profile;
+        changed();
+    }
     public @Nullable MechanicsProfile global() { return global; }
 
     /** Sets (or with {@code null} clears) the profile for an instance (world/dimension). */
     public void setInstance(Instance instance, @Nullable MechanicsProfile profile) {
         if (profile == null) instance.removeTag(PROFILE);
         else instance.setTag(PROFILE, profile);
+        changed();
     }
     public @Nullable MechanicsProfile instance(Instance instance) { return instance.getTag(PROFILE); }
 
@@ -49,6 +64,7 @@ public final class MechanicsProfiles {
     public void setPlayer(Player player, @Nullable MechanicsProfile profile) {
         if (profile == null) player.removeTag(PROFILE);
         else player.setTag(PROFILE, profile);
+        changed();
     }
     public @Nullable MechanicsProfile player(Player player) { return player.getTag(PROFILE); }
 
@@ -65,6 +81,11 @@ public final class MechanicsProfiles {
     /** Effective knockback config for {@code subject} (the victim), or {@code null} when no scope sets one. */
     public @Nullable KnockbackConfig knockbackFor(@Nullable Entity subject) {
         return resolve(subject, MechanicsProfile::knockback);
+    }
+
+    /** Effective player platform config for {@code subject}, or {@code null} when no scope sets one. */
+    public @Nullable PlayerConfig playerFor(@Nullable Entity subject) {
+        return resolve(subject, MechanicsProfile::player);
     }
 
     private <T> @Nullable T resolve(@Nullable Entity subject, Function<MechanicsProfile, @Nullable T> member) {

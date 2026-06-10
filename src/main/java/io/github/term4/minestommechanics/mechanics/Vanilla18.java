@@ -1,6 +1,7 @@
-package io.github.term4.minestommechanics;
+package io.github.term4.minestommechanics.mechanics;
 
 import io.github.term4.echofix.EchoFixPlayer;
+import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
@@ -10,6 +11,7 @@ import io.github.term4.minestommechanics.mechanics.damage.types.playerattack.Pla
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
+import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import io.github.term4.minestommechanics.tracking.VelocityRule;
 import net.minestom.server.entity.LivingEntity;
 
@@ -64,6 +66,16 @@ public final class Vanilla18 {
                 .build();
     }
 
+    /**
+     * Returns a PlayerConfig with vanilla 1.8 values: position broadcast every 2 ticks (1.8
+     * {@code EntityTracker} adds players with {@code updateFrequency = 2}).
+     */
+    public static PlayerConfig player() {
+        return PlayerConfig.builder()
+                .positionBroadcastInterval(2)
+                .build();
+    }
+
     /** Legacy (pre-1.9) attack ruleset: applies melee damage, knockback, and resets attacker sprint. */
     public static AttackEvent.AttackRule.Ruleset legacyAttack() {
         return LegacyAttack::new;
@@ -87,7 +99,7 @@ public final class Vanilla18 {
             //    Null config lets the system resolve its chain: victim's scoped profile -> install config.
             KnockbackSystem kb = services.knockback();
             if (result == DamageSystem.HitResult.FULL_HIT && kb != null) {
-                var kbSnap = new KnockbackSnapshot(event.target(), event.cause(), event.attacker(), null, null, null);
+                var kbSnap = new KnockbackSnapshot(event.target(), true, event.attacker(), null, null, null);
                 kb.apply(kbSnap);
             }
             // 3. Reset attacker sprint - any landed hit (vanilla gates on damageEntity's result, so an

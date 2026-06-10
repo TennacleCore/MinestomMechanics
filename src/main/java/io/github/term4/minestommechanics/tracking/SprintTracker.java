@@ -13,7 +13,7 @@ import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public final class SprintTracker {
+public final class SprintTracker implements Tracker {
 
     private static final Tag<TickState> LAST_SPRINT_STATE = Tag.Transient("mm:last-sprint-state");
     private static final Tag<TickState> LAST_CLIENT_START_SPRINT = Tag.Transient("mm:client-sprint-start");
@@ -27,6 +27,7 @@ public final class SprintTracker {
     }
 
     /** Listener node that stamps the sprint start/stop ticks. */
+    @Override
     public EventNode<@NotNull PlayerEvent> node() {
         EventNode<@NotNull PlayerEvent> node = EventNode.type("mm:sprint-tracker", EventFilter.PLAYER);
 

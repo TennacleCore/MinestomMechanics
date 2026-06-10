@@ -54,11 +54,6 @@ public final class DamageConfig extends Config<DamageContext, DamageConfig> {
                 .build();
     }
 
-    /** Returns a copy of the current damage config. */
-    public DamageConfig copy() {
-        return toBuilder().build();
-    }
-
     public Builder toBuilder() {
         return new Builder(this);
     }
@@ -69,11 +64,6 @@ public final class DamageConfig extends Config<DamageContext, DamageConfig> {
 
     public static Builder builder(@Nullable DamageConfig base) {
         return base != null ? new Builder(base) : new Builder();
-    }
-
-    /** Returns a new config with all nulls (use fromBase to fill from defaults). */
-    public static DamageConfig empty() {
-        return builder().build();
     }
 
     public static final class Builder {

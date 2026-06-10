@@ -1,6 +1,6 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
@@ -199,7 +199,7 @@ public final class Minemen {
         var snap = ctx.snap();
         Entity attacker = snap.source();
         Entity target = snap.target();
-        if (attacker == null || !snap.cause().isMelee()) return null;
+        if (attacker == null || !snap.melee()) return null;
         var tracker = ctx.services().sprintTracker();
         if (!SprintTracker.wasRecentlySprinting(tracker, attacker, SPRINT_BUFFER)) return null;     // sprint hit
 
@@ -243,7 +243,7 @@ public final class Minemen {
         var snap = ctx.snap();
         Entity attacker = snap.source();
         Entity target = snap.target();
-        if (attacker == null || target == null || !snap.cause().isMelee()) return null;
+        if (attacker == null || target == null || !snap.melee()) return null;
 
         var aPos = attacker.getPosition();
         var tPos = target.getPosition();

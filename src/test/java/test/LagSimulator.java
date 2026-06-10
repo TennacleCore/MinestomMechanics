@@ -1,6 +1,5 @@
 package test;
 
-import io.github.term4.minestommechanics.util.TickClock;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.player.PlayerPacketEvent;
@@ -39,8 +38,16 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public final class LagSimulator {
 
-    /** A held packet and the server tick at/after which it should be released for real processing. */
+    /** A held packet and the simulator tick at/after which it should be released for real processing. */
     private record Delayed(ClientPacket packet, long releaseTick) {}
+
+    /**
+     * The simulator's own tick, incremented at the top of each {@link #flush}. Stamping and draining MUST share
+     * one clock: comparing against {@code TickClock} raced task registration order (flush registered first runs
+     * before TickClock's increment within the same server tick), which held every packet a phantom extra tick -
+     * {@code /lag 1} measured as ~2 ticks (~100ms) instead of one.
+     */
+    private volatile long tick = 0;
 
     /** Per-player ground-perception delay in ticks; absent (or {@code <= 0}) means the player is not lagged. */
     private final Map<UUID, Long> delayTicks = new ConcurrentHashMap<>();
@@ -78,12 +85,12 @@ public final class LagSimulator {
         // First pass: hold it and drop it from this tick's processing. Every inbound packet is delayed (true one-way
         // latency), so nothing about this player - position, ground flag, ping, swings - updates sooner than the rest.
         buffers.computeIfAbsent(event.getPlayer().getUuid(), k -> new ConcurrentLinkedQueue<>())
-                .add(new Delayed(packet, TickClock.now() + delay));
+                .add(new Delayed(packet, tick + delay));
         event.setCancelled(true);
     }
 
     private void flush() {
-        long now = TickClock.now();
+        long now = ++tick; // single writer (the scheduler task); volatile for onPacket's reads
         var iterator = buffers.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<UUID, Queue<Delayed>> entry = iterator.next();

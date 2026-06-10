@@ -1,6 +1,5 @@
 package io.github.term4.minestommechanics.api.event;
 
-import io.github.term4.minestommechanics.mechanics.Cause;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfigResolver;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
@@ -58,8 +57,8 @@ public final class KnockbackEvent implements CancellableEvent {
      */
     public KnockbackConfigResolver.ResolvedKnockbackConfig resolvedConfig() { return resolver.apply(finalSnap()); }
 
-    /** Knockback cause. Override by setting {@link #finalSnap(KnockbackSnapshot)} with a new cause. */
-    public Cause cause() { return finalSnap().cause(); }
+    /** Whether this is a melee hit (gates the sprint extra / melee-only components). Override via {@link #finalSnap}. */
+    public boolean melee() { return finalSnap().melee(); }
 
     /** If set, used instead of running the calculator. */
     public @Nullable Vec velocity() { return velocity; }

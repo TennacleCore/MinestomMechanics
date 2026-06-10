@@ -1,7 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.mechanics.Cause;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfigResolver;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
@@ -102,7 +101,6 @@ public final class AttackEvent implements CancellableEvent {
     // delegating accessors
     public Entity attacker() { return finalSnap().attacker(); }
     public @Nullable Entity target() { return finalSnap().target(); }
-    public Cause cause() { return finalSnap().cause(); }
 
     /** Attacker is off the ground and descending (a melee crit precondition). */
     public boolean attackerFalling() {

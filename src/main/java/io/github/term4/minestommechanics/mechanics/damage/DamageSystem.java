@@ -2,7 +2,7 @@ package io.github.term4.minestommechanics.mechanics.damage;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.api.event.DamageEvent;
 import io.github.term4.minestommechanics.mechanics.damage.DamageCalculator.DamageResult;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
@@ -12,7 +12,6 @@ import io.github.term4.minestommechanics.mechanics.damage.silent.SilentDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
 import io.github.term4.minestommechanics.mechanics.damage.types.playerattack.PlayerAttack;
-import io.github.term4.minestommechanics.platform.Constants;
 import io.github.term4.minestommechanics.util.TickClock;
 import io.github.term4.minestommechanics.util.TickState;
 import net.minestom.server.entity.Entity;
@@ -20,6 +19,7 @@ import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.damage.Damage;
 import net.minestom.server.event.Event;
+import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
@@ -35,6 +35,10 @@ public final class DamageSystem {
     /** Amount of the hit that opened the current invulnerability window (for overdamage replacement). */
     private static final Tag<Float> LAST_DAMAGE = Tag.Transient("mm:last-damage");
 
+    /** Default invul ticks when no config / per-type value resolves.
+     *  TODO: Scale by TPS when TPS scaling system is added (see DamageConfig TODOs). */
+    public static final int DEFAULT_INVUL_TICKS = 10;
+
     /**
      * Debug (temporary): when {@code true}, {@code minecraft:player_attack} hits run the full hit (hurt flash +
      * knockback + invul window) but cost no health - the bar drops and instantly refills. Lets a victim be
@@ -43,15 +47,15 @@ public final class DamageSystem {
     public static volatile boolean DEBUG_ZERO_MELEE_DAMAGE = false;
 
     private final MinestomMechanics mm;
-    private final EventNode<@NotNull Event> apiEvents;
     private final DamageConfig config;
     private final DamageCalculator calc;
     private final DamageTypeRegistry registry;
     private final Services services;
+    private final EventNode<@NotNull Event> node;
 
     public DamageSystem(MinestomMechanics mm, DamageConfig config) {
         this.mm = mm;
-        this.apiEvents = mm.events();
+        this.node = EventNode.all("mm:damage");
         this.config = config;
         this.services = mm.services();
         this.calc = new DamageCalculator(this.services, Vanilla18.dmg());
@@ -99,7 +103,7 @@ public final class DamageSystem {
         float amount = result.amount();
 
         DamageEvent event = new DamageEvent(working, amount);
-        apiEvents.call(event);
+        EventDispatcher.call(event);
         if (event.isCancelled()) return HitResult.BLOCKED;
 
         DamageSnapshot finalSnap = event.finalSnap();
@@ -162,6 +166,9 @@ public final class DamageSystem {
         // by the attack ruleset, so it is unaffected. Restoring to the pre-hit health keeps the victim at full, so a
         // single sub-20 melee hit never reaches the death path.
         if (DEBUG_ZERO_MELEE_DAMAGE && PlayerAttack.KEY.equals(type.key())) {
+            // Silent hits show no hurt effect and debug changes no health, so there is nothing to send.
+            // (The silent metadata path can't be used here: it delivers a health *change*, and debug has none.)
+            if (silent) return;
             float before = living.getHealth();
             Entity src = snap.source();
             living.damage(new Damage(type.minecraftType(), src, src, snap.point(), amount));
@@ -184,7 +191,7 @@ public final class DamageSystem {
 
     /**
      * Effective invulnerability ticks for a given type: the per-type override when set, else the
-     * configured global value, else {@link Constants#DEFAULT_INVUL_TICKS} (when unset or
+     * configured global value, else {@link #DEFAULT_INVUL_TICKS} (when unset or
      * context-dependent). A {@code null} type resolves the global value only.
      */
     public int defaultInvulTicks(@Nullable DamageType type) {
@@ -197,7 +204,7 @@ public final class DamageSystem {
             if (v != null) return v;
         }
         Integer v = config.invulTicks != null ? config.invulTicks.constantOrNull() : null;
-        return v != null ? v : Constants.DEFAULT_INVUL_TICKS;
+        return v != null ? v : DEFAULT_INVUL_TICKS;
     }
 
     /**
@@ -212,10 +219,14 @@ public final class DamageSystem {
     /** Registry of damage types and their handlers. */
     public DamageTypeRegistry registry() { return registry; }
 
+    /** This system's listener node ({@code mm:damage}); everything the system hooks lives under it. */
+    public EventNode<@NotNull Event> node() { return node; }
+
     public static DamageSystem install(MinestomMechanics mm, DamageConfig cfg) {
         var system = new DamageSystem(mm, cfg);
         mm.registerDamage(system);
-        HurtSuppression.install(mm);
+        HurtSuppression.install(system.node);
+        mm.install(system.node);
         return system;
     }
 

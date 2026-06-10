@@ -12,7 +12,8 @@ import org.jetbrains.annotations.Nullable;
  */
 public record Services(MinestomMechanics mm) {
 
-    // For now, enable these in the order they are listed here
+    // Accessors read the live registry, so cross-system lookups (e.g. a ruleset pulling damage()) are
+    // lazy per hit and install order does not matter.
     public @Nullable SprintTracker sprintTracker() { return mm.sprintTracker(); }
     public @Nullable MotionTracker motionTracker() { return mm.motionTracker(); }
     public @Nullable AttackSystem attack() { return mm.attackSystem(); }

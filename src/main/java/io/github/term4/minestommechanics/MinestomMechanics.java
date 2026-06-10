@@ -3,34 +3,34 @@ package io.github.term4.minestommechanics;
 import io.github.term4.echofix.EchoFix;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
+import io.github.term4.minestommechanics.platform.player.PlayerConfigApplier;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
-import io.github.term4.minestommechanics.platform.client.ClientInfoService;
-import io.github.term4.minestommechanics.platform.client.VersionDetector;
+import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import io.github.term4.minestommechanics.tracking.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
+import io.github.term4.minestommechanics.tracking.Tracker;
 import io.github.term4.minestommechanics.util.TickClock;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
-import net.minestom.server.event.player.PlayerDisconnectEvent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class MinestomMechanics {
 
-    // This is the main initialization class for the library.
-    //  This class allows the user to enable / disable server level systems (version detection, maybe packet interception, nothing else for now)
+    // Main initialization class for the library: server-level options (trackers, metaFix), the node tree
+    // (mm:root -> trackers / systems / api-events), the system registry, and scoped config profiles.
 
     // Server level options (defaults)
     /** When enabled the server listens for player details sent from ViaVersion proxy message */
-    public boolean viaProxyDetails = true; // false by default
+    public boolean viaProxyDetails = true;
 
     /** When enabled MinestomMechanics manually tracks a players sprinting status (useful for combat). Default: true */
     public boolean installSprintTracker = true;
     /** When enabled, tracks per-entity air-time, launch state, and position-delta motion (drives knockback velocity). Default: true */
     public boolean installMotionTracker = true;
-
+    /** When enabled, the stutter seen on 1.9+ clients when changing poses (sneaking, sprinting, etc.) due to high ping will not be present */
     public boolean metaFix = true;
 
     // might add an option for packet validation when not using a proxy? probably better to use a separate library for that though
@@ -38,7 +38,7 @@ public final class MinestomMechanics {
     private final EventNode<@NotNull Event> apiEvents = EventNode.all("mm:api-events");
 
     // Server level services
-    private ClientInfoService clientInfo;
+    private ClientInfoTracker clientInfo;
     private final MechanicsProfiles profiles = new MechanicsProfiles();
 
     // Optional registry
@@ -48,8 +48,6 @@ public final class MinestomMechanics {
     private @Nullable KnockbackSystem knockbackSystem;
     private @Nullable DamageSystem damageSystem;
 
-    void registerSprintTracker(SprintTracker s) { sprintTracker = s; }
-    void registerMotionTracker(MotionTracker g) { motionTracker = g; }
     public void registerAttack(AttackSystem a) { attackSystem = a; }
     public void registerKnockback(KnockbackSystem k) { knockbackSystem = k; }
     public void registerDamage(DamageSystem d) { damageSystem = d; }
@@ -79,35 +77,30 @@ public final class MinestomMechanics {
             EchoFix.install();
             MinecraftServer.getConnectionManager().setPlayerProvider((conn, profile) ->
                     new OptimizedPlayer(conn, profile));
+            // Scoped PlayerConfig (profiles) -> OptimizedPlayer, applied at spawn (join / instance
+            // change) and pushed to online players whenever a profile assignment changes.
+            PlayerConfigApplier.install(this);
+            profiles.onChange(() -> PlayerConfigApplier.applyAll(this));
         }
-
-        if (installSprintTracker) {
-            var tracker = new SprintTracker();
-            registerSprintTracker(tracker);
-            root.addChild(tracker.node());
-        }
-        if (installMotionTracker) {
-            var tracker = new MotionTracker();
-            tracker.start();
-            root.addChild(tracker.node());
-            registerMotionTracker(tracker);
-        }
-
-        clientInfo = new ClientInfoService();
 
         // Root node for all of MinestomMechanics
         MinecraftServer.getGlobalEventHandler().addChild(root);
-
-        // Create child nodes
-        EventNode<@NotNull Event> detectors = EventNode.all("mm:detectors");
-
-        // Add child nodes to root
-        root.addChild(detectors);
         root.addChild(apiEvents);
 
-        root.addListener(PlayerDisconnectEvent.class, e -> clientInfo.remove(e.getPlayer()));
+        // Trackers: per-player state stamped off events; each enabled one mounts under a shared node.
+        EventNode<@NotNull Event> trackers = EventNode.all("mm:trackers");
+        root.addChild(trackers);
 
-        if (viaProxyDetails) detectors.addChild(VersionDetector.node(clientInfo));
+        clientInfo = new ClientInfoTracker();
+        if (installSprintTracker) mount(trackers, sprintTracker = new SprintTracker());
+        if (installMotionTracker) mount(trackers, motionTracker = new MotionTracker());
+        if (viaProxyDetails) mount(trackers, clientInfo);
+    }
+
+    /** Starts a tracker and mounts its listener node. */
+    private static void mount(EventNode<@NotNull Event> trackers, Tracker tracker) {
+        tracker.start();
+        trackers.addChild(tracker.node());
     }
 
     /** Access registered MinestomMechanics services. */
@@ -116,8 +109,8 @@ public final class MinestomMechanics {
         return new Services(this);
     }
 
-    /** Access client info (e.g. protocol version) from server level detectors */
-    public ClientInfoService clientInfo() {
+    /** Access client info (e.g. protocol version) stamped by the client info tracker */
+    public ClientInfoTracker clientInfo() {
         if (!initialized) throw new IllegalStateException("MinestomMechanics has not been initialized");
         return clientInfo;
     }
@@ -128,14 +121,17 @@ public final class MinestomMechanics {
      */
     public MechanicsProfiles profiles() { return profiles; }
 
-    /** Public node for MinestomMechanics API events */
+    /**
+     * Convenience node for MinestomMechanics API event listeners. API events are dispatched through the
+     * global handler, so listening here or on {@code MinecraftServer.getGlobalEventHandler()} both work.
+     */
     public EventNode<@NotNull Event> events() {
         if (!initialized) throw new IllegalStateException("MinestomMechanics has not been initialized");
         return apiEvents;
     }
 
     /** Public method to install a node to the root MinestomMechanics node */
-    public void install(EventNode<@NotNull Event> node) {
+    public void install(EventNode<? extends @NotNull Event> node) {
         if  (!initialized) throw new IllegalStateException("MinestomMechanics has not been initialized");
         root.addChild(node);
     }
