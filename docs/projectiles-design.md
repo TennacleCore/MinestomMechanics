@@ -119,20 +119,39 @@ Each entry: the problem, the old fix, and the edge-case test that decides whethe
 
 ```
 mechanics/projectile/
-  ProjectileSystem           install(mm, ProjectileConfig) — config decides which launchers run
-                             (typeConfigs presence = enabled, same as DamageSystem.install)
-  ProjectileConfig           FieldValue knobs + per-type ProjectileTypeConfig map (mirrors DamageConfig)
-  ProjectileConfigResolver   ProjectileContext(snapshot, services) -> ResolvedProjectileConfig
-  ProjectileSnapshot         shooter, hand, item, type key, power, spawn/velocity overrides, config override
-  launchers/                 item -> entity producers (the damage `types/` analog):
-    BowLauncher, ThrowableLauncher (snowball/egg/pearl), FishingRodLauncher
-  entities/                  ProjectileEntity (CustomEntityProjectile port), ArrowEntity,
-                             ThrownItemEntity, FishingBobberEntity
-  sync/                      LegacyStuckSync (LegacyProjectileCompat port, gated by ClientInfoTracker),
-                             absolute-teleport view sync policy
-api/event/                   ProjectileLaunchEvent (pre-spawn: cancellable, velocity/spawn mutable),
-                             ProjectileHitEvent (entity/block, cancellable)
+  ProjectileSystem           install(mm, ProjectileConfig, Shootable...) — config enables self-launching types
+                             (typeConfigs presence, like DamageSystem.install); Shootables are the item launchers
+  ProjectileConfig           generic defaults + per-type ProjectileTypeConfig map (extends Config; mirrors DamageConfig)
+  ProjectileTypeConfig       per-type FieldValue knobs, extends Config<ProjectileContext, Self> like AttackConfig
+  ProjectileConfigResolver   ProjectileContext -> ResolvedFlight (launch) + ResolvedHit (impact)
+  ProjectileSnapshot         shooter, item, type, power, spawn/velocity overrides, config override
+  shootables/                pluggable item launchers (the attack `HitDetection` analog): Shootable, Bow
+  types/                     projectile identity + behavior: ProjectileType, Arrow (pure identity),
+                             ThrowableItemType (self-launching base) + Snowball/Egg/Pearl
+  entities/                  ProjectileEntity, ManagedProjectile, ArrowEntity, PearlEntity (egg uses the default
+                             ManagedProjectile - its chicken easter egg is now an example ProjectileBehavior)
+api/event/                   ProjectileLaunchEvent (spawn: cancellable, spawn/velocity mutable, resolvedFlight()),
+                             ProjectileHitEvent (entity/block: cancellable, resolvedHit() + per-hit overrides)
 ```
+
+> **Launcher vs self-launching type (the key split):** a bow/crossbow/rod is an ITEM that fires a projectile -
+> modeled as a pluggable `Shootable` (mirrors `AttackSystem`'s `HitDetection`), passed to `install(mm, cfg, new Bow())`.
+> A snowball/egg/pearl IS the thrown item - a self-launching `ProjectileType` (`ThrowableItemType`) that wires its own
+> use trigger and is enabled by its config entry. Arrow is pure identity; the `Bow` Shootable fires it.
+>
+> **Three event surfaces (consistent with Damage/Knockback/Attack):** SPAWN = `ProjectileLaunchEvent` (cancel /
+> redirect spawn+velocity / attach cosmetics, `resolvedFlight()` preview); FLIGHT folds INTO spawn (attach a trail or
+> use `ProjectileBehavior.onTick` - no separate per-tick event); HIT = `ProjectileHitEvent` (`resolvedHit()` preview +
+> per-hit overrides: `damage`, `knockback`/`knockbackSource`, `removeOnHit`, and `response(...)` to force the outcome).
+>
+> **Per-projectile behavior without subclassing:** attach a `ProjectileBehavior` (no-op default lifecycle hooks
+> `onSpawn`/`onTick`/`onImpact`/`onDeflect`/`onStuck`/`onUnstuck`/`onRemove`) as the config `behavior` knob or per-launch
+> via `ProjectileSnapshot.withBehavior`; `ManagedProjectile` delegates to it additively (the type's built-in effects
+> still run). The projectile analog of the attack `Ruleset`. `ProjectileTypeConfig` extends the generic `Config<Ctx,Self>`
+> base like `AttackConfig` (public `FieldValue` fields, `merge`); knobs include `momentumHorizontal`/`momentumVertical`
+> (scales over a `VelocityRule` source, resolved config -> shooter profile -> DEFAULT like knockback), `deflect(...)`,
+> `physicsOrder`, `leftOwnerImmunity`, `stickPullback`, `shakeTicks`, `deflectParticles` (crit-trails an arrow that
+> bounced off / passed through an entity, for 1.8 viewers who lost it), and the renamed `spawnOffset(forward, vertical, sideways)`.
 
 **Per-type configurability requirement** (parity with the old system, expressed as `FieldValue` knobs on
 `ProjectileTypeConfig` - constants or per-context lambdas like every other config in the lib):
@@ -168,15 +187,41 @@ Windows). Minestom source (read-only, for API) is the sibling repo `../Minestom`
 `C:\Users\Gabriel\Desktop\Development\paper_source_1.8.8` and modern is `...\26.1-src`. The old (messy but
 working) projectile impl to port from: `C:\Users\Gabriel\Documents\GitHub\minestom-mechanics-lib\minestom-mechanics-lib\src\main\java\com\minestom\mechanics\`.
 
+### Polish pass (config/event/parity refactor - COMPLETE, compiling)
+- **`DeflectRule` interface removed** → a `deflect(mul, turn, min, max)` knob backed by the nested `ProjectileTypeConfig.Deflect`
+  record (like `PickupBox`); transform inline in `ManagedProjectile`. 1.8 = `deflect(-0.1)`, 26.1 = `deflect(-0.5, 0, -10, 10)`.
+- **Parity knobs added** (all 1.8↔26.1 deltas now expressible): `physicsOrder` (DRAG_AFTER/BEFORE_MOVE), `leftOwnerImmunity`
+  (geometric vs tick), `stickPullback`, arrow `shakeTicks`. The egg's chicken easter egg was REMOVED from core (it's an
+  example `ProjectileBehavior` in `ExampleServer`); `EggEntity` deleted.
+- **`ProjectileBehavior` lifecycle** rounded out: `onSpawn`/`onTick`/`onImpact`/`onDeflect`/`onStuck`/`onUnstuck`/`onRemove`.
+- **Events aligned with Damage/Knockback/Attack**: `ProjectileHitEvent` exposes `resolvedHit()` + per-hit overrides
+  (`damage`/`knockback`/`knockbackSource`/`removeOnHit`/`response`); `ProjectileLaunchEvent` exposes `resolvedFlight()`.
+  Three surfaces: spawn (launch) / flight (folded in) / hit.
+- **Modern preset** `Vanilla.projectiles()`/`projectileDefaults()`/`arrow()` (26.1 deltas over the `Vanilla18` base).
+- **Stuck-arrow count**: `StuckArrows` (count/set/add/clear + a lazy global decay task) + `ArrowEntity.onImpact` increment.
+- **Profiles**: per-shooter projectile config resolves player→instance→global via `MechanicsProfiles.projectilesFor`
+  (used by `ProjectileSystem.configFor`) - same chain as every other system.
+- **Custom items - TWO equivalent paths** (the lib never needs to know your items):
+  - **Events (preferred for minigames):** `ProjectileHitEvent` per-hit overrides (`damage`/`knockback`/`response`/...)
+    for impact behavior; `ProjectileLaunchEvent.behavior(...)`/`setVelocity`/entity tweaks for spawn/flight. One listener
+    switches on `snapshot().item()` (stash an id on the item, map id->behavior in your own registry - never N lambdas).
+    See the event-driven heavy-snowball example in `ExampleServer`.
+  - **Config:** per-knob `ctx.item()` lambdas or one `subConfig(ctx -> registry.get(ctx.item()))` overlay - best for
+    flight physics (resolved before spawn). The egg's chicken easter egg (config `behavior` knob) is the example.
+- **VANILLA PARITY (audited + cited):** 1.8 throwables EXACT vs `EntityProjectile` (spawn `-0.16`/`-0.1`, speed `1.5`
+  `j()`, spread `0.0075`, drag `0.99` + gravity `0.03` AFTER the move, 5-tick immunity, 0.3 grow, no momentum). 26.1:
+  `ThrowableProjectile` applies gravity+drag BEFORE the move; `Projectile.shootFromRotation` adds `getKnownMovement`
+  (h always, v airborne); `ProjectileDeflection.REVERSE` = `scale(-0.5)` + yaw `170+rand*20`; `leftOwner` re-checks each
+  tick with `inflate(1.0)`. All matched by the modern preset/knobs. (Open nuance: 26.1 spread is `triangle`, not gaussian
+  - see lingering TODOs.)
+
 ### Built and compiling
 - **Entity core** - `src/main/java/.../mechanics/projectile/entities/ProjectileEntity.java`: swept block
   physics, block stick (movement frozen, but a vanilla-style periodic `resyncStuck()` re-assert - NOT radio silence,
   see status "STUCK-ARROW 1.8 DESYNC"), entity hits, absolute-teleport sync, viewer spawn. Velocity is **b/t
   internally** (`velocityBt`), mirrored to `super.velocity` in b/s. The legacy stuck-sync (F7/F8/F12) is no longer
-  needed - the periodic re-assert + modern inGround metadata cover both clients. Block-hit detection is a per-type
-  flight knob `blockCollision` (`BlockCollisionMode` `{SWEPT, RAYTRACE}`): `SWEPT` (default) = the `handlePhysics`
-  path; `RAYTRACE` = `entities/BlockRaytrace.java`, a 1.8-faithful voxel raytrace (`world.rayTrace` parity) so a 1.8
-  client agrees 1:1 at block edges. `Vanilla18` = `RAYTRACE`, modern preset = `SWEPT`. See status item 3f.
+  needed - the periodic re-assert + modern inGround metadata cover both clients. Block-hit detection is swept-only
+  (`handlePhysics`); a 1.8 `world.rayTrace` knob (`BlockRaytrace`) was built then deleted as indistinguishable (3f).
 - **Config/event layer** (mirrors the damage system exactly): `mechanics/projectile/ProjectileConfig.java`
   (generic `defaults` config + per-type map, presence-enables), `types/ProjectileTypeConfig.java` (ALL per-type
   knobs as `FieldValue`: bbox, aerodynamics, `spawnOffsetH`/`spawnOffsetV` (+ combined `spawnOffset(h,v)`), speed,
@@ -191,9 +236,10 @@ working) projectile impl to port from: `C:\Users\Gabriel\Documents\GitHub\minest
   wires the item-use throw + consume; the three types are **config-free** (entity + which item only) and share one
   baseline. ALL tuning is in `Vanilla18.projectileDefaults()` (researched vanilla 1.8: `speed 1.5`, `spread 0.0075`,
   `gravity 0.03`, `drag 0.99`, `inheritMomentum=false`, spawn `-0.1`V + `0.16` lateral, `ignoreShooterHit=true`,
-  `knockbackSource=SHOOTER`, vanilla KB, `damage 0` via `ProjectileDamage`). Egg/pearl add
-  `entities/{EggEntity,PearlEntity}.java` (baby chicken / shooter teleport via the new
-  `ManagedProjectile.onImpact(hitEntity)` hook, which fires on entity AND block impact).
+  `knockbackSource=SHOOTER`, vanilla KB, `damage 0` via `ProjectileDamage`). Pearl adds
+  `entities/PearlEntity.java` (shooter teleport via the `ManagedProjectile.onImpact(hitEntity)` hook, which fires on
+  entity AND block impact); the egg uses the default `ManagedProjectile` (its baby-chicken easter egg moved to an
+  example `ProjectileBehavior` in `ExampleServer` - it is no longer core).
 - **Momentum**: `ProjectileSystem.launchVelocity` folds `MotionTracker.positionDelta(shooter)` (= 26.1
   `getKnownMovement`), NOT `getVelocity()`; horizontal always, vertical only if airborne. Default `false` (1.8). §5.
 - **Hit knobs resolve at IMPACT** (the big restructure): `ProjectileConfigResolver` split into `resolveFlight` (launch:
@@ -212,10 +258,11 @@ working) projectile impl to port from: `C:\Users\Gabriel\Documents\GitHub\minest
 - **Pearl**: teleport + `FallDamage.resetFallDistance(shooter)` (DONE) + flat 5 (vanilla is a CONSTANT, FALL-typed;
   via `GenericDamage` stand-in for now). TODOs: dedicated FALL/enderPearl damage type (the 1.8-vs-26 type delta),
   5% endermite, cross-instance teleport.
-- **Bow + arrow (phase 4, first cut)**: `types/Arrow.java` (IS the projectile AND wires the bow draw:
-  `PlayerCancelItemUseEvent` -> power `(s^2+2s)/3` -> consume arrow -> launch) + `entities/ArrowEntity.java`
-  (velocity-based damage `ceil(speed*2)+crit`, `setCritical` -> meta crit particles, sticks in blocks via the
-  inherited machinery, pickup-while-stuck). `Vanilla18.arrow()`: speed 3.0, gravity 0.05, SHOOTER-relative KB, stick.
+- **Bow + arrow (phase 4)**: `types/Arrow.java` is PURE IDENTITY (createEntity only); the bow ITEM is a pluggable
+  `Shootable` launcher in `shootables/Bow.java` (draw `PlayerCancelItemUseEvent` -> power `(s^2+2s)/3` -> consume arrow ->
+  launch + set crit/pickup), passed to `ProjectileSystem.install(mm, cfg, new Bow())` - the attack `HitDetection` analog.
+  `entities/ArrowEntity.java` (velocity-based damage `ceil(speed*2)+crit`, `setCritical` -> meta crit particles, sticks
+  in blocks via the inherited machinery, pickup-while-stuck). `Vanilla18.arrow()`: speed 3.0, gravity 0.05, SHOOTER-relative KB, stick.
   (KB is SHOOTER, not PROJECTILE: 1.8 `damageEntity` knocks away from `DamageSource.arrow.getEntity()` = the shooter,
   not the arrow's flight; verified in source. Punch adds a separate motion-direction KB - TODO.)
   Velocity-based damage uses the new `ManagedProjectile.hitDamage(hit, target)` override hook. **TODO**: gate draw
@@ -364,51 +411,165 @@ is the one constant knob (pass-through-self) so vanilla stays constant-only. KB 
       return;` = `selfHit(PASS_THROUGH)`); **pearl yaw fix** - the teleport keeps the shooter's view (vanilla
       `enderTeleportTo` is x/y/z only; was overwriting yaw with the pearl's flight rotation). Remaining: 1200-tick
       despawn; Power/Punch/Flame; offhand/Infinity selection; draw-gate.
-   e. **Post-stick 0.05 pull-back + flight-sync throttle (O1) - DONE.** Stick now pulls the arrow back 0.05 along the
-      flight direction (vanilla 1.8 `locX -= motX/|mot|*0.05`; 26.1 per-axis) so the tip pokes out of the block face -
-      `stuckPlacement`. (No visible "nudge" - the 1.8 client pulls back 0.05 itself, so client + server agree; the
-      vanilla nudge was a disagreement artifact we don't reproduce.) O1: in-flight `synchronizePosition` sends the
-      absolute teleport only every `syncInterval` (velocity still every tick via `Entity.tick`) - user-confirmed no
-      stuttering.
-   f. **EDGE-HIT desync (1.8 client over-predicts block-edge hits) - LEGACY-COLLISION-MODE BUILT (this session).**
-      1.8 clients detect block hits with a per-tick RAYTRACE (`world.rayTrace`, `EntityArrow.t_` / `EntityProjectile.t_`),
-      run locally during flight; our server used Minestom swept-box physics. At block edges they disagree (corner
-      precision + the client predicting the whole flight before any sync), so a 1.8 client briefly false-sticks then
-      gets dragged back - the old "known-broken" F8. The server has ONE authoritative position, so the fix is to make
-      the SERVER detect block hits the same way the 1.8 client does. **Built:** a per-type `blockCollision` flight knob
-      (`ProjectileTypeConfig.BlockCollisionMode` `{SWEPT, RAYTRACE}`), wired exactly like `entityHitGrow` (config field
-      -> `ResolvedFlight` -> `ProjectileSystem.launch` stamps `entity.setBlockCollision(...)` -> `ProjectileEntity`
-      field + branch in `movementTick`'s block-stick section). `SWEPT` (resolver default; modern preset) = the
-      unchanged `handlePhysics` path. `RAYTRACE` = `entities/BlockRaytrace.java`: walks the voxels of
-      `position -> position + velocityBt` with the native `BlockIterator` and ray-clips each block's real collision
-      AABBs (from `ShapeImpl.boundingBoxes()`, so slabs/stairs/fences use their actual shape, like 1.8's
-      `block.a(world, pos)`), returning the closest entry (block + point + axis) -> the existing
-      `stick(block, hitPoint, axis, hitPoint)` (vanilla places at the ray hit point, then the 0.05 pull-back). In
-      RAYTRACE mode the swept STICK result is ignored and a clear ray flies the full move (`newPosition = pos + vel`),
-      but the swept `physics` is still computed to bound the entity sweep (no through-wall entity hits) - so entity-hit
-      behavior is identical to SWEPT. `Vanilla18.projectileDefaults()` sets `RAYTRACE` preset-wide (1.8 raytraces ALL
-      projectiles, arrows + throwables); `Minemen`/`Hypixel` re-base from it, so the test server gets it.
-      **Implementation notes:** (1) couldn't reuse Minestom's `Shape.intersectBoxSwept` for the hit point/face -
-      `SweepResult`'s fields are package-private to `net.minestom.server.collision` - hence the self-contained slab
-      ray-AABB clip. (2) Not bit-identical to 1.8 (standard slab clip + Minestom's modern block shapes, not 1.8's), but
-      same point-ray against the same geometry, so far closer to the client than the swept box at edges. (3) An arrow
-      whose origin is INSIDE a block isn't re-detected (clip requires entry from outside, `tmin >= 0`) - a non-issue
-      since the player hitbox keeps the spawn ~0.3 off any wall, so point-blank shots still enter from outside.
-      **To scope down** (if throwables misbehave): move `.blockCollision(RAYTRACE)` from `projectileDefaults()` to
-      `arrow()`. **User tests:** edge shots into block corners/slabs/fences on a 1.8 client (via Via) - the arrow
-      should stick where the client predicts, no false-stick-then-drag; verify throwables still break on walls.
-   e. **Post-stick 0.05 pull-back + flight-sync throttle (O1) - DONE.** Stick now pulls the arrow back 0.05 along the
-      flight direction (vanilla 1.8 `locX -= motX/|mot|*0.05`; 26.1 per-axis) so the tip pokes out of the block face -
-      `stuckPlacement`. This may also reproduce the 1.8 "small nudge a few ticks after sticking" (client prediction vs
-      the server's pulled-back position; modern stays put via inGround metadata). O1: in-flight `synchronizePosition`
-      now sends the absolute teleport only every `syncInterval` (velocity still goes every tick via `Entity.tick`, the
-      client predicts the arc between) instead of every tick - cuts packets for long-flight projectiles; **test flight
-      smoothness** on 1.8 (tunable via `syncInterval`).
+   e. **Post-stick 0.05 pull-back - DONE; flight-sync throttle (O1) - REVERTED (this session).** Stick pulls the arrow
+      back 0.05 along the flight direction (vanilla 1.8 `locX -= motX/|mot|*0.05`; 26.1 per-axis) so the tip pokes out
+      of the block face - `stuckPlacement`. (No visible "nudge" - the 1.8 client pulls back 0.05 itself, so client +
+      server agree.) **O1 (throttle the in-flight teleport to `syncInterval`) is KEPT** - it IS the vanilla cadence
+      (sparse absolute teleport + client prediction). A per-tick teleport was tried to kill the edge drift but it SHAKES
+      the client, so it was reverted; see 3g (FLIGHT SYNC).
+   f. **BLOCK-COLLISION + FLIGHT-SYNC - SETTLED on the VANILLA MODEL (RAYTRACE tried then DELETED).** A 1.8 client runs
+      its OWN projectile physics + block raytrace each tick (`EntityArrow.t_` / `EntityProjectile.t_`); the server only
+      corrects it with packets. So edge-stick + deflect rendering are governed by the CLIENT's prediction, not by how the
+      SERVER detects hits.
+      - **Vanilla broadcast** (1.8 `EntityTracker`/`EntityTrackerEntry`, 26.1 `ServerEntity` - §5 "Entity tracking"): a
+        projectile gets an ABSOLUTE TELEPORT only every `updateInterval` (arrow 20t, throwable 10t - they move >4
+        blocks/interval so vanilla's relative-move path always falls back to teleport), forced pos+rotation, NO arrow
+        velocity in flight (`ai` is set only by knockback `g()`, not normal flight); the CLIENT predicts the arc between.
+        It can be that sparse because the 1.8 client's physics are BIT-IDENTICAL to the server's, staying in lockstep.
+      - **A `blockCollision` `{SWEPT, RAYTRACE}` knob + `BlockRaytrace` (1.8 `world.rayTrace` DDA) was BUILT then DELETED**
+        - it was INDISTINGUISHABLE in-game. For our zero-size box the swept sweep ≈ a ray, so server detection was never
+        the divergence; the 1.8 CLIENT mispredicts the edge from its own drifted prediction, which the server's detection
+        method can't fix. We're back to swept-only (`handlePhysics`).
+      - **Edge "hit wall -> slide -> snap" = ROOT-CAUSED + FIXED (the per-tick velocity packet).** The drift was NOT
+        physics: it's that Minestom's `Entity.tick` re-broadcasts the arrow's velocity EVERY tick, whereas vanilla 1.8
+        registers arrows `sendVelocity=false` and sends velocity ONLY ONCE - in the spawn packet (`PacketPlayOutSpawnEntity`
+        with `data > 0` -> `motX*8000`) - then never again, so the 1.8 client predicts the WHOLE flight locally in lockstep
+        with the server. Our per-tick velocity packets, arriving lagged + quantized over Via, repeatedly overwrite that
+        clean local prediction, so the client's OWN raytrace mispredicts the edge (slide) AND its bounce prediction drifts
+        (the deflect "looks wrong to the target"). This is exactly why RAYTRACE made no difference - the CLIENT decides
+        `inGround` from its prediction, not the server's detection. **Fix:** `ProjectileEntity.sendPacketToViewers` drops
+        the automatic per-tick `EntityVelocityPacket` (an `allowVelocityPacket` flag lets our deliberate sends - the
+        spawn velocity rides the `SpawnEntityPacket`, the stuck zero rides `sendVelocityToViewers` - through). Now matches
+        vanilla: velocity once at spawn, client predicts in lockstep. **CONFIGURABLE:** the `velocitySyncInterval` flight
+        knob - `<= 0` (resolver default) = never (vanilla arrow / the fix), `1` = every tick (Minestom default), `N` =
+        every N ticks. User-confirmed "much better." (Arrow BLOCK collision box double-checked against 1.8: it's a pure
+        POINT raytrace - `world.rayTrace(Vec3D(locX,locY,locZ), ..)` - so our zero-size box (F1) is correct; the
+        `setSize(0.5,0.5)` is render + entity-hit + pickup only, never block sticking.)
+      - **Edge-stick "sticks then snaps forward" (1.8-only) = ROOT-CAUSED + FIXED (spawn-position lockstep).** The residual
+        the velocity fix unmasked. A 1.8 client predicts the WHOLE flight from the spawn packet, whose position ViaVersion
+        truncates to 1/32 (`(int)(v*32)/32`, toward zero). Our server simulates from the FULL-PRECISION spawn, so the client
+        starts up to ~0.03 off (e.g. y `41.52`->`41.50`) and that offset PERSISTS - physics are bit-identical (drag `0.99` /
+        gravity `0.05` / post-move, verified tick-by-tick against the logged wire). On a shallow descending graze that
+        0.02-0.03 is the difference between the client clipping a block edge and the server clearing it: the client sticks
+        where the server flies on, and the position resync then snaps the stuck arrow forward. **Fix:** `ProjectileSystem.launch`
+        spawns the entity on the SAME 1/32 grid via `quantizeToWireGrid` (truncate like Via), so server and client simulate
+        the trajectory in LOCKSTEP and agree on the edge stick (a t=0 stick has no time for velocity drift, so position
+        lockstep alone resolves it). Velocity (~1/8000 on the wire) is left exact - its residual is far below the position
+        grid. Cost: a `<= 0.03` spawn grid-snap (the 1.8 wire precision anyway); modern clients also start on the grid (the
+        entity IS there) so ALL viewers agree with the server. Present on vanilla too (it sends the same 1/32 spawn to 1.8
+        clients) and invisible to modern clients (full-precision + server-authoritative) -> a NON-vanilla 1.8-client
+        improvement. **Tried first + DELETED:** a swept-vs-ray "server misses the edge" theory + an additive vanilla
+        ray-march - they did nothing, because the server's arrow genuinely was not reaching the block (the divergence is the
+        spawn offset, NOT the detection method; Minestom's swept AABB and a true ray agree here).
+      - **Per-tick sync was tried and REVERTED:** an absolute teleport EVERY tick killed the drift but SHAKES both 1.8 and
+        26.1 clients (it fights the client's interpolation + prediction: predict forward, yank back) and on a deflect made
+        distant viewers lose the entity. `synchronizePosition` is back to the throttled (sparse, `syncInterval`) teleport;
+        `synchronizeNextTick()` + the `syncFlightNow()` deflect push were BOTH reverted.
+      - **Deflect "invisible to OTHER viewers" = VANILLA (user-confirmed), so NOT fixed in itself.** Vanilla lets the
+        client predict the bounce; through Via distant viewers (who don't know the target's invuln state) mispredict and
+        the arrow looks invisible-but-pickable - exactly how vanilla behaves, so we leave it. (NOTE for later: 1.8
+        actually PASSES THROUGH an `abilities.isInvulnerable` creative target - `movingobjectposition = null` - and only
+        deflects a `damageEntity`-false hit; our `invulnHit` deflects both. Separate behavior question - see 3d / open.)
+        The opt-in **`deflectParticles` hit knob** (default `false`; a server sets `arrow().deflectParticles(true)`) is the
+        only thing we can do for it: on a DEFLECT / PASS_THROUGH it sets the base `deflectVisible` flag, and `ArrowEntity`
+        sends **server-spawned crit `ParticlePacket`s at the authoritative position** each tick (NOT the crit metadata -
+        that renders client-side from each viewer's own mispredicted arrow position, so it showed to the target instead of
+        the outside viewers who need it). This traces the bounce path for 1.8 viewers; the arrow ENTITY stays invisible to
+        them (see STATUS below). This is the "Hypixel shows the movement with particles" approach. Non-vanilla, never
+        hard-coded into the vanilla preset. (An earlier `respawnForViewers` entity re-spawn was REMOVED - it never worked
+        on 1.8; see STATUS.)
+        - **STATUS: the entity-visibility half does NOT work on 1.8 - it is a HARD client-side limitation (accepted).**
+          User-confirmed: the glitch is a **native 1.8 CLIENT bug** (reproduces on vanilla 1.8, NOT a Via artifact) and is
+          **1.8-only** (26.1 renders the deflected arrow perfectly). Documented vanilla bug: **MC-129934** ("arrows
+          bouncing off creative players can only be seen by the person fired at" - our exact symptom), **MC-101723**
+          (bow/crossbow on an invulnerable entity makes the arrow invisible), **MC-140857** (bounces off entities during
+          their invuln ticks), **MC-417** (bounce-back then appear); ProtocolSupport #1289 reports the same under a
+          Via-style translation with no fix. **Root cause:** the 1.8 client runs its OWN arrow→entity collision and
+          locally bounces/hides the arrow when it contacts an entity the server won't let it damage; the render decision
+          lives entirely on the client, so NO server packet overrides it. That is why every server-side attempt failed -
+          (a) same-id `respawnForViewers`; (b) split across two ticks; (c) a fresh-id decoy for legacy viewers
+          (`ClientInfoTracker.isLegacy`) - the client re-runs its collision on ANY arrow entity near the target and hides
+          it regardless of entity id; (d) an `ignoredHitEntities` "re-hit loop" theory (DISPROVEN - 26.1 fine ⇒ not a
+          server loop). Known client-side fixes (newer MC; a modded client force-syncing pos via DataWatcher) need a
+          modified client, unavailable to vanilla-1.8-via-Via. **Only the crit-particle TRAIL shows on 1.8** - it is now
+          the WHOLE of `deflectParticles` (the entity re-spawn was removed); accept the entity invisibility. Tofaa's idea
+          of bumping the victim's "arrows-in-body" count metadata (`LivingEntityMeta.setArrowCount`, a separate render
+          path immune to the bug) was considered + rejected: it renders generic arrows in the PLAYER's model, not the
+          actual bounced / block-stuck arrow, and vanilla only adds those on a DAMAGING hit (TODO: do replicate that for
+          real damaging hits as parity - unrelated to this cosmetic).
+      - **Parity scan (1.8 `ItemBow`/`EntityArrow` + 26.1 `BowItem`):** launch speed = `power*3` in BOTH (1.8 bow:
+        `new EntityArrow(.., power*2)` then ctor `shoot(.., power*2*1.5, ..)`; 26.1 `shoot(.., power*3, ..)`) -> our
+        `speed(3.0)*power` is exact; power curve `(s²+2s)/3` capped 1, crit at full draw, spread `0.0075`/uncertainty
+        `1.0`, damage mult `2.0` (`ceil(|mot|*2)+crit`), gravity `0.05`, drag `0.99`, 7-tick shake, pickup modes all
+        match. **FIXED:** the arrow's `0.16` throwing-hand lateral - we had overridden it to `0`; 1.8 `EntityArrow` ctor
+        has `locX -= cos(yaw)*0.16` (26.1 has none = the documented 1.8->26 delta), so arrow now inherits `0.16` from
+        `projectileDefaults()`. **DONE:** the victim "arrows-in-body" stuck-arrow count on a damaging hit (vanilla
+        `EntityLiving.o(bv()+1)`) - `ArrowEntity.onImpact` calls `StuckArrows.add(victim, 1)`; they fall out on the
+        vanilla `20 * (30 - count)` cadence (identical in 1.8 `EntityLiving:1198` and 26.1 `LivingEntity:2699`). Remaining
+        GAPS (feature TODOs, not parity bugs): Infinity, Power/Punch/Flame enchants, draw-start gate, bow durability +
+        shoot sound, dedicated `minecraft:arrow` damage type.
 4. **Fishing rod** (phase 5): bobber + desync handling (revisit whether the bobber needs the same periodic-resync
       treatment or its own model) + pseudo-hook modes (config enum).
 5. Hypixel/Minemen projectile presets. (The old `LegacyStuckSync`/F7/F8/F12 plan is dropped - superseded by 3a.)
 
-### Known TODOs left in code (grep `TODO`)
+### Lingering projectile TODOs (after the polish pass)
+Feature gaps, NOT parity bugs in existing behavior - the system is structurally complete (all 1.8/26.1 deltas are knobs):
+- **Arrow** (`ArrowEntity`/`Bow`): Infinity, Power/Punch/Flame enchants; gate the draw-start (min charge); bow durability
+  + shoot sound; a dedicated `minecraft:arrow` damage type (death message); pickup nits (inventory-full = no pickup,
+  offhand vs inventory, `random.pop` sound).
+- **Pearl** (`PearlEntity`): cross-instance teleport (vanilla only teleports in the pearl's own world); a dedicated
+  `enderPearl` damage type (currently `GenericDamage` stand-in, numerically `5` = FALL); 5% endermite spawn (cosmetic).
+- **Snowball**: `3` damage to a Blaze (needs entity-type-aware damage).
+- **Spread distribution (parity nuance):** 1.8 `shoot()` uses `gaussian * 0.0075`; 26.1 `getMovementToShoot` uses
+  `triangle(0, 0.0172275 * uncertainty)`. Our `launchVelocity` uses gaussian × `spread`, so the 26.1 preset's spread is
+  approximate (distribution + magnitude differ). A `spreadDistribution` knob (gaussian/triangle) + the 26.1 value is the fix.
+- **Arrow despawn timer**: a stuck arrow lives forever (until pickup / block broken); vanilla despawns it after
+  `arrowDespawnRate` (~1200t) and a flying throwable dies after 1200t inGround (`EntityProjectile`). Add a max-age knob.
+- See **"Remaining projectile types & shooters"** below for the unimplemented entity/launcher list.
+
+### Remaining projectile types & shooters (NOT implemented - notes only)
+**Launchers** (a `Shootable`, like `Bow`):
+- **Crossbow** - load-then-fire (charge + hold), Multishot (3 arrows at +-10 deg), Quick Charge; fires arrows or a firework.
+- **Trident** - thrown entity that returns (Loyalty) or launches the player (Riptide in water/rain); impaling damage; pickup.
+- **Fishing rod** - cast/retrieve a bobber entity (own desync handling - revisit the periodic-resync vs a dedicated
+  model) + pseudo-hook modes (VANILLA stick / LEGACY_18 no-stick / MINEMEN pseudo-hook, a per-type enum) + reel pull.
+
+**Self-launching throwable types** (`ThrowableItemType` / `ProjectileType`):
+- **Splash potion** (`ThrownPotion`) - shatter on impact, AoE effect application with radius falloff, color particles.
+- **Lingering potion** - `ThrownPotion` + an `AreaEffectCloud` entity (the cloud is its own entity to add).
+- **Bottle o' enchanting / XP bottle** (`ThrownExperienceBottle`) - shatter -> spawn 3-11 XP orbs.
+- **Fireball / small fireball** - no gravity, constant accel along aim, explode/ignite on hit (ghast/blaze + dispenser).
+- **Wither skull**, **eye of ender** (non-combat, low priority), **firework** (crossbow/elytra boost + detonation),
+  **llama spit / shulker bullet / dragon fireball** (mob projectiles, low priority for a PvP lib).
+
+### Preset TODOs
+**`Vanilla18` (1.8 baseline):** arrow Power/Punch/Flame/Infinity enchants, bow durability + shoot sound, dedicated
+`minecraft:arrow` damage type; snowball `3`-damage to a Blaze (entity-type-aware); fishing-rod/trident/crossbow presets
+once those launchers exist. (The egg's chicken is intentionally opt-in via a behavior now, not a preset default.)
+**`Vanilla` (26.1 modern):** the spread distribution (`triangle` vs gaussian - above); dedicated `enderPearl` +
+`minecraft:arrow` damage types; confirm `updateInterval(10)` vs our `syncInterval(20)`; the modern potion/firework/
+crossbow/trident deltas once those types exist. **UNTESTED in-game** - the whole `Vanilla.projectiles()` preset
+(momentum carry, pre-move physics, leftOwner immunity) needs a 26.1-client pass.
+
+### API surface for consumers
+**Available now:**
+- **Events** - `ProjectileLaunchEvent` (spawn/flight: cancel, `setSpawnPos`/`setVelocity`, `behavior(...)`, the typed
+  `projectile()` handle for physics setters, `resolvedFlight()`); `ProjectileHitEvent` (impact: `damage`/`knockback`/
+  `knockbackSource`/`response`/`removeOnHit` overrides, `resolvedHit()`, `target`/`hitPoint`/`isBlockHit`/`isSelfHit`).
+- **Entity queries** - `getSpawnPosition()` (where fired), `isStuck()` + `getStuckPoint()`/`getStuckBlockPosition()`/
+  `getStuckBlock()` (where it landed / what it stuck in), `velocityBt()` + `getAerodynamics()` + `getPosition()` (live
+  physics for trajectory particles), `getShooter()`.
+- `StuckArrows` (arrows-in-body get/set/add/clear). Custom items / minigame registry: `docs/projectiles-custom-items.md`.
+
+**Proposed / NEEDS-CONFIRM (not built - confirm before implementing):**
+- **`ProjectileSystem.predictPath(snapshot)`** -> simulate the arc (e.g. `List<Pos>`) WITHOUT spawning, for a pre-shot
+  particle trajectory preview (aiming aid). Needs the single-tick step (`movementTick`/`applyDragGravity`) extracted to
+  a pure function run against throwaway state. High value for minigames.
+- A despawn/expire **event or hook** distinct from a hit (currently only `ProjectileBehavior.onRemove`).
+- Config/`ResolvedFlight` introspection for a type without launching (for UIs / debug overlays).
+- A `ProjectileSnapshot` builder convenience for non-item launches (turrets, spells) - currently `of(shooter, type)` + withers.
+
+### Known cross-system TODOs (not projectile-specific)
 - `KnockbackCalculator` / `KnockbackConfig.customComponents` / `DamageConfig.customComponents`: **stages plan**
   - make built-in stages (friction/combine/bounds, damage invul rule) replaceable strategies, not just
   append-only post-components. `DamageSystem.knockbackOwnsVelocity` should become a `DamageTypeConfig` flag.
@@ -502,16 +663,27 @@ IMPACT** against a context that carries the target, so plain config lambdas expr
 - **Physics order**: 1.8 moves THEN applies drag+gravity (post-move); 26.1 applies gravity+inertia THEN moves
   (pre-move). Ours = 1.8. Modern preset needs a pre-move toggle later (ties into bobber F10).
 
-### 1.8 -> 26.1 deltas the system must express natively (for the future modern preset)
+### 1.8 -> 26.1 deltas the system must express natively (the modern preset is `Vanilla.projectiles()`)
+> All deltas below are now expressible as knobs, and **`Vanilla.projectiles()`/`projectileDefaults()`/`arrow()`** wire
+> them (base on the `Vanilla18` config + override the deltas): `momentum(1) + velocity(delta())` (airborne-vertical
+> lambda), `spawnOffsetSideways(0)`, `deflect(-0.5, 0, -10, 10)`, `physicsOrder(DRAG_BEFORE_MOVE)`, `leftOwnerImmunity(true)`,
+> arrow `invulnHit(PASS_THROUGH)`. Still deferred: dedicated `enderPearl`/`minecraft:arrow` damage types (on the
+> damage-type TODO).
+>
+> **FUTURE (not implemented) - path prediction:** keep `ProjectileSystem.spawnPos`/`launchVelocity` and the single-tick
+> physics step (`ProjectileEntity.movementTick` now factors `applyDragGravity()`) pure/reusable so a future
+> `ProjectileSystem.predictPath(snapshot)` can simulate the arc WITHOUT spawning an entity - for a client-side particle
+> preview of where a throw/shot will land. No API added yet; just don't entangle the launch math with entity state.
 | Aspect | 1.8 | 26.1 | Knob today |
 |---|---|---|---|
-| Momentum | none | `getKnownMovement` (h always, v airborne) | `inheritMomentum` (+ positionDelta source) |
-| Spawn lateral | 0.16 | 0 | `spawnOffsetLateral` |
+| Momentum | none | `getKnownMovement` (h always, v airborne) | `momentumHorizontal`/`momentumVertical` scales over a `VelocityRule` source (config `velocity` rule -> shooter profile -> DEFAULT; 26.1 = 1/1 + `velocity(delta())`, airborne-vertical via a lambda) |
+| Spawn lateral | 0.16 | 0 | `spawnOffsetSideways` |
+| Deflect | `motion *= -0.1` | `REVERSE` `*= -0.5` + random +-10 deg | `deflect(mul, turn, min, max)` knob (`ProjectileTypeConfig.Deflect` nested record, like `PickupBox`): 1.8 = `deflect(-0.1)`, 26.1 = `deflect(-0.5, 0, -10, 10)` |
 | Spread | 0.0075 | 0.0075 | `spread` |
 | Self-hit (pearl) | pass-through | self-teleport | `selfHits(false)` + hit-knob lambdas on `ctx.isSelfHit()` |
-| Shooter immunity | 5 ticks | `leftOwner` (geometric) | `shooterImmunityTicks` (leftOwner = TODO) |
-| Physics order | post-move drag/grav | pre-move grav/inertia | **TODO** (hardcoded post-move) |
-| Block collision | per-tick `world.rayTrace` | swept AABB (server-auth) | `blockCollision` {SWEPT, RAYTRACE} (1.8 = RAYTRACE) |
+| Shooter immunity | 5 ticks | `leftOwner` (geometric) | `shooterImmunityTicks` (1.8) / `leftOwnerImmunity(true)` (26.1) |
+| Physics order | post-move drag/grav | pre-move grav/inertia | `physicsOrder` (`DRAG_AFTER_MOVE` 1.8 / `DRAG_BEFORE_MOVE` 26.1) |
+| Block collision | per-tick `world.rayTrace` | swept AABB (server-auth) | swept-only (a RAYTRACE knob was built then deleted - indistinguishable; see 3f) |
 | Pearl dmg type | FALL, 5 | `enderPearl`, 5 | amount yes; type = TODO (GenericDamage stand-in) |
 | Pearl teleport target | pre-move pos | `oldPosition()` | ~same (pre-move) |
 | Sync interval | n/a here | `updateInterval(10)` | `syncInterval` (ours 20) |
@@ -528,3 +700,13 @@ IMPACT** against a context that carries the target, so plain config lambdas expr
   `FallDamage.resetFallDistance(shooter)` (already public "for ender pearls") + deal a flat 5 (currently via
   `GenericDamage` - no armor model yet so numerically == FALL; a dedicated EnderPearl/FALL-amount type is the clean
   follow-up that also captures the 1.8-vs-26 type delta).
+
+### Entity tracking / position sync (1.8 `EntityTracker`/`EntityTrackerEntry`, 26.1 `ServerEntity`) - drives the FLIGHT SYNC model (status 3f)
+The 1.8 CLIENT runs each projectile's full physics + raytrace locally every tick (`EntityArrow.t_` / `EntityProjectile.t_`); the server only CORRECTS it with packets. So how often/what the server broadcasts decides whether the client's local prediction (incl. its own block-hit raytrace) agrees with the server.
+- **1.8 register intervals** (`EntityTracker.addEntity(entity, range, updateInterval, sendVelocity)`): arrow `(64, 20, false)`, snowball/egg/pearl `(64, 10, true)`, fishing hook `(64, 5, true)`, fireball `(64, 10, false)`.
+- **1.8 `track()` per tick**: the position/velocity block runs every `updateInterval` ticks (`m % c == 0`). **Arrows are forced into a pos+rotation packet** (`!(tracker instanceof EntityArrow)` disables the pos-only / rot-only branches - the same `&& !AbstractArrow` exists in 26.1 `ServerEntity` line ~158). Relative move when the delta fits a byte (±4 blocks/update), else teleport (also on onGround change, `v > 400`, every 60t). **Velocity** is broadcast only when `sendVelocity` (`u`) is on AND motion changed `> 0.02` - so a vanilla **arrow sends ZERO velocity packets in flight** (the client predicts from the spawn velocity); throwables send it ~each 10t. An abrupt `velocityChanged` impulse (knockback) broadcasts velocity immediately, outside the interval - but an arrow deflect sets `motX *= -0.1` DIRECTLY (no `velocityChanged`), so it gets no special broadcast.
+- **26.1 `ServerEntity.sendChanges`**: same shape - forced PosRot for `AbstractArrow`; position every `updateInterval` (or `needsSync`/dirty), `pos = positionChanged || tickCount%60==0`; teleport on `requiresPrecisePosition`/deltaTooBig/`teleportDelay>400`/onGround change; velocity (`SetEntityMotion`) only on change `> 1e-7` when `trackDelta`; `hurtMarked` broadcasts velocity immediately.
+- **What we landed on** (status 3f): match the vanilla broadcast in BOTH dimensions.
+  - **Position:** `synchronizePosition` sends the absolute teleport throttled to `syncInterval`, client predicts between (a per-tick teleport SHAKES - it fights the client's interpolation/prediction; reverted, along with `synchronizeNextTick()` and a `syncFlightNow()` deflect push).
+  - **Velocity:** THE edge-slide fix. We replicate `sendVelocity=false` for arrows - velocity goes ONCE in the spawn packet (the `SpawnEntityPacket` velocity bytes), then the per-tick `EntityVelocityPacket` from Minestom's `Entity.tick` is DROPPED in `ProjectileEntity.sendPacketToViewers` (an `allowVelocityPacket` flag still lets the deliberate stuck-zero through). Per-tick velocity packets - lagged + quantized over Via - were overwriting the 1.8 client's clean local prediction, so its own raytrace mispredicted edges (slide) and its bounce prediction drifted (deflect "wrong to the target"). This is why RAYTRACE made no difference (the CLIENT decides via its prediction). Stripping them = vanilla lockstep.
+  - The deflect "invisible to OTHER viewers" stays (vanilla); the opt-in `deflectParticles` knob renders a server-spawned crit trail at the authoritative position for visibility. The stuck-arrow `resyncStuck` (every `syncInterval`) mirrors vanilla `ServerEntity`'s re-assert for a stopped arrow. A future modern preset keeps the same cadence (modern physics match better).
