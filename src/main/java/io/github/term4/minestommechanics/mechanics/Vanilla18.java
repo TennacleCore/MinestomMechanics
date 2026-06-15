@@ -81,8 +81,8 @@ public final class Vanilla18 {
         return ProjectileTypeConfig.builder()
                 .boundingBox(0, 0, 0)
                 .gravity(0.03).horizontalDrag(0.99).verticalDrag(0.99)
-                .speed(1.5).spread(0.0075).inheritMomentum(false)
-                .spawnOffsetV(-0.1).spawnOffsetLateral(0.16)
+                .speed(1.5).spread(0.0075) // momentumHorizontal/Vertical default 0 (1.8 folds no shooter momentum)
+                .spawnOffsetVertical(-0.1).spawnOffsetSideways(0.16)
                 // 5-tick collision grace, then self-hits HIT (vanilla has no self-immunity - a snowball thrown straight
                 // up hits you on the way down). The pearl overrides with selfHit(PASS_THROUGH); a server sets
                 // PASS_THROUGH/DEFLECT everywhere (Hypixel) or branches the hit knobs on ctx.isSelfHit() (Minemen self-KB).
@@ -90,11 +90,6 @@ public final class Vanilla18 {
                 // Entity-hit margin: 1.8 grows the TARGET's bbox by 0.3 on each side and ray-tests the flight path
                 // (Entity{Arrow,Projectile}: f=0.3F). Too-tight here = arrows the 1.8 client predicts as a hit fly past.
                 .entityHitGrow(0.3)
-                // 1.8 detects block hits with a per-tick raytrace (world.rayTrace), run locally by the client during
-                // flight; matching it on the server makes block hits agree with a 1.8 client 1:1 at block EDGES, where
-                // Minestom's swept box and the client's ray disagree (the old "F8" false-stick). Applies to all 1.8
-                // projectiles - both EntityArrow.t_ and EntityProjectile.t_ raytrace. The modern preset uses SWEPT.
-                .blockCollision(ProjectileTypeConfig.BlockCollisionMode.RAYTRACE)
                 .syncInterval(20)
                 // Vanilla snowball/egg/pearl push from the THROWER (damageEntity uses the source entity), not the
                 // projectile; melee=false so no sprint "extra" knockback applies.
@@ -122,9 +117,13 @@ public final class Vanilla18 {
 
     /**
      * Vanilla 1.8 arrow overrides (on {@link #projectileDefaults()}): faster + heavier than a throwable (speed
-     * {@code 3.0}, gravity {@code 0.05}), no throwing-hand lateral, velocity-based damage ({@code damage = 2.0} =
+     * {@code 3.0}, gravity {@code 0.05}), velocity-based damage ({@code damage = 2.0} =
      * the per-speed multiplier {@code ArrowEntity} multiplies by the impact speed), and it STICKS in blocks instead of
-     * breaking ({@code removeOnBlockHit = false}). Knockback is SHOOTER-relative (inherited from
+     * breaking ({@code removeOnBlockHit = false}). Speed {@code 3.0} is exact: 1.8 {@code ItemBow} fires
+     * {@code new EntityArrow(world, human, power*2)} and the ctor does {@code shoot(.., power*2 * 1.5, ..)} = a full-draw
+     * launch speed of {@code power*3}. The {@code 0.16} throwing-hand lateral is INHERITED from
+     * {@link #projectileDefaults()} (1.8 {@code EntityArrow} ctor: {@code locX -= cos(yaw)*0.16}) - vanilla arrows have
+     * it too, only competitive servers zero it. Knockback is SHOOTER-relative (inherited from
      * {@link #projectileDefaults()}, NOT overridden to PROJECTILE): 1.8 {@code EntityLiving.damageEntity} knocks the
      * victim away from {@code damageSource.getEntity()}, and {@code DamageSource.arrow} resolves that to the SHOOTER
      * (the arrow is only the proximate cause) - so a plain arrow's knockback comes from the thrower's position, not
@@ -135,11 +134,11 @@ public final class Vanilla18 {
     public static ProjectileTypeConfig arrow() {
         return ProjectileTypeConfig.builder(Arrow.KEY)
                 .gravity(0.05).speed(3.0)
-                .spawnOffsetLateral(0.0)
                 .damage(2.0).damageType(ProjectileDamage.INSTANCE)
                 .removeOnEntityHit(true).removeOnBlockHit(false)
-                // Vanilla arrow: a hit that deals no damage (invuln victim) bounces off (motion *= -0.1), not break.
-                .invulnHit(ProjectileTypeConfig.HitResponse.DEFLECT)
+                // Vanilla 1.8 arrow: a hit on an invuln/creative entity PASSES THROUGH (1.8 nulls the hit), not deflect.
+                // deflectParticles re-spawns the passed-through arrow for 1.8 viewers who lost it (vanilla glitch fix, opt-in).
+                .invulnHit(ProjectileTypeConfig.HitResponse.DEFLECT).deflectParticles(true)
                 .build();
     }
 

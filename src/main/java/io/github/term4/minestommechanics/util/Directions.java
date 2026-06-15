@@ -26,6 +26,18 @@ public final class Directions {
         return new Vec(-Math.sin(rad), 0, Math.cos(rad));
     }
 
+    /** Minecraft yaw (degrees) of a direction/velocity vector: {@code atan2(x, z)} (yaw 0 -&gt; +Z). */
+    public static float yaw(Vec dir) {
+        return (float) Math.toDegrees(Math.atan2(dir.x(), dir.z()));
+    }
+
+    /** Minecraft pitch (degrees) of a direction/velocity vector: {@code atan2(y, horizontalLength)} (the projectile
+     *  convention - matches 1.8 {@code EntityArrow}/{@code EntityProjectile} rotation from motion). */
+    public static float pitch(Vec dir) {
+        double hl = Math.sqrt(dir.x() * dir.x() + dir.z() * dir.z());
+        return (float) Math.toDegrees(Math.atan2(dir.y(), hl));
+    }
+
     // TODO: Could make this 3D later?
     /**
      * Snaps a horizontal vector onto whichever cardinal axis carries the larger magnitude, returning a unit vector

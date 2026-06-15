@@ -9,8 +9,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Immutable input describing a single projectile launch. Mirrors {@code DamageSnapshot} /
- * {@code KnockbackSnapshot}: the producing {@link ProjectileType} (e.g. a bow/throw trigger) builds it and
- * hands it to {@link ProjectileSystem#launch}.
+ * {@code KnockbackSnapshot}: the producing {@link ProjectileType} or {@code Shootable} (a bow/throw trigger) builds it
+ * and hands it to {@link ProjectileSystem#launch}.
  *
  * @param shooter  the entity launching the projectile (knockback origin, damage source, hit immunity)
  * @param type     the projectile type (snowball, arrow, ...) - its config + entity factory
@@ -19,17 +19,20 @@ import org.jetbrains.annotations.Nullable;
  * @param spawnPos explicit spawn position override, or {@code null} to compute from the shooter's eye + offset
  * @param velocity explicit initial velocity (b/t) override, or {@code null} to compute from aim + speed + spread
  * @param config   per-launch config override, or {@code null} to resolve the scope chain (profile -> install)
+ * @param behavior per-launch {@link ProjectileBehavior} override, or {@code null} to use the type config's {@code behavior} knob
  */
 public record ProjectileSnapshot(Entity shooter, ProjectileType type, @Nullable ItemStack item, double power,
-                                 @Nullable Pos spawnPos, @Nullable Vec velocity, @Nullable ProjectileConfig config) {
+                                 @Nullable Pos spawnPos, @Nullable Vec velocity, @Nullable ProjectileConfig config,
+                                 @Nullable ProjectileBehavior behavior) {
 
     public static ProjectileSnapshot of(Entity shooter, ProjectileType type) {
-        return new ProjectileSnapshot(shooter, type, null, 1.0, null, null, null);
+        return new ProjectileSnapshot(shooter, type, null, 1.0, null, null, null, null);
     }
 
-    public ProjectileSnapshot withItem(@Nullable ItemStack i) { return new ProjectileSnapshot(shooter, type, i, power, spawnPos, velocity, config); }
-    public ProjectileSnapshot withPower(double p) { return new ProjectileSnapshot(shooter, type, item, p, spawnPos, velocity, config); }
-    public ProjectileSnapshot withSpawnPos(@Nullable Pos p) { return new ProjectileSnapshot(shooter, type, item, power, p, velocity, config); }
-    public ProjectileSnapshot withVelocity(@Nullable Vec v) { return new ProjectileSnapshot(shooter, type, item, power, spawnPos, v, config); }
-    public ProjectileSnapshot withConfig(@Nullable ProjectileConfig c) { return new ProjectileSnapshot(shooter, type, item, power, spawnPos, velocity, c); }
+    public ProjectileSnapshot withItem(@Nullable ItemStack i) { return new ProjectileSnapshot(shooter, type, i, power, spawnPos, velocity, config, behavior); }
+    public ProjectileSnapshot withPower(double p) { return new ProjectileSnapshot(shooter, type, item, p, spawnPos, velocity, config, behavior); }
+    public ProjectileSnapshot withSpawnPos(@Nullable Pos p) { return new ProjectileSnapshot(shooter, type, item, power, p, velocity, config, behavior); }
+    public ProjectileSnapshot withVelocity(@Nullable Vec v) { return new ProjectileSnapshot(shooter, type, item, power, spawnPos, v, config, behavior); }
+    public ProjectileSnapshot withConfig(@Nullable ProjectileConfig c) { return new ProjectileSnapshot(shooter, type, item, power, spawnPos, velocity, c, behavior); }
+    public ProjectileSnapshot withBehavior(@Nullable ProjectileBehavior b) { return new ProjectileSnapshot(shooter, type, item, power, spawnPos, velocity, config, b); }
 }

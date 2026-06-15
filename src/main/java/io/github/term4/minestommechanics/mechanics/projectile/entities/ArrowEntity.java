@@ -2,18 +2,22 @@ package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedHit;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
+import io.github.term4.minestommechanics.mechanics.projectile.StuckArrows;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.entity.GameMode;
+import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.metadata.projectile.AbstractArrowMeta;
 import net.minestom.server.instance.EntityTracker;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.network.packet.server.play.CollectItemPacket;
+import net.minestom.server.network.packet.server.play.ParticlePacket;
+import net.minestom.server.particle.Particle;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,9 +33,9 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class ArrowEntity extends ManagedProjectile {
 
-    /** Vanilla pickup cooldown ({@code EntityArrow.shake}): the arrow shakes for 7 ticks after sticking and can't be
-     *  collected until it ends. */
-    private static final int SHAKE_TICKS = 7;
+    /** Vanilla pickup cooldown ({@code EntityArrow.shake}): the arrow shakes for this many ticks after sticking and
+     *  can't be collected until it ends (vanilla {@code 7}; configurable via the {@code shakeTicks} knob). */
+    private int shakeTicks = 7;
 
     // Pickup geometry (configurable via ProjectileTypeConfig.pickupBox, stamped at launch; default vanilla). An arrow
     // is collected when its boxWidth x boxHeight box intersects a player's bbox inflated (inflateH, inflateV, inflateH).
@@ -68,6 +72,15 @@ public class ArrowEntity extends ManagedProjectile {
         if (getEntityMeta() instanceof AbstractArrowMeta meta) meta.setCritical(critical);
     }
 
+    /** Server-sent crit particles at the arrow's real position (the {@code deflectParticles} opt-in; {@link #deflectVisible}
+     *  is the base flag, also driving the re-spawn). Sent to viewers at the AUTHORITATIVE spot - so unlike the crit
+     *  metadata (rendered client-side from each viewer's own mispredicted arrow position) the trail is visible to ALL
+     *  viewers, including the ones whose client lost the bounced arrow. */
+    private void spawnDeflectTrail() {
+        Pos p = getPosition();
+        sendPacketToViewersAndSelf(new ParticlePacket(Particle.CRIT, p.x(), p.y(), p.z(), 0.05f, 0.05f, 0.05f, 0f, 2));
+    }
+
     /** Sets who may collect this arrow (the bow passes {@link Pickup#ALLOWED} survival / {@link Pickup#CREATIVE_ONLY} creative). */
     public void setPickup(Pickup pickup) { this.pickup = pickup; }
 
@@ -98,10 +111,22 @@ public class ArrowEntity extends ManagedProjectile {
         return dmg;
     }
 
-    /** Starts the 7-tick pickup cooldown when the arrow sticks in a block, and flags inGround for new viewers. */
+    /** Sets the pickup-cooldown (shake) ticks applied when the arrow sticks (launcher applies the resolved config). */
+    public void setShakeTicks(int ticks) { this.shakeTicks = ticks; }
+
+    /** Adds one "stuck arrow" to a living victim on a damaging hit (vanilla {@code EntityLiving.o(bv()+1)} - the
+     *  cosmetic arrows poking out of the body, which fall out over time; see {@link StuckArrows}). {@code onImpact}
+     *  fires only on a LANDED hit for the vanilla arrow ({@code invulnHit PASS_THROUGH}), so a blocked/creative hit
+     *  adds nothing. Block hits ({@code hitEntity == null}) are ignored. */
+    @Override
+    protected void onImpact(@Nullable Entity hitEntity) {
+        if (hitEntity instanceof LivingEntity le) StuckArrows.add(le, 1);
+    }
+
+    /** Starts the pickup cooldown when the arrow sticks in a block, and flags inGround for new viewers. */
     @Override
     protected boolean onStuck() {
-        shake = SHAKE_TICKS;
+        shake = shakeTicks;
         if (getEntityMeta() instanceof AbstractArrowMeta meta) meta.setInGround(true);
         return super.onStuck();
     }
@@ -115,6 +140,8 @@ public class ArrowEntity extends ManagedProjectile {
 
     @Override
     protected void updateProjectile(long time) {
+        super.updateProjectile(time); // fires the pluggable behavior's onTick
+        if (deflectVisible && !isStuck()) spawnDeflectTrail(); // crit trail along the bounce (stops once it sticks)
         if (!isStuck()) return;
         if (shake > 0) { shake--; return; } // vanilla pickup delay: no collecting while the arrow is still shaking
         if (pickup == Pickup.DISALLOWED) return;

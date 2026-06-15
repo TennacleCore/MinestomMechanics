@@ -5,10 +5,15 @@ import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.ProjectileLaunchEvent;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedFlight;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.ArrowEntity;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
+import io.github.term4.minestommechanics.mechanics.projectile.shootables.Shootable;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileType;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
-import io.github.term4.minestommechanics.tracking.MotionTracker;
+import io.github.term4.minestommechanics.tracking.VelocityContext;
+import io.github.term4.minestommechanics.tracking.VelocityRule;
+import io.github.term4.minestommechanics.util.Directions;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.coordinate.Pos;
@@ -80,25 +85,53 @@ public final class ProjectileSystem {
         // Build + configure the entity (HIT knobs resolve later, at impact, from effectiveConfig), then fire the one
         // launch event with it: cancel to discard before it spawns, mutate spawn/velocity to redirect, or attach.
         ProjectileEntity entity = working.type().createEntity(shooter, working, effectiveConfig);
+        stampFlight(entity, flight, working);
+
+        ProjectileLaunchEvent event = new ProjectileLaunchEvent(working, entity, flight, spawnPos, velocity);
+        EventDispatcher.call(event);
+        if (event.isCancelled()) return null; // entity discarded - never spawned
+        // Per-launch behavior override (the event-driven seam for custom items), else keep the config/snapshot one.
+        if (event.behavior() != null && entity instanceof ManagedProjectile mp) mp.setBehavior(event.behavior());
+
+        // 1.8 CLIENT LOCKSTEP: a 1.8 client (via Via) predicts the whole flight locally from the spawn packet, whose
+        // position it receives truncated to 1/32 ((int)(v*32)/32). Spawn the SERVER entity on that same 1/32 grid so the
+        // two simulate the trajectory in lockstep and agree on block-edge sticks; otherwise the up-to-0.03 offset makes
+        // the client clip/stick an edge the server clears, and the next position resync snaps the stuck arrow forward.
+        // Velocity (~1/8000 on the wire) is left exact: its residual drift is far below the position grid. See design §5.
+        Vec spawnVel = event.velocity();
+        Pos spawnAt = quantizeToWireGrid(event.spawnPos()).withView(Directions.yaw(spawnVel), Directions.pitch(spawnVel));
+        entity.setVelocityBt(spawnVel);
+        entity.setSpawnPosition(spawnAt); // recorded for getSpawnPosition() (trajectory / origin queries)
+        entity.setInstance(instance, spawnAt);
+        return entity;
+    }
+
+    /** Truncates a spawn position to the 1.8 wire grid (1/32, matching ViaVersion's {@code (int)(v*32)/32}) so the
+     *  server simulates the projectile from the exact position a 1.8 client predicts from. See {@link #launch}. */
+    private static Pos quantizeToWireGrid(Pos p) {
+        return new Pos((int) (p.x() * 32.0) / 32.0, (int) (p.y() * 32.0) / 32.0, (int) (p.z() * 32.0) / 32.0, p.yaw(), p.pitch());
+    }
+
+    /** Stamps the resolved flight config onto a freshly created entity (physics, sync, immunity, behavior, pickup). */
+    private static void stampFlight(ProjectileEntity entity, ResolvedFlight flight, ProjectileSnapshot snap) {
         entity.setBoundingBox(flight.boundingBox().width(), flight.boundingBox().height(), flight.boundingBox().depth());
         entity.setAerodynamics(new Aerodynamics(flight.gravity(), flight.verticalDrag(), flight.horizontalDrag()));
         entity.setSynchronizationTicks(flight.syncInterval());
+        entity.setVelocitySyncInterval(flight.velocitySyncInterval());
         entity.setShooterImmunityTicks(flight.shooterImmunityTicks());
         entity.setEntityHitGrow(flight.entityHitGrow());
-        entity.setBlockCollision(flight.blockCollision());
-        // Arrow-specific pickup geometry (resolved once at launch); the entity keeps its vanilla default if unset.
-        if (entity instanceof io.github.term4.minestommechanics.mechanics.projectile.entities.ArrowEntity arrow) {
-            ProjectileTypeConfig.PickupBox pb = effectiveConfig.pickupBox(ctx);
-            if (pb != null) arrow.setPickupBox(pb);
+        entity.setPhysicsOrder(flight.physicsOrder());
+        entity.setLeftOwnerImmunity(flight.leftOwnerImmunity());
+        entity.setStickPullback(flight.stickPullback());
+        // Pluggable per-projectile behavior: the per-launch snapshot override wins, else the resolved config knob.
+        if (entity instanceof ManagedProjectile mp) {
+            mp.setBehavior(snap.behavior() != null ? snap.behavior() : flight.behavior());
         }
-
-        ProjectileLaunchEvent event = new ProjectileLaunchEvent(working, entity, spawnPos, velocity);
-        EventDispatcher.call(event);
-        if (event.isCancelled()) return null; // entity discarded - never spawned
-
-        entity.setVelocityBt(event.velocity());
-        entity.setInstance(instance, event.spawnPos().withView(viewYaw(event.velocity()), viewPitch(event.velocity())));
-        return entity;
+        // Arrow-specific knobs: pickup geometry + shake/pickup delay (the entity keeps its vanilla default if unset).
+        if (entity instanceof ArrowEntity arrow) {
+            arrow.setShakeTicks(flight.shakeTicks());
+            if (flight.pickupBox() != null) arrow.setPickupBox(flight.pickupBox());
+        }
     }
 
     // --- spawn / velocity ---
@@ -109,13 +142,13 @@ public final class ProjectileSystem {
         // Lateral offset, perpendicular to the look (yaw only) - vanilla 1.8 throwing-hand shift:
         // locX -= cos(yaw)*0.16, locZ -= sin(yaw)*0.16. (26.1 has none.)
         double yaw = Math.toRadians(eye.yaw());
-        double lat = cfg.spawnOffsetLateral();
-        double lx = -Math.cos(yaw) * lat;
-        double lz = -Math.sin(yaw) * lat;
-        return eye.add(aim.x() * cfg.spawnOffsetH() + lx, cfg.spawnOffsetV(), aim.z() * cfg.spawnOffsetH() + lz);
+        double side = cfg.spawnOffsetSideways();
+        double lx = -Math.cos(yaw) * side;
+        double lz = -Math.sin(yaw) * side;
+        return eye.add(aim.x() * cfg.spawnOffsetForward() + lx, cfg.spawnOffsetVertical(), aim.z() * cfg.spawnOffsetForward() + lz);
     }
 
-    private static Vec launchVelocity(Entity shooter, ResolvedFlight cfg, double power) {
+    private Vec launchVelocity(Entity shooter, ResolvedFlight cfg, double power) {
         Vec aim = shooter.getPosition().direction();
         Vec vel = aim.mul(cfg.speed() * power);
         if (cfg.spread() > 0) {
@@ -127,21 +160,18 @@ public final class ProjectileSystem {
                         .mul(len);
             }
         }
-        if (cfg.inheritMomentum()) {
-            // 26.1 (Projectile.shootFromRotation) folds the shooter's REAL movement - getKnownMovement(), NOT the
-            // server velocity, which is ~0/stale for a client-driven player. positionDelta is the tracked b/t
-            // move-delta (players: move packets; non-players: server velocity). 1.8 adds NO momentum at all.
-            Vec pv = MotionTracker.positionDelta(shooter);
-            double vy = shooter.isOnGround() ? 0 : pv.y(); // horizontal always; vertical only when airborne
-            vel = vel.add(pv.x(), vy, pv.z());
+        double mh = cfg.momentumHorizontal(), mv = cfg.momentumVertical();
+        if (mh != 0 || mv != 0) {
+            // Fold a fraction of the shooter's velocity, read via the velocity-system rule - SAME resolution as
+            // knockback: the config override -> the shooter's scoped profile velocity -> VelocityRule.DEFAULT. 26.1
+            // (Projectile.shootFromRotation uses getKnownMovement) = VelocityRule.delta(); 1.8 folds none (mh=mv=0).
+            VelocityRule rule = cfg.velocity();
+            if (rule == null && services != null) rule = services.profiles().velocityFor(shooter);
+            if (rule == null) rule = VelocityRule.DEFAULT;
+            Vec sv = rule.estimate(VelocityContext.of(shooter, services != null ? services.sprintTracker() : null));
+            vel = vel.add(sv.x() * mh, sv.y() * mv, sv.z() * mh);
         }
         return vel;
-    }
-
-    private static float viewYaw(Vec v) { return (float) Math.toDegrees(Math.atan2(v.x(), v.z())); }
-    private static float viewPitch(Vec v) {
-        double hl = Math.sqrt(v.x() * v.x() + v.z() * v.z());
-        return (float) Math.toDegrees(Math.atan2(v.y(), hl));
     }
 
     // --- registry ---
@@ -175,19 +205,20 @@ public final class ProjectileSystem {
     }
 
     /**
-     * Installs the projectile system. The config decides what runs: every registered type with a
-     * {@link ProjectileConfig#typeConfigs} entry is enabled (its item trigger wires up - same model as
-     * {@code DamageSystem.install}). {@code extraTypes} registers and enables custom types built outside the
-     * config. Per-shooter scoping resolves through {@code MechanicsProfiles}.
+     * Installs the projectile system. The config decides which self-launching types run: every registered type with a
+     * {@link ProjectileConfig#typeConfigs} entry is enabled, so its item trigger wires up (snowball/egg/pearl - same
+     * model as {@code DamageSystem.install}). {@code shootables} are the item launchers (bow/crossbow/rod) - the analog
+     * of the attack system's {@code HitDetection}, e.g. {@code install(mm, cfg, new Bow())}. Custom projectile types
+     * built outside the config register + enable via {@link #register} / {@link #enable}. Per-shooter scoping resolves
+     * through {@code MechanicsProfiles}.
      */
-    public static ProjectileSystem install(MinestomMechanics mm, ProjectileConfig cfg, ProjectileType... extraTypes) {
+    public static ProjectileSystem install(MinestomMechanics mm, ProjectileConfig cfg, Shootable... shootables) {
         ProjectileSystem system = new ProjectileSystem(mm, cfg);
         mm.registerProjectiles(system);
         system.registerVanillaDefaults();
-        for (ProjectileType type : extraTypes) system.register(type);
         mm.install(system.node);
         for (Key key : cfg.typeConfigs.keySet()) system.enable(key);
-        for (ProjectileType type : extraTypes) system.enable(type.key());
+        for (Shootable shootable : shootables) shootable.install(system.node, system);
         return system;
     }
 }

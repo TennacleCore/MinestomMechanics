@@ -7,6 +7,7 @@ import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
+import io.github.term4.minestommechanics.mechanics.projectile.ProjectileBehavior;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedHit;
@@ -18,6 +19,8 @@ import net.minestom.server.entity.EntityType;
 import net.minestom.server.event.EventDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Generic config-driven projectile. The HIT knobs are resolved at IMPACT (not launch) against a
@@ -33,6 +36,10 @@ public class ManagedProjectile extends ProjectileEntity {
     /** The merged per-type config (FieldValues unresolved); hit knobs resolve from it at impact. */
     private final ProjectileTypeConfig effectiveConfig;
     private final ProjectileSnapshot snap;
+    /** Pluggable behavior layered over the built-in hooks (set by the launcher from config/snapshot); default no-op. */
+    private ProjectileBehavior behavior = ProjectileBehavior.NONE;
+    /** Latches the one-time {@link ProjectileBehavior#onSpawn} on the first tick after entering the world. */
+    private boolean spawned;
 
     public ManagedProjectile(@Nullable Entity shooter, @NotNull EntityType entityType,
                              ProjectileSnapshot snap, ProjectileTypeConfig effectiveConfig) {
@@ -40,6 +47,9 @@ public class ManagedProjectile extends ProjectileEntity {
         this.snap = snap;
         this.effectiveConfig = effectiveConfig;
     }
+
+    /** Sets the pluggable {@link ProjectileBehavior} (the launcher applies the resolved config / snapshot override). */
+    public void setBehavior(@Nullable ProjectileBehavior behavior) { this.behavior = behavior != null ? behavior : ProjectileBehavior.NONE; }
 
     /** Resolves the hit knobs at impact: {@code target} is the struck entity, or {@code null} for a block hit. */
     private ResolvedHit resolveHit(@Nullable Entity target) {
@@ -51,60 +61,87 @@ public class ManagedProjectile extends ProjectileEntity {
     @Override
     protected boolean onHit(@NotNull Entity target) {
         ResolvedHit hit = resolveHit(target);
-        // Self-hit response (default HIT). Vanilla snowball/egg HIT (you CAN hit yourself); the 1.8 pearl PASS_THROUGHs.
-        if (target == shooter) {
-            switch (hit.selfHit()) {
-                case HIT -> { /* fall through to the normal hit */ }
-                case PASS_THROUGH -> { return false; }
-                case DEFLECT -> { deflect(); return false; }
-                case DESTROY -> { onImpact(target); return true; }
-            }
-        }
-
-        var ev = new ProjectileHitEvent(this, shooter, target, getPosition(), getShooterOriginPos());
+        ProjectileHitEvent ev = new ProjectileHitEvent(this, snap, shooter, target, getPosition(),
+                getShooterOriginPos(), hit, hitDamage(hit, target));
         EventDispatcher.call(ev);
         if (ev.isCancelled()) return false;
 
-        // Route through the DAMAGE system first (vanilla: even a 0-damage thrown hit calls damageEntity). This plays
-        // the hurt animation and opens/checks the invul window - the GATE: a hit on an already-invulnerable victim
-        // returns BLOCKED (landed = false), so its knockback is suppressed. With no damageType configured there is no
-        // gate and the hit always lands.
-        boolean landed = true;
-        Services s = services();
-        if (s != null) {
-            DamageType dt = hit.damageType();
-            if (dt != null && s.damage() != null) {
-                landed = s.damage().apply(DamageSnapshot.of(target, dt)
-                        .withSource(shooter).withPoint(getPosition()).withAmount(hitDamage(hit, target))).landed();
-            }
-            // Knockback (gated by the invul result). PROJECTILE-relative (origin = projectile, dir = flight) or
-            // SHOOTER-relative (source = shooter, yaw via the KB config's yawWeight). It owns the velocity broadcast.
-            if (landed && hit.knockback() != null && s.knockback() != null) {
-                s.knockback().apply(buildKnockback(target, hit.knockbackSource(), hit.knockback()));
-            }
+        // Pre-damage outcome: a listener-forced response wins; else the self-hit knob when the target is the shooter
+        // (vanilla snowball/egg HIT, the 1.8 pearl PASS_THROUGH); else a normal hit. PASS/DEFLECT/DESTROY short-circuit;
+        // HIT falls through to the damage path (which may itself trigger the invuln fallback below).
+        ProjectileTypeConfig.HitResponse pre = ev.response() != null ? ev.response()
+                : (target == shooter ? hit.selfHit() : ProjectileTypeConfig.HitResponse.HIT);
+        switch (pre) {
+            case HIT -> { /* normal hit below */ }
+            case PASS_THROUGH -> { passThrough(hit, target); return false; }
+            case DEFLECT -> { bounce(hit, target); return false; }
+            case DESTROY -> { fireImpact(target); return true; }
         }
-        // Hit blocked (the target was invulnerable / creative): the configured invulnHit response. Vanilla arrow =
-        // DEFLECT (bounce, motion *= -0.1); throwables = DESTROY (break/effect, like their die() on any hit).
-        // PASS_THROUGH keeps flying; DESTROY (and HIT, N/A for a non-landing hit) breaks via the impact path below.
+
+        boolean landed = applyDamageAndKnockback(target, ev);
+        // Hit blocked (target invulnerable / creative): the configured invulnHit response. Vanilla arrow PASSES THROUGH
+        // (1.8 nulls the hit on a creative/invulnerable target); throwables DESTROY (break, like their die()). HIT and
+        // DESTROY break via the impact path below.
         if (!landed) {
             switch (hit.invulnHit()) {
-                case PASS_THROUGH -> { return false; }
-                case DEFLECT -> { deflect(); return false; }
-                case HIT, DESTROY -> { /* fall through to onImpact + removeOnEntityHit */ }
+                case PASS_THROUGH -> { passThrough(hit, target); return false; }
+                case DEFLECT -> { bounce(hit, target); return false; }
+                case HIT, DESTROY -> { /* fall through to onImpact + removeOnHit */ }
             }
         }
-        onImpact(target);
-        return hit.removeOnEntityHit();
+        fireImpact(target);
+        return ev.removeOnHit();
+    }
+
+    /**
+     * Routes the hit through the DAMAGE system first (vanilla: even a 0-damage thrown hit calls damageEntity - plays
+     * the hurt flash + opens/checks the invul window, the GATE), then applies the knockback only if it landed (a hit on
+     * an already-invulnerable victim returns BLOCKED, suppressing KB). With no damageType there is no gate and the hit
+     * always lands. Damage amount / knockback / source are the event's effective values (per-hit overrides ?? resolved).
+     */
+    private boolean applyDamageAndKnockback(@NotNull Entity target, ProjectileHitEvent ev) {
+        Services s = services();
+        if (s == null) return true;
+        boolean landed = true;
+        DamageType dt = ev.resolvedHit().damageType();
+        if (dt != null && s.damage() != null) {
+            landed = s.damage().apply(DamageSnapshot.of(target, dt)
+                    .withSource(shooter).withPoint(getPosition()).withAmount((float) ev.damage())).landed();
+        }
+        // PROJECTILE-relative (origin = projectile, dir = flight) or SHOOTER-relative (yaw via the KB config's
+        // yawWeight). The knockback owns the velocity broadcast.
+        if (landed && ev.knockback() != null && s.knockback() != null) {
+            s.knockback().apply(buildKnockback(target, ev.knockbackSource(), ev.knockback()));
+        }
+        return landed;
+    }
+
+    /** A {@code DEFLECT}: bounce off per the {@link ProjectileTypeConfig.Deflect} knob; (opt-in) flag the arrow visible - the crit trail
+     *  fires in {@code ArrowEntity} while it bounces. Fires the behavior's {@link ProjectileBehavior#onDeflect}. */
+    private void bounce(ResolvedHit hit, @Nullable Entity hitEntity) {
+        deflect(hit.deflect());
+        if (hit.deflectParticles()) deflectVisible = true;
+        behavior.onDeflect(this, hitEntity);
+    }
+
+    /** A {@code PASS_THROUGH}: keep flying; (opt-in) flag {@code deflectVisible} so a server-side crit trail traces the
+     *  path for 1.8 viewers (whose arrow entity goes invisible on the touch - a native 1.8 client bug, not fixable
+     *  server-side). Fires the behavior's {@link ProjectileBehavior#onDeflect}. */
+    private void passThrough(ResolvedHit hit, @Nullable Entity hitEntity) {
+        if (hit.deflectParticles()) deflectVisible = true;
+        behavior.onDeflect(this, hitEntity);
     }
 
     @Override
     protected boolean onStuck() {
         ResolvedHit hit = resolveHit(null);
-        var ev = new ProjectileHitEvent(this, shooter, null, getPosition(), getShooterOriginPos());
+        ProjectileHitEvent ev = new ProjectileHitEvent(this, snap, shooter, null, getPosition(),
+                getShooterOriginPos(), hit, 0);
         EventDispatcher.call(ev);
         if (ev.isCancelled()) return false;
-        onImpact(null);
-        return hit.removeOnBlockHit();
+        behavior.onStuck(this);
+        fireImpact(null);
+        return ev.removeOnHit(); // block hit -> removeOnBlockHit (override ?? resolved)
     }
 
     /**
@@ -116,6 +153,31 @@ public class ManagedProjectile extends ProjectileEntity {
      */
     protected void onImpact(@Nullable Entity hitEntity) {}
 
+    /** Fires the type's {@link #onImpact} effect, then the pluggable {@link ProjectileBehavior#onImpact}. */
+    private void fireImpact(@Nullable Entity hit) {
+        onImpact(hit);
+        behavior.onImpact(this, hit);
+    }
+
+    @Override
+    protected void onUnstuck() {
+        super.onUnstuck();
+        behavior.onUnstuck(this);
+    }
+
+    @Override
+    protected void updateProjectile(long time) {
+        super.updateProjectile(time);
+        if (!spawned) { spawned = true; behavior.onSpawn(this); } // first tick in the world
+        behavior.onTick(this, time);
+    }
+
+    @Override
+    public void remove() {
+        if (!isRemoved()) behavior.onRemove(this); // once, before Minestom tears the entity down
+        super.remove();
+    }
+
     /**
      * The damage to deal to {@code target} on an entity hit. Default: the resolved config {@code damage} (a flat
      * amount). Arrows override this to compute vanilla velocity-based damage ({@code ceil(speed * 2) + crit}).
@@ -124,14 +186,26 @@ public class ManagedProjectile extends ProjectileEntity {
 
     /**
      * Bounces the projectile off an entity it may not damage (an invuln hit, or a {@code DEFLECT} self-hit) - keep
-     * flying, no damage/KB/break. Vanilla 1.8 {@code EntityArrow} else-branch: {@code motX/Y/Z *= -0.1} (reverse +
-     * heavy damp) then {@code as = 0} (re-arm shooter immunity so the bounced-back arrow can't instantly re-hit the
-     * shooter / loop on a self-deflect).
+     * flying, no damage/KB/break. The {@link ProjectileTypeConfig.Deflect} knob transforms the velocity (vanilla 1.8
+     * {@code deflect(-0.1)} = {@code motion *= -0.1}; 26.1 {@code deflect(-0.5, 0, -10, 10)} = {@code -0.5} + a cosmetic
+     * +-10-degree turn), then re-arm shooter immunity (1.8 {@code as = 0}) so the bounced-back arrow can't instantly
+     * re-hit the shooter / loop on a self-deflect. The yaw flip falls out of the displacement rotation.
      */
-    protected void deflect() {
-        setVelocityBt(velocityBt.mul(-0.1));
+    protected void deflect(ProjectileTypeConfig.Deflect d) {
+        setVelocityBt(applyDeflect(d, velocityBt));
         rearmShooterImmunity();
         setDeflected();
+    }
+
+    /** Applies a {@link ProjectileTypeConfig.Deflect}: scale velocity by {@code multiplier} (negative reverses all axes)
+     *  and rotate the horizontal heading by an extra {@code turn} + a random {@code [minJitter, maxJitter]} wobble (degrees). */
+    private static Vec applyDeflect(ProjectileTypeConfig.Deflect d, Vec velocity) {
+        Vec v = velocity.mul(d.multiplier());
+        double extra = d.turn() + (d.maxJitter() > d.minJitter()
+                ? ThreadLocalRandom.current().nextDouble(d.minJitter(), d.maxJitter()) : d.minJitter());
+        if (extra == 0) return v;
+        double rad = Math.toRadians(extra), cos = Math.cos(rad), sin = Math.sin(rad);
+        return new Vec(v.x() * cos - v.z() * sin, v.y(), v.x() * sin + v.z() * cos);
     }
 
     /** Builds the hit knockback snapshot for the given {@link ProjectileTypeConfig.KnockbackSource} + config. */

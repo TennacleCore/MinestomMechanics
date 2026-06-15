@@ -8,7 +8,19 @@ import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.playerattack.PlayerAttack;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
+import io.github.term4.minestommechanics.mechanics.projectile.ProjectileBehavior;
+import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
+import io.github.term4.minestommechanics.mechanics.projectile.shootables.Bow;
+import io.github.term4.minestommechanics.mechanics.projectile.types.Egg;
+import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
+import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.EntityType;
+import net.minestom.server.entity.metadata.AgeableMobMeta;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.concurrent.ThreadLocalRandom;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.attribute.Attribute;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
@@ -76,7 +88,12 @@ public class ExampleServer {
 
         // 4. Initialize projectile system (config decides what runs, like the damage system). Minemen.projectiles()
         // currently inherits the vanilla 1.8 projectile baseline (physics + snowball KB/damage live in the presets).
-        ProjectileSystem.install(mm, Minemen.projectiles());
+        // Self-launching throwables wire from the config; the bow is a Shootable launcher passed in explicitly.
+        // Custom behavior for a SPECIFIC PROJECTILE via the config `behavior` knob: the egg's baby-chicken easter egg
+        // (no longer in core) layered over the Minemen (vanilla 1.8) projectile config.
+        ProjectileSystem.install(mm, ProjectileConfig.builder(Minemen.projectiles())
+                .typeConfigs(ProjectileTypeConfig.builder(Egg.KEY).behavior(chickenEgg()).build())
+                .build(), new Bow());
 
         // Debug (temporary)
         MinecraftServer.getGlobalEventHandler().addListener(DamageEvent.class, event -> {
@@ -146,8 +163,6 @@ public class ExampleServer {
                 }, TaskSchedule.tick(20));
             }
 
-            player.setGameMode(GameMode.CREATIVE);
-
             player.getInventory().addItemStack(ItemStack.of(Material.WHITE_WOOL, 1000));
             player.getInventory().addItemStack(ItemStack.of(Material.DIAMOND_SWORD, 1));
             player.getInventory().addItemStack(ItemStack.of(Material.SNOWBALL, 64));
@@ -181,5 +196,28 @@ public class ExampleServer {
 
         // Start the server
         server.start("0.0.0.0", 25566);
+    }
+
+    /**
+     * Example custom {@link ProjectileBehavior}: the vanilla {@code 1/8} baby-chicken-on-impact easter egg, moved out
+     * of core. Attached to the egg via its {@code behavior} config knob (see the install above) - the idiomatic way to
+     * give a projectile type extra behavior without subclassing. Fires on entity AND block impact (both call onImpact).
+     */
+    private static ProjectileBehavior chickenEgg() {
+        return new ProjectileBehavior() {
+            @Override
+            public void onImpact(ManagedProjectile projectile, @Nullable Entity hit) {
+                var instance = projectile.getInstance();
+                if (instance == null) return;
+                ThreadLocalRandom r = ThreadLocalRandom.current();
+                if (r.nextInt(8) != 0) return;            // 1/8 spawn chance
+                int count = r.nextInt(32) == 0 ? 4 : 1;   // 1/32 of those spawn 4
+                for (int i = 0; i < count; i++) {
+                    Entity chicken = new Entity(EntityType.CHICKEN);
+                    if (chicken.getEntityMeta() instanceof AgeableMobMeta age) age.setBaby(true);
+                    chicken.setInstance(instance, projectile.getPosition().withPitch(0f));
+                }
+            }
+        };
     }
 }
