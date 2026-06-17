@@ -11,8 +11,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.entities.Projectil
 import io.github.term4.minestommechanics.mechanics.projectile.shootables.Shootable;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileType;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
-import io.github.term4.minestommechanics.tracking.VelocityContext;
-import io.github.term4.minestommechanics.tracking.VelocityRule;
+import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.util.Directions;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.collision.Aerodynamics;
@@ -31,11 +30,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Projectile system: resolves a {@link ProjectileSnapshot} into a spawn + velocity, fires
- * {@link ProjectileLaunchEvent}, and spawns the entity. Mirrors {@code DamageSystem} - the {@link ProjectileConfig}
- * decides what runs (every type with a {@code typeConfigs} entry is enabled at install; the per-type
- * {@code enabled} knob is the per-launch gate). Self-driven types wire their own item triggers in
- * {@link ProjectileType#enable} and call {@link #launch}.
+ * Projectile system: resolves a {@link ProjectileSnapshot} into a spawn + velocity, fires {@link ProjectileLaunchEvent},
+ * and spawns the entity. Mirrors {@code DamageSystem} - types with a {@code typeConfigs} entry enable at install (the
+ * per-type {@code enabled} knob gates per launch). Self-driven types wire their item triggers in {@link ProjectileType#enable}.
  */
 public final class ProjectileSystem {
 
@@ -63,10 +60,9 @@ public final class ProjectileSystem {
     }
 
     /**
-     * Launches a projectile from a snapshot: resolves its config, computes spawn + velocity (snapshot overrides
-     * win, else aim x speed x power + spread + shooter momentum, eye + offsets), fires the cancellable
-     * {@link ProjectileLaunchEvent}, then stamps and spawns the entity. Returns the entity, or {@code null} if the
-     * type is disabled, the launch was cancelled, or the shooter has no instance.
+     * Launches a projectile from a snapshot: resolves config, computes spawn + velocity (snapshot overrides win, else
+     * aim x speed x power + spread + momentum), fires the cancellable {@link ProjectileLaunchEvent}, then spawns the
+     * entity. {@code null} if the type is disabled, cancelled, or the shooter has no instance.
      */
     public @Nullable ProjectileEntity launch(ProjectileSnapshot snap) {
         ProjectileSnapshot working = snap.config() != null ? snap : snap.withConfig(configFor(snap.shooter()));
@@ -82,8 +78,7 @@ public final class ProjectileSystem {
         Pos spawnPos = working.spawnPos() != null ? working.spawnPos() : spawnPos(shooter, flight);
         Vec velocity = working.velocity() != null ? working.velocity() : launchVelocity(shooter, flight, working.power());
 
-        // Build + configure the entity (HIT knobs resolve later, at impact, from effectiveConfig), then fire the one
-        // launch event with it: cancel to discard before it spawns, mutate spawn/velocity to redirect, or attach.
+        // build + configure the entity (hit knobs resolve at impact), then fire the launch event
         ProjectileEntity entity = working.type().createEntity(shooter, working, effectiveConfig);
         stampFlight(entity, flight, working);
 
@@ -93,11 +88,7 @@ public final class ProjectileSystem {
         // Per-launch behavior override (the event-driven seam for custom items), else keep the config/snapshot one.
         if (event.behavior() != null && entity instanceof ManagedProjectile mp) mp.setBehavior(event.behavior());
 
-        // 1.8 CLIENT LOCKSTEP: a 1.8 client (via Via) predicts the whole flight locally from the spawn packet, whose
-        // position it receives truncated to 1/32 ((int)(v*32)/32). Spawn the SERVER entity on that same 1/32 grid so the
-        // two simulate the trajectory in lockstep and agree on block-edge sticks; otherwise the up-to-0.03 offset makes
-        // the client clip/stick an edge the server clears, and the next position resync snaps the stuck arrow forward.
-        // Velocity (~1/8000 on the wire) is left exact: its residual drift is far below the position grid. See design §5.
+        // 1.8 lockstep: the client predicts the flight from the spawn packet (position truncated to 1/32), so spawn the server entity on that grid
         Vec spawnVel = event.velocity();
         Pos spawnAt = quantizeToWireGrid(event.spawnPos()).withView(Directions.yaw(spawnVel), Directions.pitch(spawnVel));
         entity.setVelocityBt(spawnVel);
@@ -106,8 +97,7 @@ public final class ProjectileSystem {
         return entity;
     }
 
-    /** Truncates a spawn position to the 1.8 wire grid (1/32, matching ViaVersion's {@code (int)(v*32)/32}) so the
-     *  server simulates the projectile from the exact position a 1.8 client predicts from. See {@link #launch}. */
+    /** Truncates a spawn position to the 1.8 wire grid (1/32) so the server simulates from where a 1.8 client predicts. See {@link #launch}. */
     private static Pos quantizeToWireGrid(Pos p) {
         return new Pos((int) (p.x() * 32.0) / 32.0, (int) (p.y() * 32.0) / 32.0, (int) (p.z() * 32.0) / 32.0, p.yaw(), p.pitch());
     }
@@ -134,13 +124,11 @@ public final class ProjectileSystem {
         }
     }
 
-    // --- spawn / velocity ---
+    // Projectile spawn
 
     private static Pos spawnPos(Entity shooter, ResolvedFlight cfg) {
         Pos eye = shooter.getPosition().add(0, shooter.getEyeHeight(), 0);
         Vec aim = eye.direction();
-        // Lateral offset, perpendicular to the look (yaw only) - vanilla 1.8 throwing-hand shift:
-        // locX -= cos(yaw)*0.16, locZ -= sin(yaw)*0.16. (26.1 has none.)
         double yaw = Math.toRadians(eye.yaw());
         double side = cfg.spawnOffsetSideways();
         double lx = -Math.cos(yaw) * side;
@@ -162,19 +150,14 @@ public final class ProjectileSystem {
         }
         double mh = cfg.momentumHorizontal(), mv = cfg.momentumVertical();
         if (mh != 0 || mv != 0) {
-            // Fold a fraction of the shooter's velocity, read via the velocity-system rule - SAME resolution as
-            // knockback: the config override -> the shooter's scoped profile velocity -> VelocityRule.DEFAULT. 26.1
-            // (Projectile.shootFromRotation uses getKnownMovement) = VelocityRule.delta(); 1.8 folds none (mh=mv=0).
-            VelocityRule rule = cfg.velocity();
-            if (rule == null && services != null) rule = services.profiles().velocityFor(shooter);
-            if (rule == null) rule = VelocityRule.DEFAULT;
-            Vec sv = rule.estimate(VelocityContext.of(shooter, services != null ? services.sprintTracker() : null));
+            // fold a fraction of the shooter's velocity (26.1 shootFromRotation)
+            Vec sv = MotionTracker.positionDelta(shooter);
             vel = vel.add(sv.x() * mh, sv.y() * mv, sv.z() * mh);
         }
         return vel;
     }
 
-    // --- registry ---
+    // Registry
 
     /** Registers a type (data only; not enabled). No-op if its key is already registered. */
     public ProjectileSystem register(ProjectileType type) { types.putIfAbsent(type.key(), type); return this; }
@@ -205,13 +188,13 @@ public final class ProjectileSystem {
     }
 
     /**
-     * Installs the projectile system. The config decides which self-launching types run: every registered type with a
-     * {@link ProjectileConfig#typeConfigs} entry is enabled, so its item trigger wires up (snowball/egg/pearl - same
-     * model as {@code DamageSystem.install}). {@code shootables} are the item launchers (bow/crossbow/rod) - the analog
-     * of the attack system's {@code HitDetection}, e.g. {@code install(mm, cfg, new Bow())}. Custom projectile types
-     * built outside the config register + enable via {@link #register} / {@link #enable}. Per-shooter scoping resolves
-     * through {@code MechanicsProfiles}.
+     * Installs with an empty config: the system + {@code shootables} (the item launchers, e.g. {@code new Bow()}) are wired,
+     * but no self-launching type is enabled - enablement comes from a config's {@code typeConfigs} or explicit {@link #enable}.
      */
+    public static ProjectileSystem install(MinestomMechanics mm, Shootable... shootables) {
+        return install(mm, ProjectileConfig.builder().build(), shootables);
+    }
+
     public static ProjectileSystem install(MinestomMechanics mm, ProjectileConfig cfg, Shootable... shootables) {
         ProjectileSystem system = new ProjectileSystem(mm, cfg);
         mm.registerProjectiles(system);

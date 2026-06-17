@@ -5,7 +5,7 @@ import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.KnockbackEvent;
 import io.github.term4.minestommechanics.mechanics.Vanilla18;
-import io.github.term4.minestommechanics.util.LegacyVelocity;
+import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.event.Event;
@@ -15,10 +15,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Knockback system: Config can be changed via KnockbackConfig or the KnockbackEvent API. Has no
- * invulnerability window of its own (neither does vanilla - 1.8 gates base KB on {@code damageEntity}'s
- * fresh-hit flag): every {@link #apply} call deals knockback, and gating lives in the attack processor
- * (e.g. {@code Vanilla18.LegacyAttack} applies KB only on {@code HitResult.FULL_HIT}).
+ * Knockback system, configured via {@link KnockbackConfig} or the {@link KnockbackEvent} API. No invul window of its
+ * own (neither does vanilla); every {@link #apply} deals knockback and gating lives in the attack processor.
  */
 public final class KnockbackSystem {
 
@@ -43,8 +41,10 @@ public final class KnockbackSystem {
     }
 
     public void apply(KnockbackSnapshot snap) {
-        // KnockbackEvent API (the resolver hook backs event.resolvedConfig(): it previews the exact values
-        // compute() will use for whatever finalSnap the listeners settle on)
+        // config chain: snapshot -> victim scope -> install. inert when none resolves; an empty config applies at the vanilla floor
+        if (snap.config() == null && configFor(snap.target()) == null) return;
+
+        // KnockbackEvent API; the resolver hook previews the values compute() will use for the listeners' finalSnap
         var event = new KnockbackEvent(snap,
                 s -> calc.resolveConfig(s.config() != null ? s : s.withConfig(configFor(s.target()))));
         EventDispatcher.call(event);
@@ -57,17 +57,16 @@ public final class KnockbackSystem {
         // Build knockback velocity vector
         @Nullable Vec velocity;
 
-        // If the API explicitly set the velocity, use that
+        // explicit velocity from the API wins
         if (event.velocity() != null) { velocity = event.velocity(); }
 
-        // If no velocity was provided, calculate using the snapshot (config chain: snapshot override ->
-        // victim's scoped profile -> install config)
+        // else compute from the snapshot (same config chain)
         else {
             velocity = finalSnap.config() != null
                     ? calc.compute(finalSnap)
                     : calc.compute(finalSnap.withConfig(configFor(finalSnap.target())));
 
-            // If the API explicitly set the direction, use the calculated velocity magnitude & the API's direction
+            // API direction + computed magnitude
             if (velocity != null && event.direction() != null) {
                 double mag = Math.sqrt(velocity.x() * velocity.x() + velocity.z() * velocity.z());
                 Vec dir = event.direction().normalize();
@@ -75,14 +74,9 @@ public final class KnockbackSystem {
             }
         }
 
-        // Apply knockback to target. Vanilla broadcasts the KB vector to the client but RESTORES the victim's
-        // pre-knockback server velocity (EntityHuman.attack saves motX/Y/Z, lets a() overwrite + broadcast, then
-        // restores), so the knockback is NOT folded into the next hit - the tracker is deliberately not told about it.
-        // quantizeVelocity (default on) sends what a 1.8 server's wire encoding would have produced.
-        // TODO(perf/structure): the config is resolved twice per hit (calc.compute resolves internally, and
-        //  again here for quantizeVelocity). Fold into one resolution when the event layer is restructured
-        //  (planned: PreDamageEvent / DamageModifyEvent / FinalDamageEvent), e.g. compute() consuming a
-        //  pre-resolved config carried by the event.
+        // vanilla broadcasts the KB but restores the victim's pre-KB server velocity, so it's never folded into the next
+        // hit (the tracker isn't told). quantizeVelocity (default on) sends what a 1.8 server's wire encoding would.
+        // TODO(perf): config is resolved twice per hit (compute + here for quantize); fold into one when the event layer is restructured.
         if (velocity != null) {
             Entity target = finalSnap.target();
             KnockbackSnapshot cfgSnap = finalSnap.config() != null ? finalSnap : finalSnap.withConfig(configFor(target));
@@ -95,6 +89,11 @@ public final class KnockbackSystem {
 
     /** This system's listener node ({@code mm:knockback}). Empty today - future hooks mount here. */
     public EventNode<@NotNull Event> node() { return node; }
+
+    /** Installs inert (no install-level config): an {@link #apply} with no scoped or snapshot config applies nothing. Pass an empty config to apply at the vanilla floor. */
+    public static KnockbackSystem install(MinestomMechanics mm) {
+        return install(mm, (KnockbackConfig) null);
+    }
 
     public static KnockbackSystem install(MinestomMechanics mm, KnockbackConfig config) {
         var system = new KnockbackSystem(mm, config);

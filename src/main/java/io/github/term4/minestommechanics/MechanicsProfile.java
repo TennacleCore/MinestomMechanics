@@ -2,10 +2,11 @@ package io.github.term4.minestommechanics;
 
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
+import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.player.PlayerConfig;
-import io.github.term4.minestommechanics.tracking.VelocityRule;
+import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -24,12 +25,13 @@ public record MechanicsProfile(
         @Nullable KnockbackConfig knockback,
         @Nullable PlayerConfig player,
         @Nullable VelocityRule velocity,
-        @Nullable ProjectileConfig projectiles
+        @Nullable ProjectileConfig projectiles,
+        @Nullable FixesConfig fixes
 ) {
 
-    /** Full profile with all three combat systems set (no player platform / velocity / projectiles). */
+    /** Full profile with all three combat systems set (no player platform / velocity / projectiles / fixes). */
     public static MechanicsProfile of(AttackConfig attack, DamageConfig damage, KnockbackConfig knockback) {
-        return new MechanicsProfile(attack, damage, knockback, null, null, null);
+        return new MechanicsProfile(attack, damage, knockback, null, null, null, null);
     }
 
     public Builder toBuilder() { return new Builder(this); }
@@ -42,6 +44,7 @@ public record MechanicsProfile(
         private @Nullable PlayerConfig player;
         private @Nullable VelocityRule velocity;
         private @Nullable ProjectileConfig projectiles;
+        private @Nullable FixesConfig fixes;
 
         Builder() {}
 
@@ -52,6 +55,7 @@ public record MechanicsProfile(
             player = p.player;
             velocity = p.velocity;
             projectiles = p.projectiles;
+            fixes = p.fixes;
         }
 
         public Builder attack(@Nullable AttackConfig v) { attack = v; return this; }
@@ -60,9 +64,10 @@ public record MechanicsProfile(
         public Builder player(@Nullable PlayerConfig v) { player = v; return this; }
         public Builder velocity(@Nullable VelocityRule v) { velocity = v; return this; }
         public Builder projectiles(@Nullable ProjectileConfig v) { projectiles = v; return this; }
+        public Builder fixes(@Nullable FixesConfig v) { fixes = v; return this; }
 
         public MechanicsProfile build() {
-            return new MechanicsProfile(attack, damage, knockback, player, velocity, projectiles);
+            return new MechanicsProfile(attack, damage, knockback, player, velocity, projectiles, fixes);
         }
     }
 }

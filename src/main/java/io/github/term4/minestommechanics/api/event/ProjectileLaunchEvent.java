@@ -12,17 +12,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired once a projectile {@link #projectile() entity} has been built and configured but BEFORE it enters the world.
- * One event covers the whole launch:
- * <ul>
- *   <li><b>cancel</b> - {@code setCancelled(true)} discards the entity; it never spawns.</li>
- *   <li><b>redirect</b> - mutate {@link #setSpawnPos}/{@link #setVelocity} (velocity is b/t).</li>
- *   <li><b>behavior</b> - {@link #behavior(ProjectileBehavior)} attaches a per-launch {@link ProjectileBehavior}
- *       (onSpawn/onTick/onImpact/...), overriding the config's; the event-driven way to give a custom item custom
- *       flight/impact behavior without touching the config (pairs with {@link ProjectileHitEvent}'s per-hit overrides).</li>
- *   <li><b>attach</b> - keep a reference to {@link #projectile()} to add cosmetics directly (metadata, a manual task).</li>
- * </ul>
- * To react to the END of flight (e.g. spawn an entity where it lands), use {@link ProjectileHitEvent} instead.
+ * Fired once a projectile {@link #projectile() entity} has been built and configured but before it enters
+ * the world. Listeners can cancel to discard the entity, redirect it via {@link #setSpawnPos}/{@link #setVelocity},
+ * attach a per-launch {@link #behavior(ProjectileBehavior)} override, or keep a reference to {@link #projectile()}
+ * to add cosmetics. To react to the end of flight, use {@link ProjectileHitEvent} instead.
  */
 public class ProjectileLaunchEvent implements CancellableEvent {
 
@@ -45,8 +38,8 @@ public class ProjectileLaunchEvent implements CancellableEvent {
     public ProjectileSnapshot snapshot() { return snapshot; }
     public @Nullable Entity shooter() { return snapshot.shooter(); }
 
-    /** The resolved flight knobs (physics, spawn offsets, sync, immunity) the entity was stamped with - a preview, like
-     *  {@code DamageEvent.resolvedConfig()}; the entity is already configured, so mutate {@link #setSpawnPos}/{@link #setVelocity} to redirect. */
+    /** The resolved flight knobs (physics, spawn offsets, sync, immunity) the entity was stamped with; the entity
+     *  is already configured, so mutate {@link #setSpawnPos}/{@link #setVelocity} to redirect. */
     public ResolvedFlight resolvedFlight() { return resolvedFlight; }
 
     /** The built projectile entity, not yet in the world - a typed handle: set physics ({@code setAerodynamics},

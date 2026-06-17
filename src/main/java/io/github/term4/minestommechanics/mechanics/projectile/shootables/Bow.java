@@ -16,14 +16,12 @@ import net.minestom.server.item.Material;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Bow launcher ({@link Shootable}): a drawn-bow release fires an arrow. The bow ITEM and the {@link Arrow} PROJECTILE
- * are distinct concerns - the arrow type stays pure identity, the bow lives here. Pass {@code new Bow()} to
- * {@link ProjectileSystem#install}.
+ * Bow launcher ({@link Shootable}): a drawn-bow release fires an arrow. The bow item and the {@link Arrow} projectile
+ * are distinct - the arrow type stays pure identity, the bow lives here. Pass {@code new Bow()} to {@link ProjectileSystem#install}.
  *
- * <p>Vanilla 1.8 {@code ItemBow} on release: draw power {@code (s^2 + 2s)/3} (s = draw seconds) capped at 1,
- * {@code < 0.1} fires nothing, full draw ({@code == 1}) is critical; consumes one arrow (unless creative); the arrow
- * launches at speed {@code power * 3} (the arrow config's {@code speed} × {@code power}). TODO: gate the draw start on
- * having arrows, offhand-first arrow selection, Infinity, Power/Punch/Flame enchants.
+ * <p>Vanilla 1.8: draw power {@code (s^2 + 2s)/3} capped at 1, {@code < 0.1} fires nothing, full draw is critical;
+ * consumes one arrow (unless creative); the arrow launches at speed {@code power * speed}.
+ * TODO: gate the draw on having arrows, offhand selection, Infinity/Power/Punch/Flame (needs the enchant system).
  */
 public final class Bow implements Shootable {
 
@@ -52,6 +50,7 @@ public final class Bow implements Shootable {
         if (!creative && !consumeArrow(p)) return; // no arrow to fire
         ProjectileEntity proj = system.launch(ProjectileSnapshot.of(p, arrowType).withPower(power).withItem(e.getItemStack()));
         if (proj instanceof ArrowEntity arrow) {
+            // TODO: make crit configurable (some servers crit all full-power arrows)
             arrow.setCritical(power >= 1f);
             // Survival shot -> ALLOWED (collector keeps the arrow); creative shot -> CREATIVE_ONLY (no item).
             arrow.setPickup(creative ? ArrowEntity.Pickup.CREATIVE_ONLY : ArrowEntity.Pickup.ALLOWED);

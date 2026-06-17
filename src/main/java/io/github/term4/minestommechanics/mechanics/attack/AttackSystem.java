@@ -10,12 +10,9 @@ import net.minestom.server.event.EventNode;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Attack pipeline: {@link HitDetection} turns raw input into snapshots, the system fires the
- * {@link AttackEvent} API and runs the configured ruleset. Has no invulnerability window or hit
- * buffering of its own - every detected hit is processed, and the damage / knockback systems gate
- * themselves on their own windows (vanilla: {@code EntityHuman.attack} always runs;
- * {@code damageEntity} decides what lands). Preset-specific behaviors (e.g. Minemen's hit queue,
- * future swing-hit detection) live in custom rulesets and detections.
+ * Attack pipeline: {@link HitDetection} turns raw input into snapshots, then the system fires the {@link AttackEvent}
+ * API and runs the configured ruleset. No invul window or hit buffering of its own - every hit is processed and the
+ * damage/knockback systems gate themselves. Preset behaviors (e.g. Mmc18's hit queue) live in custom rulesets/detections.
  */
 public final class AttackSystem {
 
@@ -25,9 +22,8 @@ public final class AttackSystem {
     private final EventNode<@NotNull Event> node;
 
     /**
-     * @param detection how hits are detected; none given installs {@link HitDetection#PACKET}. Detection is
-     *                  always live - `enabled` gates per hit through the config chain, so a world that boots
-     *                  with a disabled install config can be switched live by assigning an enabled profile.
+     * @param detection how hits are detected; none given installs {@link HitDetection#PACKET}. Always live - {@code enabled}
+     *                  gates per hit, so a disabled install config can be switched live by assigning an enabled profile.
      */
     public AttackSystem(MinestomMechanics mm, AttackConfig config, HitDetection... detection) {
         this.config = config;
@@ -40,27 +36,33 @@ public final class AttackSystem {
     }
 
     /**
-     * Feeds a detected hit through the attack pipeline: config chain (snapshot override -> attacker's
-     * scoped profile -> install config) -> {@link AttackEvent} -> ruleset. Public so custom hit detection
-     * (e.g. a preset's swing raycast) submits hits exactly like the built-in packet detection: build an
-     * {@link AttackSnapshot}, call this.
+     * Feeds a detected hit through the pipeline: config chain (snapshot -> attacker scope -> install) -> {@link AttackEvent}
+     * -> ruleset. Public so custom hit detection submits hits exactly like the built-in packet detection.
      */
     public void apply(AttackSnapshot snap) {
-        if (snap.config() == null) {
+        // config chain: snapshot -> attacker scope -> install. inert when all three are absent; an empty config processes at the vanilla floor
+        AttackConfig effective = snap.config();
+        if (effective == null) {
             AttackConfig scoped = profiles.attackFor(snap.attacker());
-            snap = snap.withConfig(scoped != null ? scoped : config);
+            effective = scoped != null ? scoped : config;
         }
+        if (effective == null) return;
+        if (snap.config() == null) snap = snap.withConfig(effective);
 
         AttackEvent api = new AttackEvent(snap, services);
         EventDispatcher.call(api);
-        // enabled is read off the live resolved config, so listeners may still swap in an enabled config
-        // (event.config(...)) to let a specific hit through a disabled scope.
+        // enabled read off the live resolved config, so a listener can swap in an enabled config to let a hit through
         if (api.isCancelled() || !api.process() || !api.resolvedConfig().enabled()) return;
 
         AttackEvent.AttackRule proc = api.processor() != null
                 ? api.processor().create(services)
                 : api.resolvedConfig().ruleset().create(services);
         proc.processAttack(api);
+    }
+
+    /** Installs inert (no install-level config): a detected hit with no scoped or snapshot config is dropped. Pass an empty config to process at the vanilla floor. */
+    public static AttackSystem install(MinestomMechanics mm, HitDetection... detection) {
+        return install(mm, (AttackConfig) null, detection);
     }
 
     /** Installs the system. {@code detection} as in {@link #AttackSystem(MinestomMechanics, AttackConfig, HitDetection...)}. */

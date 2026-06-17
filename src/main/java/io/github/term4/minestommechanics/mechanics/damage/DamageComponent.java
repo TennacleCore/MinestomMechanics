@@ -5,10 +5,8 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.D
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A pluggable damage transform applied after the {@link DamageEvent} fires. Each configured component
- * runs in order and may return a replacement amount (e.g. zero out overdamage when the melee weapon
- * matches the opening hit). Returning {@code null} leaves the amount unchanged for that step, so a
- * component self-gates from the {@link DamageContext} and {@link DamageEvent}.
+ * A pluggable damage transform applied after the {@link DamageEvent} fires. Each component runs in order and may
+ * return a replacement amount; {@code null} leaves it unchanged. Self-gates from the {@link DamageContext}/{@link DamageEvent}.
  */
 @FunctionalInterface
 public interface DamageComponent {

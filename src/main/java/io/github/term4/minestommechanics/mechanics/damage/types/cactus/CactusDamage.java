@@ -17,12 +17,9 @@ import net.minestom.server.event.entity.EntityTickEvent;
 import net.minestom.server.instance.block.Block;
 
 /**
- * Cactus contact damage ({@code minecraft:cactus}). Vanilla 1.8: 1.0 damage attempted every tick
- * while the bounding box intersects a cactus block's <em>collision shape</em> (not the full cell —
- * vanilla insets 1/16 on the sides and top). The invul window gates the felt cadence.
- * Self-driven via {@link EnvironmentalDamageTicker}. Tunables come from the active {@code DamageConfig}
- * ({@link DamageTypeConfig} registered via {@code typeConfigs(...)}), falling back to
- * {@link #defaultConfig()}.
+ * Cactus contact damage ({@code minecraft:cactus}). Vanilla 1.8: 1.0 damage attempted every tick while overlapping a
+ * cactus collision shape (inset 1/16, not the full cell); the invul window gates the cadence. Self-driven via
+ * {@link EnvironmentalDamageTicker}; tunables come from the type's {@link DamageTypeConfig}.
  */
 public final class CactusDamage extends DamageType implements EnvironmentalTickProducer {
 

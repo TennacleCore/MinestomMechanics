@@ -11,10 +11,9 @@ import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Suppresses outgoing health packets while {@link SilentDamage} applies a silent (no-hurt) health
- * change to a legacy client. While the per-player tag is set, the player's own {@code UpdateHealth}
- * and {@code EntityAttributes} packets are cancelled, so health is delivered via entity metadata
- * instead (which does not trigger the 1.8 hurt-cam tilt).
+ * Suppresses outgoing health packets while {@link SilentDamage} applies a silent health change to a legacy client:
+ * the player's {@code UpdateHealth}/{@code EntityAttributes} packets are cancelled so health rides entity metadata
+ * instead (no 1.8 hurt-cam tilt).
  */
 public final class HurtSuppression {
 

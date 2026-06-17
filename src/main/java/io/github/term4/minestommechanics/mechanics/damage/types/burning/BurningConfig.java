@@ -9,26 +9,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Config for the burning family ({@link InFireDamage}, {@link LavaDamage}, {@link BurningDamage}),
- * keyed per member. Adds the family's scheduling knobs on top of the common
- * {@link DamageTypeConfig} tunables:
- * <ul>
- *   <li>{@link #igniteTicks(DamageContext)} - fire ticks pinned on contact (in-fire / lava only;
- *       vanilla pins to {@code max(current, ignite)}); {@code null} or {@code <= 0} = no ignition,</li>
- *   <li>{@link #igniteWarmupTicks(DamageContext)} - explicit consecutive contact ticks before the first
- *       ignite (overrides the multiplier when set),</li>
- *   <li>{@link #igniteWarmupInvulMult(DamageContext)} - when warmup ticks are unset, ignite on the
- *       {@code N}th contact-damage hit ({@code N = mult}): contact threshold
- *       {@code (mult - 1) * invulTicks + 1} (1.8 ≈ {@code 2}, modern ≈ {@code 3}),</li>
- *   <li>{@link #contactIntervalTicks(DamageContext)} - ticks between contact-damage attempts while
- *       standing in fire/lava (vanilla = 1: attempt every tick; i-frames gate felt cadence),</li>
- *   <li>{@link #intervalTicks(DamageContext)} - ticks between burn hits while on fire
- *       ({@code on_fire} only; vanilla = 20),</li>
- *   <li>{@link #skipBurnWhileInLava(DamageContext)} - when true, {@code on_fire} ticks are skipped in lava
- *       (26.1 {@code Entity.tick}).</li>
- * </ul>
- * Vanilla values are wired in {@link io.github.term4.minestommechanics.mechanics.Vanilla18} /
- * {@link io.github.term4.minestommechanics.mechanics.Vanilla}.
+ * Config for the burning family ({@link InFireDamage}, {@link LavaDamage}, {@link BurningDamage}), keyed per member.
+ * Adds the family's scheduling knobs (ignite ticks, ignite warmup, contact/burn intervals, skip-burn-in-lava) on top of
+ * the common {@link DamageTypeConfig} tunables; vanilla values are wired in {@code Vanilla18}/{@code Vanilla}.
  */
 public final class BurningConfig extends DamageTypeConfig {
 
@@ -58,10 +41,7 @@ public final class BurningConfig extends DamageTypeConfig {
     /** Felt damage hits before first ignite when {@link #igniteWarmupTicks} is unset (1.8 = 2, modern = 3). */
     public @Nullable Integer igniteWarmupInvulMult(DamageContext ctx) { return resolve(igniteWarmupInvulMult, ctx); }
 
-    /**
-     * Contact tick threshold for the first ignite: explicit {@link #igniteWarmupTicks}, else
-     * {@code (mult - 1) * invulTicks + 1} (aligns ignite with the {@code mult}th damage hit), else {@code 11}.
-     */
+    /** Contact ticks before the first ignite: explicit {@link #igniteWarmupTicks}, else {@code (mult-1)*invulTicks+1}, else {@code 11}. */
     public int resolveIgniteWarmup(DamageContext ctx, @Nullable Integer invulTicks) {
         Integer explicit = igniteWarmupTicks(ctx);
         if (explicit != null && explicit > 0) return explicit;
@@ -138,6 +118,10 @@ public final class BurningConfig extends DamageTypeConfig {
         public Builder triggersInvul(Function<DamageContext, Boolean> fn) { common.triggersInvul(fn); return this; }
         public Builder bypassInvul(Boolean v) { common.bypassInvul(v); return this; }
         public Builder bypassInvul(Function<DamageContext, Boolean> fn) { common.bypassInvul(fn); return this; }
+        public Builder bypassImmune(Boolean v) { common.bypassImmune(v); return this; }
+        public Builder bypassImmune(Function<DamageContext, Boolean> fn) { common.bypassImmune(fn); return this; }
+        public Builder ownsVelocityBroadcast(Boolean v) { common.ownsVelocityBroadcast(v); return this; }
+        public Builder ownsVelocityBroadcast(Function<DamageContext, Boolean> fn) { common.ownsVelocityBroadcast(fn); return this; }
         public Builder subConfig(Function<DamageContext, DamageTypeConfig> fn) { common.subConfig(fn); return this; }
 
         public Builder igniteTicks(Integer v) { igniteTicks = FieldValue.constant(v); return this; }

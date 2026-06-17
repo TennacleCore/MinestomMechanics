@@ -31,14 +31,14 @@ public final class Directions {
         return (float) Math.toDegrees(Math.atan2(dir.x(), dir.z()));
     }
 
-    /** Minecraft pitch (degrees) of a direction/velocity vector: {@code atan2(y, horizontalLength)} (the projectile
-     *  convention - matches 1.8 {@code EntityArrow}/{@code EntityProjectile} rotation from motion). */
+    /** Minecraft pitch (degrees) of a direction/velocity vector: {@code atan2(y, horizontalLength)}
+     *  (projectile convention, from 1.8 {@code EntityArrow} rotation-from-motion). */
     public static float pitch(Vec dir) {
         double hl = Math.sqrt(dir.x() * dir.x() + dir.z() * dir.z());
         return (float) Math.toDegrees(Math.atan2(dir.y(), hl));
     }
 
-    // TODO: Could make this 3D later?
+    // TODO: 3D version?
     /**
      * Snaps a horizontal vector onto whichever cardinal axis carries the larger magnitude, returning a unit vector
      * with components in {@code {-1, 0, +1}}: e.g. {@code (0.9, 0.1) -> (+1, 0)}, {@code (0.1, -0.9) -> (0, -1)}.

@@ -2,7 +2,6 @@ package io.github.term4.minestommechanics.mechanics.projectile;
 
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.config.FieldValue;
-import io.github.term4.minestommechanics.tracking.VelocityRule;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
@@ -14,28 +13,18 @@ import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Resolves a {@link ProjectileConfig} + snapshot into the plain values a projectile needs, in TWO phases against the
- * same {@link ProjectileContext}:
- * <ul>
- *   <li>{@link #resolveFlight} at LAUNCH - the spawn + physics knobs (bbox, aerodynamics, spawn offsets, speed,
- *       spread, momentum, shooter immunity, sync). The target is unknown here.</li>
- *   <li>{@link #resolveHit} at IMPACT - the hit knobs (does it hit, damage, knockback, removal), resolved against a
- *       context that carries the struck {@link ProjectileContext#target()} and {@link ProjectileContext#throwOrigin()},
- *       so a config lambda can branch on {@link ProjectileContext#isSelfHit()} or read the throw-time snapshot. Hits
- *       are rare (not per-tick), so resolving them late is cheap and keeps self-hit / throw-time behavior in plain
- *       config instead of the event API.</li>
- * </ul>
- * The merged {@link ProjectileTypeConfig} ({@link ProjectileContext#typeConfig()}) is computed once at launch and
- * reused for the impact resolution.
+ * Resolves a {@link ProjectileConfig} + snapshot into plain values, in two phases against the same
+ * {@link ProjectileContext}: {@link #resolveFlight} at launch (spawn + physics knobs) and {@link #resolveHit} at impact
+ * (hit knobs, against a context carrying the struck target + throw origin). The merged {@link ProjectileTypeConfig} is
+ * computed once at launch and reused for impact.
  */
 public final class ProjectileConfigResolver {
 
     private ProjectileConfigResolver() {}
 
     /**
-     * The context the per-type projectile {@code FieldValue}s resolve against. Launch-time use carries just the
-     * snapshot + services; {@link #atHit} adds the impact fields ({@link #target}, {@link #throwOrigin},
-     * {@link #hitPos}) for resolving the hit knobs.
+     * The context the per-type {@code FieldValue}s resolve against. Launch-time carries the snapshot + services;
+     * {@link #atHit} adds the impact fields ({@link #target}, {@link #throwOrigin}, {@link #hitPos}).
      */
     public record ProjectileContext(ProjectileSnapshot snap, @Nullable Services services,
                                     @Nullable Entity target, @Nullable Pos throwOrigin, @Nullable Point hitPos) {
@@ -56,17 +45,14 @@ public final class ProjectileConfigResolver {
         public @Nullable Entity target() { return target; }
         /** Whether the struck entity is the shooter itself - the native self-vs-other test for a hit lambda. */
         public boolean isSelfHit() { return target != null && target == snap.shooter(); }
-        /** The shooter's position + view at THROW time (impact only); see {@code ProjectileEntity.getShooterOriginPos}. */
+        /** The shooter's position + view at throw time (impact only); see {@code ProjectileEntity.getShooterOriginPos}. */
         public @Nullable Pos throwOrigin() { return throwOrigin; }
         /** The impact position (impact only). */
         public @Nullable Point hitPos() { return hitPos; }
 
         /**
-         * Effective per-type config for this launch, layered highest-first: the active {@link ProjectileConfig}'s
-         * per-type override (snapshot config, else the install config) -&gt; that config's generic
-         * {@link ProjectileConfig#defaults() defaults} -&gt; the type's intrinsic
-         * {@link io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileType#defaultConfig()},
-         * with any context-aware {@code subConfig} overlay layered on top.
+         * Effective per-type config, layered highest-first: the active config's per-type override -&gt; its generic
+         * {@link ProjectileConfig#defaults()} -&gt; the type's {@code defaultConfig()}, plus any {@code subConfig} overlay.
          */
         public ProjectileTypeConfig typeConfig() {
             ProjectileConfig cfg = snap.config();
@@ -84,7 +70,7 @@ public final class ProjectileConfigResolver {
         }
     }
 
-    /** Resolves the FLIGHT knobs (spawn + physics) at launch from the effective type config. */
+    /** Resolves the flight knobs (spawn + physics) at launch from the effective type config. */
     public static ResolvedFlight resolveFlight(ProjectileTypeConfig tc, ProjectileContext ctx) {
         return new ResolvedFlight(
                 or(resolve(tc.enabled, ctx), Boolean.TRUE),
@@ -97,9 +83,8 @@ public final class ProjectileConfigResolver {
                 or(resolve(tc.spawnOffsetSideways, ctx), 0.0),
                 or(resolve(tc.speed, ctx), 1.5),
                 or(resolve(tc.spread, ctx), 0.0),
-                or(resolve(tc.momentumHorizontal, ctx), 0.0), // vanilla 1.8 adds NO shooter momentum (26.1 = 1.0)
+                or(resolve(tc.momentumHorizontal, ctx), 0.0), // vanilla 1.8 adds no shooter momentum (26.1 = 1.0)
                 or(resolve(tc.momentumVertical, ctx), 0.0),
-                resolve(tc.velocity, ctx), // momentum velocity source (config rule); profile/DEFAULT fallback in launchVelocity
                 or(resolve(tc.shooterImmunityTicks, ctx), 5),
                 or(resolve(tc.entityHitGrow, ctx), 0.3), // vanilla 1.8 Entity{Arrow,Projectile}: target grow 0.3 each side
                 or(resolve(tc.syncInterval, ctx), 20),
@@ -112,7 +97,7 @@ public final class ProjectileConfigResolver {
                 resolve(tc.pickupBox, ctx)); // nullable: the entity keeps its vanilla default if unset
     }
 
-    /** Resolves the HIT knobs at impact from the effective type config against the impact {@code ctx}. */
+    /** Resolves the hit knobs at impact from the effective type config against the impact {@code ctx}. */
     public static ResolvedHit resolveHit(ProjectileTypeConfig tc, ProjectileContext ctx) {
         return new ResolvedHit(
                 or(resolve(tc.selfHit, ctx), ProjectileTypeConfig.HitResponse.HIT),
@@ -122,12 +107,11 @@ public final class ProjectileConfigResolver {
                 resolve(tc.damageType, ctx),
                 or(resolve(tc.removeOnEntityHit, ctx), Boolean.TRUE),
                 or(resolve(tc.removeOnBlockHit, ctx), Boolean.TRUE),
-                or(resolve(tc.invulnHit, ctx), ProjectileTypeConfig.HitResponse.DESTROY), // throwables break on an invuln hit; arrow = DEFLECT
-                or(resolve(tc.deflect, ctx), ProjectileTypeConfig.Deflect.of(-0.1)), // vanilla 1.8 motion *= -0.1; 26.1 = deflect(-0.5, 0, -10, 10)
-                or(resolve(tc.deflectParticles, ctx), Boolean.FALSE)); // cosmetic deflect-visibility opt-in (default vanilla = off)
+                or(resolve(tc.invulnHit, ctx), ProjectileTypeConfig.InvulnResponse.of(ProjectileTypeConfig.HitResponse.DESTROY)), // throwables break; arrow = invulnHit(DEFLECT, PASS_THROUGH)
+                or(resolve(tc.deflect, ctx), ProjectileTypeConfig.Deflect.of(-0.1))); // vanilla 1.8 motion *= -0.1; 26.1 = deflect(-0.5, 0, -10, 10)
     }
 
-    /** Zero-size box (MinestomPVP's POINT_BOX): collision points resolve exactly on block boundaries (fix ledger F1). */
+    /** Zero-size box: collision points resolve exactly on block boundaries. */
     private static final BoundingBox POINT_BOX = new BoundingBox(0, 0, 0);
 
     private static <T> T or(@Nullable T v, T def) { return v != null ? v : def; }
@@ -150,7 +134,6 @@ public final class ProjectileConfigResolver {
             double spread,
             double momentumHorizontal,
             double momentumVertical,
-            @Nullable VelocityRule velocity,
             int shooterImmunityTicks,
             double entityHitGrow,
             int syncInterval,
@@ -172,8 +155,7 @@ public final class ProjectileConfigResolver {
             @Nullable DamageType damageType,
             boolean removeOnEntityHit,
             boolean removeOnBlockHit,
-            ProjectileTypeConfig.HitResponse invulnHit,
-            ProjectileTypeConfig.Deflect deflect,
-            boolean deflectParticles
+            ProjectileTypeConfig.InvulnResponse invulnHit,
+            ProjectileTypeConfig.Deflect deflect
     ) {}
 }

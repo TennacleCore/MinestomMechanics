@@ -6,12 +6,9 @@ import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import net.kyori.adventure.key.Key;
 
 /**
- * Thrown-projectile damage ({@code minecraft:thrown}): snowball / egg hits. Vanilla deals {@code 0} damage but
- * the hit still goes through {@code damageEntity} - it plays the hurt animation and opens the damage-invul
- * window, which is the <em>gate</em> that rejects further projectile hits while the victim is invulnerable. So
- * {@code baseAmount = 0} but {@code triggersInvul} stays on; {@code DamageSystem} lets a zero-damage hit land
- * precisely because it triggers invul. The directional knockback rides on the {@code KnockbackSystem} after a
- * landed hit (the type counts as {@code knockbackOwnsVelocity}, so no separate hurt-velocity broadcast).
+ * Thrown-projectile damage ({@code minecraft:thrown}): snowball / egg hits. Vanilla deals {@code 0} but the hit still
+ * goes through {@code damageEntity} - it plays the hurt animation and opens the invul window that gates further hits.
+ * So {@code baseAmount = 0} with {@code triggersInvul} on; the directional knockback rides the {@code KnockbackSystem}.
  */
 public final class ProjectileDamage extends DamageType {
 

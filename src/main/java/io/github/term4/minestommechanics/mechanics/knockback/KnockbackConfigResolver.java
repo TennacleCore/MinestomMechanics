@@ -2,10 +2,10 @@ package io.github.term4.minestommechanics.mechanics.knockback;
 
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.config.FieldValue;
-import io.github.term4.minestommechanics.tracking.MotionTracker;
+import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
-import io.github.term4.minestommechanics.tracking.VelocityContext;
-import io.github.term4.minestommechanics.tracking.VelocityRule;
+import io.github.term4.minestommechanics.tracking.motion.VelocityContext;
+import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
@@ -24,10 +24,8 @@ public final class KnockbackConfigResolver {
             return new KnockbackContext(snap, services, null);
         }
         /**
-         * Derives a context carrying the velocity rule the calculator resolved for this hit (config override
-         * -&gt; the victim's scoped profile -&gt; {@link VelocityRule#DEFAULT}), so a {@link KnockbackComponent}
-         * reads the SAME velocity the friction fold used via {@link #victimVelocity()} - instead of hard-pinning
-         * a rule onto the config just to keep a component consistent with the fold.
+         * Derives a context carrying the velocity rule the calculator resolved for this hit, so a
+         * {@link KnockbackComponent} reads the same velocity the friction fold used via {@link #victimVelocity()}.
          */
         public KnockbackContext withVelocity(@Nullable VelocityRule rule) {
             return new KnockbackContext(snap, services, rule);
@@ -41,11 +39,8 @@ public final class KnockbackConfigResolver {
                 && SprintTracker.wasRecentlySprinting(services.sprintTracker(), p, 0);
         }
         /**
-         * The effective victim-velocity rule for this hit: the rule {@link #withVelocity threaded} by the
-         * calculator when present, else resolved standalone (this config's {@code velocity} -&gt; the victim's
-         * scoped {@link io.github.term4.minestommechanics.MechanicsProfile#velocity() profile velocity} -&gt;
-         * {@link VelocityRule#DEFAULT}). The velocity tracking method is a single knob - set it once on a profile
-         * scope, not per config.
+         * The effective victim-velocity rule: the rule {@link #withVelocity threaded} by the calculator when present,
+         * else resolved standalone (config velocity -&gt; victim scope -&gt; {@link VelocityRule#DEFAULT}).
          */
         public VelocityRule velocityRule() {
             if (resolvedVelocity != null) return resolvedVelocity;
@@ -55,10 +50,8 @@ public final class KnockbackConfigResolver {
             return rule != null ? rule : VelocityRule.DEFAULT;
         }
         /**
-         * The resolved victim velocity (blocks/tick) - the same value the friction fold folds in - by estimating
-         * {@link #velocityRule()} for the target ({@link Vec#ZERO} when there is no target). Lets a custom
-         * {@link KnockbackComponent} (e.g. a sprint-aware axial drag) read the victim's velocity without pinning a
-         * rule onto the config.
+         * The resolved victim velocity (b/t) - the same value the friction fold uses - by estimating {@link #velocityRule()}
+         * for the target ({@link Vec#ZERO} when none). Lets a custom {@link KnockbackComponent} read it without pinning a rule onto the config.
          */
         public Vec victimVelocity() {
             Entity t = snap.target();
@@ -73,7 +66,7 @@ public final class KnockbackConfigResolver {
             KnockbackConfig sub = cfg.subConfig.apply(ctx);
             if (sub != null) cfg = sub.fromBase(cfg);
         }
-        // No knockback-level invul window (neither has vanilla - KB gating is the attack processor's job).
+        // no knockback-level invul window (gating is the attack processor's job)
         return new ResolvedKnockbackConfig(
                 resolve(cfg.sprintBuffer, ctx),
                 resolve(cfg.horizontal, ctx),
@@ -98,6 +91,7 @@ public final class KnockbackConfigResolver {
                 resolve(cfg.frictionModeV, ctx),
                 resolve(cfg.velocity, ctx),
                 resolve(cfg.quantizeVelocity, ctx),
+                resolve(cfg.airborneVertical, ctx),
                 cfg.customComponents
         );
     }
@@ -131,6 +125,7 @@ public final class KnockbackConfigResolver {
             @Nullable KnockbackConfig.FrictionMode frictionModeV,
             @Nullable VelocityRule velocity,
             @Nullable Boolean quantizeVelocity,
+            @Nullable Boolean airborneVertical,
             @Nullable List<KnockbackComponent> customComponents
     ) {}
 }

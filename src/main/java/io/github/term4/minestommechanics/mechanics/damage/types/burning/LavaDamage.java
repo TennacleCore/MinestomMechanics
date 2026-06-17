@@ -7,12 +7,9 @@ import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import net.kyori.adventure.key.Key;
 
 /**
- * Lava damage ({@code minecraft:lava}). Vanilla 1.8: 4.0 damage attempted every tick while the
- * bounding box overlaps lava (the invul window gates the cadence), igniting the entity for
- * 300 fire ticks unless wet; lava contact also halves accumulated fall distance (handled by the
- * fall producer's own scan). Self-driven via the shared {@link BurningTicker}; tunables come from
- * the active {@code DamageConfig} ({@link BurningConfig} registered via {@code typeConfigs(...)}),
- * falling back to {@link #defaultConfig()}.
+ * Lava damage ({@code minecraft:lava}). Vanilla 1.8: 4.0 damage attempted every tick while overlapping lava (the invul
+ * window gates the cadence), igniting for 300 fire ticks unless wet. Self-driven via {@link BurningTicker}; tunables
+ * come from {@link BurningConfig}.
  */
 public final class LavaDamage extends DamageType {
 

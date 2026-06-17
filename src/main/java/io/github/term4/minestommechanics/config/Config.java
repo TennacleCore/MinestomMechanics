@@ -5,10 +5,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Shared base for layered, context-resolved configs. Holds the optional {@link #subConfig} overlay
- * and the {@link #merge}/{@link #resolve} helpers, so each concrete config only lists its own fields
- * and builder. Uses a self-referential {@code SELF} type so {@code subConfig} and {@code fromBase}
- * stay typed across the (possibly inherited) config hierarchy.
+ * Shared base for layered, context-resolved configs: holds the optional {@link #subConfig} overlay
+ * and the {@link #merge}/{@link #resolve} helpers. The self-referential {@code SELF} type keeps
+ * {@code subConfig} and {@code fromBase} typed across the config hierarchy.
  *
  * @param <CTX>  the resolution context shared by this config's {@link FieldValue}s
  * @param <SELF> the concrete config type

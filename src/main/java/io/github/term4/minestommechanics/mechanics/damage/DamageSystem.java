@@ -12,7 +12,8 @@ import io.github.term4.minestommechanics.mechanics.damage.silent.SilentDamage;
 import io.github.term4.minestommechanics.tracking.EnvironmentalDamageTicker;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
-import io.github.term4.minestommechanics.mechanics.damage.types.playerattack.PlayerAttack;
+import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
+import io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
@@ -37,14 +38,11 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Main damage system. Resolves config, computes the final amount, fires the {@link DamageEvent}
- * API, applies the 1.8 overdamage replacement rule, and applies damage. Mirrors KnockbackSystem.
+ * Main damage system: resolves config, computes the amount, fires {@link DamageEvent}, applies the 1.8 overdamage
+ * rule, and applies the damage. Mirrors KnockbackSystem.
  *
- * <p>Hurt velocity broadcast: every fresh hit except drowning broadcasts the victim's server-tracked
- * velocity (1.8 {@code ac()} -&gt; {@code EntityTrackerEntry}; 26.1 {@code markHurt()} -&gt;
- * {@code ClientboundSetEntityMotionPacket}). Non-melee hits route it through the {@link KnockbackSystem}
- * with {@link DamageConfig#hurtKnockback}; melee's broadcast is its own knockback (vanilla coalesces both
- * into one end-of-tick packet).
+ * <p>Every fresh hit except drowning broadcasts the victim's server-tracked velocity. Non-melee hits route it through
+ * the {@link KnockbackSystem} with {@link DamageConfig#hurtKnockback}; melee's broadcast is its own knockback.
  */
 public final class DamageSystem {
 
@@ -54,8 +52,7 @@ public final class DamageSystem {
     /** Melee weapon that opened the current invulnerability window ({@code null} = fist / non-melee). */
     private static final Tag<ItemStack> OPENING_ITEM = Tag.Transient("mm:opening-hit-item");
 
-    /** Default invul ticks when no config / per-type value resolves.
-     *  TODO: Scale by TPS when a TPS scaling system is added. */
+    /** Default invul ticks when nothing resolves. TODO: scale by TPS once that system exists. */
     public static final int DEFAULT_INVUL_TICKS = 10;
 
     private final MinestomMechanics mm;
@@ -81,9 +78,8 @@ public final class DamageSystem {
     }
 
     /**
-     * Builds the resolution context for a snapshot, applying the standard config chain when the
-     * snapshot carries no config (victim's scoped profile -> install config). Producers use this to
-     * read per-type knobs ({@code enabled}, base amount, ignite ticks, ...) before emitting.
+     * Resolution context for a snapshot, applying the config chain (snapshot -> victim scope -> install) when the
+     * snapshot carries none. Producers use this to read per-type knobs before emitting.
      */
     public DamageContext contextFor(DamageSnapshot snap) {
         DamageSnapshot working = snap.config() != null ? snap : snap.withConfig(configFor(snap.target()));
@@ -97,107 +93,101 @@ public final class DamageSystem {
     }
 
     /**
-     * Outcome of a {@link #apply} call, mirroring vanilla 1.8 {@code EntityLiving.damageEntity}: rulesets gate
-     * hit side effects on it (knockback on {@link #FULL_HIT}, sprint reset on {@link #landed()}).
+     * Outcome of {@link #apply}, mirroring vanilla {@code damageEntity}: rulesets gate effects on it (knockback on
+     * {@link #FRESH_DAMAGE}, sprint reset on {@link #landed()}).
      */
-    public enum HitResult {
-        /** Absorbed (invul window / cancelled / zero amount) - vanilla {@code damageEntity} returned false. */
+    public enum DamageOutcome {
+        /** Absorbed by the i-frame window, or cancelled / zero / disabled. Distinct from {@link #IMMUNE}. */
         BLOCKED,
-        /**
-         * Overdamage replacement inside the invul window - damage dealt and vanilla returns true, but the
-         * fresh-hit effects (base knockback, hurt animation) are skipped ({@code flag = false}).
-         */
+        /** Fundamentally immune (creative/spectator): no damage and no knockback. Kept distinct from {@link #BLOCKED} so a
+         *  projectile can react differently - a 1.8 arrow passes through an immune target but deflects off an i-frame one. */
+        IMMUNE,
+        /** Overdamage replacement inside the i-frame window: damage dealt, but the fresh effects are skipped. */
         OVERDAMAGE,
-        /** Fresh hit - full effects. */
-        FULL_HIT;
+        /** Fresh damage - full effects (knockback, opens the i-frame window). */
+        FRESH_DAMAGE;
 
-        /** Vanilla {@code damageEntity}'s boolean: the hit dealt damage (fresh or replacement). */
-        public boolean landed() { return this != BLOCKED; }
+        /** Damage was dealt (fresh or replacement). */
+        public boolean landed() { return this == OVERDAMAGE || this == FRESH_DAMAGE; }
     }
 
     /**
-     * Applies damage from a snapshot. The base amount comes from the snapshot/type via the
-     * {@link DamageCalculator}; type-specific modifiers (e.g. the melee crit multiplier) are baked
-     * into the snapshot by the producing {@link DamageType} before it is applied. Returns the
-     * {@link HitResult} so rulesets can gate hit side effects vanilla-style.
+     * Applies damage from a snapshot. Base amount comes from the {@link DamageCalculator}; type-specific modifiers are
+     * baked into the snapshot beforehand. Returns the {@link DamageOutcome} so rulesets can gate effects.
      */
-    public HitResult apply(DamageSnapshot snap) {
-        if (!(snap.target() instanceof LivingEntity)) return HitResult.BLOCKED;
+    public DamageOutcome apply(DamageSnapshot snap) {
+        if (!(snap.target() instanceof LivingEntity)) return DamageOutcome.BLOCKED;
 
-        // Config chain: snapshot override -> victim's scoped profile -> install config.
-        DamageSnapshot working = snap.config() != null ? snap : snap.withConfig(configFor(snap.target()));
+        // config chain: snapshot -> victim scope -> install. none = inert (no-op); an empty config processes at the vanilla floor
+        DamageConfig effective = snap.config() != null ? snap.config() : configFor(snap.target());
+        if (effective == null) return DamageOutcome.BLOCKED;
+
+        DamageSnapshot working = snap.config() != null ? snap : snap.withConfig(effective);
         DamageResult result = calc.compute(working);
 
         float amount = result.amount();
 
-        // TODO(events): restructure the event layer into phased events (PreDamageEvent -> DamageModifyEvent ->
-        //  FinalDamageEvent) so listeners hook a specific phase instead of one DamageEvent doing everything;
-        //  carry the resolved config on the event to kill the double-resolution in KnockbackSystem.apply too.
+        // TODO(events): split into phased events (pre/modify/final) and carry the resolved config to avoid double-resolution
         DamageEvent event = new DamageEvent(working, amount);
         EventDispatcher.call(event);
-        if (event.isCancelled()) return HitResult.BLOCKED;
+        if (event.isCancelled()) return DamageOutcome.BLOCKED;
 
         DamageSnapshot finalSnap = event.finalSnap();
-        if (!(finalSnap.target() instanceof LivingEntity living)) return HitResult.BLOCKED;
+        if (!(finalSnap.target() instanceof LivingEntity living)) return DamageOutcome.BLOCKED;
 
         DamageType type = finalSnap.type();
         DamageContext typeCtx = contextFor(finalSnap);
-        // Per-type config from the active DamageConfig (override), else the type's defaults.
         DamageTypeConfig typeCfg = typeCtx.typeConfig();
-        // Per-scope kill switch (mirrors AttackConfig.enabled): read off the final snapshot so
-        // listeners may still swap in an enabled config to let a specific hit through.
-        if (!typeCfg.enabled(typeCtx)) return HitResult.BLOCKED;
+        // per-scope kill switch; read off the final snap so a listener can swap in an enabled config
+        if (!typeCfg.enabled(typeCtx)) return DamageOutcome.BLOCKED;
         amount = event.amount();
-        boolean bypass = event.bypassInvul() || typeCfg.bypassInvul(typeCtx);
+        // two independent bypasses: bypassImmune = creative/spectator immunity, bypassInvul = the i-frame window
+        boolean bypassImmune = event.bypassImmune() || typeCfg.bypassImmune(typeCtx);
+        boolean bypassInvul = event.bypassInvul() || typeCfg.bypassInvul(typeCtx);
 
-        // Vanilla abilities.isInvulnerable: creative/spectator players take NO damage from a non-bypassing source.
-        // Returning BLOCKED here makes melee/projectile knockback and arrow deflect (which all key off the
-        // landed()/FULL_HIT result) treat them as invulnerable too - not just the raw health. (Void / admin-kill
-        // types set bypassInvul to still apply.)
-        if (!bypass && living instanceof Player gmPlayer
+        // creative/spectator take no damage. IMMUNE (not BLOCKED) lets a projectile distinguish this from the i-frame window
+        if (!bypassImmune && living instanceof Player gmPlayer
                 && (gmPlayer.getGameMode() == GameMode.CREATIVE || gmPlayer.getGameMode() == GameMode.SPECTATOR)) {
-            return HitResult.BLOCKED;
+            return DamageOutcome.IMMUNE;
         }
 
         ResolvedDamageConfig resolved = calc.resolveConfig(
                 finalSnap.config() != null ? finalSnap : finalSnap.withConfig(configFor(finalSnap.target())));
 
-        // Each knob: per-type override when set, else the global config value.
+        // per-type override, else the global value
         boolean overdamage = Boolean.TRUE.equals(pick(typeCfg.overdamage(typeCtx), resolved.enableOverdamage()));
-        // Silent (no hurt animation): default false when unset anywhere.
         boolean generalSilent = Boolean.TRUE.equals(pick(typeCfg.silent(typeCtx), resolved.silent()));
 
-        if (event.invulnerable() && !bypass) {
+        if (event.invulnerable() && !bypassInvul) {
             // overdamage replacement
-            if (!overdamage) return HitResult.BLOCKED;
+            if (!overdamage) return DamageOutcome.BLOCKED;
             float applied = amount > event.stored() ? amount - event.stored() : 0f;
             applied = applyComponents(typeCtx, event, applied, true);
             if (applied > 0) {
-                // Overdamage-specific silent override; falls back to the general silent flag when unset.
+                // overdamage silent override, else the general flag
                 Boolean odSilent = pick(typeCfg.overdamageSilent(typeCtx), resolved.overdamageSilent());
                 boolean replacementSilent = odSilent != null ? odSilent : generalSilent;
                 living.setTag(LAST_DAMAGE, Math.max(event.stored(), amount));
                 applyDamage(living, type, finalSnap, applied, replacementSilent);
-                return HitResult.OVERDAMAGE;
+                return DamageOutcome.OVERDAMAGE;
             }
-            return HitResult.BLOCKED;
+            return DamageOutcome.BLOCKED;
         }
 
         amount = applyComponents(typeCtx, event, amount, false);
-        // A zero-damage hit still LANDS when its type triggers invul - vanilla's 0-damage thrown projectiles
-        // (snowball/egg) play the hurt animation and open the invul window (the gate that rejects further
-        // projectile hits). Only a negative amount, or a 0 that does not trigger invul, is dropped.
+        // a 0-damage hit still lands when its type triggers invul (snowball/egg); only negative or non-invul 0 is dropped
         boolean triggersInvul = typeCfg.triggersInvul(typeCtx);
-        if (amount < 0 || (amount == 0f && !triggersInvul)) return HitResult.BLOCKED;
+        if (amount < 0 || (amount == 0f && !triggersInvul)) return DamageOutcome.BLOCKED;
 
         storeOpeningItem(living, finalSnap.item());
         living.setTag(LAST_DAMAGE, amount);
         applyDamage(living, type, finalSnap, amount, generalSilent);
-        // Vanilla ac(): every fresh hit except drowning broadcasts the victim's server-tracked velocity.
-        // Melee and projectiles own their broadcast through the KnockbackSystem (vanilla coalesces ac() + the
-        // directional knockback into one end-of-tick packet); a second send here would overwrite it.
+        // every fresh hit except drowning broadcasts velocity; melee/projectiles own theirs via the KnockbackSystem.
+        // the per-type ownsVelocityBroadcast knob wins when set, else the built-in default
+        Boolean ownsFlag = typeCfg.ownsVelocityBroadcast(typeCtx);
+        boolean ownsVelocity = ownsFlag != null ? ownsFlag : knockbackOwnsVelocity(type);
         if (Boolean.TRUE.equals(resolved.syncHurtVelocity())
-                && !knockbackOwnsVelocity(type)
+                && !ownsVelocity
                 && !DROWN_KEY.equals(type.key())) {
             applyHurtKnockback(living, resolved.hurtKnockback());
         }
@@ -205,17 +195,12 @@ public final class DamageSystem {
         if (triggersInvul && invulTicks != null && invulTicks > 0) {
             setDamageInvulnerable(living, invulTicks);
         }
-        return HitResult.FULL_HIT;
+        return DamageOutcome.FRESH_DAMAGE;
     }
 
-    /**
-     * Whether the type's knockback (the attack ruleset / projectile, via the {@code KnockbackSystem}) owns the
-     * velocity broadcast - so {@code DamageSystem} must not also send the generic hurt velocity (double-set).
-     * TODO(stages): make this a {@code DamageTypeConfig} flag instead of a key check as more types route KB.
-     */
+    /** Built-in default for the per-type {@code ownsVelocityBroadcast} knob: melee + thrown own the velocity broadcast, so the generic hurt velocity isn't also sent. */
     private static boolean knockbackOwnsVelocity(DamageType type) {
-        return PlayerAttack.KEY.equals(type.key())
-                || io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage.KEY.equals(type.key());
+        return MeleeDamage.KEY.equals(type.key()) || ProjectileDamage.KEY.equals(type.key());
     }
 
     /** Per-type override when non-null, else the global config value (which may itself be null). */
@@ -229,11 +214,9 @@ public final class DamageSystem {
     private static final KnockbackConfig DEFAULT_HURT_KB = Vanilla18.hurtKb();
 
     /**
-     * The hurt velocity broadcast, vanilla parity: a fresh hit sets {@code velocityChanged} ({@code ac()},
-     * gated by a knockback-resistance roll) and {@code EntityTrackerEntry} broadcasts the server's
-     * {@code motX/motY/motZ} (26.1: {@code markHurt} -&gt; {@code ClientboundSetEntityMotionPacket}). Routed
-     * through the {@link KnockbackSystem} with {@link DamageConfig#hurtKnockback} - a zero-impulse config whose
-     * velocity fold IS the broadcast - so all velocity sends share one path and one set of knobs.
+     * The hurt velocity broadcast: a fresh hit broadcasts the victim's server velocity (gated by a knockback-resistance
+     * roll), routed through the {@link KnockbackSystem} with a zero-impulse {@link DamageConfig#hurtKnockback} so all
+     * velocity sends share one path.
      */
     private void applyHurtKnockback(LivingEntity living, @Nullable KnockbackConfig cfg) {
         KnockbackSystem kb = services.knockback();
@@ -247,6 +230,7 @@ public final class DamageSystem {
     private float applyComponents(DamageContext ctx, DamageEvent event, float amount, boolean overdamage) {
         DamageConfig cfg = event.config();
         if (cfg == null) cfg = configFor(event.target());
+        if (cfg == null) return amount; // inert: no config -> no custom components
         if (cfg.subConfig != null) {
             DamageConfig sub = cfg.subConfig.apply(ctx);
             if (sub != null) cfg = sub.fromBase(cfg);
@@ -271,8 +255,7 @@ public final class DamageSystem {
     }
 
     private void applyDamage(LivingEntity living, DamageType type, DamageSnapshot snap, float amount, boolean silent) {
-        // Non-lethal silent hits update health via the no-hurt path; lethal hits fall through to
-        // living.damage() so Minestom handles death (message, drops, respawn).
+        // lethal hits fall through to living.damage() so Minestom handles death; non-lethal silent hits skip the hurt effect
         float newHealth = (float) Math.max(0, living.getHealth() - amount);
         if (silent && living instanceof Player p && newHealth > 0) {
             SilentDamage.setHealthWithoutHurtEffect(p, newHealth, mm.clientInfo());
@@ -286,30 +269,24 @@ public final class DamageSystem {
     public DamageConfig config() { return config; }
 
     /**
-     * Effective invulnerability ticks for a given type: the per-type override when set, else the
-     * configured global value, else {@link #DEFAULT_INVUL_TICKS} (when unset or
-     * context-dependent). A {@code null} type resolves the global value only.
+     * Effective invul ticks for a type: per-type override, else the global value, else {@link #DEFAULT_INVUL_TICKS}.
+     * A {@code null} type resolves the global value only.
      */
     public int defaultInvulTicks(@Nullable DamageType type) {
-        // Hit-independent default: only constant invul values are meaningful here. A context-dependent
-        // (per-hit) value can't be evaluated without a snapshot, so it falls through to the global/default.
+        // only constant invul values resolve without a snapshot
         if (type != null) {
-            DamageTypeConfig tcfg = config.typeConfig(type.key());
+            DamageTypeConfig tcfg = config != null ? config.typeConfig(type.key()) : null;
             if (tcfg == null) tcfg = type.defaultConfig();
             Integer v = tcfg.invulTicksConstant();
             if (v != null) return v;
         }
-        Integer v = config.invulTicks != null ? config.invulTicks.constantOrNull() : null;
+        Integer v = config != null && config.invulTicks != null ? config.invulTicks.constantOrNull() : null;
         return v != null ? v : DEFAULT_INVUL_TICKS;
     }
 
-    /**
-     * Standard hit i-frame window used by other systems (attack/knockback) to align their invul
-     * windows. Reflects the {@code player_attack} type's effective invul, so a custom melee
-     * {@link DamageTypeConfig#invulTicks(DamageContext)} propagates to those windows without touching their resolvers.
-     */
+    /** The standard hit i-frame window (the {@code player_attack} type's invul), used to align other systems' windows. */
     public int defaultInvulTicks() {
-        return defaultInvulTicks(registry.get(PlayerAttack.KEY));
+        return defaultInvulTicks(registry.get(MeleeDamage.KEY));
     }
 
     /** Registry of damage types and their handlers. */
@@ -319,12 +296,14 @@ public final class DamageSystem {
     public EventNode<@NotNull Event> node() { return node; }
 
     /**
-     * Installs the damage system. The config decides what runs: every type with an entry in
-     * {@link DamageConfig#typeConfigs} is enabled (self-driven producers - fall, the burning family, cactus -
-     * start; one-off types like melee enable as data-only no-ops). The per-type {@code enabled} knob remains
-     * the per-hit/scope gate on top. {@code extraTypes} registers and enables custom types built outside the
-     * config. Runtime toggling stays available via {@link #registry()}.
+     * Installs the system inert (no install-level config): a hit with no scoped or snapshot config is a no-op, and no
+     * self-driven types (fall/fire/cactus) start - those only enable from a config's {@link DamageConfig#typeConfigs}.
+     * Pass an empty config to process hits at the vanilla floor. {@code extraTypes} registers + enables custom types.
      */
+    public static DamageSystem install(MinestomMechanics mm, DamageType... extraTypes) {
+        return install(mm, (DamageConfig) null, extraTypes);
+    }
+
     public static DamageSystem install(MinestomMechanics mm, DamageConfig cfg, DamageType... extraTypes) {
         var system = new DamageSystem(mm, cfg);
         mm.registerDamage(system);
@@ -334,18 +313,18 @@ public final class DamageSystem {
         for (DamageType type : extraTypes) {
             if (!system.registry.contains(type.key())) system.registry.register(type);
         }
-        for (Key key : cfg.typeConfigs.keySet()) {
-            if (system.registry.contains(key)) system.registry.enable(key);
+        if (cfg != null) {
+            for (Key key : cfg.typeConfigs.keySet()) {
+                if (system.registry.contains(key)) system.registry.enable(key);
+            }
         }
         for (DamageType type : extraTypes) system.registry.enable(type.key());
         return system;
     }
 
     /**
-     * Producer-side early-out mirroring vanilla {@code damageEntity}'s pre-event check: while the
-     * target's window is active, an attempt that cannot beat the stored highwater is dropped before
-     * any {@link DamageEvent} fires. Repeating producers (fire, cactus) use this to avoid spamming
-     * blocked events every tick; one-shot sources (melee, fall) just call {@link #apply}.
+     * Pre-event early-out: while the target's window is active, an attempt that can't beat the stored highwater is
+     * dropped before any {@link DamageEvent}. Repeating producers (fire, cactus) use this to avoid event spam.
      */
     public static boolean absorbedByWindow(LivingEntity target, float amount) {
         return isInvulnerableToDamage(target) && amount <= lastDamage(target);
@@ -357,18 +336,21 @@ public final class DamageSystem {
         return v != null ? v : 0f;
     }
 
+    /** Opens (or re-opens) the target's damage-invulnerability window (i-frames) for {@code duration} ticks. */
     public static void setDamageInvulnerable(Entity e, int duration) {
         if (!(e instanceof LivingEntity le) || duration <= 0) return;
         le.setTag(INVUL_DAMAGE, new TickState(TickClock.now(), duration));
     }
 
+    /** Whether the target is inside its i-frame window. Not fundamental immunity (creative/spectator). */
     public static boolean isInvulnerableToDamage(Entity e) {
         if (!(e instanceof LivingEntity le)) return false;
         TickState s = getDamageInvul(le);
         return s != null && s.isActive();
     }
 
-    public static int remainingDamageInvulTicks(LivingEntity le) {
+    /** Ticks left in the target's damage-invulnerability window ({@code 0} if none). */
+    public static int remainingDamageInvul(LivingEntity le) {
         TickState s = getDamageInvul(le);
         return s != null ? s.remainingTicks() : 0;
     }

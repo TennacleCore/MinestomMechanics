@@ -9,15 +9,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Per-type damage configuration: the common tunables shared by every {@link DamageType}, keyed by the
- * type's {@link #key()}. Attached to the global {@link DamageConfig} via
- * {@link DamageConfig.Builder#typeConfigs}; a type without an entry falls back to its
- * {@link DamageType#defaultConfig()}.
- *
- * <p>Every value is a {@link FieldValue} resolved against a {@link DamageContext}, so any field can be
- * a constant or a context-aware lambda. {@code invulTicks}/{@code overdamage} resolve to {@code null}
- * when unset, inheriting the global {@link DamageConfig}. Subclasses add type-specific knobs and live
- * in the same sub-package as their type; they compose (not inherit) this builder for the common knobs.
+ * Per-type damage config: the common tunables shared by every {@link DamageType}, keyed by {@link #key()} and attached
+ * to the global {@link DamageConfig} ({@code typeConfigs}); a type without an entry uses its {@link DamageType#defaultConfig()}.
+ * Every value is a {@link FieldValue} (constant or context-aware), resolving to {@code null} to inherit the global config.
  */
 public class DamageTypeConfig {
 
@@ -30,6 +24,8 @@ public class DamageTypeConfig {
     private final @Nullable FieldValue<DamageContext, Boolean> overdamageSilent;
     private final @Nullable FieldValue<DamageContext, Boolean> triggersInvul;
     private final @Nullable FieldValue<DamageContext, Boolean> bypassInvul;
+    private final @Nullable FieldValue<DamageContext, Boolean> bypassImmune;
+    private final @Nullable FieldValue<DamageContext, Boolean> ownsVelocityBroadcast;
     private final @Nullable Function<DamageContext, DamageTypeConfig> subConfig;
 
     protected DamageTypeConfig(Builder b) {
@@ -42,17 +38,15 @@ public class DamageTypeConfig {
         this.overdamageSilent = b.overdamageSilent;
         this.triggersInvul = b.triggersInvul;
         this.bypassInvul = b.bypassInvul;
+        this.bypassImmune = b.bypassImmune;
+        this.ownsVelocityBroadcast = b.ownsVelocityBroadcast;
         this.subConfig = b.subConfig;
     }
 
     /** Identity of the type this config applies to. */
     public Key key() { return key; }
 
-    /**
-     * Whether this damage type applies at all in the resolved scope (defaults to {@code true}).
-     * Resolved per victim through the config chain, so a profile can switch a type off per
-     * player/instance/global without touching its producer.
-     */
+    /** Whether this type applies in the resolved scope (default {@code true}); resolved per victim through the config chain. */
     public boolean enabled(DamageContext ctx) {
         Boolean v = resolve(enabled, ctx);
         return v == null || v;
@@ -82,11 +76,20 @@ public class DamageTypeConfig {
         return v == null || v;
     }
 
-    /** Whether this type ignores the target's damage invulnerability window (defaults to {@code false}). */
+    /** Whether this type ignores the target's i-frame window (vanilla {@code BYPASSES_COOLDOWN}). Default {@code false}. */
     public boolean bypassInvul(DamageContext ctx) {
         Boolean v = resolve(bypassInvul, ctx);
         return v != null && v;
     }
+
+    /** Whether this type ignores fundamental immunity - creative/spectator (e.g. void / admin kill). Default {@code false}. */
+    public boolean bypassImmune(DamageContext ctx) {
+        Boolean v = resolve(bypassImmune, ctx);
+        return v != null && v;
+    }
+
+    /** Whether this type's knockback owns the hurt-velocity broadcast, so {@code DamageSystem} won't also send the generic one. {@code null} = the built-in default (melee + thrown). */
+    public @Nullable Boolean ownsVelocityBroadcast(DamageContext ctx) { return resolve(ownsVelocityBroadcast, ctx); }
 
     /** Context-aware overlay applied over this type config before resolution, or {@code null} if none. */
     public @Nullable Function<DamageContext, DamageTypeConfig> subConfig() { return subConfig; }
@@ -106,6 +109,8 @@ public class DamageTypeConfig {
         b.overdamageSilent = mergeFv(overdamageSilent, base.overdamageSilent);
         b.triggersInvul = mergeFv(triggersInvul, base.triggersInvul);
         b.bypassInvul = mergeFv(bypassInvul, base.bypassInvul);
+        b.bypassImmune = mergeFv(bypassImmune, base.bypassImmune);
+        b.ownsVelocityBroadcast = mergeFv(ownsVelocityBroadcast, base.ownsVelocityBroadcast);
         b.subConfig = subConfig != null ? subConfig : base.subConfig;
         return b.build();
     }
@@ -136,6 +141,8 @@ public class DamageTypeConfig {
         private FieldValue<DamageContext, Boolean> overdamageSilent;
         private FieldValue<DamageContext, Boolean> triggersInvul;
         private FieldValue<DamageContext, Boolean> bypassInvul;
+        private FieldValue<DamageContext, Boolean> bypassImmune;
+        private FieldValue<DamageContext, Boolean> ownsVelocityBroadcast;
         private Function<DamageContext, DamageTypeConfig> subConfig;
 
         public Builder key(Key key) { this.key = key; return this; }
@@ -151,6 +158,8 @@ public class DamageTypeConfig {
             this.overdamageSilent = src.overdamageSilent;
             this.triggersInvul = src.triggersInvul;
             this.bypassInvul = src.bypassInvul;
+            this.bypassImmune = src.bypassImmune;
+            this.ownsVelocityBroadcast = src.ownsVelocityBroadcast;
             this.subConfig = src.subConfig;
             return this;
         }
@@ -182,8 +191,16 @@ public class DamageTypeConfig {
         public Builder triggersInvul(Boolean v) { triggersInvul = FieldValue.constant(v); return this; }
         public Builder triggersInvul(Function<DamageContext, Boolean> fn) { triggersInvul = FieldValue.of(fn); return this; }
 
+        /** Ignore the target's i-frame window. */
         public Builder bypassInvul(Boolean v) { bypassInvul = FieldValue.constant(v); return this; }
         public Builder bypassInvul(Function<DamageContext, Boolean> fn) { bypassInvul = FieldValue.of(fn); return this; }
+        /** Ignore fundamental immunity (creative/spectator); e.g. void / admin kill. */
+        public Builder bypassImmune(Boolean v) { bypassImmune = FieldValue.constant(v); return this; }
+        public Builder bypassImmune(Function<DamageContext, Boolean> fn) { bypassImmune = FieldValue.of(fn); return this; }
+
+        /** This type's knockback owns the hurt-velocity broadcast (default: melee + thrown). */
+        public Builder ownsVelocityBroadcast(Boolean v) { ownsVelocityBroadcast = FieldValue.constant(v); return this; }
+        public Builder ownsVelocityBroadcast(Function<DamageContext, Boolean> fn) { ownsVelocityBroadcast = FieldValue.of(fn); return this; }
 
         public Builder subConfig(Function<DamageContext, DamageTypeConfig> fn) { subConfig = fn; return this; }
 

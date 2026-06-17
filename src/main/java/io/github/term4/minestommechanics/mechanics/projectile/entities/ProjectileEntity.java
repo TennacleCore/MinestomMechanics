@@ -35,40 +35,31 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Collection;
 
 /**
- * Base projectile entity: 1.8-style physics, block stick, entity hits. See {@code docs/projectiles-design.md} for
- * the architecture and the FIX LEDGER this class cites ({@code F1}, {@code F3}, {@code F5}, ...). A stuck arrow keeps
- * its movement frozen but is NOT radio-silent: {@link #resyncStuck()} periodically re-asserts position + rotation,
- * mirroring vanilla's {@code ServerEntity} so a 1.8 client (through Via) self-heals - this supersedes the old
- * LegacyProjectileCompat hint/pullback plan (F7/F8/F12). Modern clients hold via the {@code inGround} metadata.
+ * Base projectile entity: 1.8-style physics, block stick, entity hits. See {@code docs/projectiles-design.md} for the
+ * architecture. A stuck arrow freezes movement but {@link #resyncStuck()} periodically re-asserts position + rotation
+ * so a 1.8 client (via Via) self-heals; modern clients hold via the {@code inGround} metadata.
  *
- * <p>Velocity is blocks/<b>tick</b> internally (library convention); {@code super.velocity} mirrors it in
- * blocks/second so Minestom internals and external reads stay sane. Physics constants come from
- * {@link Aerodynamics} (set per type by the launcher), read live each tick - no TPS scaling yet, but all
- * timing is tick-denominated so a scaling pass stays mechanical.
+ * <p>Velocity is blocks/tick internally ({@code super.velocity} mirrors b/s). Physics constants come from
+ * {@link Aerodynamics}, read live each tick.
  */
 public abstract class ProjectileEntity extends Entity {
 
     /** Default ticks a freshly launched projectile cannot hit its own shooter (vanilla pass-through at spawn). */
     public static final int DEFAULT_SHOOTER_IMMUNITY_TICKS = 5;
 
-    /** Default entity-hit margin: vanilla 1.8 grows the TARGET's bbox by {@code 0.3} each side and ray-tests the
-     *  projectile's center; equivalently we grow our zero-size box by 0.3 each side ({@code growSymmetrically}, not
-     *  {@code expand}). Per-type override {@code ProjectileTypeConfig.entityHitGrow}; see the design doc §5. */
+    /** Default entity-hit margin: grow the zero-size projectile box by {@code 0.3} each side (vanilla grows the target instead). Per-type override on {@code ProjectileTypeConfig.entityHitGrow}. */
     public static final double DEFAULT_ENTITY_HIT_GROW = 0.3;
 
-    /** Margin (blocks) the shooter's box is grown by for the {@link #leftOwnerImmunity} "has the projectile left its
-     *  owner" check - vanilla 26.1 {@code Projectile.isOutsideOwnerCollisionRange} uses {@code .inflate(1.0)}. */
+    /** Margin the shooter's box is grown by for the {@link #leftOwnerImmunity} "left its owner" check (vanilla {@code inflate(1.0)}). */
     private static final double LEFT_OWNER_INFLATE = 1.0;
 
     /** Ticks the shooter is immune (configurable per type; set by the launcher). */
     protected int shooterImmunityTicks = DEFAULT_SHOOTER_IMMUNITY_TICKS;
-    /** Alive-tick until which the shooter is immune again after a deflect (vanilla {@code as = 0} re-arm); see
-     *  {@link #rearmShooterImmunity}. {@code <= 0} = no active re-arm (only the initial {@link #shooterImmunityTicks}). */
+    /** Alive-tick until which the shooter is immune again after a deflect; see {@link #rearmShooterImmunity}. {@code <= 0} = none. */
     private long shooterImmuneUntilAlive;
     /** Entity-hit margin grown onto the target on each side (configurable per type; stamped by the launcher). */
     protected double entityHitGrow = DEFAULT_ENTITY_HIT_GROW;
-    /** In-flight velocity broadcast interval: {@code <= 0} = never (vanilla arrow, the edge-slide fix), {@code N} =
-     *  every N ticks. Stamped by the launcher; gates the per-tick velocity packet in {@link #sendPacketToViewers}. */
+    /** In-flight velocity broadcast interval: {@code <= 0} = never (vanilla arrow, the edge-slide fix), {@code N} = every N ticks. Gates {@link #sendPacketToViewers}. */
     protected int velocitySyncInterval;
     /** Counts the automatic per-tick velocity packets, for the {@link #velocitySyncInterval} throttle. */
     private long autoVelocityCounter;
@@ -98,9 +89,7 @@ public abstract class ProjectileEntity extends Entity {
     private @Nullable Pos stuckPlacement;
     /** Counts ticks since sticking; drives the periodic stuck re-sync (vanilla parity - see {@link #tick}). */
     private long stuckSyncCounter;
-    /** Throttles the in-flight teleport to {@code syncInterval} (the vanilla projectile cadence). A per-tick absolute
-     *  teleport SHAKES the client (it fights the client's own interpolation + flight prediction); vanilla instead sends
-     *  a sparse teleport and lets the client predict between them. See {@link #synchronizePosition}. */
+    /** Throttles the in-flight teleport to {@code syncInterval} (the vanilla cadence; a per-tick teleport shakes the client). See {@link #synchronizePosition}. */
     private long flightSyncCounter;
 
     private @Nullable PhysicsResult previousPhysicsResult;
@@ -110,14 +99,9 @@ public abstract class ProjectileEntity extends Entity {
     /** Set by {@link #setDeflected} when a hit bounced the projectile this tick (velocity reversed, not removed); the
      *  entity-collision block then stops the forward move at the hit point so it doesn't overshoot before bouncing. */
     private boolean deflectedThisTick;
-    /** Set when the {@code deflectParticles} opt-in fires (by {@link ManagedProjectile}): on a deflect / pass-through, let a
-     *  subclass spawn a server-side flight trail at the authoritative position. The arrow ENTITY itself CANNOT be made
-     *  visible to a 1.8 client after it touches an entity (a native 1.8 client bug - see the design doc §3f), so the
-     *  trail is all we can show; every server-side re-spawn/decoy attempt failed. */
+    /** {@code deflectParticles} opt-in: on a deflect/pass-through, let a subclass spawn a server-side crit trail. Cosmetic only, off by default. */
     protected boolean deflectVisible;
-    /** Removal requested from inside movementTick; applied in {@link #tick} AFTER super.tick (post-touchTick) to
-     *  avoid nulling {@code instance} before Minestom's {@code Entity.tick} reads it (NPE), and without entering the
-     *  stuck/radio-silence state (which would skip the entity scheduler and never run a deferred remove). */
+    /** Removal requested inside movementTick; applied in {@link #tick} after super.tick so {@code instance} isn't nulled mid-tick (NPE). */
     private boolean pendingRemove;
 
     protected ProjectileEntity(@Nullable Entity shooter, @NotNull EntityType entityType) {
@@ -127,8 +111,7 @@ public abstract class ProjectileEntity extends Entity {
         this.collidesWithEntities = false;
         this.preventBlockPlacement = false;
         if (getEntityMeta() instanceof ProjectileMeta meta) meta.setShooter(shooter);
-        // F1: zero-size bounding box - collision points resolve exactly on block boundaries; even 0.01
-        // overshoots and breaks the modern client's floor(pos) -> block -> inGround check.
+        // zero-size box: collision points resolve exactly on block boundaries (any size overshoots the inGround check)
         setBoundingBox(0, 0, 0);
     }
 
@@ -215,23 +198,32 @@ public abstract class ProjectileEntity extends Entity {
     /** Velocity in blocks/tick. */
     public @NotNull Vec velocityBt() { return velocityBt; }
 
-    /** Sets the velocity in blocks/tick (mirrors to {@code super.velocity} in blocks/second). */
+    /** Sets velocity (b/t), mirrored to {@code super.velocity}. Silent (not broadcast) - the client predicts from spawn velocity; use {@link #setVelocity} for a redirect that should reach clients. */
     public void setVelocityBt(@NotNull Vec bt) {
         this.velocityBt = bt;
         this.velocity = bt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
     }
 
+    /**
+     * Explicit velocity set (external API / redirect / homing) - broadcasts even for arrows, so unlike {@link #setVelocityBt}
+     * it reaches 1.8 clients through the per-tick suppression.
+     */
+    @Override
+    public void setVelocity(@NotNull Vec velocity) {
+        this.velocityBt = velocity.div(ServerFlag.SERVER_TICKS_PER_SECOND);
+        this.velocity = velocity;
+        if (!isStuck()) sendVelocityToViewers(velocityBt);
+    }
+
     // =========================================================================
-    // Tick: vanilla-style periodic re-sync while stuck (supersedes the old F2 radio silence)
+    // Tick: vanilla-style periodic re-sync while stuck
     // =========================================================================
 
     @Override
     public void tick(long time) {
         if (isStuck()) {
             if (isRemoved()) return;
-            // Movement frozen, but NOT radio-silent: a periodic absolute teleport (zero velocity) re-asserts pos +
-            // rotation like vanilla ServerEntity, so a mispredicted 1.8 stuck arrow self-heals. Counter starts at 0 ->
-            // first re-sync fires the tick after sticking (the one-tick delay). Modern holds via inGround. Doc §3a.
+            // frozen but not radio-silent: a periodic teleport re-asserts pos + rotation so a mispredicted 1.8 stuck arrow self-heals
             updateProjectile(time);
             if (isRemoved()) return;
             if (stuckSyncCounter++ % Math.max(1L, getSynchronizationTicks()) == 0) resyncStuck();
@@ -254,7 +246,7 @@ public abstract class ProjectileEntity extends Entity {
             return;
         }
 
-        // 26.1 applies drag + gravity BEFORE the move (1.8 after - see physicsOrder / applyDragGravity).
+        // 26.1 applies drag/gravity before the move (1.8 after)
         if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_BEFORE_MOVE) applyDragGravity();
 
         // --- Block physics (swept) ---
@@ -265,11 +257,8 @@ public abstract class ProjectileEntity extends Entity {
         Pos newPosition = CollisionUtils.applyWorldBorder(instance.getWorldBorder(), position, physics.newPosition());
 
         // --- Entity collision (swept alongside the block physics) ---
-        // Vanilla 1.8: grow the TARGET by 0.3 on each side and ray-test the projectile's center path; we do the
-        // Minkowski dual - grow the zero-size projectile box by 0.3 on each side (growSymmetrically, NOT expand - see
-        // ENTITY_HIT_GROW) and sweep from the (un-offset) center along velocity.
-        // 26.1 leftOwner model: immune to the shooter until the projectile geometrically leaves its box; 1.8 = fixed
-        // ticks. Either way the post-deflect re-arm (shooterImmuneUntilAlive) still applies (1.8 as = 0 on a bounce).
+        // grow the zero-size projectile box by entityHitGrow and sweep along velocity (the Minkowski dual of vanilla growing the target).
+        // shooter immunity: 26.1 = until the projectile leaves the shooter's box, 1.8 = fixed ticks; the post-deflect re-arm applies either way.
         if (leftOwnerImmunity && !leftOwner && shooter != null && !withinShooterBox(position)) leftOwner = true;
         boolean shooterImmune = (leftOwnerImmunity ? (shooter != null && !leftOwner)
                 : getAliveTicks() < shooterImmunityTicks) || getAliveTicks() < shooterImmuneUntilAlive;
@@ -284,13 +273,10 @@ public abstract class ProjectileEntity extends Entity {
                 pendingRemove = true; // removed in tick() after touchTick (see field doc)
                 return;
             }
-            // A deflect (onHit reversed the velocity but did not remove): stop the forward move at the hit point so the
-            // arrow does not overshoot the target before bouncing back next tick (the reversed velocity carries it).
+            // deflect (velocity reversed, not removed): stop the forward move at the hit point so it doesn't overshoot before bouncing
             if (deflectedThisTick) {
                 deflectedThisTick = false;
                 refreshPosition(hit.collisionPoint().asPos().withView(prevYaw, prevPitch), false, false);
-                // deflectParticles opt-in: the server-side crit trail (driven by deflectVisible in ArrowEntity) traces
-                // the bounce for 1.8 viewers; the arrow entity stays invisible to them (native 1.8 client bug, doc §3f).
                 return;
             }
         }
@@ -307,13 +293,13 @@ public abstract class ProjectileEntity extends Entity {
                     Point hitPoint = physics.collisionPoints()[axis];
                     Block hitBlock = instance.getBlock(hitPoint.sub(0, Vec.EPSILON, 0), Block.Getter.Condition.TYPE);
                     stick(hitBlock, hitPoint, axis, newPosition);
-                    if (isRemoved() || pendingRemove) return; // breaker: stop physics, removal happens in tick()
+                    if (isRemoved() || pendingRemove) return;
                     break;
                 }
             }
         }
 
-        // 1.8 applies drag + gravity AFTER the move (skip on the stick tick - velocity is already zeroed + frozen).
+        // 1.8 applies drag + gravity after the move (skip on the stick tick - velocity is already zeroed + frozen).
         if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_AFTER_MOVE && !justBecameStuck) applyDragGravity();
         this.onGround = physics.isOnGround();
 
@@ -332,7 +318,7 @@ public abstract class ProjectileEntity extends Entity {
         this.prevYaw = yaw;
         this.prevPitch = pitch;
 
-        // F3: place at the physics-resolved position (not the collision point) - fixes modern clients seeing the
+        // place at the physics-resolved position (not the collision point) - fixes modern clients seeing the
         // projectile float in front of the block face. On the stick tick, use the 0.05-pulled-back stuckPlacement.
         Pos place = justBecameStuck && stuckPlacement != null ? stuckPlacement : newPosition;
         refreshPosition(place.withView(yaw, pitch), false, false);
@@ -382,9 +368,7 @@ public abstract class ProjectileEntity extends Entity {
             default -> velocityBt.normalize();
         };
 
-        // onStuck() fires the hit event + onImpact(null) and returns removeOnBlockHit: true = BREAK (vanilla
-        // throwables die() on any hit and NEVER stick), false = STICK (arrow). Decide BEFORE entering the stuck
-        // state, so a breaker doesn't go radio-silent (which would skip the scheduler and never get removed).
+        // onStuck() returns removeOnBlockHit: true = break (throwables), false = stick (arrow). Decide before entering the stuck state.
         boolean breakOnHit = onStuck();
         if (isRemoved()) return;
         if (breakOnHit) {
@@ -393,14 +377,10 @@ public abstract class ProjectileEntity extends Entity {
             return;
         }
 
-        // Stick (arrows): enter the stuck state. The position/rotation re-sync (including the one-tick-delayed first
-        // teleport - the old Atlas F4 trick) is driven by the periodic resyncStuck() in tick(); reset its counter so
-        // the first re-assert fires next tick.
+        // enter the stuck state; resyncStuck() in tick() drives the re-sync (reset the counter so the first fires next tick)
         this.collisionDirection = normal;
         this.stuckCollisionPoint = hitPoint;
-        // Vanilla 0.05 pull-back along the flight direction (1.8 EntityArrow: locX -= motX/|mot| * 0.05; 26.1 a
-        // per-axis signum*0.05): the arrow tip pokes ~stickPullback out of the block face instead of flush. velocityBt
-        // is still the flight value here (zeroed below).
+        // pull back along the flight dir so the tip pokes ~stickPullback out of the block face (velocityBt is still the flight value)
         Vec flightDir = velocityBt.lengthSquared() > 1e-8 ? velocityBt.normalize() : normal;
         this.stuckPlacement = resolvedPosition.sub(flightDir.mul(stickPullback));
         this.stuckSyncCounter = 0;
@@ -411,10 +391,9 @@ public abstract class ProjectileEntity extends Entity {
 
     private boolean shouldUnstuck() {
         if (collisionDirection == null || stuckCollisionPoint == null) return false;
-        // Block broken = unstick. (An intersect-box check false-unsticks on fences/slabs - ledger.)
+        // block broken = unstick (an intersect-box check false-unsticks on fences/slabs)
         Point intoBlock = stuckCollisionPoint.add(collisionDirection.mul(0.5));
-        // Don't unstick while the chunk is unloaded/(re)loading - e.g. a shooter relog briefly empties it, which
-        // would otherwise read AIR and drop the arrow (it falls away and becomes uncollectable).
+        // don't unstick while the chunk is unloaded (a relog briefly empties it -> reads AIR -> drops the arrow)
         Chunk chunk = instance.getChunkAt(intoBlock.x(), intoBlock.z());
         if (chunk == null || !chunk.isLoaded()) return false;
         return instance.getBlock(intoBlock.asBlockVec(), Block.Getter.Condition.TYPE).isAir();
@@ -426,60 +405,44 @@ public abstract class ProjectileEntity extends Entity {
         stuckCollisionPoint = null;
         setNoGravity(false);
         onUnstuck();
-        // NOTE: a relogged 1.8 client may briefly "freeze then fall" here - it holds the arrow in a client-side
-        // inGround state (which ignores position teleports) until its own block-changed check fires. This matches
-        // vanilla 26 + Via (and even vanilla 1.8 occasionally), so we accept it rather than force a re-spawn.
+        // a relogged 1.8 client may briefly "freeze then fall" (it holds inGround until its block-changed check); matches vanilla, so accepted
     }
 
     // =========================================================================
     // Wire sync
     // =========================================================================
 
-    /** The 1.8 wire wants blocks/tick; {@code velocityBt} already is. Reports ZERO while stuck so the stick-tick
-     *  velocity broadcast (and any sync) never nudges a 1.8 client off the stuck position. */
+    /** Velocity for the wire (b/t); reports ZERO while stuck so no broadcast nudges a 1.8 client off the stuck position. */
     @Override
     protected Vec getVelocityForPacket() {
         return isStuck() ? Vec.ZERO : velocityBt;
     }
 
-    // F5: absolute-teleport position sync (Minestom's relative-move sync is invisible to 1.8 via Via - "the arrow never
-    // moves"). VANILLA MODEL: a projectile gets an absolute teleport only every updateInterval (1.8 arrow = 20t,
-    // throwable = 10t - they move >4 blocks/interval, so vanilla's relative-move path always falls back to a teleport
-    // anyway) and the CLIENT predicts the arc in between.
+    // absolute-teleport position sync (Minestom's relative-move is invisible to 1.8 via Via). Vanilla sends a sparse
+    // absolute teleport every updateInterval and the client predicts the arc between.
     @Override
     protected void synchronizePosition() {
-        // While stuck, the periodic resyncStuck() in tick() owns the position broadcast (super.tick / this method
-        // don't run then); on the stick tick itself we must NOT send (the resync's first teleport next tick is the
-        // intended one-tick-delayed correction).
+        // while stuck, resyncStuck() owns the broadcast; don't send on the stick tick (the resync's next teleport is the correction)
         if (isStuck()) {
             this.lastSyncedPosition = getPosition();
             return;
         }
-        // Throttle the teleport to syncInterval (the vanilla cadence: a projectile gets a sparse absolute teleport and
-        // the client predicts the arc between). Sending it EVERY tick was tried and SHAKES both 1.8 and 26.1 clients - a
-        // per-tick absolute teleport fights the client's own interpolation + flight prediction (predict forward, yank
-        // back, repeat). This override is invoked every tick once Minestom's scheduled sync starts firing; the counter
-        // does the throttling. (The per-tick VELOCITY packet Entity.tick sends alongside this is suppressed - see
-        // sendPacketToViewers - because it caused the block-edge "slide": vanilla sends an arrow's velocity ONCE at
-        // spawn and the 1.8 client predicts the rest in lockstep; re-broadcasting it every tick perturbs that.)
+        // throttle to syncInterval (a per-tick teleport shakes both clients - it fights their interpolation/prediction)
         if (flightSyncCounter++ % Math.max(1L, getSynchronizationTicks()) != 0) return;
         Pos pos = getPosition();
         sendPacketToViewersAndSelf(new EntityTeleportPacket(getEntityId(), pos, getVelocityForPacket(), 0, onGround));
         this.lastSyncedPosition = pos;
     }
 
-    // Vanilla parity for a stuck arrow: re-assert absolute position + rotation (+ zero velocity) periodically so a
-    // 1.8 client (via Via) self-heals any misprediction (relog angle, edge-hit overshoot). Mirrors what vanilla's
-    // ServerEntity does every updateInterval; the modern client, frozen via inGround metadata, treats it as a no-op.
+    // re-assert absolute pos + rotation periodically so a stuck 1.8 client self-heals mispredictions; a no-op for the modern (inGround) client
     private void resyncStuck() {
         Pos pos = getPosition();
         sendPacketToViewersAndSelf(new EntityTeleportPacket(getEntityId(), pos, Vec.ZERO, 0, true));
-        sendVelocityToViewers(Vec.ZERO); // vanilla sends a one-time zero when an arrow stops (allowed past the suppression)
+        sendVelocityToViewers(Vec.ZERO); // one-time zero when the arrow stops
         this.lastSyncedPosition = pos;
     }
 
-    /** Set true ONLY around our deliberate velocity broadcasts, so {@link #sendPacketToViewers} lets them through while
-     *  dropping Minestom's automatic per-tick velocity packet (the edge-slide fix - see that override). */
+    /** True only around deliberate velocity broadcasts, so {@link #sendPacketToViewers} lets them through. */
     private boolean allowVelocityPacket;
 
     /** Sends a velocity packet to viewers, bypassing the per-tick suppression below. */
@@ -493,12 +456,9 @@ public abstract class ProjectileEntity extends Entity {
     }
 
     /**
-     * The block-edge "slide" fix. Vanilla 1.8 registers arrows {@code sendVelocity=false}: velocity goes ONCE in the
-     * spawn packet, then the client predicts the whole flight locally in lockstep. Minestom re-broadcasts velocity every
-     * tick; over Via those (lagged, quantized) packets perturb that prediction so the client's own raytrace mispredicts
-     * edges. So we drop the automatic per-tick {@code EntityVelocityPacket} (gated by {@code velocitySyncInterval}); the
-     * spawn velocity rides the {@code SpawnEntityPacket} and the deliberate stuck-zero rides {@link #sendVelocityToViewers}.
-     * See the design doc §3f.
+     * The block-edge "slide" fix: vanilla sends an arrow's velocity once at spawn and the 1.8 client predicts the flight;
+     * Minestom's per-tick re-broadcast perturbs that over Via, so drop the automatic {@code EntityVelocityPacket}
+     * (gated by {@code velocitySyncInterval}). See the design doc §3f.
      */
     @Override
     public void sendPacketToViewers(@NotNull SendablePacket packet) {
@@ -509,10 +469,8 @@ public abstract class ProjectileEntity extends Entity {
         super.sendPacketToViewers(packet);
     }
 
-    // F6/F13: new viewer (spawn, relog, chunk-cross). data > 0 makes ViaVersion include velocity bytes in the 1.8
-    // SpawnObject. A stuck arrow spawns with zero velocity for BOTH clients (getVelocityForPacket reports zero while
-    // stuck); the modern client then holds it via the inGround metadata, and the 1.8 client self-heals any spawn
-    // misprediction from the periodic resyncStuck() teleports (vanilla parity - no per-version spawn split needed).
+    // new viewer (spawn, relog, chunk-cross). a stuck arrow spawns with zero velocity for both clients (getVelocityForPacket),
+    // then modern holds via inGround and 1.8 self-heals from resyncStuck()
     @Override
     public void updateNewViewer(@NotNull Player player) {
         int data = shooter != null ? shooter.getEntityId() : 0;

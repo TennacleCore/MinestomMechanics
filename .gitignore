@@ -38,3 +38,6 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Markdown (scratch docs / session handoffs; already-tracked .md stay tracked) ###
+*.md

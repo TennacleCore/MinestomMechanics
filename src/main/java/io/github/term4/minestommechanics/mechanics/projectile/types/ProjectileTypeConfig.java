@@ -7,7 +7,6 @@ import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileBehavior;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
-import io.github.term4.minestommechanics.tracking.VelocityRule;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.collision.BoundingBox;
 import org.jetbrains.annotations.Nullable;
@@ -15,69 +14,51 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Per-type projectile configuration: everything tunable about one projectile (snowball, arrow, ...), keyed by
- * {@link #key()}. Extends the shared {@link Config} base like {@link io.github.term4.minestommechanics.mechanics.attack.AttackConfig}
- * and {@link ProjectileConfig}, so every value is a public {@link FieldValue} resolved against a {@link ProjectileContext}
- * by {@code ProjectileConfigResolver} - any knob can be a constant or a per-launch lambda (e.g. read {@code ctx.item()}
- * for a custom item). Unset fields fall back through the resolver chain - per-type override -&gt; the active
- * {@link ProjectileConfig}'s generic {@link ProjectileConfig#defaults() defaults} -&gt; the type's intrinsic
- * {@link ProjectileType#defaultConfig()} -&gt; hard fallbacks - so a sparse override only restates what it changes,
- * and presets keep the shared baseline in one generic config (e.g. {@code Vanilla18.projectileDefaults()}).
- *
- * <p>Configurable parity with the old system: bounding box, spawn offset (forward + vertical + sideways from eye),
- * initial speed/power curve, spread, shooter-momentum scale (horizontal + vertical) + its {@link VelocityRule} source,
- * aerodynamics (gravity + horizontal/vertical drag), shooter-immunity ticks, position/velocity-sync intervals, the hit
- * {@link KnockbackConfig} and {@link DamageType}/amount, the {@link Deflect deflect transform}, the remove-on-hit policies, and a
- * pluggable {@link ProjectileBehavior}. Launchers resolve this once per launch and stamp the entity - entities stay dumb.
+ * Per-type projectile config: everything tunable about one projectile, keyed by {@link #key()}. Extends {@link Config},
+ * so every value is a {@link FieldValue} resolved against a {@link ProjectileContext} (constant or per-launch lambda);
+ * unset fields fall back through the resolver chain (per-type override -&gt; the active {@link ProjectileConfig}'s
+ * {@link ProjectileConfig#defaults()} -&gt; the type's {@code defaultConfig()} -&gt; hard fallbacks). Launchers resolve it
+ * once per launch and stamp the entity. Covers spawn/physics, the hit knockback + damage, deflect, removal, and behavior.
  */
 public final class ProjectileTypeConfig extends Config<ProjectileContext, ProjectileTypeConfig> {
 
     /**
-     * Where a hit's knockback originates. The two frames are orthogonal to the {@link KnockbackConfig}'s direction
-     * blending ({@code yawWeight}): the source picks the origin + the look basis, the config shapes the final vector.
-     * <ul>
-     *   <li>{@link #PROJECTILE} - origin = the projectile, look basis = its flight path (vanilla default).</li>
-     *   <li>{@link #SHOOTER} - origin = the shooter, look basis = the shooter's facing. Carries the shooter as the
-     *       snapshot {@code source} (like melee), so {@code yawWeight = 0} pushes shooter -&gt; victim and
-     *       {@code yawWeight = 1} pushes along the shooter's yaw - e.g. a self-hit KB along the look is just a
-     *       {@code KnockbackConfig} with {@code yawWeight(1)}, no special source.</li>
-     * </ul>
-     * Full control is available by cancelling {@code ProjectileHitEvent} and applying your own snapshot.
+     * Where a hit's knockback originates (orthogonal to the {@link KnockbackConfig}'s {@code yawWeight}):
+     * {@link #PROJECTILE} = origin the projectile, basis its flight (vanilla); {@link #SHOOTER} = origin the shooter,
+     * basis its facing (carries the shooter as source like melee, so {@code yawWeight} picks aim vs direction).
      */
     public enum KnockbackSource { PROJECTILE, SHOOTER }
 
     /**
-     * What a projectile does for a hit it does not deal normally - used by BOTH {@link #selfHit} (it hit its own
-     * shooter) and {@link #invulnHit} (the hit was blocked because the target was invulnerable / creative):
+     * What a projectile does for a hit it doesn't deal normally - for {@link #selfHit} (hit its own shooter) and
+     * {@link InvulnResponse} (the hit was rejected as invulnerable):
      * <ul>
-     *   <li>{@link #HIT} - the normal hit (damage / knockback / impact / break per {@code removeOnEntityHit}). For
-     *       {@code selfHit} = "you may hit yourself"; for {@code invulnHit} it is N/A (the hit already did not land)
-     *       and behaves like {@link #DESTROY}.</li>
-     *   <li>{@link #PASS_THROUGH} - ignore the entity; the projectile keeps flying unchanged (the 1.8 ender pearl
-     *       through its thrower; a Hypixel "self does nothing").</li>
-     *   <li>{@link #DEFLECT} - bounce off per the {@link #deflect}; no damage/KB/break, keeps flying.</li>
-     *   <li>{@link #DESTROY} - break the projectile (its impact effect fires, then it is removed); no damage/KB. The
-     *       vanilla throwable response to an invuln hit (snowball/egg/pearl {@code die()} regardless).</li>
+     *   <li>{@link #HIT} - the normal hit (damage/KB/impact/break).</li>
+     *   <li>{@link #PASS_THROUGH} - ignore the entity, keep flying unchanged (the 1.8 pearl through its thrower).</li>
+     *   <li>{@link #DEFLECT} - bounce off per {@link #deflect}; no damage/KB/break.</li>
+     *   <li>{@link #DESTROY} - break the projectile (impact effect fires, then removed); the vanilla throwable response.</li>
      * </ul>
-     * Note: "bypass" (deal the hit anyway despite invul) is NOT here - that is the damage type's {@code bypassInvul}
-     * (a damage-config concern); if a type bypasses, the hit lands and never reaches {@code invulnHit}.
+     * "Bypass" (deal the hit despite invulnerability) lives on the damage type, not here.
      */
     public enum HitResponse { HIT, PASS_THROUGH, DEFLECT, DESTROY }
 
     /**
-     * When a projectile applies drag + gravity relative to its per-tick move - the documented 1.8 -&gt; 26.1 delta:
-     * <ul>
-     *   <li>{@link #DRAG_AFTER_MOVE} - move first, then decay (vanilla 1.8 {@code EntityProjectile}/{@code EntityArrow}).</li>
-     *   <li>{@link #DRAG_BEFORE_MOVE} - decay first, then move with the decayed velocity (vanilla 26.1 {@code Projectile}).</li>
-     * </ul>
+     * What a projectile does for a hit the target rejects as invulnerable - the {@link HitResponse} for the two cases
+     * vanilla distinguishes: {@link #invulWindow} (recently-hit i-frame window; 1.8 + 26.1 arrow {@code DEFLECT}) and
+     * {@link #immune} (fundamental: creative/spectator; 1.8 arrow {@code PASS_THROUGH}, 26.1 {@code DEFLECT}). Creative
+     * and spectator aren't split (no vanilla version differs - use a lambda). Set via {@code invulnHit(...)} or {@link #of}.
      */
+    public record InvulnResponse(HitResponse invulWindow, HitResponse immune) {
+        /** The same response for both cases (e.g. {@code of(DESTROY)} = vanilla throwable, {@code of(DEFLECT)} = 26.1 arrow). */
+        public static InvulnResponse of(HitResponse all) { return new InvulnResponse(all, all); }
+    }
+
+    /** When a projectile applies drag + gravity relative to its move: {@link #DRAG_AFTER_MOVE} (1.8) or {@link #DRAG_BEFORE_MOVE} (26.1). */
     public enum PhysicsOrder { DRAG_AFTER_MOVE, DRAG_BEFORE_MOVE }
 
     /**
-     * Pickup geometry for a collectable projectile (arrows). A projectile is collected when its {@code boxWidth x
-     * boxHeight} box intersects a player's bounding box inflated by {@code (inflateH, inflateV, inflateH)} - the exact
-     * vanilla test ({@code Player#aiStep} / 1.8 {@code EntityHuman}: {@code grow(1, 0.5, 1)}; arrow box
-     * {@code setSize(0.5, 0.5)}). Defaults are vanilla; only {@code ArrowEntity} reads it.
+     * Pickup geometry for a collectable projectile (arrows): collected when its {@code boxWidth x boxHeight} box
+     * intersects a player's bbox inflated by {@code (inflateH, inflateV, inflateH)} (vanilla {@code grow(1, 0.5, 1)}).
      */
     public record PickupBox(double inflateH, double inflateV, double boxWidth, double boxHeight) {
         /** Vanilla 1.8 / 26.1 pickup geometry: player box inflated (1, 0.5, 1), arrow box 0.5 x 0.5. */
@@ -85,11 +66,9 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
     }
 
     /**
-     * How a {@link HitResponse#DEFLECT} transforms the velocity (the {@link #deflect} knob): scale by {@code multiplier}
-     * (a NEGATIVE value reverses all three axes - the vanilla bounce), then rotate the horizontal heading by an EXTRA
-     * {@code turn} degrees plus a random wobble in {@code [minJitter, maxJitter]}. The rendered yaw follows from the
-     * displacement-based rotation. Vanilla 1.8 ({@code motion *= -0.1}) = {@code deflect(-0.1)}; vanilla 26.1
-     * {@code ProjectileDeflection.REVERSE} ({@code *= -0.5} + {@code 170 + random*20} yaw) = {@code deflect(-0.5, 0, -10, 10)}.
+     * How a {@link HitResponse#DEFLECT} transforms the velocity: scale by {@code multiplier} (negative reverses all axes),
+     * then rotate the heading by {@code turn} + a random {@code [minJitter, maxJitter]} wobble (degrees). 1.8 = {@code deflect(-0.1)};
+     * 26.1 = {@code deflect(-0.5, 0, -10, 10)}.
      */
     public record Deflect(double multiplier, double turn, double minJitter, double maxJitter) {
         /** Plain reverse + damp with no extra turn: {@code motion *= multiplier} (negative reverses). */
@@ -112,41 +91,27 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
     public final @Nullable FieldValue<ProjectileContext, Double> spawnOffsetSideways;
     public final @Nullable FieldValue<ProjectileContext, Double> speed;
     public final @Nullable FieldValue<ProjectileContext, Double> spread;
-    /** Fraction of the shooter's horizontal velocity (x/z) folded into the launch velocity. {@code 0} = none (vanilla
-     *  1.8); {@code 1} = full (vanilla 26.1). The velocity is read via {@link #velocity} (its {@link VelocityRule}). */
+    /** Fraction of the shooter's horizontal velocity (x/z) folded into the launch velocity. {@code 0} = none (1.8), {@code 1} = full (26.1). */
     public final @Nullable FieldValue<ProjectileContext, Double> momentumHorizontal;
-    /** Fraction of the shooter's vertical velocity (y) folded in. {@code 0} = none (vanilla 1.8); 26.1 folds it only
-     *  when airborne - express that as a lambda, e.g. {@code ctx -> ctx.shooter().isOnGround() ? 0 : 1}. */
+    /** Fraction of the shooter's vertical velocity (y) folded in. {@code 0} = none (1.8); 26.1 folds it only when airborne (a lambda). */
     public final @Nullable FieldValue<ProjectileContext, Double> momentumVertical;
-    /** How the shooter's velocity is read for momentum inheritance. Resolution mirrors knockback: this override -&gt;
-     *  the shooter's scoped {@code MechanicsProfile.velocity} -&gt; {@link VelocityRule#DEFAULT}. 26.1 = {@code delta()}
-     *  ({@code getKnownMovement}); only matters when a momentum scale is non-zero. */
-    public final @Nullable FieldValue<ProjectileContext, VelocityRule> velocity;
     public final @Nullable FieldValue<ProjectileContext, Integer> shooterImmunityTicks;
-    /** Entity-hit margin: the target's bbox grows by this on EACH side for the hit ray-test (vanilla 1.8 {@code 0.3}
-     *  for arrows + throwables); a flight knob, stamped on the entity and read per-tick. */
+    /** Entity-hit margin: the target's bbox grows by this each side for the hit ray-test (vanilla {@code 0.3}). */
     public final @Nullable FieldValue<ProjectileContext, Double> entityHitGrow;
     /** What the projectile does when it hits its own shooter ({@link HitResponse}; default {@code HIT} = vanilla). */
     public final @Nullable FieldValue<ProjectileContext, HitResponse> selfHit;
     public final @Nullable FieldValue<ProjectileContext, Integer> syncInterval;
-    /** How often (ticks) to broadcast the in-flight velocity: {@code <= 0} = NEVER (vanilla arrow - velocity is sent
-     *  once in the spawn packet, the client predicts the rest; this is what fixes the block-edge "slide"), {@code 1} =
-     *  every tick (Minestom default), {@code N} = every N ticks. A flight knob, stamped on the entity. */
+    /** In-flight velocity broadcast interval (ticks): {@code <= 0} = never (vanilla arrow, the edge-slide fix), {@code N} = every N ticks. */
     public final @Nullable FieldValue<ProjectileContext, Integer> velocitySyncInterval;
-    /** When drag + gravity apply relative to the per-tick move ({@link PhysicsOrder}): 1.8 = {@code DRAG_AFTER_MOVE}
-     *  (default), 26.1 = {@code DRAG_BEFORE_MOVE}. A flight knob, stamped on the entity. */
+    /** When drag + gravity apply relative to the move ({@link PhysicsOrder}): 1.8 = {@code DRAG_AFTER_MOVE}, 26.1 = {@code DRAG_BEFORE_MOVE}. */
     public final @Nullable FieldValue<ProjectileContext, PhysicsOrder> physicsOrder;
-    /** Shooter immunity model: {@code false} (default, 1.8) = immune for the fixed {@link #shooterImmunityTicks}; {@code true}
-     *  (26.1) = immune until the projectile geometrically LEAVES the shooter's bounding box. A flight knob. */
+    /** Shooter immunity model: {@code false} (1.8) = fixed {@link #shooterImmunityTicks}; {@code true} (26.1) = until the projectile leaves the shooter's box. */
     public final @Nullable FieldValue<ProjectileContext, Boolean> leftOwnerImmunity;
-    /** Distance (blocks) a stuck projectile is pulled back along its flight direction so the tip pokes out of the block
-     *  face instead of sitting flush (vanilla {@code 0.05}). A flight knob, stamped on the entity. */
+    /** Distance a stuck projectile is pulled back along its flight dir so the tip pokes out of the block face (vanilla {@code 0.05}). */
     public final @Nullable FieldValue<ProjectileContext, Double> stickPullback;
-    /** Pickup cooldown (ticks) after a collectable projectile sticks - the vanilla arrow {@code shake} ({@code 7}); no
-     *  collecting until it elapses. Arrow-only (like {@link #pickupBox}); a flight knob. */
+    /** Pickup cooldown (ticks) after a collectable projectile sticks (vanilla arrow {@code shake} = {@code 7}); arrow-only. */
     public final @Nullable FieldValue<ProjectileContext, Integer> shakeTicks;
-    /** Pluggable behavior (onImpact/onStuck/onUnstuck/onTick) layered over the projectile's built-in effects, so a
-     *  server can change behavior without subclassing the entity. Default {@link ProjectileBehavior#NONE}. */
+    /** Pluggable {@link ProjectileBehavior} layered over the built-in effects (no subclassing). Default {@link ProjectileBehavior#NONE}. */
     public final @Nullable FieldValue<ProjectileContext, ProjectileBehavior> behavior;
     public final @Nullable FieldValue<ProjectileContext, KnockbackConfig> knockback;
     public final @Nullable FieldValue<ProjectileContext, KnockbackSource> knockbackSource;
@@ -154,17 +119,10 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
     public final @Nullable FieldValue<ProjectileContext, DamageType> damageType;
     public final @Nullable FieldValue<ProjectileContext, Boolean> removeOnEntityHit;
     public final @Nullable FieldValue<ProjectileContext, Boolean> removeOnBlockHit;
-    /** What the projectile does when its hit is blocked (target invulnerable/creative): {@link HitResponse} -
-     *  vanilla arrows {@code DEFLECT}, throwables {@code DESTROY} (default). */
-    public final @Nullable FieldValue<ProjectileContext, HitResponse> invulnHit;
-    /** How a {@link HitResponse#DEFLECT} transforms the velocity ({@link Deflect}): scale by {@code multiplier}
-     *  (negative reverses) + an optional extra {@code turn} +- jitter. Vanilla 1.8 = {@code deflect(-0.1)}, vanilla
-     *  26.1 = {@code deflect(-0.5, 0, -10, 10)} ({@code -0.5} reverse + a cosmetic +-10-degree wobble). Default {@code deflect(-0.1)}. */
+    /** Response for a hit the target rejects as invulnerable ({@link InvulnResponse}). 1.8 arrow = {@code invulnHit(DEFLECT, PASS_THROUGH)}; throwables {@code invulnHit(DESTROY)} (default). */
+    public final @Nullable FieldValue<ProjectileContext, InvulnResponse> invulnHit;
+    /** How a {@link HitResponse#DEFLECT} transforms the velocity ({@link Deflect}). 1.8 = {@code deflect(-0.1)}, 26.1 = {@code deflect(-0.5, 0, -10, 10)}. Default {@code deflect(-0.1)}. */
     public final @Nullable FieldValue<ProjectileContext, Deflect> deflect;
-    /** Cosmetic ONLY: make an arrow that bounced off OR passed through an entity visible again to 1.8 viewers who
-     *  mispredicted the interaction - re-spawns the entity for them + a server-sent crit trail (a non-vanilla fix for
-     *  the vanilla "arrow goes invisible after touching an entity" glitch; off by default, arrows only). */
-    public final @Nullable FieldValue<ProjectileContext, Boolean> deflectParticles;
     /** Pickup geometry (collectable projectiles only, e.g. arrows); default {@link PickupBox#VANILLA}. */
     public final @Nullable FieldValue<ProjectileContext, PickupBox> pickupBox;
 
@@ -183,7 +141,6 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         this.spread = b.spread;
         this.momentumHorizontal = b.momentumHorizontal;
         this.momentumVertical = b.momentumVertical;
-        this.velocity = b.velocity;
         this.shooterImmunityTicks = b.shooterImmunityTicks;
         this.entityHitGrow = b.entityHitGrow;
         this.selfHit = b.selfHit;
@@ -202,7 +159,6 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         this.removeOnBlockHit = b.removeOnBlockHit;
         this.invulnHit = b.invulnHit;
         this.deflect = b.deflect;
-        this.deflectParticles = b.deflectParticles;
         this.pickupBox = b.pickupBox;
     }
 
@@ -224,7 +180,6 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         b.spread = merge(spread, base.spread);
         b.momentumHorizontal = merge(momentumHorizontal, base.momentumHorizontal);
         b.momentumVertical = merge(momentumVertical, base.momentumVertical);
-        b.velocity = merge(velocity, base.velocity);
         b.shooterImmunityTicks = merge(shooterImmunityTicks, base.shooterImmunityTicks);
         b.entityHitGrow = merge(entityHitGrow, base.entityHitGrow);
         b.selfHit = merge(selfHit, base.selfHit);
@@ -243,7 +198,6 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         b.removeOnBlockHit = merge(removeOnBlockHit, base.removeOnBlockHit);
         b.invulnHit = merge(invulnHit, base.invulnHit);
         b.deflect = merge(deflect, base.deflect);
-        b.deflectParticles = merge(deflectParticles, base.deflectParticles);
         b.pickupBox = merge(pickupBox, base.pickupBox);
         return b.build();
     }
@@ -275,7 +229,6 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         private FieldValue<ProjectileContext, Double> spread;
         private FieldValue<ProjectileContext, Double> momentumHorizontal;
         private FieldValue<ProjectileContext, Double> momentumVertical;
-        private FieldValue<ProjectileContext, VelocityRule> velocity;
         private FieldValue<ProjectileContext, Integer> shooterImmunityTicks;
         private FieldValue<ProjectileContext, Double> entityHitGrow;
         private FieldValue<ProjectileContext, HitResponse> selfHit;
@@ -292,9 +245,8 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         private FieldValue<ProjectileContext, DamageType> damageType;
         private FieldValue<ProjectileContext, Boolean> removeOnEntityHit;
         private FieldValue<ProjectileContext, Boolean> removeOnBlockHit;
-        private FieldValue<ProjectileContext, HitResponse> invulnHit;
+        private FieldValue<ProjectileContext, InvulnResponse> invulnHit;
         private FieldValue<ProjectileContext, Deflect> deflect;
-        private FieldValue<ProjectileContext, Boolean> deflectParticles;
         private FieldValue<ProjectileContext, PickupBox> pickupBox;
 
         Builder(Key key) { this.key = key; }
@@ -314,7 +266,6 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
             spread = c.spread;
             momentumHorizontal = c.momentumHorizontal;
             momentumVertical = c.momentumVertical;
-            velocity = c.velocity;
             shooterImmunityTicks = c.shooterImmunityTicks;
             entityHitGrow = c.entityHitGrow;
             selfHit = c.selfHit;
@@ -333,7 +284,6 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
             removeOnBlockHit = c.removeOnBlockHit;
             invulnHit = c.invulnHit;
             deflect = c.deflect;
-            deflectParticles = c.deflectParticles;
             pickupBox = c.pickupBox;
         }
 
@@ -369,19 +319,14 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         public Builder speed(Function<ProjectileContext, Double> fn) { speed = FieldValue.of(fn); return this; }
         public Builder spread(Double v) { spread = FieldValue.constant(v); return this; }
         public Builder spread(Function<ProjectileContext, Double> fn) { spread = FieldValue.of(fn); return this; }
-        /** Sets both shooter-momentum scales at once (fraction of the read velocity folded in: x/z, y). */
+        /** Sets both shooter-momentum scales at once (fraction of the shooter's client motion folded in: x/z, y). */
         public Builder momentum(double horizontal, double vertical) { momentumHorizontal = FieldValue.constant(horizontal); momentumVertical = FieldValue.constant(vertical); return this; }
-        /** Horizontal shooter-momentum scale (fraction of the {@link #velocity} read x/z; {@code 0} = none, {@code 1} = full). */
+        /** Horizontal shooter-momentum scale (fraction of the shooter's client {@code positionDelta} x/z; {@code 0} = none, {@code 1} = full). */
         public Builder momentumHorizontal(Double v) { momentumHorizontal = FieldValue.constant(v); return this; }
         public Builder momentumHorizontal(Function<ProjectileContext, Double> fn) { momentumHorizontal = FieldValue.of(fn); return this; }
-        /** Vertical shooter-momentum scale (fraction of the read velocity y; for 26.1's airborne-only, a lambda
-         *  {@code ctx -> ctx.shooter().isOnGround() ? 0 : 1}). */
+        /** Vertical shooter-momentum scale (fraction of the client motion y; for 26.1's airborne-only, use a lambda). */
         public Builder momentumVertical(Double v) { momentumVertical = FieldValue.constant(v); return this; }
         public Builder momentumVertical(Function<ProjectileContext, Double> fn) { momentumVertical = FieldValue.of(fn); return this; }
-        /** How the shooter's velocity is read for momentum: this override -&gt; the shooter's profile velocity -&gt;
-         *  {@link VelocityRule#DEFAULT} (26.1 momentum uses {@code VelocityRule.delta()}). */
-        public Builder velocity(VelocityRule v) { velocity = FieldValue.constant(v); return this; }
-        public Builder velocity(Function<ProjectileContext, VelocityRule> fn) { velocity = FieldValue.of(fn); return this; }
         public Builder shooterImmunityTicks(Integer v) { shooterImmunityTicks = FieldValue.constant(v); return this; }
         public Builder shooterImmunityTicks(Function<ProjectileContext, Integer> fn) { shooterImmunityTicks = FieldValue.of(fn); return this; }
         /** Entity-hit margin: grow the target's bbox by this on each side for the hit ray-test (vanilla 1.8 {@code 0.3}). */
@@ -422,20 +367,17 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         public Builder damageType(Function<ProjectileContext, DamageType> fn) { damageType = FieldValue.of(fn); return this; }
         public Builder removeOnEntityHit(Boolean v) { removeOnEntityHit = FieldValue.constant(v); return this; }
         public Builder removeOnBlockHit(Boolean v) { removeOnBlockHit = FieldValue.constant(v); return this; }
-        /** What the projectile does when its hit is blocked (target invulnerable/creative); vanilla arrows
-         *  {@code DEFLECT}, throwables {@code DESTROY}. */
-        public Builder invulnHit(HitResponse v) { invulnHit = FieldValue.constant(v); return this; }
-        public Builder invulnHit(Function<ProjectileContext, HitResponse> fn) { invulnHit = FieldValue.of(fn); return this; }
+        /** Rejected-hit response, same for the invul window and an immune target; e.g. {@code invulnHit(DESTROY)} (throwable). */
+        public Builder invulnHit(HitResponse all) { invulnHit = FieldValue.constant(InvulnResponse.of(all)); return this; }
+        /** Rejected-hit response split: invul window vs immune (creative/spectator); e.g. 1.8 arrow {@code invulnHit(DEFLECT, PASS_THROUGH)}. */
+        public Builder invulnHit(HitResponse invulWindow, HitResponse immune) { invulnHit = FieldValue.constant(new InvulnResponse(invulWindow, immune)); return this; }
+        /** Per-launch lambda returning the {@link InvulnResponse} (build it with {@link InvulnResponse#of}). */
+        public Builder invulnHit(Function<ProjectileContext, InvulnResponse> fn) { invulnHit = FieldValue.of(fn); return this; }
         /** A {@code DEFLECT} that just scales velocity by {@code multiplier} (negative reverses; vanilla 1.8 = {@code deflect(-0.1)}). */
         public Builder deflect(double multiplier) { deflect = FieldValue.constant(Deflect.of(multiplier)); return this; }
-        /** A {@code DEFLECT} scaling velocity by {@code multiplier} (negative reverses) and rotating the heading by an
-         *  extra {@code turn} +- a random {@code [min,max]} wobble in degrees (vanilla 26.1 = {@code deflect(-0.5, 0, -10, 10)}). */
+        /** A {@code DEFLECT} scaling velocity by {@code multiplier} + rotating the heading by {@code turn} +- a random {@code [min,max]} wobble (26.1 = {@code deflect(-0.5, 0, -10, 10)}). */
         public Builder deflect(double multiplier, double turn, double min, double max) { deflect = FieldValue.constant(new Deflect(multiplier, turn, min, max)); return this; }
         public Builder deflect(Function<ProjectileContext, Deflect> fn) { deflect = FieldValue.of(fn); return this; }
-        /** Make an arrow that bounced off / passed through an entity visible again to 1.8 viewers (re-spawn + crit
-         *  trail) - a non-vanilla fix for the vanilla invisible-arrow-after-entity-touch glitch (off; arrows only). */
-        public Builder deflectParticles(Boolean v) { deflectParticles = FieldValue.constant(v); return this; }
-        public Builder deflectParticles(Function<ProjectileContext, Boolean> fn) { deflectParticles = FieldValue.of(fn); return this; }
         /** Pickup geometry for a collectable projectile (arrows); default {@link PickupBox#VANILLA}. */
         public Builder pickupBox(PickupBox v) { pickupBox = FieldValue.constant(v); return this; }
         public Builder pickupBox(Function<ProjectileContext, PickupBox> fn) { pickupBox = FieldValue.of(fn); return this; }

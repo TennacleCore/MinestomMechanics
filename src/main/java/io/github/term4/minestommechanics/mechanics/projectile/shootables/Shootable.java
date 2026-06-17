@@ -8,12 +8,9 @@ import net.minestom.server.event.EventNode;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A pluggable launcher: an ITEM that fires a projectile (bow, crossbow, fishing rod), as opposed to a thrown item
- * that IS the projectile (snowball/egg/pearl - those are self-launching {@code ProjectileType}s that wire their own
- * use trigger). Mounts its item listeners under the projectile system's node and launches via
- * {@link ProjectileSystem#launch}. Pass implementations to
- * {@link ProjectileSystem#install(MinestomMechanics, ProjectileConfig, Shootable...)} - the projectile-side analog of
- * the attack system's {@code HitDetection}. Teardown follows the system node's lifecycle, so there is no uninstall.
+ * A pluggable launcher: an item that fires a projectile (bow, crossbow, rod), as opposed to a thrown item that is the
+ * projectile (snowball/egg/pearl). Mounts its item listeners under the projectile node and launches via
+ * {@link ProjectileSystem#launch} - the projectile-side analog of {@code HitDetection}.
  */
 @FunctionalInterface
 public interface Shootable {

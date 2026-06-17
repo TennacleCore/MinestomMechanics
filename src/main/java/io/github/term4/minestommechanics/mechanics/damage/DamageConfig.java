@@ -21,17 +21,11 @@ public final class DamageConfig extends Config<DamageContext, DamageConfig> {
     public final FieldValue<DamageContext, Boolean> enableOverdamage;
     public final FieldValue<DamageContext, Boolean> silent;
     public final FieldValue<DamageContext, Boolean> overdamageSilent;
-    /**
-     * When true, fresh hits (except drowning) broadcast the victim's current velocity like 1.8
-     * {@code EntityTrackerEntry} after {@code EntityLiving.ac()} / 26.1 {@code hurtMarked}.
-     */
+    /** When true, fresh hits (except drowning) broadcast the victim's current velocity (vanilla {@code ac()}/{@code hurtMarked}). */
     public final FieldValue<DamageContext, Boolean> syncHurtVelocity;
     /**
-     * The knockback config the {@link #syncHurtVelocity hurt broadcast} routes through the KnockbackSystem
-     * (vanilla {@code ac()}: a fresh non-melee, non-drown hit broadcasts the victim's server-tracked velocity).
-     * A zero-impulse config whose velocity fold IS the broadcast - see
-     * {@code Vanilla18.hurtKb()} (the default when unset). All velocity-send concerns (the fold rule,
-     * {@code quantizeVelocity}, entity push) live on this config, keeping one send path and one set of knobs.
+     * The knockback config the {@link #syncHurtVelocity hurt broadcast} routes through the KnockbackSystem - a
+     * zero-impulse config whose velocity fold is the broadcast (default {@code Vanilla18.hurtKb()}). Keeps one send path.
      */
     public final FieldValue<DamageContext, KnockbackConfig> hurtKnockback;
 
@@ -40,9 +34,8 @@ public final class DamageConfig extends Config<DamageContext, DamageConfig> {
 
     /**
      * Pluggable transforms applied in order after the {@link io.github.term4.minestommechanics.api.event.DamageEvent}
-     * fires. Each {@link DamageComponent} self-gates and may adjust the amount about to be applied.
-     * TODO(stages): same per-stage strategy plan as knockback (see KnockbackCalculator) - let users replace a
-     *  built-in formula (e.g. the invul/overdamage replacement rule) instead of only appending post-transforms.
+     * fires; each self-gates and may adjust the amount.
+     * TODO(stages): per-stage strategy plan like knockback - let users replace a built-in formula, not just append.
      */
     @Nullable public final List<DamageComponent> customComponents;
 

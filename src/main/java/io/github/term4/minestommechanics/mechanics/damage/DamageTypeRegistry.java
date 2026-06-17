@@ -10,7 +10,8 @@ import io.github.term4.minestommechanics.mechanics.damage.types.burning.LavaDama
 import io.github.term4.minestommechanics.mechanics.damage.types.cactus.CactusDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.fall.FallDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.generic.GenericDamage;
-import io.github.term4.minestommechanics.mechanics.damage.types.playerattack.PlayerAttack;
+import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
+import io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage;
 import net.kyori.adventure.key.Key;
 import org.jetbrains.annotations.Nullable;
 
@@ -20,10 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * Registry of {@link DamageType}s that feed the {@link DamageSystem}. A user registers a type,
- * enables it, and it "just works". One-off types (e.g. melee) carry data and are driven externally;
- * self-driven types (fire, fall, custom) override {@link DamageType#enable} / {@link DamageType#disable}
- * to emit snapshots while enabled.
+ * Registry of {@link DamageType}s feeding the {@link DamageSystem}: register a type, enable it, done. One-off types
+ * carry data and are driven externally; self-driven types override {@link DamageType#enable}/{@link DamageType#disable}.
  */
 public final class DamageTypeRegistry {
 
@@ -93,16 +92,11 @@ public final class DamageTypeRegistry {
         return entries.values().stream().map(e -> e.type).collect(Collectors.toUnmodifiableList());
     }
 
-    /**
-     * Registers the built-in vanilla damage type definitions (data only, no producers enabled).
-     * Mirrors the keys cached in {@link VanillaTypes}. Self-driven producers (fall, the burning
-     * family, cactus) start via {@link #enable} - typically through
-     * {@code DamageSystem.install(mm, cfg, types...)}.
-     */
+    /** Registers the built-in vanilla type definitions (data only, no producers enabled). Producers start via {@link #enable}. */
     public DamageTypeRegistry registerVanillaDefaults() {
-        register(PlayerAttack.INSTANCE);
+        register(MeleeDamage.INSTANCE);
         register(GenericDamage.INSTANCE);
-        register(io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage.INSTANCE);
+        register(ProjectileDamage.INSTANCE);
         register(FallDamage.INSTANCE);
         register(InFireDamage.INSTANCE);
         register(BurningDamage.INSTANCE);

@@ -10,21 +10,27 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Immutable attack config. Use {@link #builder()}, {@link #toBuilder()}. Deliberately minimal - the
- * {@link #ruleset} processor owns the attack behavior (damage/KB/sprint gating, hit queues, future
- * swing-hit detection), so the config only selects it, gates the pipeline, and picks the crit rule.
+ * Immutable attack config. Use {@link #builder()}, {@link #toBuilder()}. Deliberately minimal - the {@link #ruleset}
+ * processor owns the attack behavior, so the config only selects it, gates the pipeline, and picks the crit rule.
  */
 public final class AttackConfig extends Config<AttackContext, AttackConfig> {
 
     public final FieldValue<AttackContext, Boolean> enabled;
     public final FieldValue<AttackContext, AttackEvent.AttackRule.Ruleset> ruleset;
     public final AttackEvent.CriticalRule criticalRule;
+    /**
+     * Attacker self-slowdown applied to the attacker's own tracked horizontal velocity on a landed sprint/enchant hit
+     * (vanilla {@code motX/motZ *= 0.6}). Affects only their next knockback's friction fold, never the damage/KB dealt.
+     * {@code 1.0} = none; vanilla {@code 0.6}.
+     */
+    public final FieldValue<AttackContext, Double> fullHitScale;
 
     private AttackConfig(Builder b) {
         super(b.subConfig);
         enabled = b.enabled;
         ruleset = b.ruleset;
         criticalRule = b.criticalRule;
+        fullHitScale = b.fullHitScale;
     }
 
     /** Merges this config over base. */
@@ -34,6 +40,7 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
                 .enabled(merge(enabled, base.enabled))
                 .ruleset(merge(ruleset, base.ruleset))
                 .criticalRule(criticalRule != null ? criticalRule : base.criticalRule)
+                .fullHitScale(merge(fullHitScale, base.fullHitScale))
                 .build();
     }
 
@@ -50,11 +57,13 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
         private FieldValue<AttackContext, Boolean> enabled;
         private FieldValue<AttackContext, AttackEvent.AttackRule.Ruleset> ruleset;
         private AttackEvent.CriticalRule criticalRule;
+        private FieldValue<AttackContext, Double> fullHitScale;
 
         Builder() {
             enabled = FieldValue.constant(true);
             ruleset = FieldValue.constant(Vanilla18.legacyAttack());
             criticalRule = null;
+            fullHitScale = FieldValue.constant(0.6); // vanilla 1.8 attacker self-slowdown
         }
 
         Builder(AttackConfig c) {
@@ -62,6 +71,7 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
             enabled = c.enabled;
             ruleset = c.ruleset;
             criticalRule = c.criticalRule;
+            fullHitScale = c.fullHitScale;
         }
 
         public Builder subConfig(Function<AttackContext, AttackConfig> fn) { subConfig = fn; return this; }
@@ -76,8 +86,14 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
 
         public Builder criticalRule(AttackEvent.CriticalRule v) { criticalRule = v; return this; }
 
+        /** Attacker self-slowdown on a landed sprint/enchant hit (velocity-only; {@code 1.0} = none). See {@link AttackConfig#fullHitScale}. */
+        public Builder fullHitScale(Double v) { fullHitScale = FieldValue.constant(v); return this; }
+        public Builder fullHitScale(Function<AttackContext, Double> fn) { fullHitScale = FieldValue.of(fn); return this; }
+        public Builder fullHitScale(Double fallback, Function<AttackContext, Double> fn) { fullHitScale = FieldValue.ofWithFallback(fallback, fn); return this; }
+
         Builder enabled(FieldValue<AttackContext, Boolean> v) { enabled = v; return this; }
         Builder ruleset(FieldValue<AttackContext, AttackEvent.AttackRule.Ruleset> v) { ruleset = v; return this; }
+        Builder fullHitScale(FieldValue<AttackContext, Double> v) { fullHitScale = v; return this; }
 
         public AttackConfig build() { return new AttackConfig(this); }
     }

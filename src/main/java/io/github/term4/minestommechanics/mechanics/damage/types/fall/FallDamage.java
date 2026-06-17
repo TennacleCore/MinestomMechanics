@@ -5,7 +5,7 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageProducers;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
-import io.github.term4.minestommechanics.tracking.MotionTracker;
+import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.util.BlockContact;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
@@ -29,15 +29,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fall damage ({@code minecraft:fall}). Vanilla 1.8: fall distance accumulates while descending
- * ({@code fallDistance -= dy}), water and climbing zero it, lava contact halves it, and landing
- * applies damage from {@link FallDamageConfig} (vanilla values via {@link io.github.term4.minestommechanics.mechanics.Vanilla18#dmg()}).
+ * Fall damage ({@code minecraft:fall}). Vanilla 1.8: distance accumulates while descending, water/climbing zero it,
+ * lava halves it, and landing applies damage from {@link FallDamageConfig}.
  *
- * <p>Self-driven: players are tracked off their own move packets (client-authoritative, like
- * {@code MotionTracker}) with a per-tick poll catching status-only onGround packets; other living
- * entities are tracked per tick off their server position. Creative/spectator/flying players are
- * exempt. Teleports and spawns reset the accumulator ({@link #resetFallDistance} is public for
- * custom resets, e.g. ender pearls).
+ * <p>Self-driven: players are tracked off their own move packets (with a per-tick poll for status-only onGround
+ * packets); other living entities per tick. Creative/spectator/flying are exempt; teleports and spawns reset.
  */
 public final class FallDamage extends DamageType {
 
@@ -69,8 +65,7 @@ public final class FallDamage extends DamageType {
         n.addListener(PlayerSpawnEvent.class, e -> resetFallDistance(e.getPlayer()));
         system.node().addChild(n);
         node = n;
-        // Fallback poll, deliberately a tick behind the move listener: catches landings reported by
-        // status-only onGround packets that produce no PlayerMoveEvent (mirrors MotionTracker.tick()).
+        // fallback poll a tick behind onMove: catches status-only onGround landings (no PlayerMoveEvent)
         pollTask = MinecraftServer.getSchedulerManager()
                 .buildTask(this::poll)
                 .repeat(TaskSchedule.tick(1))
@@ -110,12 +105,8 @@ public final class FallDamage extends DamageType {
             p.removeTag(FALL_DISTANCE);
             return;
         }
-        if (prev == null) return; // need a baseline packet before a delta can be read
-        // Ground = the client flag OR the server-side collision (MotionTracker's ticked motY sim) - the same
-        // source combat ground checks read. Without it, a hit folded as grounded (sim collided early) could be
-        // followed by the trailing client-flag landing dealing the WHOLE fall: here the fall ends (lands, resets)
-        // when the server collision grounds the victim, and the leftover 1-2 ticks of descent re-accumulate
-        // below the damage threshold.
+        if (prev == null) return; // need a baseline first
+        // ground = client flag or the server collision (MotionTracker), the same source combat ground checks use
         accumulate(p, newPos.y() - prev.y(), e.isOnGround() || MotionTracker.simCollided(p));
     }
 
@@ -143,14 +134,11 @@ public final class FallDamage extends DamageType {
         }
     }
 
-    /**
-     * One observation step: apply the environment rules (water/climbing zero the accumulator, lava
-     * halves it - vanilla order checks them while falling), then land or accumulate the descent.
-     */
+    /** One observation step: apply the environment rules (water/climbing zero, lava halves), then land or accumulate. */
     private void accumulate(LivingEntity living, double dy, boolean onGround) {
         float dist = fallDistance(living);
 
-        // Environment resets, only consulted mid-fall (no scans while idling on the ground).
+        // only consulted mid-fall
         if (dist > 0 || dy < 0) {
             boolean[] contact = new boolean[2]; // water, lava
             BlockContact.scan(living, block -> {
@@ -190,7 +178,7 @@ public final class FallDamage extends DamageType {
         DamageSnapshot snap = DamageSnapshot.of(living, this).withDetail(FallDetail.of(distance));
         DamageContext ctx = sys.contextFor(snap);
         if (!ctx.typeConfig().enabled(ctx)) return;
-        // Below-threshold landings resolve to 0 - skip them before any event fires (vanilla: if (i > 0)).
+        // skip below-threshold landings before any event fires
         if (ctx.baseAmount() <= 0) return;
         sys.apply(snap);
     }

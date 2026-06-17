@@ -62,7 +62,7 @@ public class ProjectileHitEvent implements CancellableEvent {
     public boolean isBlockHit() { return target == null; }
     /** Whether the struck entity is the shooter itself. */
     public boolean isSelfHit() { return target != null && target == shooter; }
-    /** The shooter's position + yaw/pitch stamped at THROW time, or {@code null} if there was no shooter. */
+    /** The shooter's position + yaw/pitch stamped at throw time, or {@code null} if there was no shooter. */
     public @Nullable Pos throwOrigin() { return throwOrigin; }
 
     /** The resolved hit knobs for this hit (the config preview, before overrides). */

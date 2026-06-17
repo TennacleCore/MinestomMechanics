@@ -3,8 +3,10 @@ package test.presets;
 import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
-import io.github.term4.minestommechanics.tracking.VelocityConfig;
-import io.github.term4.minestommechanics.tracking.VelocityRule;
+import io.github.term4.minestommechanics.tracking.motion.ClimbModel;
+import io.github.term4.minestommechanics.tracking.motion.VelocityConfig;
+import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
+import io.github.term4.minestommechanics.tracking.motion.FluidFlow;
 
 public final class Hypixel {
 
@@ -32,12 +34,19 @@ public final class Hypixel {
      * clamp (the apex "reseed"); with it on, the descending arc folds ~0.003 b/t too low (~11 wire-shorts by
      * the third hit). clampY(0) disables the apex reseed for this arc only; clampX/clampZ stay vanilla.
      * entityPush(false) because Hypixel disables player collision (no server-side push residual to fold).
+     * flowModel(MODERN) because Hypixel runs a modern server: the water current is averaged + depth-scaled
+     * (thin-edge decay) and is NOT zeroed against a wall - unlike 1.8's flat, wall-zeroing {@code LEGACY}.
+     * flowLava(false): Hypixel does NOT push in lava (water only), unlike vanilla 26.
+     * climbModel(MODERN): folds ladder climb-up while ascending (climbing up reads 0.4), and detects the full
+     * climbable tag - 1.8's LEGACY never fires climb-up server-side (up == down == the slide value).
      */
     private static VelocityConfig arcConfig() {
         return VelocityConfig.builder()
-                .verticalStyle(VelocityRule.ArcStyle.PER_TICK)
                 .clampY(0)
                 .entityPush(false)
+                .flowModel(FluidFlow.Model.MODERN)
+                .flowLava(false)
+                .climbModel(ClimbModel.MODERN)
                 .build();
     }
 
@@ -45,7 +54,6 @@ public final class Hypixel {
         //  int buffer = 1; I think this is unnecessary but leaving here just in case
 
         return KnockbackConfig.builder(Vanilla18.kb())
-                // velocity unset: the fold reads the scoped rule (MechanicsProfile.velocity(Hypixel.velocity())).
                 //  .sprintBuffer(buffer)
                 .extraVertical(0.07)
                 .build();

@@ -8,9 +8,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Config for {@link FallDamage}. Formula knobs are first-class fields; vanilla values are wired
- * in {@link io.github.term4.minestommechanics.mechanics.Vanilla18} / {@link io.github.term4.minestommechanics.mechanics.Vanilla}.
- * Users may override {@code baseAmount} with a lambda for fully custom behavior.
+ * Config for {@link FallDamage}. Formula knobs are first-class fields; vanilla values are wired in {@code Vanilla18}/{@code Vanilla}.
+ * Override {@code baseAmount} with a lambda for fully custom behavior.
  */
 public final class FallDamageConfig extends DamageTypeConfig {
 
@@ -42,18 +41,13 @@ public final class FallDamageConfig extends DamageTypeConfig {
     /** Safe fall distance in blocks (maps to 1.8 threshold / modern {@code SAFE_FALL_DISTANCE}). */
     public @Nullable Double threshold(DamageContext ctx) { return resolve(threshold, ctx); }
 
-    /**
-     * Per-landing damage modifier (modern {@code causeFallDamage} {@code damageModifier}).
-     * When the snapshot carries a {@link FallDetail#damageModifier()}, that wins over this default.
-     */
+    /** Per-landing damage modifier (modern {@code causeFallDamage}); a {@link FallDetail#damageModifier()} on the snapshot wins. */
     public @Nullable Double damageModifier(DamageContext ctx) { return resolve(damageModifier, ctx); }
 
     /** Modern {@code FALL_DAMAGE_MULTIPLIER} attribute (ignored by {@link Formula#LEGACY_CEIL}). */
     public @Nullable Double fallDamageMultiplier(DamageContext ctx) { return resolve(fallDamageMultiplier, ctx); }
 
-    /**
-     * Explicit {@code baseAmount} override when set; otherwise the configured {@link #formula} and knobs.
-     */
+    /** Explicit {@code baseAmount} when set, else the configured {@link #formula} and knobs. */
     @Override
     public @Nullable Double baseAmount(DamageContext ctx) {
         Double explicit = super.baseAmount(ctx);
@@ -141,6 +135,10 @@ public final class FallDamageConfig extends DamageTypeConfig {
         public Builder triggersInvul(Function<DamageContext, Boolean> fn) { common.triggersInvul(fn); return this; }
         public Builder bypassInvul(Boolean v) { common.bypassInvul(v); return this; }
         public Builder bypassInvul(Function<DamageContext, Boolean> fn) { common.bypassInvul(fn); return this; }
+        public Builder bypassImmune(Boolean v) { common.bypassImmune(v); return this; }
+        public Builder bypassImmune(Function<DamageContext, Boolean> fn) { common.bypassImmune(fn); return this; }
+        public Builder ownsVelocityBroadcast(Boolean v) { common.ownsVelocityBroadcast(v); return this; }
+        public Builder ownsVelocityBroadcast(Function<DamageContext, Boolean> fn) { common.ownsVelocityBroadcast(fn); return this; }
         public Builder subConfig(Function<DamageContext, DamageTypeConfig> fn) { common.subConfig(fn); return this; }
 
         public Builder formula(Formula v) { formula = FieldValue.constant(v); return this; }

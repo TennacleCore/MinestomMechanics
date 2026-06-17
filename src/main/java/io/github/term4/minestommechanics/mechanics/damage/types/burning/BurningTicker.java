@@ -23,15 +23,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Shared producer for the burning family: one per-entity-tick bounding-box pass detects
- * fire/lava/water contact, then
- * <ul>
- *   <li>wet entities are extinguished (vanilla {@code Entity.W()}: water zeroes fire ticks),</li>
- *   <li>lava/in-fire contact steps the ignite warmup counter then emits damage on the configured
- *       interval (lava wins an overlap),</li>
- *   <li>while Minestom's fire ticks remain, {@code on_fire} damage is emitted when
- *       {@code fireTicks % interval == 0} (vanilla 1.8; 26.1 skips while in lava when configured).</li>
- * </ul>
+ * Shared producer for the burning family: one per-tick bounding-box pass detects fire/lava/water contact, then
+ * extinguishes wet entities, steps the lava/in-fire ignite warmup + emits contact damage on its interval, and emits
+ * {@code on_fire} damage while fire ticks remain.
  */
 final class BurningTicker implements EnvironmentalTickProducer {
 

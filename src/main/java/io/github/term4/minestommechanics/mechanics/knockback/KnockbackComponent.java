@@ -4,15 +4,9 @@ import net.minestom.server.coordinate.Vec;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A pluggable knockback transform. After the base/extra/friction/bounds pipeline has produced the final
- * knockback vector (blocks/tick, i.e. the client-decoded packet units), each configured component is applied
- * in order and may return a replacement vector - add a term ({@code kb.add(...)}), scale it (range reduction),
- * snap it, etc. Returning {@code null} leaves the vector unchanged for that hit, so a component fully
- * self-gates (decides whether <em>and</em> how it applies) from the
- * {@link KnockbackConfigResolver.KnockbackContext} (attacker/target, cause, services, ...).
- *
- * <p>Unlike the linear per-axis friction term, a component can apply non-linear logic (e.g. snapping to the
- * dominant cardinal axis, or distance-based scaling), which the base pipeline cannot express.
+ * A pluggable knockback transform applied after the base/extra/friction/bounds pipeline. Each component runs in order
+ * on the final vector (b/t) and may return a replacement (add/scale/snap); {@code null} leaves it unchanged. Self-gates
+ * from the {@link KnockbackConfigResolver.KnockbackContext}, and can apply non-linear logic the base pipeline can't.
  */
 @FunctionalInterface
 public interface KnockbackComponent {

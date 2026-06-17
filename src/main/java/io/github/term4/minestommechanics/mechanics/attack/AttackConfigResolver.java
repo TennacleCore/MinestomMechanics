@@ -26,16 +26,16 @@ public final class AttackConfigResolver {
             if (sub != null) cfg = sub.fromBase(cfg);
         }
 
-        // No attack-level invul window or hit buffering: attacks always process, the damage / knockback
-        // systems gate themselves on their own windows (vanilla: EntityHuman.attack always runs;
-        // damageEntity decides), and preset-specific behaviors live in custom rulesets.
+        // no attack-level invul/buffering: attacks always process; the damage/knockback systems gate themselves
         Boolean enabledVal = resolve(cfg.enabled, ctx);
         AttackEvent.AttackRule.Ruleset rulesetVal = resolve(cfg.ruleset, ctx);
+        Double fullHitScaleVal = resolve(cfg.fullHitScale, ctx);
 
         return new ResolvedAttackConfig(
                 enabledVal != null ? enabledVal : true,
                 rulesetVal != null ? rulesetVal : Vanilla18.legacyAttack(),
-                cfg.criticalRule != null ? cfg.criticalRule : AttackEvent.CriticalRule.DEFAULT
+                cfg.criticalRule != null ? cfg.criticalRule : AttackEvent.CriticalRule.DEFAULT,
+                fullHitScaleVal != null ? fullHitScaleVal : 0.6
         );
     }
 
@@ -47,13 +47,15 @@ public final class AttackConfigResolver {
     public record ResolvedAttackConfig(
             boolean enabled,
             @Nullable AttackEvent.AttackRule.Ruleset ruleset,
-            @Nullable AttackEvent.CriticalRule criticalRule
+            @Nullable AttackEvent.CriticalRule criticalRule,
+            double fullHitScale
     ) {
         public static ResolvedAttackConfig defaults() {
             return new ResolvedAttackConfig(
                     true,
                     Vanilla18.legacyAttack(),
-                    AttackEvent.CriticalRule.DEFAULT
+                    AttackEvent.CriticalRule.DEFAULT,
+                    0.6
             );
         }
     }

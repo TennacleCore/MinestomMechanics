@@ -24,30 +24,23 @@ import org.jetbrains.annotations.Nullable;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Arrow projectile: vanilla velocity-based damage ({@code ceil(speed * perSpeed) (+ crit bonus)}, perSpeed =
- * {@code hit.damage()} = 2.0), sticks in blocks (frozen movement + the vanilla-style periodic re-sync from
- * {@link ProjectileEntity}) instead of breaking, and can be picked up while stuck. {@link #setCritical} (set by the
- * bow at full draw) adds the random crit bonus + the client crit particles. Knockback / damage type / stick come
- * from the config ({@code Vanilla18.arrow()}). Pickup respects a {@link Pickup} mode + the 7-tick shake delay. TODO:
- * Power/Punch/Flame enchants, a dedicated arrow damage type.
+ * Arrow projectile: vanilla velocity-based damage ({@code ceil(speed * damage) (+ crit bonus)}), sticks in blocks
+ * (frozen + periodic re-sync from {@link ProjectileEntity}) instead of breaking, and can be picked up while stuck.
+ * {@link #setCritical} (set by the bow at full draw) adds the crit bonus + particles. Config: {@code Vanilla18.arrow()}.
+ * TODO: Power/Punch/Flame enchants + a dedicated arrow damage type (needs the enchant/attribute system).
  */
 public class ArrowEntity extends ManagedProjectile {
 
-    /** Vanilla pickup cooldown ({@code EntityArrow.shake}): the arrow shakes for this many ticks after sticking and
-     *  can't be collected until it ends (vanilla {@code 7}; configurable via the {@code shakeTicks} knob). */
+    /** Vanilla pickup cooldown: the arrow can't be collected for this many ticks after sticking (vanilla {@code 7}; {@code shakeTicks} knob). */
     private int shakeTicks = 7;
 
-    // Pickup geometry (configurable via ProjectileTypeConfig.pickupBox, stamped at launch; default vanilla). An arrow
-    // is collected when its boxWidth x boxHeight box intersects a player's bbox inflated (inflateH, inflateV, inflateH).
-    // Both 1.8 (EntityHuman: grow(1,0.5,1)) and 26.1 (Player#aiStep: inflate(1,0.5,1)) use the same inflation; the arrow
-    // box is 0.5 x 0.5 (setSize) even though our COLLISION box is 0 (F1).
+    // Pickup geometry (ProjectileTypeConfig.pickupBox, stamped at launch; default vanilla). Collected when the arrow's
+    // boxWidth x boxHeight box intersects a player's bbox inflated (inflateH, inflateV, inflateH).
     private double pickupInflateH = ProjectileTypeConfig.PickupBox.VANILLA.inflateH();
     private double pickupInflateV = ProjectileTypeConfig.PickupBox.VANILLA.inflateV();
     private double pickupBoxHalfWidth = ProjectileTypeConfig.PickupBox.VANILLA.boxWidth() / 2;
     private double pickupBoxHeight = ProjectileTypeConfig.PickupBox.VANILLA.boxHeight();
-    /** Broad-phase player scan radius, DERIVED from the geometry. Vanilla has NO scan radius - it iterates players in
-     *  the player's grown box; Minestom's entity query is radius-based, so this is only a spatial pre-filter that must
-     *  cover the geometry, after which {@link #withinPickupBox} is the exact 1:1 AABB test. */
+    /** Broad-phase player scan radius derived from the geometry - a spatial pre-filter only; {@link #withinPickupBox} is the exact test. */
     private double pickupScanRange = computeScanRange(ProjectileTypeConfig.PickupBox.VANILLA);
 
     private boolean critical;
@@ -56,9 +49,7 @@ public class ArrowEntity extends ManagedProjectile {
     /** Remaining pickup-cooldown ticks after sticking (vanilla shake). */
     private int shake;
 
-    /** Who may pick up a stuck arrow - mirrors vanilla {@code AbstractArrow.Pickup} / 1.8 {@code EntityArrow.fromPlayer}:
-     *  {@link #DISALLOWED} none, {@link #ALLOWED} any player (survival gets the arrow item), {@link #CREATIVE_ONLY}
-     *  only creative players (no item). */
+    /** Who may pick up a stuck arrow (vanilla {@code AbstractArrow.Pickup}): none, any player (survival gets the item), or creative only. */
     public enum Pickup { DISALLOWED, ALLOWED, CREATIVE_ONLY }
 
     public ArrowEntity(@Nullable Entity shooter, @NotNull EntityType entityType,
@@ -72,10 +63,7 @@ public class ArrowEntity extends ManagedProjectile {
         if (getEntityMeta() instanceof AbstractArrowMeta meta) meta.setCritical(critical);
     }
 
-    /** Server-sent crit particles at the arrow's real position (the {@code deflectParticles} opt-in; {@link #deflectVisible}
-     *  is the base flag, also driving the re-spawn). Sent to viewers at the AUTHORITATIVE spot - so unlike the crit
-     *  metadata (rendered client-side from each viewer's own mispredicted arrow position) the trail is visible to ALL
-     *  viewers, including the ones whose client lost the bounced arrow. */
+    /** Server-sent crit particles at the arrow's real position - the optional {@code deflectParticles} cosmetic trail ({@link #deflectVisible}). */
     private void spawnDeflectTrail() {
         Pos p = getPosition();
         sendPacketToViewersAndSelf(new ParticlePacket(Particle.CRIT, p.x(), p.y(), p.z(), 0.05f, 0.05f, 0.05f, 0f, 2));
@@ -93,9 +81,7 @@ public class ArrowEntity extends ManagedProjectile {
         this.pickupScanRange = computeScanRange(box);
     }
 
-    /** Max arrow-to-player-feet distance at which the pickup boxes can still overlap (+ a margin), from the geometry +
-     *  a conservative player box (0.3 half-width, 2.0 tall). Only bounds the spatial pre-filter; {@link #withinPickupBox}
-     *  is the exact decision. */
+    /** Max arrow-to-player distance where the pickup boxes can overlap (+margin), from the geometry + a conservative player box. Bounds the pre-filter only. */
     private static double computeScanRange(ProjectileTypeConfig.PickupBox box) {
         double maxH = box.inflateH() + 0.3 + box.boxWidth() / 2;
         double maxV = Math.max(box.inflateV() + box.boxHeight(), 2.0 + box.inflateV());
@@ -104,7 +90,7 @@ public class ArrowEntity extends ManagedProjectile {
 
     @Override
     protected float hitDamage(ResolvedHit hit, @NotNull Entity target) {
-        // Vanilla EntityArrow: i = ceil(motionLength * this.damage); if (critical) i += rand(i/2 + 2).
+        // vanilla: ceil(speed*damage), +rand(i/2+2) on crit
         int dmg = (int) Math.ceil(velocityBt.length() * hit.damage());
         if (dmg < 0) dmg = 0;
         if (critical) dmg += ThreadLocalRandom.current().nextInt(dmg / 2 + 2);
@@ -114,10 +100,7 @@ public class ArrowEntity extends ManagedProjectile {
     /** Sets the pickup-cooldown (shake) ticks applied when the arrow sticks (launcher applies the resolved config). */
     public void setShakeTicks(int ticks) { this.shakeTicks = ticks; }
 
-    /** Adds one "stuck arrow" to a living victim on a damaging hit (vanilla {@code EntityLiving.o(bv()+1)} - the
-     *  cosmetic arrows poking out of the body, which fall out over time; see {@link StuckArrows}). {@code onImpact}
-     *  fires only on a LANDED hit for the vanilla arrow ({@code invulnHit PASS_THROUGH}), so a blocked/creative hit
-     *  adds nothing. Block hits ({@code hitEntity == null}) are ignored. */
+    /** Adds one "stuck arrow" to a living victim on a landed hit (vanilla cosmetic arrows in the body; see {@link StuckArrows}). Block hits are ignored. */
     @Override
     protected void onImpact(@Nullable Entity hitEntity) {
         if (hitEntity instanceof LivingEntity le) StuckArrows.add(le, 1);
@@ -148,19 +131,16 @@ public class ArrowEntity extends ManagedProjectile {
         var instance = getInstance();
         if (instance == null) return;
         Pos arrow = getPosition();
-        // Query ONLY nearby players (EntityTracker PLAYERS target - no all-entity sweep), then test the exact vanilla
-        // box intersection AND who may collect (pickup mode). The broad-phase radius is just the spatial pre-filter.
+        // query nearby players only, then test the exact box intersection + pickup mode (the radius is just the pre-filter)
         Player[] collected = {null};
         instance.getEntityTracker().nearbyEntities(arrow, pickupScanRange, EntityTracker.Target.PLAYERS, p -> {
             if (collected[0] == null && canCollect(p) && withinPickupBox(arrow, p)) collected[0] = p;
         });
         Player p = collected[0];
         if (p == null) return;
-        // Vanilla: ALLOWED gives a survival collector the arrow item; CREATIVE_ONLY (or a creative collector) takes none.
-        // (TODO: inventory-full = no pickup; offhand vs inventory; "random.pop" sound.)
+        // ALLOWED gives a survival collector the arrow item; creative takes none. TODO: inventory-full no-pickup, offhand, pop sound
         if (pickup == Pickup.ALLOWED && p.getGameMode() != GameMode.CREATIVE) p.getInventory().addItemStack(ItemStack.of(Material.ARROW));
-        // Vanilla pickup animation (EntityArrow#d -> player.take): the arrow visibly flies into the collector before
-        // it is removed. Sent to viewers + the collector; remove() right after sends the destroy.
+        // pickup animation: the arrow flies into the collector before remove() sends the destroy
         sendPacketToViewersAndSelf(new CollectItemPacket(getEntityId(), p.getEntityId(), 1));
         remove();
     }
@@ -175,10 +155,7 @@ public class ArrowEntity extends ManagedProjectile {
         };
     }
 
-    /**
-     * Vanilla pickup test: does the arrow's {@code boxWidth x boxHeight} box intersect {@code player}'s bounding box
-     * inflated by {@code (inflateH, inflateV, inflateH)}? (Standard AABB overlap on all three axes.)
-     */
+    /** AABB overlap: the arrow's {@code boxWidth x boxHeight} box vs {@code player}'s bbox inflated by {@code (inflateH, inflateV, inflateH)}. */
     private boolean withinPickupBox(Pos arrow, Player p) {
         BoundingBox bb = p.getBoundingBox();
         Pos pp = p.getPosition();

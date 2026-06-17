@@ -24,7 +24,8 @@ public final class DamageEvent implements CancellableEvent {
     private final boolean invulnerable;
     private final int remainingInvul;
     private final float stored;
-    private boolean bypassInvul;
+    private boolean bypassInvul;   // ignore the i-frame window
+    private boolean bypassImmune;  // ignore fundamental immunity (creative/spectator)
 
     private boolean cancelled;
 
@@ -33,7 +34,7 @@ public final class DamageEvent implements CancellableEvent {
         this.amount = amount;
         this.invulnerable = DamageSystem.isInvulnerableToDamage(snap.target());
         this.remainingInvul = snap.target() instanceof LivingEntity le
-                ? DamageSystem.remainingDamageInvulTicks(le) : 0;
+                ? DamageSystem.remainingDamageInvul(le) : 0;
         this.stored = snap.target() instanceof LivingEntity le
                 ? DamageSystem.lastDamage(le) : 0f;
     }
@@ -58,21 +59,20 @@ public final class DamageEvent implements CancellableEvent {
     /** Replaces the config used for resolution for this hit (sugar for rebuilding {@link #finalSnap()}). */
     public void config(@Nullable DamageConfig config) { finalSnap(finalSnap().withConfig(config)); }
 
-    /** Whether the target was inside its damage-invul window when this hit arrived. */
+    /** Whether the target was inside its i-frame window when this hit arrived. Not fundamental immunity. */
     public boolean invulnerable() { return invulnerable; }
-    /** Remaining ticks of the target's damage-invul window ({@code 0} when not invulnerable). */
+    /** Remaining ticks of the target's damage-invulnerability window ({@code 0} when not in one). */
     public int remainingInvul() { return remainingInvul; }
 
-    /**
-     * The "last damage" highwater stored on the target for the current invulnerability window: the
-     * largest amount applied so far while invulnerable. Vanilla overdamage applies only the delta
-     * {@code amount - stored} when positive. {@code 0} when the target is fresh.
-     */
+    /** The highwater damage stored for the current invul window; overdamage applies only the delta {@code amount - stored}. {@code 0} when fresh. */
     public float stored() { return stored; }
 
+    /** Whether to ignore the target's i-frame window (apply even mid-window). */
     public boolean bypassInvul() { return bypassInvul; }
-    /** Apply damage even if the target is invulnerable. */
     public void bypassInvul(boolean bypass) { this.bypassInvul = bypass; }
+    /** Whether to ignore fundamental immunity - creative/spectator (e.g. void / admin kill). */
+    public boolean bypassImmune() { return bypassImmune; }
+    public void bypassImmune(boolean bypass) { this.bypassImmune = bypass; }
 
     // delegating accessors
     public DamageType type() { return finalSnap().type(); }

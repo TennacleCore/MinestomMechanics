@@ -6,21 +6,20 @@ import io.github.term4.minestommechanics.api.event.DamageEvent;
 import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
-import io.github.term4.minestommechanics.mechanics.damage.types.playerattack.PlayerAttack;
+import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileBehavior;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
-import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
+import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
+import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
+import io.github.term4.minestommechanics.platform.fixes.visuals.VisualsConfig;
+import io.github.term4.minestommechanics.platform.fixes.visuals.legacy_1_8.LegacyArrowVisibilityConfig;
+import io.github.term4.minestommechanics.platform.fixes.client.SelfPlacementFixConfig;
+import io.github.term4.minestommechanics.platform.fixes.world.BlockPlacementFixConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.shootables.Bow;
-import io.github.term4.minestommechanics.mechanics.projectile.types.Egg;
-import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
-import net.minestom.server.entity.metadata.AgeableMobMeta;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.concurrent.ThreadLocalRandom;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.attribute.Attribute;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
@@ -40,7 +39,8 @@ import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.timer.TaskSchedule;
-import test.presets.Minemen;
+import test.presets.Hypixel;
+import test.presets.mmc18;
 
 public class ExampleServer {
     static void main() {
@@ -78,26 +78,30 @@ public class ExampleServer {
         mm.init();
 
         // 1. Initialize knockback system
-        KnockbackSystem.install(mm, Minemen.kb());
+        KnockbackSystem.install(mm, mmc18.kb());
 
         // 2. Initialize damage system.
-        DamageSystem.install(mm, Minemen.dmg());
+        DamageSystem.install(mm, mmc18.dmg());
 
         // 3. Initialize combat system
-        AttackSystem.install(mm, Minemen.atk());
+        AttackSystem.install(mm, mmc18.atk());
 
-        // 4. Initialize projectile system (config decides what runs, like the damage system). Minemen.projectiles()
-        // currently inherits the vanilla 1.8 projectile baseline (physics + snowball KB/damage live in the presets).
-        // Self-launching throwables wire from the config; the bow is a Shootable launcher passed in explicitly.
-        // Custom behavior for a SPECIFIC PROJECTILE via the config `behavior` knob: the egg's baby-chicken easter egg
-        // (no longer in core) layered over the Minemen (vanilla 1.8) projectile config.
-        ProjectileSystem.install(mm, ProjectileConfig.builder(Minemen.projectiles())
-                .typeConfigs(ProjectileTypeConfig.builder(Egg.KEY).behavior(chickenEgg()).build())
+        // 4. Initialize projectile system
+        ProjectileSystem.install(mm, ProjectileConfig.builder(mmc18.projectiles())
                 .build(), new Bow());
+
+        // 5. Initialize the client/protocol fixes system.
+        FixesSystem fixes = FixesSystem.install(mm, FixesConfig.builder()
+                .visuals(VisualsConfig.builder()
+                        .legacyArrowVisibility(LegacyArrowVisibilityConfig.builder().enabled(true).deflectParticles(true).build())
+                        .build())
+                .blockPlacement(BlockPlacementFixConfig.builder().enabled(true).build())
+                .selfPlacement(SelfPlacementFixConfig.builder().enabled(true).build())
+                .build());
 
         // Debug (temporary)
         MinecraftServer.getGlobalEventHandler().addListener(DamageEvent.class, event -> {
-            if (!PlayerAttack.KEY.equals(event.type().key())) return;
+            if (!MeleeDamage.KEY.equals(event.type().key())) return;
             if (!(event.target() instanceof Player victim)) return;
             MinecraftServer.getSchedulerManager().scheduleNextTick(() -> {
                 if (victim.isOnline() && !victim.isDead())
@@ -105,13 +109,10 @@ public class ExampleServer {
             });
         });
 
-        // Scoped mechanics (player -> instance -> global). The velocity tracking method lives here - the melee
-        // friction fold, the hurt broadcast, AND projectile knockback all read MechanicsProfile.velocity for the
-        // victim (Minemen.kb() no longer pins its own; a per-config KnockbackConfig.velocity override would still
-        // win if set). Vanilla18.player(): broadcast position every 2 ticks (1.8 tracker frequency).
+        // Scoped mechanics (player -> instance -> global)
         mm.profiles().setGlobal(MechanicsProfile.builder()
-                .player(Vanilla18.player())
-                .velocity(Minemen.velocity())
+                .player(mmc18.player())
+                .velocity(mmc18.velocity())
                 .build());
 
         // Create the instance (world)
@@ -122,17 +123,30 @@ public class ExampleServer {
         instanceContainer.setGenerator(unit -> unit.modifier().fillHeight(0, 40, Block.GRASS_BLOCK));
         instanceContainer.setChunkSupplier(LightingChunk::new);
 
-        // Test hazards near spawn (surface is y=40): a lava pool, a fire patch, and a cactus.
-        // Fall damage: pillar up with the wool and jump off.
+        // Test dammage types
         instanceContainer.loadChunk(1, 0).thenRun(() -> {
             for (int x = 18; x <= 20; x++)
                 for (int z = 0; z <= 2; z++)
-                    instanceContainer.setBlock(x, 40, z, Block.LAVA);
+                    for (int y = 40; y <= 46; y++)
+                        instanceContainer.setBlock(x, y, z, Block.WATER);
             instanceContainer.setBlock(25, 40, 0, Block.FIRE);
             instanceContainer.setBlock(25, 40, 1, Block.FIRE);
             instanceContainer.setBlock(29, 39, 0, Block.SAND);
             instanceContainer.setBlock(29, 40, 0, Block.CACTUS);
             instanceContainer.setBlock(29, 41, 0, Block.CACTUS);
+        });
+
+        // Water FLOW-push test pads: 4 enclosed lanes, each with a hand-set `level` gradient so the current flows
+        // a known cardinal direction (Minestom does not spread fluids, so we set the levels manually). Stand in a
+        // lane feet-in-water on the floor and take a hit: the folded knockback should carry the flow term (the
+        // VelocityConfig.flowPush residual) in the AWAY-from-the-wool direction. Compare to vanilla 1.8.
+        instanceContainer.loadChunk(0, 0).thenRun(() -> {
+            buildFlowLane(instanceContainer,  2, 40,  4,  1,  0, 7, Block.RED_WOOL);    // EAST  (+X)
+            buildFlowLane(instanceContainer,  8, 40,  7, -1,  0, 7, Block.BLUE_WOOL);   // WEST  (-X)
+            buildFlowLane(instanceContainer, 12, 40,  4,  0,  1, 7, Block.YELLOW_WOOL); // SOUTH (+Z)
+            buildFlowLane(instanceContainer, 14, 40, 10,  0, -1, 7, Block.LIME_WOOL);   // NORTH (-Z)
+            System.out.println("[flow-test] lanes @ y=40 (flow points AWAY from the wool marker): "
+                    + "EAST/+X red src(2,4) | WEST/-X blue src(8,7) | SOUTH/+Z yellow src(12,4) | NORTH/-Z green src(14,10)");
         });
 
         // Add an event handler to handle player spawning
@@ -163,7 +177,10 @@ public class ExampleServer {
                 }, TaskSchedule.tick(20));
             }
 
-            player.getInventory().addItemStack(ItemStack.of(Material.WHITE_WOOL, 1000));
+            //player.setGameMode(GameMode.CREATIVE);
+
+            player.getInventory().addItemStack(ItemStack.of(Material.RED_WOOL, 1000));
+            player.getInventory().addItemStack(ItemStack.of(Material.LADDER, 64));
             player.getInventory().addItemStack(ItemStack.of(Material.DIAMOND_SWORD, 1));
             player.getInventory().addItemStack(ItemStack.of(Material.SNOWBALL, 64));
             player.getInventory().addItemStack(ItemStack.of(Material.EGG, 16));
@@ -194,30 +211,77 @@ public class ExampleServer {
         }, ticksArg);
         MinecraftServer.getCommandManager().register(lagCmd);
 
+        // Debug: /fix <on|off> flips the legacy arrow-visibility compat fix at runtime via the manager's master switch
+        // (setEnabled re-evaluates every online player's team membership). on = deflected/passed arrows stay visible on
+        // 1.8; off = the 1.8 client hides them again (the underlying glitch). The per-player WHO is the config knob above.
+        Command fixCmd = new Command("fix");
+        Argument<String> stateArg = ArgumentType.Word("state").from("on", "off");
+        fixCmd.setDefaultExecutor((sender, ctx) -> sender.sendMessage("usage: /fix <on|off>  (legacy arrow-visibility fix)"));
+        fixCmd.addSyntax((sender, ctx) -> {
+            boolean on = "on".equals(ctx.get(stateArg));
+            fixes.legacyArrowVisibility().setEnabled(on);
+            sender.sendMessage("[arrow-fix] " + (on ? "ON  - 1.8 deflect/pass arrows stay visible" : "OFF - 1.8 deflect/pass arrows go invisible (bug)"));
+        }, stateArg);
+        MinecraftServer.getCommandManager().register(fixCmd);
+
+        // Debug: /resendchunk resends the chunk the sender stands in, to themselves - exactly what
+        // BlockPlacementListener#refresh does when it cancels a placement that collides with an entity. Tests the
+        // suspected root cause of the "after placing a block onto player B, A can't hit B until someone re-enters
+        // the chunk" bug: on a 1.8 client (via Via) a chunk resend drops that chunk's entities client-side, and the
+        // server never re-spawns them. Stand next to another player (or use /testmob), run this on the 1.8 client,
+        // and watch the entity vanish (and stay gone until it re-enters tracking). If it does, the mechanism is
+        // confirmed and the fix = stop resending the chunk (send a targeted BlockChangePacket instead).
+        Command resendChunkCmd = new Command("resendchunk");
+        resendChunkCmd.setDefaultExecutor((sender, ctx) -> {
+            if (!(sender instanceof Player p)) return;
+            var chunk = p.getInstance().getChunkAt(p.getPosition());
+            if (chunk == null) {
+                p.sendMessage("[resendchunk] no chunk at your position");
+                return;
+            }
+            chunk.sendChunk(p);
+            p.sendMessage("[resendchunk] resent chunk " + chunk.getChunkX() + "," + chunk.getChunkZ() + " to you");
+        });
+        MinecraftServer.getCommandManager().register(resendChunkCmd);
+
+        // Debug: /testmob spawns a static zombie next to the sender as a watch target for /resendchunk.
+        Command testMobCmd = new Command("testmob");
+        testMobCmd.setDefaultExecutor((sender, ctx) -> {
+            if (!(sender instanceof Player p)) return;
+            Entity mob = new Entity(EntityType.ZOMBIE);
+            mob.setInstance(p.getInstance(), p.getPosition().add(1, 0, 0));
+            p.sendMessage("[testmob] spawned a zombie next to you");
+        });
+        MinecraftServer.getCommandManager().register(testMobCmd);
+
         // Start the server
         server.start("0.0.0.0", 25566);
     }
 
     /**
-     * Example custom {@link ProjectileBehavior}: the vanilla {@code 1/8} baby-chicken-on-impact easter egg, moved out
-     * of core. Attached to the egg via its {@code behavior} config knob (see the install above) - the idiomatic way to
-     * give a projectile type extra behavior without subclassing. Fires on entity AND block impact (both call onImpact).
+     * Builds a 1-wide enclosed water channel with a manual {@code level} gradient (source/marker end = level 0,
+     * rising along {@code (dirX,dirZ)}) so the water flows toward the far end - a deterministic flow-push test pad.
+     * Stone floor + side/end walls isolate the lane; the player stands feet-in-water on the floor (the verified
+     * standing {@code -0.02} motY case), so only the horizontal flow term folds into a hit.
      */
-    private static ProjectileBehavior chickenEgg() {
-        return new ProjectileBehavior() {
-            @Override
-            public void onImpact(ManagedProjectile projectile, @Nullable Entity hit) {
-                var instance = projectile.getInstance();
-                if (instance == null) return;
-                ThreadLocalRandom r = ThreadLocalRandom.current();
-                if (r.nextInt(8) != 0) return;            // 1/8 spawn chance
-                int count = r.nextInt(32) == 0 ? 4 : 1;   // 1/32 of those spawn 4
-                for (int i = 0; i < count; i++) {
-                    Entity chicken = new Entity(EntityType.CHICKEN);
-                    if (chicken.getEntityMeta() instanceof AgeableMobMeta age) age.setBaby(true);
-                    chicken.setInstance(instance, projectile.getPosition().withPitch(0f));
-                }
+    private static void buildFlowLane(InstanceContainer inst, int sx, int baseY, int sz,
+                                      int dirX, int dirZ, int length, Block marker) {
+        int pdx = dirZ, pdz = -dirX; // perpendicular = side-wall offset
+        for (int i = -1; i <= length; i++) { // -1 and length = solid end caps
+            int cx = sx + dirX * i, cz = sz + dirZ * i;
+            boolean cap = i < 0 || i >= length;
+            Block fill = cap ? Block.STONE : Block.WATER.withProperty("level", Integer.toString(Math.min(i, 7)));
+            inst.setBlock(cx, baseY - 1, cz, Block.STONE); // floor
+            inst.setBlock(cx, baseY, cz, fill);            // feet
+            inst.setBlock(cx, baseY + 1, cz, fill);        // body
+            inst.setBlock(cx, baseY + 2, cz, Block.AIR);   // headroom
+            for (int s = -1; s <= 1; s += 2) {             // side walls (solid -> no spurious side flow)
+                int wx = cx + pdx * s, wz = cz + pdz * s;
+                inst.setBlock(wx, baseY - 1, wz, Block.STONE);
+                inst.setBlock(wx, baseY, wz, Block.STONE);
+                inst.setBlock(wx, baseY + 1, wz, Block.STONE);
             }
-        };
+        }
+        inst.setBlock(sx, baseY + 2, sz, marker); // flow points AWAY from this marker
     }
 }

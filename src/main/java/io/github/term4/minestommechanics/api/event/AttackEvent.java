@@ -4,8 +4,7 @@ import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfigResolver;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
-import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
-import io.github.term4.minestommechanics.tracking.MotionTracker;
+import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
@@ -14,11 +13,9 @@ import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Public API fired when a hit is detected, before the attack ruleset runs. Wraps the
- * {@link AttackSnapshot} like {@link KnockbackEvent}/{@link DamageEvent}: an immutable original
- * {@link #snapshot()} plus a mutable {@link #finalSnap()} handed to processing, with per-hit
- * overrides for the {@link #processor(AttackRule.Ruleset) ruleset}, {@link #overrideCritical(Boolean)
- * crit verdict}, and {@link #overrideItem(ItemStack) item}.
+ * Public API fired when a hit is detected, before the attack ruleset runs. Wraps the {@link AttackSnapshot} like
+ * {@link KnockbackEvent}/{@link DamageEvent}: an immutable {@link #snapshot()} plus a mutable {@link #finalSnap()},
+ * with per-hit overrides for the ruleset, crit verdict, and item.
  */
 // Future plans to allow mobs / other entities to fire this event, or for users to manually fire it.
 public final class AttackEvent implements CancellableEvent {
@@ -32,9 +29,6 @@ public final class AttackEvent implements CancellableEvent {
     private @Nullable Boolean overrideCritical;
     private @Nullable ItemStack overrideItem;
 
-    private final boolean invulnerable;
-    private boolean bypassInvul;
-
     private boolean cancelled;
 
     private final Services services;
@@ -42,8 +36,6 @@ public final class AttackEvent implements CancellableEvent {
     public AttackEvent(AttackSnapshot snapshot, Services services) {
         this.snapshot = snapshot;
         this.services = services;
-        // The attack layer has no invul window of its own; "invulnerable" = the target's damage window.
-        this.invulnerable = snapshot.target() != null && DamageSystem.isInvulnerableToDamage(snapshot.target());
     }
 
     /** Original attack data (immutable). */
@@ -63,10 +55,8 @@ public final class AttackEvent implements CancellableEvent {
     public void config(AttackConfig config) { finalSnap(finalSnap().withConfig(config)); }
 
     /**
-     * The effective plain values for this hit: the {@link #config() current config} resolved against it
-     * ({@code null} config = defaults). Re-resolved from the <em>current</em> {@link #finalSnap()} on every
-     * call - cheap - so it always reflects listener changes ({@link #config(AttackConfig)} etc.) and always
-     * matches what attack processing will actually use.
+     * The effective plain values for this hit: the {@link #config() current config} resolved against it (re-resolved
+     * from the current {@link #finalSnap()} each call, so it reflects listener changes). {@code null} config = defaults.
      */
     public AttackConfigResolver.ResolvedAttackConfig resolvedConfig() {
         AttackSnapshot s = finalSnap();
@@ -90,13 +80,6 @@ public final class AttackEvent implements CancellableEvent {
     /** Per-hit item override ({@code null} = the attacker's main hand). */
     public @Nullable ItemStack overrideItem() { return overrideItem; }
     public void overrideItem(@Nullable ItemStack item) { this.overrideItem = item; }
-
-    /** Whether the target was inside its <em>damage</em>-invul window when this hit was detected. */
-    public boolean invulnerable() { return invulnerable; }
-
-    public boolean bypassInvul() { return bypassInvul; }
-    /** Process the hit as though the target were not invulnerable (consumed by buffering rulesets). */
-    public void bypassInvul(boolean b) { this.bypassInvul = b; }
 
     // delegating accessors
     public Entity attacker() { return finalSnap().attacker(); }
@@ -135,13 +118,9 @@ public final class AttackEvent implements CancellableEvent {
     @Override public void setCancelled(boolean cancel) { this.cancelled = cancel; }
 
     /**
-     * Defines what counts as a critical hit for an attack. Supplied via {@code AttackConfig.criticalRule(...)}
-     * and evaluated per attack; the rule only <em>decides</em> whether a hit is critical, while the melee
-     * damage type applies the <em>effect</em> (its crit multiplier) when building the damage snapshot.
-     *
-     * <p>A rule receives the full {@link AttackEvent}, so it can branch on anything (attacker, item,
-     * target, airborne/sprint state, etc.). It must NOT call {@link AttackEvent#critical()} - that would
-     * recurse infinitely.
+     * Defines what counts as a critical hit. Supplied via {@code AttackConfig.criticalRule(...)} and evaluated per
+     * attack; it only decides whether a hit is critical (the melee type applies the multiplier). Receives the full
+     * {@link AttackEvent}; must not call {@link AttackEvent#critical()} (infinite recursion).
      */
     @FunctionalInterface
     public interface CriticalRule {
@@ -163,9 +142,8 @@ public final class AttackEvent implements CancellableEvent {
     }
 
     /**
-     * Processes an attack (or attempted attack): applies the configured combat ruleset (damage,
-     * knockback, cooldown, etc.) for a detected hit. Selected via {@code AttackConfig.ruleset(...)} as
-     * a {@link Ruleset} factory so a fresh rule instance can be created per attack with the active services.
+     * Processes a detected hit: applies the configured combat ruleset (damage, knockback, ...). Selected via
+     * {@code AttackConfig.ruleset(...)} as a {@link Ruleset} factory so a fresh rule is created per attack.
      */
     @FunctionalInterface
     public interface AttackRule {

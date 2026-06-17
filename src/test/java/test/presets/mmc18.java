@@ -3,11 +3,10 @@ package test.presets;
 import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
-import io.github.term4.minestommechanics.mechanics.damage.DamageComponent;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
-import io.github.term4.minestommechanics.mechanics.damage.types.playerattack.PlayerAttack;
+import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
 import io.github.term4.minestommechanics.api.event.DamageEvent;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfigResolver;
@@ -15,9 +14,9 @@ import io.github.term4.minestommechanics.mechanics.knockback.KnockbackComponent;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
-import io.github.term4.minestommechanics.tracking.VelocityConfig;
-import io.github.term4.minestommechanics.tracking.VelocityContext;
-import io.github.term4.minestommechanics.tracking.VelocityRule;
+import io.github.term4.minestommechanics.tracking.motion.VelocityConfig;
+import io.github.term4.minestommechanics.tracking.motion.VelocityContext;
+import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import io.github.term4.minestommechanics.util.Directions;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.Vec;
@@ -31,20 +30,28 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-// TODO: Try with piecewise function of some sort
+// TODO: Check out the hit queue, it seems like it may be buggy with overdamage / projectiles and stuff. Hits seem like they
+//  can happen to quickly to one another rather than being properly queued (time between each "landed hit" should be 10 ticks)
 
-public final class Minemen {
-    private Minemen() {}
+/**
+ * <b>MMC 1.8</b> preset - replicates MineMenClub's 1.8 PvP feel (the {@code mmc18} distinction is deliberate: a modern
+ * MineMen server gets its own preset later). Built on the {@link Vanilla18} 1.8 baseline with MMC-specific deltas:
+ * the {@link #attackProcessor() hit-queue ruleset}, silent overdamage, and the custom {@link #velocity() velocity rule}
+ * + knockback components below.
+ */
+public final class mmc18 {
+    private mmc18() {}
 
-    /** Returns AttackConfig based on Vanilla18, processed through the {@link #attackProcessor() Minemen ruleset}. */
+    /** Returns AttackConfig based on Vanilla18, processed through the {@link #attackProcessor() mmc18 ruleset}. */
     public static AttackConfig atk() {
         return AttackConfig.builder(Vanilla18.atk())
                 .ruleset(attackProcessor())
+                .fullHitScale(1.0) // mmc18: a landed hit does NOT slow the attacker's tracked velocity
                 .build();
     }
 
     /**
-     * Minemen attack processing: vanilla legacy combat behind a {@link #HIT_QUEUE_BUFFER 1-tick} hit queue
+     * mmc18 attack processing: vanilla legacy combat behind a {@link #HIT_QUEUE_BUFFER 1-tick} hit queue
      * against the damage-invul window - a hit landing within the last tick of the target's window is buffered
      * (last-wins per target, collapsing high-ping bursts) and applied the moment the window expires, instead of
      * being eaten by it. TODO(swing-hits): arm-swing-animation hits (swing packet -> raytrace + obstacle check
@@ -56,9 +63,8 @@ public final class Minemen {
             AttackEvent.AttackRule vanilla = Vanilla18.legacyAttack().create(services);
             return event -> {
                 if (event.target() instanceof LivingEntity le) {
-                    if (!event.bypassInvul()
-                            && DamageSystem.isInvulnerableToDamage(le)
-                            && DamageSystem.remainingDamageInvulTicks(le) <= HIT_QUEUE_BUFFER) {
+                    if (DamageSystem.isInvulnerableToDamage(le)
+                            && DamageSystem.remainingDamageInvul(le) <= HIT_QUEUE_BUFFER) {
                         pendingHit.put(le, new PendingHit(event, vanilla));
                         return;
                     }
@@ -82,7 +88,7 @@ public final class Minemen {
     private static void ensureQueueTask() {
         if (!queueTaskStarted.compareAndSet(false, true)) return;
         MinecraftServer.getSchedulerManager()
-                .buildTask(Minemen::flushExpired)
+                .buildTask(mmc18::flushExpired)
                 .repeat(TaskSchedule.tick(1))
                 .schedule();
     }
@@ -107,21 +113,21 @@ public final class Minemen {
     public static DamageConfig dmg() {
         return DamageConfig.builder(Vanilla18.dmg())
                 .overdamageSilent(true)
-                // Minemen deals no knockback on generic damage ticks: the hurt broadcast is off entirely
+                // mmc18 deals no knockback on generic damage ticks: the hurt broadcast is off entirely
                 // (the only way to switch off an inherited hurtKnockback - merge semantics can't null it).
                 .syncHurtVelocity(false)
-                .addCustomComponent(Minemen::blockSameItemOverdamage)
+                .addCustomComponent(mmc18::blockSameItemOverdamage)
                 .build();
     }
 
     /**
-     * Minemen overdamage rule: skip replacement when the incoming melee hit uses the same weapon
+     * mmc18 overdamage rule: skip replacement when the incoming melee hit uses the same weapon
      * (material) as the hit that opened the invulnerability window.
      */
     @Nullable
     private static Float blockSameItemOverdamage(DamageContext ctx, DamageEvent event, float amount, boolean overdamage) {
         if (!overdamage || amount <= 0) return null;
-        if (!PlayerAttack.KEY.equals(event.type().key())) return null;
+        if (!MeleeDamage.KEY.equals(event.type().key())) return null;
         if (!(event.target() instanceof LivingEntity le)) return null;
         if (sameItem(event.item(), DamageSystem.openingHitItem(le))) return 0f;
         return null;
@@ -141,10 +147,11 @@ public final class Minemen {
                 .build();
     }
 
+    // TODO: Update stub
     /**
-     * Minemen projectile config. Inherits the vanilla 1.8 baseline ({@link Vanilla18#projectileDefaults()} physics +
+     * mmc18 projectile config. Inherits the vanilla 1.8 baseline ({@link Vanilla18#projectileDefaults()} physics +
      * {@link Vanilla18#snowball()} damage/spawn) so projectile behavior is unchanged today. This is the seam to give
-     * projectiles Minemen's feel - e.g. override the generic knockback for a cap-hold vertical so chained snowballs
+     * projectiles mmc18's feel - e.g. override the generic knockback for a cap-hold vertical so chained snowballs
      * don't sag like vanilla:
      * {@code .defaults(Vanilla18.projectileDefaults().toBuilder().knockback(projectileKb()).build())}.
      */
@@ -153,8 +160,8 @@ public final class Minemen {
     }
 
     /**
-     * Minemen knockback. Velocity is NOT pinned here - it reads from the scope, so pair this with
-     * {@code MechanicsProfile.velocity(Minemen.velocity())} (the friction fold AND the custom components below
+     * mmc18 knockback. Velocity is NOT pinned here - it reads from the scope, so pair this with
+     * {@code MechanicsProfile.velocity(mmc18.velocity())} (the friction fold AND the custom components below
      * read the one scoped rule via {@code ctx.victimVelocity()}). Without a scoped velocity the fold + components
      * fall back to {@link VelocityRule#DEFAULT}, so melee and projectiles stay consistent either way.
      */
@@ -170,13 +177,9 @@ public final class Minemen {
                 .extraYawWeight(0.5)
                 .frictionH(0.0)
                 .frictionV(VERTICAL_FRIC)
-                .addCustomComponent(Minemen::verticalLaunchHold)
-                .addCustomComponent(Minemen::axialFriction)
-                // Range reduction is the LAST stage - a final limit on everything above it. The fix for the
-                // behind-hit crush was the RANGE_LIMIT_MIN floor (not reordering): without it the far-range
-                // line fell toward 0 and re-capped a drag-reduced behind-hit to ~0-0.3; the floor pins it at
-                // RANGE_LIMIT_MIN (~0.5674) instead.
-                .addCustomComponent(Minemen::rangeReduction)
+                .addCustomComponent(mmc18::verticalLaunchHold)
+                .addCustomComponent(mmc18::axialFriction)
+                .addCustomComponent(mmc18::rangeReduction)
                 .build();
     }
 
@@ -198,22 +201,25 @@ public final class Minemen {
     /** Axial-drag coefficient - this term's own "frictionH", separate from the config's: {@code 0.475 * 0.2 = 0.095}. */
     private static final double AXIAL_iFH = 0.475;
     /**
-     * Victim velocity, used by both the friction term and the axial drag. Horizontal = {@link #sprintVel quantized
-     * sprint reconstruction}; vertical = server-side air-tick gravity arc (ping-invariant - MMC's vertical KB is
-     * identical across pings, so it cannot be client position-delta - the fall that drives friction-V). Horizontal
-     * is inert for friction (Minemen's {@code frictionH = 0}); it rides along only as the axial drag's speed source.
+     * mmc18's velocity rule - the <em>general</em> velocity for every context (the KB friction fold, the axial drag,
+     * projectile momentum), read everywhere via {@code ctx.victimVelocity()}. A custom {@link VelocityRule#split split}:
+     * horizontal = {@link #sprintVel quantized sprint reconstruction} (inert for friction - mmc18's {@code frictionH = 0} -
+     * it only feeds the axial drag's speed); vertical = the server-arc gravity sim (ping-invariant, since MMC's vertical KB
+     * is identical across pings).
+     *
+     * <p><b>Fluid OFF:</b> {@code fluidPhysics(false)} skips the water/lava drag + buoyancy (and, since the current only
+     * fires in water, the flow too), so a victim in water folds the same KB as in air. Climb (ladders/vines) and web stay
+     * ON. The gates read these off the split's vertical component (see {@link VelocityRule.Split} /
+     * {@link VelocityRule#reconstructionConfig()}).
      */
-    private static final VelocityRule VICTIM_VEL = VelocityRule.split(Minemen::sprintVel,
-            VelocityRule.simulated()); // vanilla defaults: PER_TICK vertical, launch offset -1
+    private static final VelocityRule VELOCITY = VelocityRule.split(mmc18::sprintVel,
+            VelocityRule.simulated(VelocityConfig.builder()
+                    .fluidPhysics(false)
+                    .build()));
 
-    /**
-     * Minemen velocity tracking method ({@link #VICTIM_VEL}): split sprint-reconstruction horizontal +
-     * server-arc vertical. Set on a {@code MechanicsProfile.velocity(...)} scope - the friction fold and the
-     * axial-drag / cap-hold components then read it through {@code ctx.victimVelocity()}, so it is configured
-     * once here, not pinned onto {@link #kb()}.
-     */
+    /** mmc18's scoped velocity rule ({@link #VELOCITY}); set on a {@code MechanicsProfile.velocity(...)} scope, read everywhere via {@code ctx.victimVelocity()} (so it is configured once, not pinned onto {@link #kb()}). */
     public static VelocityRule velocity() {
-        return VICTIM_VEL;
+        return VELOCITY;
     }
 
     /**
@@ -231,8 +237,8 @@ public final class Minemen {
     private static final double VERTICAL_HOLD_RELEASE = -VelocityConfig.JUMP_VELOCITY; // -0.42: holds through air-tick 5, releases into decay at tick 6 (walk-off feeds v6)
 
     /**
-     * Minemen vertical launch cap-hold: while the victim's launch arc is still rising / barely falling (the
-     * {@link #VICTIM_VEL reconstructed} vertical velocity above {@link #VERTICAL_HOLD_RELEASE}), vertical knockback
+     * mmc18 vertical launch cap-hold: while the victim's launch arc is still rising / barely falling (the
+     * {@link #VELOCITY reconstructed} vertical velocity above {@link #VERTICAL_HOLD_RELEASE}), vertical knockback
      * is pinned to {@link #VERTICAL_CAP} instead of being sagged by the friction term - what makes a jump's cap
      * hold longer than a walk-off's. Releases into the normal {@code base + v/frictionV} decay once the fall
      * builds past the threshold.
@@ -245,13 +251,13 @@ public final class Minemen {
     }
 
     /**
-     * Minemen axial sprint drag: a {@code +-(AXIAL_iFH * sprintSpeed)} push locked to one cardinal axis, summed onto
+     * mmc18 axial sprint drag: a {@code +-(AXIAL_iFH * sprintSpeed)} push locked to one cardinal axis, summed onto
      * the final knockback - a drag opposing the victim's sprint momentum. It's snapped to an axis (unlike the linear
      * {@code frictionH} term), which is why it's its own {@link KnockbackComponent}. Today {@code 0.475 * 0.2 = 0.095},
-     * but any sprint-speed change in {@link #VICTIM_VEL} scales it.
+     * but any sprint-speed change in {@link #VELOCITY} scales it.
      *
      * <p><b>Gating.</b> Self-gated to a melee hit by a recently {@link SprintTracker#wasRecentlySprinting sprinting}
-     * attacker; the victim-sprinting gate is folded into {@link #VICTIM_VEL} (zero speed -> no contribution). The
+     * attacker; the victim-sprinting gate is folded into {@link #VELOCITY} (zero speed -> no contribution). The
      * source/non-melee guards also cover the eager resolve pass (components run on every knockback, even fall/fire).
      *
      * <p><b>Direction.</b> The axis is the attacker's snapped facing (~the push axis on a hit), so it never lands on a
@@ -296,7 +302,7 @@ public final class Minemen {
     private static final double RANGE_LIMIT_MIN = 0.5674;
 
     /**
-     * Minemen range reduction - a linear <em>limit</em> on knockback by distance, not a scale-down: the
+     * mmc18 range reduction - a linear <em>limit</em> on knockback by distance, not a scale-down: the
      * horizontal magnitude is capped at {@code max(RANGE_LIMIT_BASE - distance * RANGE_FACTOR, RANGE_LIMIT_MIN)}
      * - i.e. {@code kb = min(max(line, kbMin), kb0)} - so close hits are untouched, far-reach hits cannot
      * exceed the line, and the {@link #RANGE_LIMIT_MIN} floor keeps long-range hits from being crushed toward

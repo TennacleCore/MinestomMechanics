@@ -13,6 +13,7 @@ import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+// TODO: Ensure proper usage of sprint tracker over isSprinting throughout this lib
 public final class SprintTracker implements Tracker {
 
     private static final Tag<TickState> LAST_SPRINT_STATE = Tag.Transient("mm:last-sprint-state");
@@ -70,7 +71,7 @@ public final class SprintTracker implements Tracker {
         if (isClientSprinting(t, e)) return true;
         TickState stop = e.getTag(LAST_CLIENT_STOP_SPRINT);
         // Not currently sprinting (per the check above) and no stop ever recorded = never sprinted at all
-        // (e.g. fresh join) - NOT "recently sprinting".
+        // (e.g. fresh join) - not "recently sprinting".
         if (stop == null) return false;
         return stop.isActiveWithin(ticks);
     }

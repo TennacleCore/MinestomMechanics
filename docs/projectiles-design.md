@@ -150,8 +150,9 @@ api/event/                   ProjectileLaunchEvent (spawn: cancellable, spawn/ve
 > still run). The projectile analog of the attack `Ruleset`. `ProjectileTypeConfig` extends the generic `Config<Ctx,Self>`
 > base like `AttackConfig` (public `FieldValue` fields, `merge`); knobs include `momentumHorizontal`/`momentumVertical`
 > (scales over a `VelocityRule` source, resolved config -> shooter profile -> DEFAULT like knockback), `deflect(...)`,
-> `physicsOrder`, `leftOwnerImmunity`, `stickPullback`, `shakeTicks`, `deflectParticles` (crit-trails an arrow that
-> bounced off / passed through an entity, for 1.8 viewers who lost it), and the renamed `spawnOffset(forward, vertical, sideways)`.
+> `physicsOrder`, `leftOwnerImmunity`, `stickPullback`, `shakeTicks`, and the renamed `spawnOffset(forward, vertical, sideways)`.
+> (The `deflectParticles` cosmetic crit-trail moved OUT to the `compatibility/` package - `LegacyArrowVisibilityConfig.deflectParticles`,
+> resolved per-shooter - since it's a 1.8-visual compat cosmetic, grouped with the arrow-visibility fix.)
 
 **Per-type configurability requirement** (parity with the old system, expressed as `FieldValue` knobs on
 `ProjectileTypeConfig` - constants or per-context lambdas like every other config in the lib):
@@ -403,7 +404,7 @@ is the one constant knob (pass-through-self) so vanilla stays constant-only. KB 
       DESTROY}, the same enum as `selfHit`): vanilla arrows `DEFLECT` (bounce `motion *= -0.1`), throwables `DESTROY`
       (break/effect, like their `die()`). This REPLACED the ad-hoc `deflectOnInvuln` boolean (kept types config-free;
       vanilla values live in `Vanilla18.arrow()`/`projectileDefaults()`). "Bypass" is deliberately NOT a projectile
-      response - it's the damage type's `bypassInvul` (a bypassing type makes the hit LAND, never reaching `invulnHit`).
+      response - it's the damage type's `bypassImmune` / `bypassInvul` (a bypassing type makes the hit LAND, never reaching `invulnHit`).
       `deflect()` does `-0.1` + re-arms shooter immunity (vanilla `as = 0`) + clamps placement to the hit point (no
       overshoot). **CREATIVE FIX:** `DamageSystem.apply` now treats CREATIVE/SPECTATOR targets as invulnerable
       (BLOCKED) - they took KB + arrows never deflected before, because `apply` had no game-mode check (only the
@@ -445,6 +446,17 @@ is the one constant knob (pass-through-self) so vanilla stays constant-only. KB 
         every N ticks. User-confirmed "much better." (Arrow BLOCK collision box double-checked against 1.8: it's a pure
         POINT raytrace - `world.rayTrace(Vec3D(locX,locY,locZ), ..)` - so our zero-size box (F1) is correct; the
         `setSize(0.5,0.5)` is render + entity-hit + pickup only, never block sticking.)
+      - **EXPLICIT velocity changes still broadcast (vanilla `velocityChanged` parity).** A ViaRewind maintainer flagged
+        that dropping ALL motion packets would break plugins that re-set arrow velocity mid-flight (e.g. HomingArrow) -
+        correct, and the 1.8 source proves the split: `sendVelocity=false` only gates the AUTOMATIC per-tick velocity;
+        `EntityTrackerEntry` line ~246 broadcasts `velocityChanged` EVERY tick OUTSIDE that gate (set by `g()`/setVelocity/
+        knockback), so a deliberate redirect ALWAYS reaches 1.8 clients. (26.1 is the same: `hurtMarked` -> immediate
+        `SetEntityMotion`; and modern arrows have `trackDeltas()==true`, so vanilla-26 DOES send per-tick arrow velocity
+        every 20t - this is a vanilla-26-wide ViaRewind issue, not just Minestom, just milder than our every-tick.) So we
+        match the split: `setVelocityBt` is SILENT (per-tick physics / deflect / stick - vanilla's direct `motX` write),
+        but the public `ProjectileEntity.setVelocity` override broadcasts via `sendVelocityToViewers` (the `velocityChanged`
+        path), so redirect/homing behaviors work through the suppression. ViaRewind can't make this split (automatic and
+        explicit are the same `SetEntityMotion` packet) - the fix belongs server-side, exactly as the maintainer said.
       - **Edge-stick "sticks then snaps forward" (1.8-only) = ROOT-CAUSED + FIXED (spawn-position lockstep).** The residual
         the velocity fix unmasked. A 1.8 client predicts the WHOLE flight from the spawn packet, whose position ViaVersion
         truncates to 1/32 (`(int)(v*32)/32`, toward zero). Our server simulates from the FULL-PRECISION spawn, so the client
@@ -467,9 +479,27 @@ is the one constant knob (pass-through-self) so vanilla stays constant-only. KB 
         `synchronizeNextTick()` + the `syncFlightNow()` deflect push were BOTH reverted.
       - **Deflect "invisible to OTHER viewers" = VANILLA (user-confirmed), so NOT fixed in itself.** Vanilla lets the
         client predict the bounce; through Via distant viewers (who don't know the target's invuln state) mispredict and
-        the arrow looks invisible-but-pickable - exactly how vanilla behaves, so we leave it. (NOTE for later: 1.8
-        actually PASSES THROUGH an `abilities.isInvulnerable` creative target - `movingobjectposition = null` - and only
-        deflects a `damageEntity`-false hit; our `invulnHit` deflects both. Separate behavior question - see 3d / open.)
+        the arrow looks invisible-but-pickable - exactly how vanilla behaves, so we leave it. (**FIXED (creative nuance):** 1.8
+        PASSES THROUGH an `abilities.isInvulnerable` creative target - `movingobjectposition = null` - and only deflects a
+        `damageEntity`-false (invul-WINDOW) hit. `DamageSystem` now returns a distinct `HitResult.IMMUNE` for creative/spectator
+        (vs `BLOCKED` for the window), and the projectile's `invulnHit` knob is a single `InvulnResponse` record with just TWO
+        cases `(invulWindow, immune)`, set via builder overloads in the `Deflect`/`PickupBox` house style (`invulnHit(all)` /
+        `invulnHit(window, immune)` / lambda). Only two cases: vanilla (1.8 `EntityArrow` + 26.1 `AbstractArrow`) NEVER splits
+        creative vs spectator (both `isInvulnerable`; spectators excluded by `canBeHitByProjectile`/`isPickable`) - per-gamemode
+        is a lambda. The window-vs-immune split exists ONLY because **1.8 differs** (creative null -> PASS_THROUGH, window ->
+        DEFLECT) while **26.1 deflects BOTH** (`onHitEntity`: `hurtOrSimulate` false -> `deflect(REVERSE)`). `Vanilla18.arrow()` =
+        `invulnHit(DEFLECT, PASS_THROUGH)`; `Vanilla.arrow()` = `invulnHit(DEFLECT)` (FIXED - was wrongly `PASS_THROUGH`; 26.1
+        deflects creative); throwables `invulnHit(DESTROY)`. NOTE: with `legacyArrowVisibility` on, a 1.8 client renders a `DEFLECT` as
+        "fly-through then snap" (it nulls the collision to keep the arrow visible, so it never shows the bounce) - `PASS_THROUGH`
+        agrees with the client and reads smooth, so vanilla creative `PASS_THROUGH` is both accurate AND the clean visual.)
+      - **UPDATE - the entity-visibility glitch is NOW FIXED for real** via the legacy arrow-visibility compat feature,
+        which lives in the dedicated **`compatibility/` package** (`compatibility/visuals/legacy_1_8/LegacyArrowVisibilityConfig`
+        [knobs: `enabled` + `deflectParticles`] + `LegacyArrowVisibility` manager, installed by `CompatibilitySystem`; per-scope
+        via the `MechanicsProfile.compatibility` member): a neutral FF-off scoreboard team so the 1.8 client's own
+        `canAttackPlayer` null-out stops it hiding the arrow. User-confirmed in-game. PURELY visual, per-player (profile chain),
+        runtime `setEnabled` toggle. The `deflectParticles` cosmetic crit-trail moved here too (separate knob, same fix; resolved
+        per-shooter, read by `ManagedProjectile` via `services().compatibility()`). The STATUS block below (accepted-limitation)
+        is SUPERSEDED - kept only for the history of what didn't work (`respawnForViewers`, decoy id, the `deflectParticles` trail).
         The opt-in **`deflectParticles` hit knob** (default `false`; a server sets `arrow().deflectParticles(true)`) is the
         only thing we can do for it: on a DEFLECT / PASS_THROUGH it sets the base `deflectVisible` flag, and `ArrowEntity`
         sends **server-spawned crit `ParticlePacket`s at the authoritative position** each tick (NOT the crit metadata -

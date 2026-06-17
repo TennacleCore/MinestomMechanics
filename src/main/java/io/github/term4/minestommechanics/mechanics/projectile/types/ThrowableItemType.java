@@ -16,10 +16,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Base for a hand-thrown item projectile (snowball, egg, ender pearl): pressing-use the {@link #material} launches
- * one and consumes it (unless creative). Subclasses add only their flight entity (via
- * {@link #createEntity}) and impact behavior; the throw/consume wiring lives here. Mirrors the old impl's single
- * "throwable launcher" - the item causes the server to spawn the entity.
+ * Base for a hand-thrown item projectile (snowball, egg, ender pearl): using the {@link #material} launches one and
+ * consumes it (unless creative). Subclasses add only their flight entity + impact behavior; the throw/consume wiring lives here.
  */
 public abstract class ThrowableItemType extends ProjectileType {
 

@@ -9,10 +9,8 @@ import net.minestom.server.entity.EntityType;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Arrow projectile (entity = {@link ArrowEntity}). Pure identity, like the throwable types - all tuning lives in
- * {@code Vanilla18.arrow()} (speed 3.0, gravity 0.05, velocity-based damage, stick-in-block). The bow ITEM that fires
- * it is a separate concern: it is a {@code Shootable} launcher
- * ({@code io.github.term4.minestommechanics.mechanics.projectile.shootables.Bow}) passed to {@code ProjectileSystem.install}.
+ * Arrow projectile (entity = {@link ArrowEntity}). Pure identity - all tuning lives in {@code Vanilla18.arrow()}. The
+ * bow item that fires it is a separate {@code Shootable} launcher.
  */
 public final class Arrow extends ProjectileType {
 

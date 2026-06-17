@@ -7,11 +7,9 @@ import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import net.kyori.adventure.key.Key;
 
 /**
- * Standing-in-fire damage ({@code minecraft:in_fire}). Vanilla 1.8: 1.0 damage attempted every tick
- * while the bounding box overlaps a fire block (the invul window gates the cadence), igniting the
- * entity for 160 fire ticks unless wet. Self-driven via the shared {@link BurningTicker}; tunables
- * come from the active {@code DamageConfig} ({@link BurningConfig} registered via
- * {@code typeConfigs(...)}), falling back to {@link #defaultConfig()}.
+ * Standing-in-fire damage ({@code minecraft:in_fire}). Vanilla 1.8: 1.0 damage attempted every tick while overlapping
+ * fire (the invul window gates the cadence), igniting for 160 fire ticks unless wet. Self-driven via {@link BurningTicker};
+ * tunables come from {@link BurningConfig}.
  */
 public final class InFireDamage extends DamageType {
 

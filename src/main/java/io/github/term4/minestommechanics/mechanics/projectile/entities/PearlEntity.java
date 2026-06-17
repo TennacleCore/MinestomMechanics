@@ -14,16 +14,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Ender pearl projectile: on impact (entity OR block) it teleports its shooter to the impact point and deals
- * 5 fall damage to a player shooter (non-player shooters teleport without damage). Vanilla 1.8 IGNORES hits on the
- * shooter itself - the pearl passes through - wired natively via {@code selfHit(PASS_THROUGH)} (set on
- * {@code Vanilla18.pearl()}). The teleport target is the projectile's pre-move position, matching 1.8
- * {@code EntityEnderPearl.a()} (which runs before {@code locX += motX}). Mirrors 1.8 {@code EntityEnderPearl} /
- * 26.1 {@code ThrownEnderpearl}.
+ * Ender pearl projectile: on impact (entity or block) it teleports the shooter to the impact point and deals 5 fall
+ * damage to a player shooter. Vanilla 1.8 ignores hits on the shooter (the pearl passes through), wired via
+ * {@code selfHit(PASS_THROUGH)}. The teleport target is the pre-move position (1.8 {@code EntityEnderPearl.a()}).
  */
 public class PearlEntity extends ManagedProjectile {
 
-    /** Vanilla pearl-landing fall damage dealt to a player shooter. */
+    /** Vanilla pearl-landing fall damage dealt to a player shooter. TODO: make configurable (folds into the dedicated pearl/fall type below). */
     private static final float FALL_DAMAGE = 5.0f;
 
     public PearlEntity(@Nullable Entity shooter, @NotNull EntityType entityType,
@@ -35,23 +32,19 @@ public class PearlEntity extends ManagedProjectile {
     protected void onImpact(@Nullable Entity hitEntity) {
         Entity shooter = getShooter();
         if (shooter == null || shooter.isRemoved()) return;
-        // Teleport to the pearl's pre-move position (vanilla a() runs before locX += motX) within its instance, keeping
-        // the shooter's OWN view - vanilla enderTeleportTo sets x/y/z only; getPosition() carries the pearl's flight
-        // rotation, which must NOT overwrite the thrower's yaw/pitch.
-        // TODO(cross-instance): vanilla only teleports when the shooter shares the pearl's world.
+        // teleport to the pearl's pre-move position, keeping the shooter's own view (not the pearl's flight rotation)
+        // TODO(cross-instance): vanilla only teleports when the shooter shares the pearl's world
         Pos view = shooter.getPosition();
         shooter.teleport(getPosition().withView(view.yaw(), view.pitch()));
-        // Vanilla zeroes fallDistance BEFORE dealing the flat 5, so the teleport drop itself adds no extra fall damage.
+        // zero fallDistance first so the teleport drop adds no extra fall damage
         FallDamage.resetFallDistance(shooter);
         if (shooter instanceof Player) {
             Services s = services();
             if (s != null && s.damage() != null) {
-                // Vanilla 1.8 deals a CONSTANT DamageSource.FALL, 5 (26.1: a dedicated enderPearl source, also 5).
-                // GenericDamage + explicit amount stands in (no armor model yet, so numerically == FALL); a dedicated
-                // FALL/enderPearl type is the clean follow-up. TODO(verify): plays hurt + respects invul in-game.
+                // GenericDamage + explicit 5 stands in for the dedicated FALL/enderPearl type (no armor model yet). TODO(verify): hurt + invul in-game
                 s.damage().apply(DamageSnapshot.of(shooter, GenericDamage.INSTANCE).withAmount(FALL_DAMAGE).withSource(this));
             }
         }
-        // TODO(endermite): vanilla 5% endermite spawn on a player teleport (cosmetic) - deferred.
+        // TODO(endermite): vanilla 5% endermite spawn on teleport (cosmetic, deferred)
     }
 }

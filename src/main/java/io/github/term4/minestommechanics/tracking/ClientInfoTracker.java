@@ -13,6 +13,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
 
+// TODO: Keep this, might add the apollo / badlion integration later
 /**
  * Tracks client details relevant to this library - for now only the protocol version, stamped from the
  * ViaVersion proxy-details plugin message. May later cover client-mod handshakes (Lunar/Apollo, Badlion,

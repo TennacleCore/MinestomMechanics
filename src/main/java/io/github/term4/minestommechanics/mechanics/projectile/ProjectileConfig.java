@@ -11,13 +11,9 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Immutable projectile config: a generic {@link #defaults} base plus per-type {@link ProjectileTypeConfig}
- * overrides keyed by type key. Mirrors {@code DamageConfig} - presence in {@link #typeConfigs} is what enables a
- * type at install (see {@code ProjectileSystem.install}). Resolution layers per-type override -&gt; {@link #defaults}
- * -&gt; the type's intrinsic {@link io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileType#defaultConfig()}
- * -&gt; hard fallbacks, so a preset keeps the shared projectile baseline once in {@code defaults} and each type entry
- * only restates its deltas (or is empty, just to enable the type). The global config is {@code defaults} + the map
- * + the {@code subConfig} overlay.
+ * Immutable projectile config: a generic {@link #defaults} base plus per-type {@link ProjectileTypeConfig} overrides
+ * keyed by type key. Mirrors {@code DamageConfig} - presence in {@link #typeConfigs} enables a type at install.
+ * Resolution layers per-type override -&gt; {@link #defaults} -&gt; the type's {@code defaultConfig()} -&gt; hard fallbacks.
  */
 public final class ProjectileConfig extends Config<ProjectileContext, ProjectileConfig> {
 

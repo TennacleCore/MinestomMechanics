@@ -12,11 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The "arrows stuck in an entity" count - the cosmetic arrows poking out of a hit mob/player, carried by vanilla's
- * {@code LivingEntity} arrow-count metadata (a separate render path from the arrow projectile entity). A successful
- * damaging arrow hit adds one (vanilla {@code EntityLiving.o(bv()+1)}, fired from {@link io.github.term4.minestommechanics.mechanics.projectile.entities.ArrowEntity});
- * they fall out on their own over {@code 20 * (30 - count)} ticks per arrow (identical in 1.8 {@code EntityLiving} and
- * 26.1 {@code LivingEntity}). This is the public API to read / set / clear them; the decay runs on one lazily-started
- * global task that only processes entities currently carrying arrows.
+ * {@code LivingEntity} arrow-count metadata. A damaging arrow hit adds one; they fall out over {@code 20 * (30 - count)}
+ * ticks per arrow. Public API to read/set/clear; the decay runs on one lazily-started global task.
  */
 public final class StuckArrows {
 

@@ -10,10 +10,8 @@ import net.minestom.server.item.Material;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Ender pearl throwable: spawns a {@link PearlEntity} that teleports its shooter to the impact (+5 fall damage for
- * a player). Config-free; the vanilla 1.8 self-pass-through (the pearl ignores its own thrower) comes from
- * {@code Vanilla18.pearl()}'s {@code selfHit(PASS_THROUGH)} (the baseline lets you self-hit). Throw + consume wiring is
- * inherited from {@link ThrowableItemType}.
+ * Ender pearl throwable: spawns a {@link PearlEntity} that teleports its shooter to the impact (+5 fall damage for a
+ * player). Config-free; the self-pass-through comes from {@code Vanilla18.pearl()}. Throw/consume wiring is inherited from {@link ThrowableItemType}.
  */
 public final class Pearl extends ThrowableItemType {
 

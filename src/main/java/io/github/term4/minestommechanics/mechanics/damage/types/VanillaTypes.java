@@ -4,10 +4,8 @@ import net.minestom.server.entity.damage.DamageType;
 import net.minestom.server.registry.RegistryKey;
 
 /**
- * Cache of the vanilla Minecraft damage-type registry keys we reference. These are Minestom
- * {@link DamageType} keys (not our {@code io...mechanics.damage.types.DamageType}); each of our
- * damage types passes one as its {@code minecraftType} for application and death messages.
- * Backed by Minestom's {@code DamageTypes} constants, so they are valid without server init.
+ * Cache of the vanilla Minecraft damage-type registry keys we reference (Minestom {@link DamageType} keys, not our
+ * {@code damage.types.DamageType}); each of our types passes one as its {@code minecraftType}. Valid without server init.
  */
 public final class VanillaTypes {
 

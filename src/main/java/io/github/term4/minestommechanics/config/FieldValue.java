@@ -5,12 +5,11 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * A single configurable value resolved against a context {@code CTX}. A value can be a constant, a
- * context-aware function, or a function with a constant fallback. Shared by every config so each one
- * only declares its fields instead of re-implementing this machinery.
+ * A single configurable value resolved against a context {@code CTX}: a constant, a context-aware
+ * function, or a function with a constant fallback.
  *
- * <p>When built from a plain {@link #constant(Object)}, the value is also kept in {@link #constant()}
- * so callers that have no context (e.g. a hit-independent default) can read it via
+ * <p>When built from a plain {@link #constant(Object)}, the value is also kept in {@code constant}
+ * so callers with no context (e.g. a hit-independent default) can read it via
  * {@link #constantOrNull()} without invoking the function.
  *
  * @param <CTX>     the resolution context (e.g. a damage/attack context record)

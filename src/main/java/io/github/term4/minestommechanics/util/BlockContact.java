@@ -9,23 +9,16 @@ import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.instance.block.BlockFace;
 import net.minestom.server.world.DimensionType;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Predicate;
 
 /**
  * Block occupancy / collision-shape contact tests for hazard producers.
- * <ul>
- *   <li>{@link #scan} / {@link #touching} — full block-cell walk (vanilla {@code World.e(AABB)}).
- *       Use for fluids and fire, which fill the cell but often have no collision shape.</li>
- *   <li>{@link #scanShapes} / {@link #touchingShapes} — registry collision shapes (vanilla
- *       {@code Block#entityInside}). Use for cactus and other blocks whose damage hitbox is
- *       smaller than the cell (1.8 cactus insets 1/16 on X/Z and the top face).</li>
- * </ul>
  *
- * <p>Uses Minestom's {@link BoundingBox#getBlocks(Point)} for the cell walk and
- * {@code Block.registry().collisionShape()} for shape tests. Unloaded chunks and out-of-range Y
- * are skipped.
+ * <p>{@link #scan}/{@link #touching} walk full block cells — use for fluids and fire, which fill
+ * the cell but often have no collision shape. {@link #scanShapes}/{@link #touchingShapes} test
+ * registry collision shapes — use for cactus and similar, whose damage hitbox is smaller than the
+ * cell. Unloaded chunks and out-of-range Y are skipped.
  */
 public final class BlockContact {
 
@@ -86,7 +79,7 @@ public final class BlockContact {
         return false;
     }
 
-    // --- collision shapes (cactus, …) ---
+    // collision shapes
 
     /** True when the entity intersects any block whose shape matches (vanilla inset). */
     public static boolean touchingShapes(Entity entity, Predicate<Block> match) {
@@ -235,5 +228,32 @@ public final class BlockContact {
                 box.relativeStart().sub(dx, dy, dz),
                 box.relativeEnd().add(dx, dy, dz)
         );
+    }
+
+    /** Whether {@code block} is a full solid cube - its collision shape fully covers all six faces (dirt/stone yes,
+     *  stairs/slabs/fences no); false when it has no collision shape. */
+    public static boolean isFullCube(Block block) {
+        Shape shape = block.registry().collisionShape();
+        if (shape == null) return false;
+        for (BlockFace face : BlockFace.values()) {
+            if (!shape.isFaceFull(face)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Whether an entity can occupy {@code block}'s space - it doesn't block movement (ladders, vines, cobwebs, plants).
+     * Approximates Minecraft's {@code blocksMotion} (which Minestom doesn't expose yet): a non-solid block, or a solid
+     * block with no collision shape - cobweb is {@code solid} yet has empty collision, so an {@code isSolid()} test alone
+     * would wrongly exclude it. Solid blocks with real collision (stairs, slabs, fences, full cubes) are not passable.
+     *
+     * <p>Once Minestom exposes {@code Block.blocksMotion()} (PR'd upstream), this can collapse to {@code !block.blocksMotion()}.
+     */
+    public static boolean isPassable(Block block) {
+        if (!block.isSolid()) return true;
+        Shape shape = block.registry().collisionShape();
+        if (shape == null) return true;
+        Point s = shape.relativeStart(), e = shape.relativeEnd();
+        return s.x() == e.x() && s.y() == e.y() && s.z() == e.z(); // empty collision shape = zero-volume bbox
     }
 }

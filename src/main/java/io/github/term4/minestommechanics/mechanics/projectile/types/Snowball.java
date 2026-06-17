@@ -5,11 +5,8 @@ import net.minestom.server.entity.EntityType;
 import net.minestom.server.item.Material;
 
 /**
- * Snowball throwable: launched on a {@link Material#SNOWBALL} use. Config-free (its physics, knockback, and damage
- * live in the preset's {@code ProjectileConfig} - e.g. {@code Vanilla18.projectiles()}); the generic
- * {@link io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile} handles the hit (0
- * damage through the invul gate, knockback, break on any entity or block hit). Throw + consume wiring is inherited
- * from {@link ThrowableItemType}.
+ * Snowball throwable: launched on a {@link Material#SNOWBALL} use. Config-free (tuning lives in the preset's
+ * {@code ProjectileConfig}); the generic {@code ManagedProjectile} handles the hit. Throw/consume wiring is inherited from {@link ThrowableItemType}.
  */
 public final class Snowball extends ThrowableItemType {
 

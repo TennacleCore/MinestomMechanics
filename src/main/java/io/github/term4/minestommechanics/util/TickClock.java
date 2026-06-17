@@ -6,10 +6,7 @@ import net.minestom.server.timer.TaskSchedule;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Tick based timing for MinestomMechanics
- * Synchronizes all events with server ticks.
- */
+/** Global server-tick counter. Call {@link #start()} once at startup; {@link #now()} reads the current tick. */
 public final class TickClock {
     private static final AtomicBoolean STARTED = new AtomicBoolean(false);
     private static final AtomicLong tick = new AtomicLong(0);

@@ -7,19 +7,10 @@ import net.minestom.server.registry.RegistryKey;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Base for a damage type registered in the {@code DamageTypeRegistry}. Identifies a source of damage
- * (melee, fire tick, fall, custom, etc.) and maps to a Minestom
- * {@link net.minestom.server.entity.damage.DamageType} for application and death messages.
- *
- * <p>Tunable values are configured externally on the global {@code DamageConfig} (via
- * {@code typeConfigs(...)}), keyed by {@link #key()}. Each type carries an immutable
- * {@link #defaultConfig()} used when the active config has no override for it. The identity (key,
- * name, Minecraft type) is fixed. Each concrete type lives in its own sub-package and extends this class.
- *
- * <p>A one-off type is driven externally (e.g. {@code PlayerAttack} from the attack pipeline);
- * a self-driven/repeating type (e.g. fire, fall) overrides {@link #enable(DamageSystem, MinestomMechanics)}
- * and {@link #disable()} to wire its own triggers and emit snapshots, reading its options from the
- * active {@code DamageConfig}.
+ * Base for a damage type in the {@code DamageTypeRegistry}: identifies a source of damage and maps to a Minestom
+ * {@link net.minestom.server.entity.damage.DamageType} for application + death messages. Tunables live on the global
+ * {@code DamageConfig} ({@code typeConfigs}), keyed by {@link #key()}; each type carries an immutable
+ * {@link #defaultConfig()}. A self-driven type (fire, fall) overrides {@link #enable}/{@link #disable} to wire its own triggers.
  */
 public abstract class DamageType {
 
@@ -49,10 +40,7 @@ public abstract class DamageType {
     /** Immutable per-type defaults, used when the active {@code DamageConfig} has no override for this type. */
     public @NotNull DamageTypeConfig defaultConfig() { return defaultConfig; }
 
-    /**
-     * Called when this type is enabled in the registry. Self-driven types wire triggers here
-     * (event listeners, scheduled tasks) and emit snapshots through {@code system}. No-op by default.
-     */
+    /** Called when the type is enabled. Self-driven types wire triggers here and emit snapshots through {@code system}. No-op by default. */
     public void enable(DamageSystem system, MinestomMechanics mm) {}
 
     /** Called when this type is disabled. Tear down anything registered in {@link #enable}. No-op by default. */

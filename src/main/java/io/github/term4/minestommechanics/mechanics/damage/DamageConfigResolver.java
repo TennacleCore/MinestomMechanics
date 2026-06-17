@@ -29,11 +29,7 @@ public final class DamageConfigResolver {
             return type.isInstance(d) ? type.cast(d) : null;
         }
 
-        /**
-         * Effective per-type config for this damage: the active {@link DamageConfig}'s override for the
-         * type (snapshot config override, else the installed damage config), else the type's
-         * {@link io.github.term4.minestommechanics.mechanics.damage.types.DamageType#defaultConfig()}.
-         */
+        /** Effective per-type config: the active {@link DamageConfig}'s override for the type, else the type's default. */
         public DamageTypeConfig typeConfig() {
             DamageConfig cfg = snap.config();
             if (cfg == null && services != null && services.damage() != null) {
@@ -41,7 +37,7 @@ public final class DamageConfigResolver {
             }
             DamageTypeConfig tc = cfg != null ? cfg.typeConfig(snap.type().key()) : null;
             DamageTypeConfig base = tc != null ? tc : snap.type().defaultConfig();
-            // Context-aware overlay: subConfig.apply(ctx) layered over the selected type config.
+            // overlay the subConfig over the selected type config
             if (base.subConfig() != null) {
                 DamageTypeConfig overlay = base.subConfig().apply(this);
                 if (overlay != null) base = overlay.fromBase(base);

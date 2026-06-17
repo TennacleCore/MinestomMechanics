@@ -1,13 +1,13 @@
-package io.github.term4.minestommechanics.tracking;
+package io.github.term4.minestommechanics.tracking.motion;
 
+import io.github.term4.minestommechanics.tracking.SprintTracker;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The input a {@link VelocityRule} composes - the velocity analog of {@code AttackEvent} for {@code CriticalRule}.
- * Bundles the entity and the {@link MotionTracker} reads (air-time, launch latch, position-delta motion, ground
- * state), so a rule written outside the library has the same primitives the built-ins use.
+ * Input a {@link VelocityRule} composes - bundles the entity and the {@link MotionTracker} reads (air-time, launch,
+ * position-delta, ground state) so a rule written outside the library has the same primitives the built-ins use.
  */
 public final class VelocityContext {
 

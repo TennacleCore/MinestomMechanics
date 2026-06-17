@@ -2,15 +2,14 @@ package io.github.term4.minestommechanics;
 
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
-import io.github.term4.minestommechanics.tracking.MotionTracker;
+import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * Registered systems on MinestomMechanics. Provides access to any installed systems.
- */
+/** Access to the systems registered on MinestomMechanics. */
 public record Services(MinestomMechanics mm) {
 
     // Accessors read the live registry, so cross-system lookups (e.g. a ruleset pulling damage()) are
@@ -21,6 +20,7 @@ public record Services(MinestomMechanics mm) {
     public @Nullable KnockbackSystem knockback() { return mm.knockbackSystem(); }
     public @Nullable DamageSystem damage() { return mm.damageSystem(); }
     public @Nullable ProjectileSystem projectiles() { return mm.projectileSystem(); }
+    public @Nullable FixesSystem fixes() { return mm.fixesSystem(); }
     /** Scoped config profiles (player / instance / global). */
     public MechanicsProfiles profiles() { return mm.profiles(); }
 

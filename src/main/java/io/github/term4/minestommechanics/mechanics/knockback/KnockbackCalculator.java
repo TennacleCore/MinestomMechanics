@@ -1,9 +1,10 @@
 package io.github.term4.minestommechanics.mechanics.knockback;
 
 import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
-import io.github.term4.minestommechanics.tracking.VelocityContext;
-import io.github.term4.minestommechanics.tracking.VelocityRule;
+import io.github.term4.minestommechanics.tracking.motion.VelocityContext;
+import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import io.github.term4.minestommechanics.util.Directions;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Point;
@@ -12,11 +13,8 @@ import net.minestom.server.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
 /** Computes the knockback vector for a snapshot: directions, strengths, friction fold, bounds, components. */
-// TODO(stages): make each built-in stage a replaceable strategy (the VelocityRule/CriticalRule pattern,
-//  config knobs like frictionRule/combineRule/boundsRule with the current math as DEFAULT). Custom
-//  components are append-only POST-stages - they cannot run between built-ins, which forces presets to
-//  zero a knob and re-emulate the stage (Minemen frictionH=0 + axialFriction) and caused the range-cap vs
-//  axial-drag ordering bug. Same idea applies to DamageCalculator's stages.
+// TODO(stages): make each built-in stage a replaceable strategy (frictionRule/combineRule/boundsRule, current math as
+//  default). Custom components are append-only post-stages, so a preset must zero a knob + re-emulate a stage (Mmc18). Same for DamageCalculator.
 public final class KnockbackCalculator {
 
     private final Services services;
@@ -30,9 +28,8 @@ public final class KnockbackCalculator {
     }
 
     /**
-     * Resolves the effective plain values for a snapshot: its config (else the calculator defaults) merged over
-     * the defaults, resolved against the hit context - the exact values {@link #compute} will use. Cheap; safe to
-     * call per hit (backs {@link io.github.term4.minestommechanics.api.event.KnockbackEvent#resolvedConfig()}).
+     * Resolves the plain values for a snapshot (its config merged over the defaults, against the hit context) - the
+     * exact values {@link #compute} will use. Cheap; backs {@link io.github.term4.minestommechanics.api.event.KnockbackEvent#resolvedConfig()}.
      */
     public KnockbackConfigResolver.ResolvedKnockbackConfig resolveConfig(KnockbackSnapshot snap) {
         KnockbackConfig merged = snap.config() != null ? snap.config().fromBase(defaults) : defaults;
@@ -68,17 +65,15 @@ public final class KnockbackCalculator {
         DirAndStrength extraKb = hasExtra ? resolveDS(raw, cfg, true) : null;
 
         Vec kb = normKb.direction().mul(normKb.h(), normKb.v(), normKb.h());
-        // Vanilla scales the extra HORIZONTALLY by the level (i * 0.5F in EntityHuman.attack) while the
-        // vertical stays fixed regardless of level - extraHorizontal is the per-level unit.
+        // vanilla scales the extra horizontally by level; vertical is fixed
         Vec kbe = extraKb != null
                 ? extraKb.direction().mul(extraKb.h() * extraLevel, extraKb.v(), extraKb.h() * extraLevel)
                 : null;
 
         double iFH = frictionCoeff(or(cfg.frictionH(), 0), cfg.frictionModeH());
         double iFV = frictionCoeff(or(cfg.frictionV(), 0), cfg.frictionModeV());
-        // Velocity tracking method, resolved ONCE here: KnockbackConfig override -> the victim's scoped profile
-        // velocity (MechanicsProfile.velocity, where presets set it) -> VelocityRule.DEFAULT. The resolved rule is
-        // threaded onto the component context below so a custom component reads the SAME velocity (ctx.victimVelocity()).
+        // velocity rule resolved once (config override -> victim scope -> DEFAULT); threaded onto the component ctx so a
+        // custom component reads the same velocity
         VelocityRule velRule = cfg.velocity();
         if (velRule == null) velRule = services.profiles().velocityFor(t);
         if (velRule == null) velRule = VelocityRule.DEFAULT;
@@ -96,9 +91,7 @@ public final class KnockbackCalculator {
             if (cfg.extraVerticalBounds() != null) kbVec = applyVerticalBounds(kbVec, cfg.extraVerticalBounds());
         }
 
-        // Custom knockback components. They run on a context carrying the resolved velocity rule, so a component
-        // (e.g. Minemen's axial drag / cap-hold) reads ctx.victimVelocity() - the same velocity folded above -
-        // instead of pinning a rule onto the config.
+        // custom components, on a ctx carrying the resolved velocity rule (so they read the same victim velocity)
         if (cfg.customComponents() != null) {
             KnockbackConfigResolver.KnockbackContext compCtx = ctx.withVelocity(velRule);
             for (KnockbackComponent comp : cfg.customComponents()) {
@@ -107,14 +100,15 @@ public final class KnockbackCalculator {
             }
         }
 
+        // 26.1 onGround gate: an airborne victim keeps its own motY (no vertical lift); 1.8 always lifts. applied last
+        if (Boolean.FALSE.equals(cfg.airborneVertical()) && !MotionTracker.onGround(t)) {
+            kbVec = new Vec(kbVec.x(), vel.y(), kbVec.z());
+        }
+
         return new Vec(kbVec.x() * tps, kbVec.y() * tps, kbVec.z() * tps);
     }
 
-    /**
-     * The extra-knockback level for this hit - vanilla {@code EntityHuman.attack}'s {@code i}: the Knockback
-     * enchant level plus {@code 1} when the attacker is (recently) sprinting, applied only to melee hits. The
-     * extra term's horizontal magnitude scales linearly with it. {@code 0} = no extra.
-     */
+    /** The extra-knockback level (vanilla {@code i}): +1 when the attacker was recently sprinting, melee only. {@code 0} = none. */
     private int extraLevel(KnockbackSnapshot snap, KnockbackConfigResolver.ResolvedKnockbackConfig cfg) {
         if (!snap.melee()) return 0;
         Entity a = snap.source();

@@ -9,11 +9,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.function.Consumer;
 
 /**
- * Pluggable hit detection: mounts listeners under the attack system's node that turn raw input into
- * {@link AttackSnapshot}s and feed them to the pipeline. Pass implementations to
- * {@link AttackSystem#install(io.github.term4.minestommechanics.MinestomMechanics, AttackConfig, HitDetection...)}
- * - none given installs {@link #PACKET}; combine several (e.g. packet + a preset's swing raycast) by
- * passing them all. Detection that needs no listener can skip this entirely and call
+ * Pluggable hit detection: mounts listeners under the attack node that turn raw input into {@link AttackSnapshot}s and
+ * feed them to the pipeline. None given installs {@link #PACKET}; combine several by passing them all, or call
  * {@link AttackSystem#apply} directly.
  */
 @FunctionalInterface

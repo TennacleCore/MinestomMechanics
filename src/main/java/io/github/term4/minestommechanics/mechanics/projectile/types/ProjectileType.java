@@ -12,15 +12,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Base for a projectile type registered in the {@code ProjectileSystem} (the analog of {@code DamageType}).
- * Identifies a projectile (snowball, arrow, ...), maps to a Minestom {@link EntityType}, optionally carries
- * intrinsic {@link #defaultConfig() defaults} (most types are config-free - their tuning lives in the preset's
- * {@code ProjectileConfig}), and - for self-driven types - wires its launch trigger in {@link #enable}
- * (e.g. a snowball listens for the item use and calls {@link ProjectileSystem#launch}).
- *
- * <p>{@link #createEntity} produces the flying entity; the default is a generic {@link ManagedProjectile}
- * (knockback + damage on hit from the resolved config). Subclasses with extra behavior (arrow pickup/stick,
- * bobber hooking) override it. The launcher stamps the entity (bounding box, aerodynamics, sync, velocity).
+ * Base for a projectile type in the {@code ProjectileSystem} (the analog of {@code DamageType}): identifies a
+ * projectile, maps to a Minestom {@link EntityType}, optionally carries intrinsic {@link #defaultConfig() defaults},
+ * and - for self-driven types - wires its launch trigger in {@link #enable}. {@link #createEntity} produces the flying
+ * entity (default a generic {@link ManagedProjectile}); subclasses with extra behavior (arrow) override it.
  */
 public abstract class ProjectileType {
 
@@ -33,18 +28,12 @@ public abstract class ProjectileType {
     private final EntityType entityType;
     private final ProjectileTypeConfig defaultConfig;
 
-    /**
-     * Config-free type: identity + behavior only, all tuning lives in the preset's {@code ProjectileConfig}
-     * (its generic defaults plus this type's per-type entry). Preferred for built-in and custom types alike.
-     */
+    /** Config-free type: identity + behavior only, all tuning lives in the preset's {@code ProjectileConfig}. */
     protected ProjectileType(Key key, String name, EntityType entityType) {
         this(key, name, entityType, NO_DEFAULTS);
     }
 
-    /**
-     * Type with intrinsic defaults baked in (for a type that ships its own sensible tuning); a preset's generic
-     * defaults and per-type override still layer on top per the resolver chain.
-     */
+    /** Type with intrinsic defaults baked in; a preset's defaults + per-type override still layer on top. */
     protected ProjectileType(Key key, String name, EntityType entityType, ProjectileTypeConfig defaultConfig) {
         this.key = key;
         this.name = name;

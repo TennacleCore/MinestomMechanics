@@ -12,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-// TODO: Create ONE ticker, and attach sub tickers (environment, other stuff, everything) to that main ticker.
+// TODO: one main ticker with sub-tickers (environment, etc.) attached
 /**
  * Single {@link EntityTickEvent} listener for self-driven environmental producers (cactus, burning).
  * Mounted under {@code mm:trackers} when the damage system first binds; producers register/unregister

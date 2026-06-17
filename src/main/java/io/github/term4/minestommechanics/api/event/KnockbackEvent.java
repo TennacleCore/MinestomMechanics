@@ -50,10 +50,9 @@ public final class KnockbackEvent implements CancellableEvent {
     public void config(@Nullable KnockbackConfig config) { finalSnap(finalSnap().withConfig(config)); }
 
     /**
-     * The effective plain values this hit will be calculated with: the {@link #config() current config} (else the
-     * system config) merged over the calculator defaults and resolved against this hit. Re-resolved from the
-     * <em>current</em> {@link #finalSnap()} on every call - cheap - so it always reflects listener changes
-     * ({@link #config(KnockbackConfig)} etc.) and always matches what the calculator will actually use.
+     * The effective plain values this hit will be calculated with: the {@link #config() current config}
+     * (else the system config) merged over the calculator defaults and resolved against this hit.
+     * Re-resolved from the current {@link #finalSnap()} on each call, so it tracks listener changes.
      */
     public KnockbackConfigResolver.ResolvedKnockbackConfig resolvedConfig() { return resolver.apply(finalSnap()); }
 

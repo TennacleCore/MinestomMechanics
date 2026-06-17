@@ -1,4 +1,4 @@
-package io.github.term4.minestommechanics.mechanics.damage.types.playerattack;
+package io.github.term4.minestommechanics.mechanics.damage.types.melee;
 
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import net.minestom.server.entity.LivingEntity;
@@ -11,15 +11,9 @@ import java.util.Map;
 import static java.util.Map.entry;
 
 /**
- * The 1.8 weapon damage table: total melee damage per held item, including the player's base
- * {@code 1.0} attack-damage attribute (vanilla 1.8: base 1.0 + the item's attack-damage modifier;
- * sword modifier = 3 + material bonus, axe = 2 + bonus, pickaxe = 1 + bonus, shovel = 0 + bonus,
- * with material bonuses wood/gold 0, stone 1, iron 2, diamond 3). Anything not listed - fist,
- * blocks, hoes - deals {@link #FIST_DAMAGE}.
- *
- * <p>This backs the default melee {@code baseAmount}; servers override it per item (or disable the
- * table) via {@code PlayerAttackConfig.builder().baseAmount(...)}. Enchant/effect/armor math is
- * deliberately absent - the future attribute system injects there.
+ * The 1.8 weapon damage table: total melee damage per held item (base 1.0 attribute + the item's attack-damage
+ * modifier). Anything unlisted - fist, blocks, hoes - deals {@link #FIST_DAMAGE}. Backs the default melee
+ * {@code baseAmount}; override per item via {@code MeleeDamageConfig.baseAmount(...)}. Enchant/effect/armor math is deferred.
  */
 public final class LegacyWeaponDamage {
 

@@ -2,10 +2,11 @@ package io.github.term4.minestommechanics;
 
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
+import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.player.PlayerConfig;
-import io.github.term4.minestommechanics.tracking.VelocityRule;
+import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
@@ -16,12 +17,12 @@ import java.util.function.Function;
 
 /**
  * Scoped {@link MechanicsProfile} registry: assign profiles per player, per instance (world), or globally,
- * and swap them at runtime (configs are immutable, so a swap is atomic and takes effect on the next hit -
- * nothing is cached; the {@code player} platform member is pushed by {@code PlayerConfigApplier} at
- * spawn and whenever an assignment changes). Resolution is per <em>member</em>, highest scope first:
+ * and swap them at runtime (configs are immutable, so a swap takes effect on the next hit; the {@code player}
+ * platform member is pushed by {@code PlayerConfigApplier} on change). Resolution is per <em>member</em>,
+ * highest scope first:
  * <pre>player profile -> instance profile -> global profile -> the system's install config</pre>
- * so a partial profile (e.g. knockback only) overrides just that system. A server may boot with nothing
- * assigned - every hit then uses the install configs exactly as before.
+ * so a partial profile (e.g. knockback only) overrides just that system. With nothing assigned, every hit
+ * uses the install configs.
  *
  * <p><b>Scope subject.</b> Attack resolves against the <em>attacker</em> (hit detection/ruleset is the
  * attacker's action); damage and knockback resolve against the <em>victim</em> (whose mechanics they are).
@@ -98,6 +99,11 @@ public final class MechanicsProfiles {
     /** Effective projectile config for {@code subject} (the shooter), or {@code null} when no scope sets one. */
     public @Nullable ProjectileConfig projectilesFor(@Nullable Entity subject) {
         return resolve(subject, MechanicsProfile::projectiles);
+    }
+
+    /** Effective client/protocol fixes config for {@code subject}, or {@code null} when no scope sets one. */
+    public @Nullable FixesConfig fixesFor(@Nullable Entity subject) {
+        return resolve(subject, MechanicsProfile::fixes);
     }
 
     private <T> @Nullable T resolve(@Nullable Entity subject, Function<MechanicsProfile, @Nullable T> member) {

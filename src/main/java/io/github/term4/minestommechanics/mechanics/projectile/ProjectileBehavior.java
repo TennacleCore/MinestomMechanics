@@ -5,12 +5,9 @@ import net.minestom.server.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Pluggable per-projectile behavior: changes what a projectile does on impact / stick / unstick / tick WITHOUT
- * subclassing the entity - the projectile analog of the attack system's {@code Ruleset} processor. Attach it as the
- * {@code behavior} knob on a {@code ProjectileTypeConfig} (per type) or per-launch via
- * {@link ProjectileSnapshot#withBehavior}. Every hook is a no-op by default, so a behavior overrides only what it
- * cares about and is ADDITIVE - the projectile's built-in effects (an egg's chicken, an arrow's stick/pickup) still
- * run. {@code hit} is the struck entity for {@link #onImpact}, or {@code null} for a block hit.
+ * Pluggable per-projectile behavior: changes what a projectile does on impact/stick/unstick/tick without subclassing -
+ * the projectile analog of the attack {@code Ruleset}. Attach via the {@code behavior} config knob or per-launch
+ * ({@link ProjectileSnapshot#withBehavior}). Every hook is a no-op by default and additive (built-in effects still run).
  */
 public interface ProjectileBehavior {
 
@@ -23,11 +20,10 @@ public interface ProjectileBehavior {
     /** Fired every tick the projectile is alive, after its built-in update. */
     default void onTick(ManagedProjectile projectile, long time) {}
 
-    /** Fired once a hit lands (entity OR block) and is not cancelled, after the damage/knockback pipeline, before removal. */
+    /** Fired once a hit lands (entity or block) and is not cancelled, after the damage/knockback pipeline, before removal. */
     default void onImpact(ManagedProjectile projectile, @Nullable Entity hit) {}
 
-    /** Fired when a hit does NOT remove the projectile - it bounced ({@code DEFLECT}) off or passed through {@code hit}
-     *  (the struck entity, or {@code null}); the projectile keeps flying. */
+    /** Fired when a hit doesn't remove the projectile (deflect / pass-through); it keeps flying. */
     default void onDeflect(ManagedProjectile projectile, @Nullable Entity hit) {}
 
     /** Fired when the projectile sticks in a block (arrows). */
