@@ -3,8 +3,9 @@ package io.github.term4.minestommechanics.tracking.motion;
 import io.github.term4.minestommechanics.MechanicsProfiles;
 import io.github.term4.minestommechanics.tracking.Tracker;
 import io.github.term4.minestommechanics.util.BlockContact;
-import io.github.term4.minestommechanics.util.TickClock;
-import net.minestom.server.MinecraftServer;
+import io.github.term4.minestommechanics.util.tick.TickSystem;
+import io.github.term4.minestommechanics.util.tick.TickPhase;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.collision.BoundingBox;
@@ -20,6 +21,7 @@ import net.minestom.server.entity.vehicle.PlayerInputs;
 import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerMoveEvent;
+import net.minestom.server.event.player.PlayerSpawnEvent;
 import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
@@ -27,7 +29,6 @@ import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.registry.RegistryTag;
 import net.minestom.server.registry.TagKey;
 import net.minestom.server.tag.Tag;
-import net.minestom.server.timer.TaskSchedule;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -106,9 +107,6 @@ public final class MotionTracker implements Tracker {
     private static final double FLUID_SWIM_STEP = 0.04; // jump/sneak in a fluid
     private static final double LIQUID_EDGE_BUMP = 0.3; // swim into a wall with headroom
     private static final double BLOCK_SPEED_FACTOR = 0.4; // soul sand / honey
-
-    /** TEMP velocity-parity diagnosis: per-tick log of the reconstructed deltaMovement, to diff vs an instrumented MC26 Paper server. */
-    private static final boolean DEBUG_VEL = false;
     private static final double FLOW_IMPULSE = 0.014;   // water current scale
     private static final double LAVA_FLOW_IMPULSE = 0.0023333333333333335; // 26 overworld lava current scale
 
@@ -151,13 +149,15 @@ public final class MotionTracker implements Tracker {
 
     public MotionTracker(MechanicsProfiles profiles) { this.profiles = profiles; }
 
-    /** Starts the per-tick ground-state fallback poll (a tick behind {@link #onMove}; catches status-only onGround packets). */
+    /**
+     * Registers the per-tick ground-state fallback poll (a tick behind {@link #onMove}; catches status-only onGround
+     * packets). Runs in the {@link TickSystem}'s {@link TickPhase#PRE_DISPATCH} phase - after the clock advances, before the
+     * dispatcher ticks entities - so the poll, {@link #onMove}, and every residual read see one clock value per physical
+     * tick (same phase discipline as the i-frame window and the hit queue).
+     */
     @Override
     public void start() {
-        MinecraftServer.getSchedulerManager()
-                .buildTask(this::tick)
-                .repeat(TaskSchedule.tick(1))
-                .schedule();
+        TickSystem.register(TickPhase.PRE_DISPATCH, ctx -> tick(ctx.instance()));
     }
 
     /** Listener anchoring the air clock + move-delta to the client's own move packets (ping-invariant). */
@@ -165,12 +165,34 @@ public final class MotionTracker implements Tracker {
     public EventNode<@NotNull PlayerEvent> node() {
         EventNode<@NotNull PlayerEvent> node = EventNode.type("mm:motion-tracker", EventFilter.PLAYER);
         node.addListener(PlayerMoveEvent.class, this::onMove);
+        // Instance change jumps position and switches per-instance clocks, so wipe the whole tracked-motion timeline;
+        // it reseeds from the next move packet.
+        node.addListener(PlayerSpawnEvent.class, e -> clearTransient(e.getPlayer()));
         return node;
+    }
+
+    /**
+     * Drops every per-player tracked-motion tag on {@link PlayerSpawnEvent} (join / instance change): a teleport breaks
+     * the move baseline and the clock-anchored stamps (AIR_START_TICK, MOT_H, LAUNCH_STAMP) belong to the old instance's
+     * {@link TickSystem}. Reseeds from the next move packet.
+     */
+    public static void clearTransient(Player p) {
+        p.removeTag(AIR_START_TICK);
+        p.removeTag(LAUNCHED);
+        p.removeTag(MOVE_VELOCITY);
+        p.removeTag(MOVE_PREV);
+        p.removeTag(LAUNCH_STAMP);
+        p.removeTag(MOT_H);
+        p.removeTag(ENTITY_PUSH);
+        p.removeTag(FLOW_PUSH);
+        p.removeTag(FLOW_MODEL);
+        p.removeTag(VERT_SIM);
+        p.removeTag(ENV);
     }
 
     private void onMove(PlayerMoveEvent e) {
         Player p = e.getPlayer();
-        long now = TickClock.now();
+        long now = TickSystem.instanceTick(p);
         boolean nowOnGround = e.isOnGround();
         Pos newPos = e.getNewPosition();
         // compare vs the previous packet so transition detection is independent of event/move ordering
@@ -203,7 +225,7 @@ public final class MotionTracker implements Tracker {
         }
     }
 
-    /** Latches a launch: folds the {@link #SPRINT_IMPULSE} boost onto the bled residual as the takeoff seed, re-anchors airborne, and seeds the sim's motY to {@code 0.42}. */
+    /** Latches a launch: folds the {@link #SPRINT_IMPULSE} boost onto the bled residual as the takeoff seed, re-anchors airborne, and seeds the sim's motY ({@code 0.42} + Jump Boost). */
     private static void latchLaunch(Player p, long now, double yaw) {
         boolean sprinting = p.isSprinting();
         Vec residual = residualAt(p, p.getTag(MOT_H), now);
@@ -212,14 +234,26 @@ public final class MotionTracker implements Tracker {
         p.setTag(MOT_H, new MotState(seedH, now, true));
         p.setTag(LAUNCHED, true);
         p.setTag(LAUNCH_STAMP, new LaunchStamp(now, yaw, sprinting, residual, seedH));
-        // a rising departure seeds motY 0.42 (jumps + ground KB alike), like bF() firing after m()
+        // a rising departure seeds motY (jumps + ground KB alike), like bF() firing after m(): the float-exact 0.42 base
+        // plus Jump Boost's +0.1/level off the live effect (Via forwards the effect to 1.8, so the client jumps higher in lockstep)
         VertSim sim = p.getTag(VERT_SIM);
         if (sim != null) {
-            // TODO(attributes): seed from the JUMP_STRENGTH attribute + jump boost once that package exists (keep the float-exact 0.42)
-            sim.clamped[0] = VelocityConfig.JUMP_VELOCITY;
-            sim.raw[0] = VelocityConfig.JUMP_VELOCITY;
+            double seedY = jumpSeed(VelocityConfig.JUMP_VELOCITY, p.getEffectLevel(PotionEffect.JUMP_BOOST));
+            sim.clamped[0] = seedY;
+            sim.raw[0] = seedY;
             sim.collided = false;
         }
+    }
+
+    /**
+     * Vanilla jump takeoff motY: the {@code base} ({@link VelocityConfig#JUMP_VELOCITY}, the float-exact 0.42 wire value)
+     * plus Jump Boost's {@code +0.1 × level}. Both 1.8 ({@code bF()}) and 26 ({@code getJumpPower}) add the boost as a
+     * separate float term off the live effect, never an attribute, so it lives here like Levitation.
+     * {@code jumpBoostAmplifier} is {@link net.minestom.server.entity.Entity#getEffectLevel} ({@code -1} = no effect).
+     */
+    static double jumpSeed(double base, int jumpBoostAmplifier) {
+        if (jumpBoostAmplifier < 0) return base;
+        return base + (double) ((float) (jumpBoostAmplifier + 1) * 0.1f);
     }
 
     /** Vanilla {@code bF()} sprint-jump horizontal impulse for a facing yaw (b/t). */
@@ -232,7 +266,8 @@ public final class MotionTracker implements Tracker {
     private static Vec residualAt(Player p, MotState s, long now) {
         if (s == null) return Vec.ZERO;
         int ticks = (int) Math.max(0, now - s.sinceTick());
-        Vec decayed = s.motH().mul(Math.pow(frictionPerTick(p, s.airborne()), ticks));
+        // TPS scaling: drag^(clientTps/serverTps) per server tick makes the decay over real time TPS-invariant (identity at 20)
+        Vec decayed = s.motH().mul(Math.pow(TickScaler.dragPerTick(frictionPerTick(p, s.airborne())), ticks));
         return new Vec(clampNearZero(decayed.x()), 0, clampNearZero(decayed.z()));
     }
 
@@ -274,11 +309,12 @@ public final class MotionTracker implements Tracker {
         p.setTag(MOT_H, new MotState(residualAt(p, s, now), now, false));
     }
 
-    private void tick() {
-        for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+    private void tick(Instance instance) {
+        for (Player p : instance.getPlayers()) {
+            long now = TickSystem.instanceTick(p);
             // fallback, a tick behind onMove: catches status-only onGround packets (no PlayerMoveEvent)
             if (p.isOnGround()) {
-                freezeOnLanding(p, TickClock.now());
+                freezeOnLanding(p, now);
                 p.removeTag(AIR_START_TICK);
                 p.removeTag(LAUNCHED);
             }
@@ -288,7 +324,7 @@ public final class MotionTracker implements Tracker {
             boolean modernBlocks = VelocityRule.modernBlockPhysicsEnabled(rule);
             FluidFlow.Model flowModel = VelocityRule.flowModel(rule);
             p.setTag(FLOW_MODEL, flowModel); // for the lazy frictionPerTick
-            Env env = tickEnvironment(p, TickClock.now(), environmentOf(p,
+            Env env = tickEnvironment(p, now, environmentOf(p,
                     VelocityRule.fluidPhysicsEnabled(rule),
                     VelocityRule.climbPhysicsEnabled(rule),
                     VelocityRule.webPhysicsEnabled(rule),
@@ -302,19 +338,6 @@ public final class MotionTracker implements Tracker {
             if (VelocityRule.flowPushEnabled(rule))
                 tickFlowPush(p, env, flowModel, VelocityRule.flowLavaEnabled(rule));
             else p.removeTag(FLOW_PUSH);
-            if (DEBUG_VEL && p.getInstance() != null) {
-                VertSim vs = p.getTag(VERT_SIM);
-                Vec h = residualAt(p, p.getTag(MOT_H), TickClock.now()); // sprint-impulse residual
-                Vec flow = p.getTag(FLOW_PUSH);                          // flow residual
-                double fx = flow != null ? flow.x() : 0.0, fz = flow != null ? flow.z() : 0.0;
-                double motY = vs != null ? vs.raw[0] : 0.0;
-                // skip idle-on-ground spam
-                if (env != Env.NORMAL || !p.isOnGround() || h.x() != 0 || h.z() != 0 || fx != 0 || fz != 0) {
-                    System.out.printf(java.util.Locale.ROOT, "[VEL-MM] %s blk=%s env=%s motY=%+.5f motH=(%+.5f,%+.5f) flow=(%+.5f,%+.5f) dy=%+.5f ground=%b%n",
-                            p.getUsername(), p.getInstance().getBlock(p.getPosition()).name(), env,
-                            motY, h.x(), h.z(), fx, fz, positionDelta(p).y(), p.isOnGround());
-                }
-            }
         }
     }
 
@@ -355,14 +378,15 @@ public final class MotionTracker implements Tracker {
             OptionalDouble climbUp = climbModel.climbUpMotY(positionDelta(p).y());
             if (climbUp.isPresent()) { c = climbUp.getAsDouble(); r = climbUp.getAsDouble(); }
         }
+        // TPS scaling: fluid drag^(clientTps/serverTps), gravity × (clientTps/serverTps)², and b/t impulses/caps re-rated. Identity at 20.
         switch (env) {
             // swim input on top of the fluid drag
-            case WATER -> { double wg = flowModel.waterGravity(p.isSprinting()); double k = fluidSwim(p); boolean eb = edgeBump(p); shift(sim.clamped, eb ? LIQUID_EDGE_BUMP : c * WATER_VERTICAL - wg + k); shift(sim.raw, eb ? LIQUID_EDGE_BUMP : r * WATER_VERTICAL - wg + k); }
-            case LAVA  -> { double k = fluidSwim(p); boolean eb = edgeBump(p); shift(sim.clamped, eb ? LIQUID_EDGE_BUMP : c * LAVA_VERTICAL - FLUID_GRAVITY + k); shift(sim.raw, eb ? LIQUID_EDGE_BUMP : r * LAVA_VERTICAL - FLUID_GRAVITY + k); }
+            case WATER -> { double wg = TickScaler.gravityPerTick(flowModel.waterGravity(p.isSprinting())); double k = fluidSwim(p); double bump = TickScaler.impulse(LIQUID_EDGE_BUMP); double dr = TickScaler.dragPerTick(WATER_VERTICAL); boolean eb = edgeBump(p); shift(sim.clamped, eb ? bump : c * dr - wg + k); shift(sim.raw, eb ? bump : r * dr - wg + k); }
+            case LAVA  -> { double k = fluidSwim(p); double bump = TickScaler.impulse(LIQUID_EDGE_BUMP); double dr = TickScaler.dragPerTick(LAVA_VERTICAL); double fg = TickScaler.gravityPerTick(FLUID_GRAVITY); boolean eb = edgeBump(p); shift(sim.clamped, eb ? bump : c * dr - fg + k); shift(sim.raw, eb ? bump : r * dr - fg + k); }
             // bubble: water drag, then the column drag toward its cap
-            case BUBBLE -> { double wg = flowModel.waterGravity(p.isSprinting()); boolean dn = bubbleDown(p); shift(sim.clamped, bubbleStep(c * WATER_VERTICAL - wg, dn)); shift(sim.raw, bubbleStep(r * WATER_VERTICAL - wg, dn)); }
+            case BUBBLE -> { double wg = TickScaler.gravityPerTick(flowModel.waterGravity(p.isSprinting())); double dr = TickScaler.dragPerTick(WATER_VERTICAL); boolean dn = bubbleDown(p); shift(sim.clamped, bubbleStep(c * dr - wg, dn)); shift(sim.raw, bubbleStep(r * dr - wg, dn)); }
             // honey: floor a descent at the slide speed
-            case HONEY -> { shift(sim.clamped, Math.max(airStep(p, c, g, s), HONEY_SLIDE)); shift(sim.raw, Math.max(airStep(p, r, g, s), HONEY_SLIDE)); }
+            case HONEY -> { double slide = TickScaler.impulse(HONEY_SLIDE); shift(sim.clamped, Math.max(airStep(p, c, g, s), slide)); shift(sim.raw, Math.max(airStep(p, r, g, s), slide)); }
             default    -> { shift(sim.clamped, airStep(p, c, g, s)); shift(sim.raw, airStep(p, r, g, s)); } // normal + ladder
         }
         sim.collided = collidedC;
@@ -373,7 +397,7 @@ public final class MotionTracker implements Tracker {
         PlayerInputs in = p.inputs();
         double up = !p.isOnGround() && in.jump() ? FLUID_SWIM_STEP : 0;
         double down = in.shift() ? FLUID_SWIM_STEP : 0;
-        return up - down;
+        return TickScaler.impulse(up - down); // per-tick b/t impulse -> server rate (identity at 20)
     }
 
     /**
@@ -392,7 +416,8 @@ public final class MotionTracker implements Tracker {
 
     /** One bubble-column vertical step: motY drags toward the column cap (26 {@code Entity.handleOnInsideBubbleColumn}) - up if soul-sand based, down if magma based. */
     private static double bubbleStep(double v, boolean down) {
-        return down ? Math.max(BUBBLE_DOWN_CAP, v - BUBBLE_DOWN_STEP) : Math.min(BUBBLE_UP_CAP, v + BUBBLE_UP_STEP);
+        return down ? Math.max(TickScaler.impulse(BUBBLE_DOWN_CAP), v - TickScaler.impulse(BUBBLE_DOWN_STEP))
+                : Math.min(TickScaler.impulse(BUBBLE_UP_CAP), v + TickScaler.impulse(BUBBLE_UP_STEP));
     }
 
     /** Whether the bubble column at the player's feet drags DOWN (magma base, {@code drag=true}) vs up (soul-sand base). */
@@ -431,10 +456,12 @@ public final class MotionTracker implements Tracker {
      * 26-only, applied only when the effect is present.
      */
     private static double airStep(Player p, double v, double g, double s) {
+        // TPS scaling: gravity × (clientTps/serverTps)² (b/t) and drag^(clientTps/serverTps) per server tick; identity at 20
+        double drag = TickScaler.dragPerTick(s);
         int lev = p.getEffectLevel(PotionEffect.LEVITATION);
-        if (lev >= 0) return (v + (LEVITATION_BASE * (lev + 1) - v) * LEVITATION_RATE) * s;
+        if (lev >= 0) return (v + (LEVITATION_BASE * (lev + 1) - v) * LEVITATION_RATE) * drag;
         double gEff = v <= 0 && p.hasEffect(PotionEffect.SLOW_FALLING) ? Math.min(g, SLOW_FALL_GRAVITY) : g;
-        return (v - gEff) * s;
+        return (v - TickScaler.gravityPerTick(gEff)) * drag;
     }
 
     /** On a movement {@link Env} transition, re-anchors the residual at the boundary (web zeroes it; ladder clamps to +-{@link #LADDER_CLAMP}) so each segment bleeds by its own friction. Returns {@code env}. */
@@ -636,7 +663,7 @@ public final class MotionTracker implements Tracker {
         if (entity == null) return 0;
         Long start = entity.getTag(AIR_START_TICK);
         if (start == null) return 0;
-        return (int) Math.max(0, TickClock.now() - start);
+        return (int) Math.max(0, TickSystem.instanceTick(entity) - start);
     }
 
     /** Whether the entity is in an upward-launched arc (jump/KB boost) vs a ledge walk-off. Cleared on landing or flight. */
@@ -658,7 +685,7 @@ public final class MotionTracker implements Tracker {
      */
     public static Vec horizontalMot(Entity entity, int tickOffset) {
         if (!(entity instanceof Player p)) return Vec.ZERO;
-        return residualAt(p, p.getTag(MOT_H), TickClock.now() + tickOffset);
+        return residualAt(p, p.getTag(MOT_H), TickSystem.instanceTick(p) + tickOffset);
     }
 
     /**
@@ -669,7 +696,7 @@ public final class MotionTracker implements Tracker {
         if (!(entity instanceof Player p)) return;
         MotState s = p.getTag(MOT_H);
         if (s == null) return;
-        long now = TickClock.now();
+        long now = TickSystem.instanceTick(p);
         Vec bled = residualAt(p, s, now);
         p.setTag(MOT_H, new MotState(bled.mul(factor), now, s.airborne()));
     }
@@ -724,7 +751,9 @@ public final class MotionTracker implements Tracker {
         if (sim != null) return sim.clamped[0];
         int air = ticksInAir(p);
         double vy = launched(p) ? VelocityConfig.JUMP_VELOCITY : 0.0;
-        for (int i = 0; i < air; i++) vy = (vy - g) * s;
+        // air is in server ticks; step the arc with TPS-scaled gravity/drag so the fallback matches the sim (identity at 20)
+        double gp = TickScaler.gravityPerTick(g), sp = TickScaler.dragPerTick(s);
+        for (int i = 0; i < air; i++) vy = (vy - gp) * sp;
         return vy;
     }
 

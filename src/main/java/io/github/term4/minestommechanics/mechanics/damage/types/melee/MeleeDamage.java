@@ -1,6 +1,10 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.melee;
 
 import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.mechanics.attribute.Attribute;
+import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfigResolver.AttributeContext;
+import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
+import io.github.term4.minestommechanics.mechanics.attribute.combat.CombatFacts;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
@@ -8,6 +12,7 @@ import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,9 +32,11 @@ public final class MeleeDamage extends DamageType {
     }
 
     /**
-     * Builds a melee snapshot for a hit with {@code item} (vanilla 1.8 computes the amount from it, see
-     * {@link LegacyWeaponDamage}), applying the crit multiplier when {@code critical}. Resolves the active
-     * {@link MeleeDamageConfig} and bakes the final amount.
+     * Builds a melee snapshot for a hit with {@code item}, in vanilla order:
+     * <pre>attackDamage (1.8 weapon table + modifiers) → crit (×multiplier) → + melee flat-add (Sharpness)</pre>
+     * The attack-damage and flat-add terms read attribute <em>values</em> through the {@link AttributeSystem} - never a
+     * specific enchant/potion - so adding a contributor is a registration, not an edit here. With no contributors active
+     * (or the system absent), this reduces 1:1 to the old table×crit behavior.
      */
     public DamageSnapshot snapshot(Entity attacker, Entity target, boolean critical, @Nullable ItemStack item,
                                    Services services) {
@@ -38,12 +45,26 @@ public final class MeleeDamage extends DamageType {
         DamageSystem dmg = services != null ? services.damage() : null;
         DamageContext ctx = dmg != null ? dmg.contextFor(prelim) : DamageContext.of(prelim, services);
         MeleeDamageConfig cfg = ctx.typeConfig() instanceof MeleeDamageConfig p ? p : DEFAULT;
-        Double base = cfg.baseAmount(ctx);
-        float amount = base != null ? base.floatValue() : 0f;
+
+        // attackDamage: the 1.8 weapon table is the base, folded with attack-damage modifiers (Strength)
+        Double tableBase = cfg.baseAmount(ctx);
+        float amount = tableBase != null ? tableBase.floatValue() : 0f;
+
+        AttributeSystem attrs = services != null ? services.attributes() : null;
+        AttributeContext actx = (attrs != null && attacker instanceof LivingEntity le)
+                ? attrs.context(le, item != null ? item : le.getItemInMainHand()).with(CombatFacts.TARGET, target)
+                : null;
+        if (actx != null) amount = (float) actx.value(Attribute.ATTACK_DAMAGE, amount);
+
+        // crit: ×multiplier (1.8 = 1.5), before the flat-add per vanilla order
         if (critical) {
             Double crit = cfg.critMultiplier(ctx);
             if (crit != null) amount *= crit.floatValue();
         }
+
+        // melee flat-add (Sharpness etc.), after crit
+        if (actx != null) amount += (float) actx.value(Attribute.MELEE_FLAT_ADD, 0);
+
         return prelim.withAmount(amount);
     }
 }

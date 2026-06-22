@@ -2,10 +2,14 @@ package io.github.term4.minestommechanics.mechanics.projectile.shootables;
 
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
-import io.github.term4.minestommechanics.mechanics.projectile.entities.ArrowEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.arrow.ArrowEntity;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.arrow.TippedArrows;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Infinity;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Arrow;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileType;
+import io.github.term4.minestommechanics.item.Enchants;
+import net.minestom.server.ServerFlag;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
@@ -15,12 +19,15 @@ import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 /**
  * Bow launcher ({@link Shootable}): a drawn-bow release fires an arrow. The bow item and the {@link Arrow} projectile
  * are distinct - the arrow type stays pure identity, the bow lives here. Pass {@code new Bow()} to {@link ProjectileSystem#install}.
  *
- * <p>Vanilla 1.8: draw power {@code (s^2 + 2s)/3} capped at 1, {@code < 0.1} fires nothing, full draw is critical;
- * consumes one arrow (unless creative); the arrow launches at speed {@code power * speed}.
+ * <p>Vanilla 1.8: draw power {@code (s^2 + 2s)/3} capped at 1, {@code < 0.1} fires nothing, full draw is critical
+ * (chance configurable via {@link #fullPowerCritChance}); consumes one arrow (unless creative); the arrow launches at
+ * speed {@code power * speed}.
  * TODO: gate the draw on having arrows, offhand selection, Infinity/Power/Punch/Flame (needs the enchant system).
  */
 public final class Bow implements Shootable {
@@ -29,12 +36,17 @@ public final class Bow implements Shootable {
     private static final float MIN_POWER = 0.1f;
 
     private final ProjectileType arrowType;
+    /** Probability a full-draw arrow is critical (vanilla: always, so {@code 1.0}); {@code 0.0} = never. */
+    private float fullPowerCritChance = 1.0f;
 
     /** A bow that fires the built-in {@link Arrow}. */
     public Bow() { this(Arrow.INSTANCE); }
 
     /** A bow that fires a custom arrow type (its entity must be an {@link ArrowEntity} for crit/pickup wiring). */
     public Bow(ProjectileType arrowType) { this.arrowType = arrowType; }
+
+    /** Sets the chance a full-draw arrow crits ({@code [0,1]}; default {@code 1.0} = vanilla always-crit). Returns this. */
+    public Bow fullPowerCritChance(float chance) { this.fullPowerCritChance = chance; return this; }
 
     @Override
     public void install(@NotNull EventNode<@NotNull Event> node, @NotNull ProjectileSystem system) {
@@ -47,33 +59,46 @@ public final class Bow implements Shootable {
         float power = drawPower(e.getUseDuration());
         if (power < MIN_POWER) return; // too short a draw - no shot
         boolean creative = p.getGameMode() == GameMode.CREATIVE;
-        if (!creative && !consumeArrow(p)) return; // no arrow to fire
+        int slot = firstArrowSlot(p);           // first plain/tipped/spectral arrow in the quiver
+        if (slot < 0 && !creative) return;      // survival/Infinity still need an arrow
+        ItemStack arrowItem = slot >= 0 ? p.getInventory().getItemStack(slot) : ItemStack.AIR; // the (tipped?) ammo
+        // Infinity keeps only PLAIN arrows (vanilla); tipped/spectral are always consumed.
+        boolean keepArrow = creative || (Enchants.level(e.getItemStack(), Infinity.KEY) > 0 && arrowItem.material() == Material.ARROW);
+        if (!keepArrow && slot >= 0) p.getInventory().setItemStack(slot, arrowItem.withAmount(arrowItem.amount() - 1));
         ProjectileEntity proj = system.launch(ProjectileSnapshot.of(p, arrowType).withPower(power).withItem(e.getItemStack()));
         if (proj instanceof ArrowEntity arrow) {
-            // TODO: make crit configurable (some servers crit all full-power arrows)
-            arrow.setCritical(power >= 1f);
-            // Survival shot -> ALLOWED (collector keeps the arrow); creative shot -> CREATIVE_ONLY (no item).
-            arrow.setPickup(creative ? ArrowEntity.Pickup.CREATIVE_ONLY : ArrowEntity.Pickup.ALLOWED);
+            arrow.setCritical(power >= 1f && rollFullPowerCrit());
+            // A consumed (survival) shot -> ALLOWED (collector keeps the arrow); a kept shot (creative / Infinity) -> CREATIVE_ONLY (no pickup).
+            arrow.setPickup(keepArrow ? ArrowEntity.Pickup.CREATIVE_ONLY : ArrowEntity.Pickup.ALLOWED);
+            TippedArrows.apply(arrow, arrowItem); // stamp the ammo's potion payload (no-op for a plain arrow)
         }
     }
 
-    /** Vanilla bow power curve: {@code f = ticks/20; (f*f + 2f)/3}, capped at 1. */
+    /** Rolls the full-draw crit chance: always at {@code >= 1}, never at {@code <= 0}, else a per-shot roll. */
+    private boolean rollFullPowerCrit() {
+        if (fullPowerCritChance >= 1f) return true;
+        return fullPowerCritChance > 0f && ThreadLocalRandom.current().nextFloat() < fullPowerCritChance;
+    }
+
+    /** Vanilla bow power curve: {@code (f*f + 2f)/3} capped at 1, where {@code f} is the draw in real seconds (draw ticks / server TPS, not a hardcoded 20) so charge is TPS-invariant. */
     private static float drawPower(long useDurationTicks) {
-        float f = useDurationTicks / 20.0f;
+        float f = useDurationTicks / (float) ServerFlag.SERVER_TICKS_PER_SECOND;
         float power = (f * f + 2 * f) / 3.0f;
         return power > 1f ? 1f : power;
     }
 
-    /** Removes one arrow from the player's inventory (first {@link Material#ARROW} found); false if none. */
-    private static boolean consumeArrow(Player p) {
+    /** Inventory slot of the first arrow the bow can fire (plain / tipped / spectral), or {@code -1} if none. */
+    private static int firstArrowSlot(Player p) {
         var inv = p.getInventory();
         for (int i = 0; i < inv.getSize(); i++) {
-            ItemStack stack = inv.getItemStack(i);
-            if (stack.material() == Material.ARROW) {
-                inv.setItemStack(i, stack.withAmount(stack.amount() - 1));
-                return true;
-            }
+            if (isArrow(inv.getItemStack(i))) return i;
         }
-        return false;
+        return -1;
+    }
+
+    /** Whether {@code stack} is an arrow the bow fires (plain, tipped → potion payload, or spectral). */
+    private static boolean isArrow(ItemStack stack) {
+        Material m = stack.material();
+        return m == Material.ARROW || m == Material.TIPPED_ARROW || m == Material.SPECTRAL_ARROW;
     }
 }

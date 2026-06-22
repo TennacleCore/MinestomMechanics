@@ -137,6 +137,14 @@ public final class FallDamageConfig extends DamageTypeConfig {
         public Builder bypassInvul(Function<DamageContext, Boolean> fn) { common.bypassInvul(fn); return this; }
         public Builder bypassImmune(Boolean v) { common.bypassImmune(v); return this; }
         public Builder bypassImmune(Function<DamageContext, Boolean> fn) { common.bypassImmune(fn); return this; }
+        public Builder bypassArmor(Boolean v) { common.bypassArmor(v); return this; }
+        public Builder bypassArmor(Function<DamageContext, Boolean> fn) { common.bypassArmor(fn); return this; }
+        public Builder bypassEffects(Boolean v) { common.bypassEffects(v); return this; }
+        public Builder bypassEffects(Function<DamageContext, Boolean> fn) { common.bypassEffects(fn); return this; }
+        public Builder bypassEnchants(Boolean v) { common.bypassEnchants(v); return this; }
+        public Builder bypassEnchants(Function<DamageContext, Boolean> fn) { common.bypassEnchants(fn); return this; }
+        public Builder bypassAll(Boolean v) { common.bypassAll(v); return this; }
+        public Builder bypassAll(Function<DamageContext, Boolean> fn) { common.bypassAll(fn); return this; }
         public Builder ownsVelocityBroadcast(Boolean v) { common.ownsVelocityBroadcast(v); return this; }
         public Builder ownsVelocityBroadcast(Function<DamageContext, Boolean> fn) { common.ownsVelocityBroadcast(fn); return this; }
         public Builder subConfig(Function<DamageContext, DamageTypeConfig> fn) { common.subConfig(fn); return this; }

@@ -5,14 +5,23 @@ import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.ProjectileLaunchEvent;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedFlight;
-import io.github.term4.minestommechanics.mechanics.projectile.entities.ArrowEntity;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.arrow.ArrowEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.shootables.Shootable;
+import io.github.term4.minestommechanics.mechanics.projectile.types.Arrow;
+import io.github.term4.minestommechanics.mechanics.projectile.types.Egg;
+import io.github.term4.minestommechanics.mechanics.projectile.types.Pearl;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileType;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
+import io.github.term4.minestommechanics.mechanics.projectile.types.Snowball;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Flame;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Power;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Punch;
 import io.github.term4.minestommechanics.util.Directions;
+import io.github.term4.minestommechanics.item.Enchants;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.coordinate.Pos;
@@ -26,6 +35,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -36,12 +46,15 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class ProjectileSystem {
 
+    /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
+    public static final Key KEY = Key.key("mm:projectile");
+
     private final ProjectileConfig config;
     private final Services services;
     private final MinestomMechanics mm;
     private final EventNode<@NotNull Event> node;
     private final Map<Key, ProjectileType> types = new ConcurrentHashMap<>();
-    private final java.util.Set<Key> enabled = ConcurrentHashMap.newKeySet();
+    private final Set<Key> enabled = ConcurrentHashMap.newKeySet();
 
     public ProjectileSystem(MinestomMechanics mm, ProjectileConfig config) {
         this.mm = mm;
@@ -106,9 +119,10 @@ public final class ProjectileSystem {
     private static void stampFlight(ProjectileEntity entity, ResolvedFlight flight, ProjectileSnapshot snap) {
         entity.setBoundingBox(flight.boundingBox().width(), flight.boundingBox().height(), flight.boundingBox().depth());
         entity.setAerodynamics(new Aerodynamics(flight.gravity(), flight.verticalDrag(), flight.horizontalDrag()));
-        entity.setSynchronizationTicks(flight.syncInterval());
-        entity.setVelocitySyncInterval(flight.velocitySyncInterval());
-        entity.setShooterImmunityTicks(flight.shooterImmunityTicks());
+        // tick cadences/windows scaled to live TPS (identity at 20): sync teleport/velocity rate + the shooter-immunity window
+        entity.setSynchronizationTicks(TickScaler.duration(flight.syncInterval(), KEY));
+        entity.setVelocitySyncInterval(TickScaler.duration(flight.velocitySyncInterval(), KEY));
+        entity.setShooterImmunityTicks(TickScaler.duration(flight.shooterImmunityTicks(), KEY));
         entity.setEntityHitGrow(flight.entityHitGrow());
         entity.setPhysicsOrder(flight.physicsOrder());
         entity.setLeftOwnerImmunity(flight.leftOwnerImmunity());
@@ -122,6 +136,8 @@ public final class ProjectileSystem {
             arrow.setShakeTicks(flight.shakeTicks());
             if (flight.pickupBox() != null) arrow.setPickupBox(flight.pickupBox());
         }
+        // Power/Punch/Flame captured generically off the launching item - any projectile, so a preset may put them on non-arrows.
+        entity.setProjectileEnchants(Enchants.level(snap.item(), Power.KEY), Enchants.level(snap.item(), Punch.KEY), Enchants.level(snap.item(), Flame.KEY));
     }
 
     // Projectile spawn
@@ -180,10 +196,10 @@ public final class ProjectileSystem {
 
     /** Registers the built-in vanilla projectile types (data only; not enabled). */
     public ProjectileSystem registerVanillaDefaults() {
-        register(io.github.term4.minestommechanics.mechanics.projectile.types.Snowball.INSTANCE);
-        register(io.github.term4.minestommechanics.mechanics.projectile.types.Egg.INSTANCE);
-        register(io.github.term4.minestommechanics.mechanics.projectile.types.Pearl.INSTANCE);
-        register(io.github.term4.minestommechanics.mechanics.projectile.types.Arrow.INSTANCE);
+        register(Snowball.INSTANCE);
+        register(Egg.INSTANCE);
+        register(Pearl.INSTANCE);
+        register(Arrow.INSTANCE);
         return this;
     }
 

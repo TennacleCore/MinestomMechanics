@@ -6,6 +6,7 @@ import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.KnockbackEvent;
 import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
+import net.kyori.adventure.key.Key;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.event.Event;
@@ -19,6 +20,9 @@ import org.jetbrains.annotations.Nullable;
  * own (neither does vanilla); every {@link #apply} deals knockback and gating lives in the attack processor.
  */
 public final class KnockbackSystem {
+
+    /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
+    public static final Key KEY = Key.key("mm:knockback");
 
     private final KnockbackConfig config;
     private final KnockbackCalculator calc;
@@ -52,20 +56,21 @@ public final class KnockbackSystem {
         KnockbackSnapshot finalSnap = event.finalSnap();
 
         // Knockback requires a target
-        if (finalSnap.target() == null) return;
+        Entity target = finalSnap.target();
+        if (target == null) return;
+        KnockbackSnapshot cfgSnap = finalSnap.config() != null ? finalSnap : finalSnap.withConfig(configFor(target));
 
-        // Build knockback velocity vector
+        // Build the velocity. The computed path resolves the config once and reuses it for quantize below; an API velocity
+        // override skips compute, so it resolves lazily just for quantize.
         @Nullable Vec velocity;
-
-        // explicit velocity from the API wins
-        if (event.velocity() != null) { velocity = event.velocity(); }
-
-        // else compute from the snapshot (same config chain)
-        else {
-            velocity = finalSnap.config() != null
-                    ? calc.compute(finalSnap)
-                    : calc.compute(finalSnap.withConfig(configFor(finalSnap.target())));
-
+        @Nullable KnockbackConfigResolver.ResolvedKnockbackConfig resolved;
+        if (event.velocity() != null) {
+            velocity = event.velocity();
+            resolved = null;
+        } else {
+            KnockbackCalculator.KnockbackResult result = calc.computeResult(cfgSnap);
+            velocity = result != null ? result.velocity() : null;
+            resolved = result != null ? result.config() : null;
             // API direction + computed magnitude
             if (velocity != null && event.direction() != null) {
                 double mag = Math.sqrt(velocity.x() * velocity.x() + velocity.z() * velocity.z());
@@ -76,11 +81,9 @@ public final class KnockbackSystem {
 
         // vanilla broadcasts the KB but restores the victim's pre-KB server velocity, so it's never folded into the next
         // hit (the tracker isn't told). quantizeVelocity (default on) sends what a 1.8 server's wire encoding would.
-        // TODO(perf): config is resolved twice per hit (compute + here for quantize); fold into one when the event layer is restructured.
         if (velocity != null) {
-            Entity target = finalSnap.target();
-            KnockbackSnapshot cfgSnap = finalSnap.config() != null ? finalSnap : finalSnap.withConfig(configFor(target));
-            boolean quantize = !Boolean.FALSE.equals(calc.resolveConfig(cfgSnap).quantizeVelocity());
+            if (resolved == null) resolved = calc.resolveConfig(cfgSnap);
+            boolean quantize = !Boolean.FALSE.equals(resolved.quantizeVelocity());
             target.setVelocity(quantize ? LegacyVelocity.snap(velocity) : velocity);
         }
     }

@@ -1,10 +1,13 @@
-package io.github.term4.minestommechanics.mechanics.projectile;
+package io.github.term4.minestommechanics.mechanics.projectile.entities.arrow;
 
-import net.minestom.server.MinecraftServer;
+import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
+import io.github.term4.minestommechanics.util.tick.TickPhase;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
+import io.github.term4.minestommechanics.util.tick.TickSystem;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.metadata.LivingEntityMeta;
+import net.minestom.server.instance.Instance;
 import net.minestom.server.tag.Tag;
-import net.minestom.server.timer.TaskSchedule;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,19 +53,22 @@ public final class StuckArrows {
     /** Removes all stuck arrows from {@code entity}. */
     public static void clear(LivingEntity entity) { set(entity, 0); }
 
-    /** Lazily starts the single global fall-out task (vanilla cadence {@code 20 * (30 - count)} ticks per arrow). */
+    /** Lazily registers the fall-out decay on the {@link TickSystem} (vanilla cadence {@code 20 * (30 - count)} ticks per arrow). */
     private static void ensureDecayTask() {
         if (!decayStarted.compareAndSet(false, true)) return;
-        MinecraftServer.getSchedulerManager().buildTask(StuckArrows::tickDecay).repeat(TaskSchedule.tick(1)).schedule();
+        // Per-instance tick via the TickSystem (each entity decays on its own instance's tick), not a global scheduler task.
+        // Registered once for the JVM; the tracked set self-empties as arrows fall out.
+        TickSystem.register(TickPhase.DEFAULT, ctx -> tickDecay(ctx.instance()));
     }
 
-    private static void tickDecay() {
+    private static void tickDecay(Instance instance) {
         tracked.removeIf(entity -> {
             if (entity.isRemoved() || !(entity.getEntityMeta() instanceof LivingEntityMeta m)) return true;
+            if (entity.getInstance() != instance) return false; // only on the entity's own instance tick - leave it otherwise
             int count = m.getArrowCount();
             if (count <= 0) return true;
             Integer t = entity.getTag(REMOVE_TIME);
-            int time = (t == null || t <= 0) ? 20 * (30 - count) : t; // recompute when the previous arrow fell out
+            int time = (t == null || t <= 0) ? TickScaler.duration(20 * (30 - count), ProjectileSystem.KEY) : t; // vanilla cadence, scaled
             if (--time <= 0) {
                 m.setArrowCount(count - 1);
                 entity.setTag(REMOVE_TIME, 0);

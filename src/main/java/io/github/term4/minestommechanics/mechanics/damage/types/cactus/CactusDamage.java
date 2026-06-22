@@ -1,21 +1,23 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.cactus;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.mechanics.damage.DamageProducers;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
+import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalDamageTicker;
 import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalTickProducer;
-import io.github.term4.minestommechanics.tracking.EnvironmentalDamageTicker;
 import io.github.term4.minestommechanics.util.BlockContact;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
 import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.LivingEntity;
-import net.minestom.server.event.entity.EntityTickEvent;
 import net.minestom.server.instance.block.Block;
 
+// onTouch investigated, rejected: it fires on the block's collision shape (fits cactus's inset box; confirms fire/lava
+//  never fire it - fluids have no shape), but only for blocks carrying a BlockHandler - which would mean every cactus
+//  block in every world placed with one, something a library can't guarantee. The entity-side scan below is
+//  world-agnostic, so it stays. Revisit only if the lib owns block placement.
 /**
  * Cactus contact damage ({@code minecraft:cactus}). Vanilla 1.8: 1.0 damage attempted every tick while overlapping a
  * cactus collision shape (inset 1/16, not the full cell); the invul window gates the cadence. Self-driven via
@@ -34,7 +36,7 @@ public final class CactusDamage extends DamageType implements EnvironmentalTickP
 
     @Override
     public void enable(DamageSystem system, MinestomMechanics mm) {
-        EnvironmentalDamageTicker.instance().bind(system, mm);
+        EnvironmentalDamageTicker.instance().bind(system);
         if (!registered) {
             EnvironmentalDamageTicker.instance().register(this);
             registered = true;
@@ -50,10 +52,7 @@ public final class CactusDamage extends DamageType implements EnvironmentalTickP
     }
 
     @Override
-    public void tick(EntityTickEvent event, DamageSystem sys) {
-        if (!(event.getEntity() instanceof LivingEntity living) || living.isDead()) return;
-        if (DamageProducers.exempt(living)) return;
-        if (living.getInstance() == null) return;
+    public void tick(LivingEntity living, DamageSystem sys) {
         if (!BlockContact.touchingShapes(living, b -> b.compare(Block.CACTUS))) return;
 
         DamageSnapshot snap = DamageSnapshot.of(living, this);

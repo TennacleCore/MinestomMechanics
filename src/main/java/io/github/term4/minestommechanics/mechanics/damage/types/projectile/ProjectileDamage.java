@@ -1,9 +1,12 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.projectile;
 
+import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionCategory;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
 import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import net.kyori.adventure.key.Key;
+
+import java.util.Set;
 
 /**
  * Thrown-projectile damage ({@code minecraft:thrown}): snowball / egg hits. Vanilla deals {@code 0} but the hit still
@@ -19,4 +22,7 @@ public final class ProjectileDamage extends DamageType {
         super(KEY, "Thrown", VanillaTypes.GENERIC,
                 DamageTypeConfig.builder(KEY).baseAmount(0.0).build());
     }
+
+    /** Thrown/arrow hits are the Projectile Protection category (plus general Protection). */
+    @Override public Set<ProtectionCategory> protectionCategories() { return Set.of(ProtectionCategory.PROJECTILE); }
 }

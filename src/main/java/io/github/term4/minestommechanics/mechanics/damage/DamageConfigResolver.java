@@ -29,6 +29,13 @@ public final class DamageConfigResolver {
             return type.isInstance(d) ? type.cast(d) : null;
         }
 
+        /** The effective global {@link DamageConfig}: the snapshot override, else the installed config; {@code null} if neither. */
+        public @Nullable DamageConfig damageConfig() {
+            DamageConfig cfg = snap.config();
+            if (cfg == null && services != null && services.damage() != null) cfg = services.damage().config();
+            return cfg;
+        }
+
         /** Effective per-type config: the active {@link DamageConfig}'s override for the type, else the type's default. */
         public DamageTypeConfig typeConfig() {
             DamageConfig cfg = snap.config();

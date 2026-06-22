@@ -2,11 +2,10 @@ package test;
 
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.api.event.DamageEvent;
 import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
+import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
-import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
@@ -17,11 +16,14 @@ import io.github.term4.minestommechanics.platform.fixes.visuals.legacy_1_8.Legac
 import io.github.term4.minestommechanics.platform.fixes.client.SelfPlacementFixConfig;
 import io.github.term4.minestommechanics.platform.fixes.world.BlockPlacementFixConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.shootables.Bow;
-import net.minestom.server.entity.Entity;
-import net.minestom.server.entity.EntityType;
+import io.github.term4.minestommechanics.mechanics.consumable.ConsumableSystem;
+import io.github.term4.minestommechanics.mechanics.consumable.catalog.VanillaConsumables;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingBehavior;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingTypeConfig;
+import io.github.term4.minestommechanics.mechanics.blocking.catalog.VanillaBlocking;
 
 import net.minestom.server.entity.GameMode;
-import net.minestom.server.entity.attribute.Attribute;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import net.minestom.server.Auth;
 import net.minestom.server.MinecraftServer;
@@ -38,6 +40,15 @@ import net.minestom.server.instance.LightingChunk;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
+import net.minestom.server.component.DataComponents;
+import net.minestom.server.item.component.EnchantmentList;
+import net.minestom.server.item.component.PotionContents;
+import net.minestom.server.item.enchant.Enchantment;
+import net.minestom.server.registry.RegistryKey;
+import net.kyori.adventure.key.Key;
+import net.minestom.server.potion.CustomPotionEffect;
+import net.minestom.server.potion.Potion;
+import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.timer.TaskSchedule;
 import test.presets.Hypixel;
 import test.presets.mmc18;
@@ -90,24 +101,32 @@ public class ExampleServer {
         ProjectileSystem.install(mm, ProjectileConfig.builder(mmc18.projectiles())
                 .build(), new Bow());
 
+        // 5b. Initialize the attribute/potion system (enchant + potion gameplay).
+        AttributeSystem.install(mm, Vanilla18.attributes());
+
+        // 5c. Item registry: held-weapon/tool stats (the melee base damage reads this).
+        mm.registerItems(Vanilla18.items());
+
+        // 5d. Consumables (eat/drink over time): the golden apples, with 1.8-source effects.
+        ConsumableSystem.install(mm, Vanilla18.consumables(), VanillaConsumables.types());
+
+        // 5e. Blocking: 1.8 sword block (SWORD behavior, swords from Vanilla18.blocking()) + a 26-style shield entry.
+        BlockingSystem.install(mm, Vanilla18.blocking().toBuilder()
+                .material(Material.SHIELD, BlockingTypeConfig.builder()
+                        .behavior(BlockingBehavior.SHIELD)
+                        .reductionBase(0.0).reductionFactor(1.0)   // full block within the arc
+                        .blockDelayTicks(5).blockingAngle(100.0)
+                        .build())
+                .build());
+
         // 5. Initialize the client/protocol fixes system.
-        FixesSystem fixes = FixesSystem.install(mm, FixesConfig.builder()
+        FixesSystem.install(mm, FixesConfig.builder()
                 .visuals(VisualsConfig.builder()
                         .legacyArrowVisibility(LegacyArrowVisibilityConfig.builder().enabled(true).deflectParticles(true).build())
                         .build())
-                .blockPlacement(BlockPlacementFixConfig.builder().enabled(true).build())
-                .selfPlacement(SelfPlacementFixConfig.builder().enabled(true).build())
+                .blockPlacement(BlockPlacementFixConfig.builder().enabled(true).build()) // TODO: Remove after PR is merged to minestom
+                .selfPlacement(SelfPlacementFixConfig.builder().enabled(true).build()) // For 1.8 clients so they can place ladders while climbing up
                 .build());
-
-        // Debug (temporary)
-        MinecraftServer.getGlobalEventHandler().addListener(DamageEvent.class, event -> {
-            if (!MeleeDamage.KEY.equals(event.type().key())) return;
-            if (!(event.target() instanceof Player victim)) return;
-            MinecraftServer.getSchedulerManager().scheduleNextTick(() -> {
-                if (victim.isOnline() && !victim.isDead())
-                    victim.setHealth((float) victim.getAttributeValue(Attribute.MAX_HEALTH));
-            });
-        });
 
         // Scoped mechanics (player -> instance -> global)
         mm.profiles().setGlobal(MechanicsProfile.builder()
@@ -187,17 +206,15 @@ public class ExampleServer {
             player.getInventory().addItemStack(ItemStack.of(Material.ENDER_PEARL, 16));
             player.getInventory().addItemStack(ItemStack.of(Material.BOW, 1));
             player.getInventory().addItemStack(ItemStack.of(Material.ARROW, 64));
-
-
-
-            /*
-            player.getAttribute(net.minestom.server.entity.attribute.Attribute.MOVEMENT_SPEED)
-                    .setBaseValue(0.1 * (1 + (0.2 * 2))); // Speed II
-
-             */
+            player.getInventory().addItemStack(ItemStack.of(Material.GOLDEN_APPLE, 16));
+            player.getInventory().addItemStack(ItemStack.of(Material.ENCHANTED_GOLDEN_APPLE, 16));
+            player.getInventory().addItemStack(ItemStack.of(Material.MILK_BUCKET, 1));
+            // a drinkable Speed potion (custom effect, so it works without extending VanillaPotions)
+            player.getInventory().addItemStack(ItemStack.of(Material.POTION).with(DataComponents.POTION_CONTENTS,
+                    new PotionContents(new CustomPotionEffect(PotionEffect.SPEED, 0, 1200, false, true, true))));
 
         });
-        
+
         // Debug: /lag <ticks> sets the sender's own simulated inbound packet latency (0 = off). Lets you
         // toggle/tune the laggy-landing scenario at runtime on whichever account you're testing the victim with.
         Command lagCmd = new Command("lag");
@@ -211,51 +228,118 @@ public class ExampleServer {
         }, ticksArg);
         MinecraftServer.getCommandManager().register(lagCmd);
 
-        // Debug: /fix <on|off> flips the legacy arrow-visibility compat fix at runtime via the manager's master switch
-        // (setEnabled re-evaluates every online player's team membership). on = deflected/passed arrows stay visible on
-        // 1.8; off = the 1.8 client hides them again (the underlying glitch). The per-player WHO is the config knob above.
-        Command fixCmd = new Command("fix");
-        Argument<String> stateArg = ArgumentType.Word("state").from("on", "off");
-        fixCmd.setDefaultExecutor((sender, ctx) -> sender.sendMessage("usage: /fix <on|off>  (legacy arrow-visibility fix)"));
-        fixCmd.addSyntax((sender, ctx) -> {
-            boolean on = "on".equals(ctx.get(stateArg));
-            fixes.legacyArrowVisibility().setEnabled(on);
-            sender.sendMessage("[arrow-fix] " + (on ? "ON  - 1.8 deflect/pass arrows stay visible" : "OFF - 1.8 deflect/pass arrows go invisible (bug)"));
-        }, stateArg);
-        MinecraftServer.getCommandManager().register(fixCmd);
+        // /gmc, /gms: quick gamemode toggles for in-game testing
+        Command gmc = new Command("gmc");
+        gmc.setDefaultExecutor((sender, ctx) -> {
+            if (sender instanceof Player p) { p.setGameMode(GameMode.CREATIVE); p.sendMessage("gamemode: creative"); }
+        });
+        MinecraftServer.getCommandManager().register(gmc);
 
-        // Debug: /resendchunk resends the chunk the sender stands in, to themselves - exactly what
-        // BlockPlacementListener#refresh does when it cancels a placement that collides with an entity. Tests the
-        // suspected root cause of the "after placing a block onto player B, A can't hit B until someone re-enters
-        // the chunk" bug: on a 1.8 client (via Via) a chunk resend drops that chunk's entities client-side, and the
-        // server never re-spawns them. Stand next to another player (or use /testmob), run this on the 1.8 client,
-        // and watch the entity vanish (and stay gone until it re-enters tracking). If it does, the mechanism is
-        // confirmed and the fix = stop resending the chunk (send a targeted BlockChangePacket instead).
-        Command resendChunkCmd = new Command("resendchunk");
-        resendChunkCmd.setDefaultExecutor((sender, ctx) -> {
-            if (!(sender instanceof Player p)) return;
-            var chunk = p.getInstance().getChunkAt(p.getPosition());
-            if (chunk == null) {
-                p.sendMessage("[resendchunk] no chunk at your position");
-                return;
+        Command gms = new Command("gms");
+        gms.setDefaultExecutor((sender, ctx) -> {
+            if (sender instanceof Player p) { p.setGameMode(GameMode.SURVIVAL); p.sendMessage("gamemode: survival"); }
+        });
+        MinecraftServer.getCommandManager().register(gms);
+
+        // /suffocate: drops a stone block into your head to test suffocation damage (be in survival - /gms)
+        Command suffocate = new Command("suffocate");
+        suffocate.setDefaultExecutor((sender, ctx) -> {
+            if (!(sender instanceof Player p) || p.getInstance() == null) return;
+            p.getInstance().setBlock(p.getPosition().add(0, p.getEyeHeight(), 0), Block.STONE);
+            p.sendMessage("[suffocate] stone placed in your head (survival = 1/tick suffocation)");
+        });
+        MinecraftServer.getCommandManager().register(suffocate);
+
+        // /sword: gives a blockable diamond sword (right-click + hold to block; 1.8 = (1+f)*0.5 damage, pre-armor)
+        Command sword = new Command("sword");
+        sword.setDefaultExecutor((sender, ctx) -> {
+            if (sender instanceof Player p) {
+                p.getInventory().addItemStack(VanillaBlocking.item(Material.DIAMOND_SWORD));
+                p.sendMessage("[sword] blockable diamond sword given (hold right-click to block)");
             }
-            chunk.sendChunk(p);
-            p.sendMessage("[resendchunk] resent chunk " + chunk.getChunkX() + "," + chunk.getChunkZ() + " to you");
         });
-        MinecraftServer.getCommandManager().register(resendChunkCmd);
+        MinecraftServer.getCommandManager().register(sword);
 
-        // Debug: /testmob spawns a static zombie next to the sender as a watch target for /resendchunk.
-        Command testMobCmd = new Command("testmob");
-        testMobCmd.setDefaultExecutor((sender, ctx) -> {
-            if (!(sender instanceof Player p)) return;
-            Entity mob = new Entity(EntityType.ZOMBIE);
-            mob.setInstance(p.getInstance(), p.getPosition().add(1, 0, 0));
-            p.sendMessage("[testmob] spawned a zombie next to you");
+        // /nbsword: a non-blockable diamond sword (opted out) - should NOT reduce damage even while right-click held
+        Command nbsword = new Command("nbsword");
+        nbsword.setDefaultExecutor((sender, ctx) -> {
+            if (sender instanceof Player p) {
+                p.getInventory().addItemStack(VanillaBlocking.nonBlocking(ItemStack.of(Material.DIAMOND_SWORD)));
+                p.sendMessage("[nbsword] non-blockable diamond sword given (holding right-click should not block)");
+            }
         });
-        MinecraftServer.getCommandManager().register(testMobCmd);
+        MinecraftServer.getCommandManager().register(nbsword);
+
+        // /shield: gives a shield (SHIELD behavior - directional frontal arc + 0.25s block delay; best on a 1.9+ client)
+        Command shield = new Command("shield");
+        shield.setDefaultExecutor((sender, ctx) -> {
+            if (sender instanceof Player p) {
+                p.getInventory().addItemStack(VanillaBlocking.item(Material.SHIELD));
+                p.sendMessage("[shield] shield given (hold right-click; blocks from the front after a short delay)");
+            }
+        });
+        MinecraftServer.getCommandManager().register(shield);
+
+        // /enchant <enchantment> [level]: enchant the held item, to test combat/defense enchants in game
+        // (e.g. /enchant fire_aspect 2, /enchant protection 4, /enchant sharpness 5). Reads the adventure key our
+        // catalog sources match on; namespace defaults to minecraft:.
+        Command enchant = new Command("enchant");
+        Argument<String> enchName = ArgumentType.String("enchantment");
+        Argument<Integer> enchLevel = ArgumentType.Integer("level");
+        enchant.setDefaultExecutor((sender, ctx) ->
+                sender.sendMessage("usage: /enchant <enchantment> [level]  (e.g. /enchant fire_aspect 2)"));
+        enchant.addSyntax((sender, ctx) -> {
+            if (sender instanceof Player p) applyEnchant(p, ctx.get(enchName), 1);
+        }, enchName);
+        enchant.addSyntax((sender, ctx) -> {
+            if (sender instanceof Player p) applyEnchant(p, ctx.get(enchName), ctx.get(enchLevel));
+        }, enchName, enchLevel);
+        MinecraftServer.getCommandManager().register(enchant);
+
+        // /effect <effect> [strength] [seconds]  |  /effect clear: apply a potion effect to the sender, to test the
+        // potion catalog in game (e.g. /effect strength 2, /effect resistance 1 60, /effect speed, /effect clear).
+        // strength = level (1 = level I); seconds default 30. Namespace defaults to minecraft:.
+        Command effectCmd = new Command("effect");
+        Argument<String> effName = ArgumentType.String("effect");
+        Argument<Integer> effStrength = ArgumentType.Integer("strength");
+        Argument<Integer> effSeconds = ArgumentType.Integer("seconds");
+        effectCmd.setDefaultExecutor((sender, ctx) ->
+                sender.sendMessage("usage: /effect <effect> [strength] [seconds]  |  /effect clear"));
+        effectCmd.addSyntax((sender, ctx) -> {
+            if (sender instanceof Player p) applyEffect(p, ctx.get(effName), 1, 30);
+        }, effName);
+        effectCmd.addSyntax((sender, ctx) -> {
+            if (sender instanceof Player p) applyEffect(p, ctx.get(effName), ctx.get(effStrength), 30);
+        }, effName, effStrength);
+        effectCmd.addSyntax((sender, ctx) -> {
+            if (sender instanceof Player p) applyEffect(p, ctx.get(effName), ctx.get(effStrength), ctx.get(effSeconds));
+        }, effName, effStrength, effSeconds);
+        MinecraftServer.getCommandManager().register(effectCmd);
 
         // Start the server
         server.start("0.0.0.0", 25566);
+    }
+
+    /** Applies (or clears) a potion effect on the sender for in-game testing. {@code strength} is the level (1 = level I); duration in seconds. */
+    private static void applyEffect(Player p, String name, int strength, int seconds) {
+        if (name.equalsIgnoreCase("clear")) { p.clearEffects(); p.sendMessage("cleared effects"); return; }
+        PotionEffect effect = PotionEffect.fromKey(name.contains(":") ? name : "minecraft:" + name);
+        if (effect == null) { p.sendMessage("unknown effect: " + name); return; }
+        int amplifier = Math.max(0, strength - 1); // strength 1 -> amplifier 0 (level I)
+        p.addEffect(new Potion(effect, amplifier, seconds * 20));
+        p.sendMessage("applied " + effect.key().asString() + " " + strength + " for " + seconds + "s");
+    }
+
+    /** Adds {@code name} (defaulting the namespace to minecraft:) at {@code level} to the player's held item's enchantments. */
+    private static void applyEnchant(Player p, String name, int level) {
+        ItemStack held = p.getItemInMainHand();
+        if (held.isAir()) { p.sendMessage("hold an item first"); return; }
+        Key key = Key.key(name.contains(":") ? name : "minecraft:" + name);
+        RegistryKey<Enchantment> ench = RegistryKey.unsafeOf(key);
+        EnchantmentList existing = held.get(DataComponents.ENCHANTMENTS);
+        EnchantmentList updated = (existing != null ? existing : EnchantmentList.EMPTY).with(ench, level);
+        p.setItemInMainHand(held.with(DataComponents.ENCHANTMENTS, updated));
+        p.sendMessage("enchanted held item with " + key.asString() + " " + level);
     }
 
     /**

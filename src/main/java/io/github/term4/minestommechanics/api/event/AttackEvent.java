@@ -10,6 +10,7 @@ import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.trait.CancellableEvent;
 import net.minestom.server.item.ItemStack;
+import net.minestom.server.potion.PotionEffect;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -95,6 +96,11 @@ public final class AttackEvent implements CancellableEvent {
         return attacker() instanceof Player p && p.isFlying();
     }
 
+    /** Whether the attacker is blinded - vanilla blindness suppresses crits ({@code 1.8/26: !hasEffect(BLINDNESS)}). */
+    public boolean attackerBlind() {
+        return attacker().getEffectLevel(PotionEffect.BLINDNESS) >= 0;
+    }
+
     /**
      * Whether this attack is a critical hit, as decided by the configured {@link CriticalRule}.
      * An explicit {@link #overrideCritical(Boolean)} takes precedence over the rule.
@@ -131,8 +137,8 @@ public final class AttackEvent implements CancellableEvent {
         /** Whether the given attack is a critical hit. */
         boolean isCritical(AttackEvent event);
 
-        /** Vanilla rule: attacker is falling, or is flying (flight always crits). */
-        static CriticalRule vanilla() { return e -> e.attackerFalling() || e.attackerFlying(); } // TODO: After adding attributes, blindness prevents crits
+        /** Vanilla rule: attacker is falling (or flying), and not blinded (1.8/26 blindness suppresses crits). */
+        static CriticalRule vanilla() { return e -> (e.attackerFalling() || e.attackerFlying()) && !e.attackerBlind(); }
 
         /** Never critical. */
         static CriticalRule never() { return e -> false; }

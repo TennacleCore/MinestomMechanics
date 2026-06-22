@@ -3,13 +3,18 @@ package io.github.term4.minestommechanics.mechanics.damage;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
+import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
+import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
+import io.github.term4.minestommechanics.mechanics.attribute.defense.MitigationRequest;
+import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionCategory;
 import io.github.term4.minestommechanics.api.event.DamageEvent;
 import io.github.term4.minestommechanics.mechanics.damage.DamageCalculator.DamageResult;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.ResolvedDamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.silent.HurtSuppression;
 import io.github.term4.minestommechanics.mechanics.damage.silent.SilentDamage;
-import io.github.term4.minestommechanics.tracking.EnvironmentalDamageTicker;
+import io.github.term4.minestommechanics.mechanics.damage.types.breathing.DrowningDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
 import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
@@ -17,9 +22,12 @@ import io.github.term4.minestommechanics.mechanics.damage.types.projectile.Proje
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
-import io.github.term4.minestommechanics.util.TickClock;
-import io.github.term4.minestommechanics.util.TickState;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.arrow.StuckArrows;
+import io.github.term4.minestommechanics.util.tick.TickSystem;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
+import io.github.term4.minestommechanics.util.tick.TickState;
 import net.kyori.adventure.key.Key;
+import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.LivingEntity;
@@ -30,6 +38,8 @@ import net.minestom.server.item.ItemStack;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.event.entity.EntityDeathEvent;
+import net.minestom.server.event.player.PlayerSpawnEvent;
 import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,13 +56,16 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class DamageSystem {
 
+    /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
+    public static final Key KEY = Key.key("mm:damage");
+
     private static final Tag<TickState> INVUL_DAMAGE = Tag.Transient("mm:invul-damage");
     /** Amount of the hit that opened the current invulnerability window (for overdamage replacement). */
     private static final Tag<Float> LAST_DAMAGE = Tag.Transient("mm:last-damage");
     /** Melee weapon that opened the current invulnerability window ({@code null} = fist / non-melee). */
     private static final Tag<ItemStack> OPENING_ITEM = Tag.Transient("mm:opening-hit-item");
 
-    /** Default invul ticks when nothing resolves. TODO: scale by TPS once that system exists. */
+    /** Default invul ticks (vanilla 1.8) when nothing resolves; scaled to live TPS at the stamp site. */
     public static final int DEFAULT_INVUL_TICKS = 10;
 
     private final MinestomMechanics mm;
@@ -69,6 +82,17 @@ public final class DamageSystem {
         this.services = mm.services();
         this.calc = new DamageCalculator(this.services, Vanilla18.dmg());
         this.registry = new DamageTypeRegistry(this, mm).registerVanillaDefaults();
+        // i-frame window stamps use the victim's per-instance clock; drop the window state on (re)spawn (the TickState
+        // future-guard covers most cross-instance carries, but a long-lived target instance could coincide with one).
+        this.node.addListener(PlayerSpawnEvent.class, e -> clearDamageWindow(e.getPlayer()));
+        // Death handling lives here (the damage system owns the death/respawn path - see the applyDamage TODO). Vanilla
+        // clears active effects + transient combat state on death; Minestom's kill() does not, so it would leak across
+        // respawn (the Player object persists). clearEffects() fires the remove events the AttributeSystem reacts to.
+        this.node.addListener(EntityDeathEvent.class, e -> {
+            if (!(e.getEntity() instanceof LivingEntity dead)) return;
+            if (mm.clearEffectsOnDeath) dead.clearEffects();
+            if (mm.resetCombatStateOnDeath) resetCombatState(dead);
+        });
     }
 
     /** Effective config for a snapshot carrying none: the victim's scoped profile, else the install config. */
@@ -151,6 +175,14 @@ public final class DamageSystem {
             return DamageOutcome.IMMUNE;
         }
 
+        // Fire Resistance: total immunity to fire-source damage. Vanilla blocks it at the hit entry (1.8 damageEntity /
+        // 26 hurtServer return false) - before i-frames and mitigation, so it consumes no invul window and never flashes.
+        // Keyed on the type's FIRE protection set (in-fire / on-fire / lava / burning); not gated by the i-frame bypass.
+        AttributeSystem fireAttrs = services.attributes();
+        if (fireAttrs != null && type.protectionCategories().contains(ProtectionCategory.FIRE) && fireAttrs.fireResistant(living)) {
+            return DamageOutcome.BLOCKED;
+        }
+
         ResolvedDamageConfig resolved = calc.resolveConfig(
                 finalSnap.config() != null ? finalSnap : finalSnap.withConfig(configFor(finalSnap.target())));
 
@@ -175,6 +207,12 @@ public final class DamageSystem {
         }
 
         amount = applyComponents(typeCtx, event, amount, false);
+        // Blocking (sword/shield): vanilla reduces a blocked hit before armor (1.8 EntityHuman.damageEntity, pre-armor).
+        // The BlockingSystem owns the decision entirely (is the player blocking, the behavior, what's blockable - the 1.8
+        // sword reads the type's bypassArmor itself). No blocking system installed = no reduction.
+        BlockingSystem blocking = services.blocking();
+        if (blocking != null) amount = blocking.reduce(living, typeCtx, amount);
+        amount = applyMitigation(living, type, typeCfg, typeCtx, amount);
         // a 0-damage hit still lands when its type triggers invul (snowball/egg); only negative or non-invul 0 is dropped
         boolean triggersInvul = typeCfg.triggersInvul(typeCtx);
         if (amount < 0 || (amount == 0f && !triggersInvul)) return DamageOutcome.BLOCKED;
@@ -193,9 +231,23 @@ public final class DamageSystem {
         }
         Integer invulTicks = pick(typeCfg.invulTicks(typeCtx), resolved.invulTicks());
         if (triggersInvul && invulTicks != null && invulTicks > 0) {
-            setDamageInvulnerable(living, invulTicks);
+            // i-frame window is a server-authoritative duration: stretch the vanilla-tick count to live TPS (identity at 20)
+            setDamageInvulnerable(living, TickScaler.duration(invulTicks, mm.profiles().scalingFor(living), KEY));
         }
+        dispatchWeaponOnHit(living, finalSnap);
         return DamageOutcome.FRESH_DAMAGE;
+    }
+
+    /**
+     * Fires the attacker's weapon on-hit enchant side effects (Fire Aspect, ...) after a fresh landed hit. Damage-domain
+     * combat enchants - defined in the attribute catalog, triggered here. No attacker / no weapon = nothing fires.
+     */
+    private void dispatchWeaponOnHit(LivingEntity victim, DamageSnapshot snap) {
+        AttributeSystem attrs = services.attributes();
+        if (attrs == null || !(snap.source() instanceof LivingEntity attacker)) return;
+        ItemStack weapon = snap.item();
+        if (weapon == null || weapon.isAir()) return;
+        attrs.dispatchWeaponOnHit(attacker, victim, weapon);
     }
 
     /** Built-in default for the per-type {@code ownsVelocityBroadcast} knob: melee + thrown own the velocity broadcast, so the generic hurt velocity isn't also sent. */
@@ -214,6 +266,27 @@ public final class DamageSystem {
     private static final KnockbackConfig DEFAULT_HURT_KB = Vanilla18.hurtKb();
 
     /**
+     * Defense mitigation: hands the hit to the attribute system's {@link AttributeSystem#mitigate pipeline} (armor →
+     * resistance → EPF, vanilla order; absorption is Minestom's). The damage side supplies the per-hit gating - the
+     * type's protection {@link io.github.term4.minestommechanics.mechanics.damage.types.DamageType#protectionCategories
+     * categories} and its "true damage" bypass flags. No attribute system installed = no mitigation.
+     */
+    private float applyMitigation(LivingEntity living, DamageType type, DamageTypeConfig typeCfg, DamageContext ctx, float amount) {
+        AttributeSystem attrs = services.attributes();
+        if (attrs == null || amount <= 0) return amount;
+        // the damage type contributes the broad stage flags; the snapshot (item/attack) contributes targeted bypass
+        Bypass bypass = Bypass.builder()
+                .all(typeCfg.bypassAll(ctx))
+                .armor(typeCfg.bypassArmor(ctx))
+                .effects(typeCfg.bypassEffects(ctx))
+                .enchants(typeCfg.bypassEnchants(ctx))
+                .build()
+                .merge(ctx.snap().bypass());
+        MitigationRequest req = MitigationRequest.of(type.protectionCategories(), bypass, ThreadLocalRandom.current());
+        return attrs.mitigate(living, amount, req);
+    }
+
+    /**
      * The hurt velocity broadcast: a fresh hit broadcasts the victim's server velocity (gated by a knockback-resistance
      * roll), routed through the {@link KnockbackSystem} with a zero-impulse {@link DamageConfig#hurtKnockback} so all
      * velocity sends share one path.
@@ -221,7 +294,15 @@ public final class DamageSystem {
     private void applyHurtKnockback(LivingEntity living, @Nullable KnockbackConfig cfg) {
         KnockbackSystem kb = services.knockback();
         if (kb == null) return;
-        if (ThreadLocalRandom.current().nextDouble() < living.getAttributeValue(Attribute.KNOCKBACK_RESISTANCE)) return;
+        // KB-resistance read through the attribute system, so source-contributed resistance folds onto Minestom's value.
+        // LEGACY rolls to negate (1:1 with vanilla); MODERN's ×(1-resistance) scale folds in with the KB stage list later.
+        double resistance = living.getAttributeValue(Attribute.KNOCKBACK_RESISTANCE);
+        AttributeSystem attrs = services.attributes();
+        if (attrs != null) {
+            resistance = attrs.context(living, null)
+                    .value(io.github.term4.minestommechanics.mechanics.attribute.Attribute.KNOCKBACK_RESISTANCE, resistance);
+        }
+        if (ThreadLocalRandom.current().nextDouble() < resistance) return;
         kb.apply(new KnockbackSnapshot(living, false, null,
                 living.getPosition(), living.getPosition().direction(),
                 cfg != null ? cfg : DEFAULT_HURT_KB));
@@ -255,7 +336,10 @@ public final class DamageSystem {
     }
 
     private void applyDamage(LivingEntity living, DamageType type, DamageSnapshot snap, float amount, boolean silent) {
-        // lethal hits fall through to living.damage() so Minestom handles death; non-lethal silent hits skip the hurt effect
+        // lethal hits fall through to living.damage() so Minestom handles death; non-lethal silent hits skip the hurt effect.
+        // TODO(death): promote the death/respawn path to a first-class API event (api.event) so consumers can hook/override it.
+        //  Transient state is now reset on death (resetCombatState: fire, air, stuck arrows, velocity; effects via
+        //  clearEffectsOnDeath; the i-frame window + fall distance on respawn) - what remains is the overridable event itself.
         float newHealth = (float) Math.max(0, living.getHealth() - amount);
         if (silent && living instanceof Player p && newHealth > 0) {
             SilentDamage.setHealthWithoutHurtEffect(p, newHealth, mm.clientInfo());
@@ -307,7 +391,7 @@ public final class DamageSystem {
     public static DamageSystem install(MinestomMechanics mm, DamageConfig cfg, DamageType... extraTypes) {
         var system = new DamageSystem(mm, cfg);
         mm.registerDamage(system);
-        EnvironmentalDamageTicker.instance().bind(system, mm);
+        EnvironmentalDamageTicker.instance().bind(system);
         HurtSuppression.install(system.node);
         mm.install(system.node);
         for (DamageType type : extraTypes) {
@@ -339,20 +423,40 @@ public final class DamageSystem {
     /** Opens (or re-opens) the target's damage-invulnerability window (i-frames) for {@code duration} ticks. */
     public static void setDamageInvulnerable(Entity e, int duration) {
         if (!(e instanceof LivingEntity le) || duration <= 0) return;
-        le.setTag(INVUL_DAMAGE, new TickState(TickClock.now(), duration));
+        // stamp against the instance-local combat clock so the window is opened and checked on one phase (see TickSystem)
+        le.setTag(INVUL_DAMAGE, new TickState(TickSystem.instanceTick(le), duration));
     }
 
     /** Whether the target is inside its i-frame window. Not fundamental immunity (creative/spectator). */
     public static boolean isInvulnerableToDamage(Entity e) {
         if (!(e instanceof LivingEntity le)) return false;
         TickState s = getDamageInvul(le);
-        return s != null && s.isActive();
+        return s != null && s.isActive(TickSystem.instanceTick(le));
     }
 
     /** Ticks left in the target's damage-invulnerability window ({@code 0} if none). */
     public static int remainingDamageInvul(LivingEntity le) {
         TickState s = getDamageInvul(le);
-        return s != null ? s.remainingTicks() : 0;
+        return s != null ? s.remainingTicks(TickSystem.instanceTick(le)) : 0;
+    }
+
+    /** Clears the i-frame window state (the window, its overdamage highwater, and its opening item) as one unit. */
+    public static void clearDamageWindow(LivingEntity le) {
+        le.removeTag(INVUL_DAMAGE);
+        le.removeTag(LAST_DAMAGE);
+        le.removeTag(OPENING_ITEM);
+    }
+
+    /**
+     * Resets the transient combat/visual state vanilla starts fresh after death (it carries to respawn - the Player
+     * object persists): fire, drowning air, stuck arrows, and residual velocity. Gated by {@code resetCombatStateOnDeath};
+     * effects are gated separately ({@code clearEffectsOnDeath}); the i-frame window + fall distance reset on (re)spawn.
+     */
+    private static void resetCombatState(LivingEntity entity) {
+        entity.setFireTicks(0);
+        entity.setVelocity(Vec.ZERO);
+        DrowningDamage.resetAir(entity);
+        StuckArrows.clear(entity);
     }
 
     private static @Nullable TickState getDamageInvul(LivingEntity le) {

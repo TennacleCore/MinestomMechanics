@@ -1,0 +1,62 @@
+package io.github.term4.minestommechanics.testsupport;
+
+import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.mechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
+import net.minestom.server.MinecraftServer;
+import net.minestom.server.coordinate.Pos;
+import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.EntityType;
+import net.minestom.server.entity.LivingEntity;
+import net.minestom.server.instance.InstanceContainer;
+import net.minestom.server.instance.block.Block;
+import org.junit.jupiter.api.BeforeAll;
+
+/**
+ * Minimal headless harness for entity-backed golden tests: boots a single {@link MinecraftServer} process (registries +
+ * dispatcher, no socket) and the vanilla-1.8 {@link MinestomMechanics} systems once per JVM, then exposes a loaded flat
+ * instance to place entities in. The calculators under test are pure functions of entity/config state, so no ticking is
+ * needed - tests read {@code compute}/{@code snapshot} directly. See docs/attributes-design.md (step 0 harness).
+ */
+public abstract class HeadlessServerTest {
+
+    protected static MinestomMechanics mm;
+    protected static Services services;
+    protected static InstanceContainer instance;
+
+    @BeforeAll
+    static void boot() {
+        if (mm != null) return; // one server per JVM, shared by every subclass
+
+        MinecraftServer.init();
+        // entity registration/ticking partition threads (EnvImpl does the same); lets setInstance(...).join() complete
+        MinecraftServer.process().dispatcher().start();
+
+        mm = MinestomMechanics.getInstance();
+        mm.init();
+        DamageSystem.install(mm, Vanilla18.dmg());
+        KnockbackSystem.install(mm, Vanilla18.kb());
+        AttributeSystem.install(mm, Vanilla18.attributes());
+        mm.registerItems(Vanilla18.items());
+        services = mm.services();
+
+        instance = MinecraftServer.getInstanceManager().createInstanceContainer();
+        instance.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
+        instance.loadChunk(0, 0).join();
+    }
+
+    /** A stationary zombie placed at {@code pos} (yaw/pitch from the {@link Pos}); non-player, so its tracked velocity is zero. */
+    protected static LivingEntity zombie(Pos pos) {
+        LivingEntity e = new LivingEntity(EntityType.ZOMBIE);
+        e.setInstance(instance, pos).join();
+        return e;
+    }
+
+    /** A zombie not bound to any instance: {@link Entity#getPosition()} is the origin, tracked velocity zero. */
+    protected static LivingEntity looseZombie() {
+        return new LivingEntity(EntityType.ZOMBIE);
+    }
+}

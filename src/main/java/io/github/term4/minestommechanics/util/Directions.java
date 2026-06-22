@@ -38,7 +38,6 @@ public final class Directions {
         return (float) Math.toDegrees(Math.atan2(dir.y(), hl));
     }
 
-    // TODO: 3D version?
     /**
      * Snaps a horizontal vector onto whichever cardinal axis carries the larger magnitude, returning a unit vector
      * with components in {@code {-1, 0, +1}}: e.g. {@code (0.9, 0.1) -> (+1, 0)}, {@code (0.1, -0.9) -> (0, -1)}.

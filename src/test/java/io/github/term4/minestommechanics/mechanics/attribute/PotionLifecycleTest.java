@@ -1,0 +1,101 @@
+package io.github.term4.minestommechanics.mechanics.attribute;
+
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Invisibility;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Speed;
+import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import net.minestom.server.coordinate.Pos;
+import net.minestom.server.entity.LivingEntity;
+import net.minestom.server.entity.attribute.Attribute;
+import net.minestom.server.potion.Potion;
+import net.minestom.server.potion.PotionEffect;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Proves the potion-lifecycle layer end-to-end: an effect with a registered source applies + removes its contribution
+ * on the Minestom add/remove events. Channel A (Speed -> movement-speed modifier pushed to the holder's instance) and
+ * channel C (Invisibility -> the invisible flag).
+ */
+class PotionLifecycleTest extends HeadlessServerTest {
+
+    @Test
+    void speedPushesMovementSpeedModifierThenRemovesIt() {
+        LivingEntity e = zombie(new Pos(0, 64, 60));
+        double base = e.getAttributeValue(Attribute.MOVEMENT_SPEED);
+        PotionEffect speed = PotionEffect.fromKey(Speed.KEY);
+        assertNotNull(speed, "speed effect");
+
+        e.addEffect(new Potion(speed, 0, 600));                 // Speed I = ×1.2
+        assertEquals(base * 1.2, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
+
+        e.removeEffect(speed);
+        assertEquals(base, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
+    }
+
+    @Test
+    void speedScalesWithAmplifier() {
+        LivingEntity e = zombie(new Pos(0, 64, 61));
+        double base = e.getAttributeValue(Attribute.MOVEMENT_SPEED);
+        PotionEffect speed = PotionEffect.fromKey(Speed.KEY);
+        assertNotNull(speed, "speed effect");
+        e.addEffect(new Potion(speed, 1, 600));                 // Speed II = ×1.4
+        try {
+            assertEquals(base * 1.4, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
+        } finally {
+            e.removeEffect(speed);
+        }
+    }
+
+    @Test
+    void replacingALowerEffectWithAHigherOneKeepsTheHigherModifier() {
+        // regression: Minestom replaces via add(new)+remove(old); a per-level modifier id keeps the old effect's
+        // removal from stripping the new one's push (the "speed 2 then speed 10 does nothing" bug).
+        LivingEntity e = zombie(new Pos(0, 64, 63));
+        double base = e.getAttributeValue(Attribute.MOVEMENT_SPEED);
+        PotionEffect speed = PotionEffect.fromKey(Speed.KEY);
+        assertNotNull(speed, "speed effect");
+
+        e.addEffect(new Potion(speed, 1, 600));                 // Speed II = ×1.4
+        assertEquals(base * 1.4, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
+        e.addEffect(new Potion(speed, 9, 600));                 // Speed X = ×3.0, replaces Speed II
+        try {
+            assertEquals(base * 3.0, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
+        } finally {
+            e.removeEffect(speed);
+        }
+        assertEquals(base, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
+    }
+
+    @Test
+    void deathClearsEffectsAndTheirModifiers() {
+        // Minestom's kill() leaves effects intact; mm.clearEffectsOnDeath clears them (vanilla behavior) so nothing leaks.
+        LivingEntity e = zombie(new Pos(0, 64, 66));
+        double base = e.getAttributeValue(Attribute.MOVEMENT_SPEED);
+        PotionEffect speed = PotionEffect.fromKey(Speed.KEY);
+        assertNotNull(speed, "speed effect");
+        e.addEffect(new Potion(speed, 0, 600));
+        assertEquals(base * 1.2, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
+
+        e.kill();
+        assertTrue(e.getActiveEffects().isEmpty(), "death clears active effects");
+        assertEquals(base, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9); // and so their pushed modifier
+    }
+
+    @Test
+    void invisibilityTogglesTheFlag() {
+        LivingEntity e = zombie(new Pos(0, 64, 62));
+        PotionEffect invis = PotionEffect.fromKey(Invisibility.KEY);
+        assertNotNull(invis, "invisibility effect");
+        assertFalse(e.isInvisible());
+
+        e.addEffect(new Potion(invis, 0, 600));
+        assertTrue(e.isInvisible());
+
+        e.removeEffect(invis);
+        assertFalse(e.isInvisible());
+    }
+}

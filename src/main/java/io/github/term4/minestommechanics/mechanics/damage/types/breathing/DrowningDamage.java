@@ -1,0 +1,135 @@
+package io.github.term4.minestommechanics.mechanics.damage.types.breathing;
+
+import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.item.Enchants;
+import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalDamageTicker;
+import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalTickProducer;
+import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
+import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
+import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
+import io.github.term4.minestommechanics.mechanics.damage.types.breathing.BreathingConfig.AirRefill;
+import net.kyori.adventure.key.Key;
+import net.minestom.server.coordinate.Point;
+import net.minestom.server.entity.EquipmentSlot;
+import net.minestom.server.entity.LivingEntity;
+import net.minestom.server.instance.Instance;
+import net.minestom.server.instance.block.Block;
+import net.minestom.server.potion.TimedPotion;
+import net.minestom.server.tag.Tag;
+
+import java.util.concurrent.ThreadLocalRandom;
+
+/**
+ * Drowning ({@code minecraft:drown}). Vanilla 1.8 ({@code EntityLiving}) and 26 ({@code LivingEntity}) are identical: while
+ * the head block is water and the entity can't breathe (no Water Breathing, not invulnerable - creative/spectator are
+ * already excluded by the {@link EnvironmentalDamageTicker}), air drains by 1/tick; Respiration on armor gives a
+ * {@code level/(level+1)} chance to skip each drain (1.8 {@code getOxygenEnchantmentLevel} = max across armor; 26's
+ * {@code OXYGEN_BONUS} attribute carries the same number). At air {@code <= -20} it deals {@code baseAmount} (2.0) and
+ * resets air to 0. Out of water it refills - the one version difference ({@link AirRefill}): 1.8 snaps to max instantly
+ * (out of water only), 26 recovers {@code +4}/tick (in water too while breathing). Air is a per-entity tag.
+ */
+public final class DrowningDamage extends DamageType implements EnvironmentalTickProducer {
+
+    public static final Key KEY = Key.key("minecraft:drown");
+    public static final DrowningDamage INSTANCE = new DrowningDamage();
+
+    private static final int MAX_AIR = 300;
+    private static final int DROWN_AT = -20;
+    private static final Key RESPIRATION = Key.key("minecraft:respiration");
+    private static final Key WATER_BREATHING = Key.key("minecraft:water_breathing");
+    private static final Tag<Integer> AIR = Tag.Transient("mm:air");
+    private static final EquipmentSlot[] ARMOR = {
+            EquipmentSlot.HELMET, EquipmentSlot.CHESTPLATE, EquipmentSlot.LEGGINGS, EquipmentSlot.BOOTS};
+
+    private boolean registered;
+
+    private DrowningDamage() {
+        super(KEY, "Drowning", VanillaTypes.DROWN, BreathingConfig.builder()
+                .key(KEY).baseAmount(2.0).maxAir(MAX_AIR).airRefill(AirRefill.MODERN).build());
+    }
+
+    @Override
+    public void enable(DamageSystem system, MinestomMechanics mm) {
+        EnvironmentalDamageTicker.instance().bind(system);
+        if (!registered) {
+            EnvironmentalDamageTicker.instance().register(this);
+            registered = true;
+        }
+    }
+
+    @Override
+    public void disable() {
+        if (registered) {
+            EnvironmentalDamageTicker.instance().unregister(this);
+            registered = false;
+        }
+    }
+
+    /** Clears the tracked air so it defaults back to full next tick (e.g. on death/respawn - a respawned entity breathes freely). */
+    public static void resetAir(LivingEntity entity) { entity.removeTag(AIR); }
+
+    @Override
+    public void tick(LivingEntity living, DamageSystem sys) {
+        Instance inst = living.getInstance();
+        if (inst == null) return;
+
+        DamageSnapshot snap = DamageSnapshot.of(living, this);
+        DamageContext ctx = sys.contextFor(snap);
+        DamageTypeConfig tc = ctx.typeConfig();
+        if (!tc.enabled(ctx)) return;
+
+        int maxAir = MAX_AIR;
+        AirRefill refill = AirRefill.MODERN;
+        if (tc instanceof BreathingConfig bc) {
+            Integer m = bc.maxAir(ctx);
+            if (m != null) maxAir = m;
+            AirRefill r = bc.airRefill(ctx);
+            if (r != null) refill = r;
+        }
+
+        Integer stored = living.getTag(AIR);
+        int air = stored != null ? stored : maxAir;
+
+        boolean inWater = headInWater(living, inst);
+        boolean canBreathe = !inWater || hasEffect(living, WATER_BREATHING); // identical 1.8/26; invulnerable already filtered
+
+        if (!canBreathe) {
+            air = drainAir(living, air);
+            if (air <= DROWN_AT) {
+                living.setTag(AIR, 0);
+                if (DamageSystem.absorbedByWindow(living, ctx.baseAmount())) return;
+                sys.apply(snap);
+                return;
+            }
+        } else if (air < maxAir) {
+            air = refill == AirRefill.LEGACY
+                    ? (inWater ? air : maxAir)       // 1.8: snap to max, out of water only
+                    : Math.min(air + 4, maxAir);     // 26: +4/tick, in water too while breathing
+        }
+        living.setTag(AIR, air);
+    }
+
+    /** Respiration-gated drain (vanilla {@code j} / {@code decreaseAirSupply}): max Respiration across armor gives a {@code level/(level+1)} chance to keep this tick's air. */
+    private static int drainAir(LivingEntity living, int air) {
+        int resp = 0;
+        for (EquipmentSlot slot : ARMOR) resp = Math.max(resp, Enchants.level(living.getEquipment(slot), RESPIRATION));
+        if (resp > 0 && ThreadLocalRandom.current().nextInt(resp + 1) > 0) return air;
+        return air - 1;
+    }
+
+    /** Whether the head (eye position) block is water; {@code false} if its chunk is unloaded. */
+    private static boolean headInWater(LivingEntity living, Instance inst) {
+        Point eye = living.getPosition().add(0, living.getEyeHeight(), 0);
+        return inst.isChunkLoaded(eye.chunkX(), eye.chunkZ()) && inst.getBlock(eye).compare(Block.WATER);
+    }
+
+    private static boolean hasEffect(LivingEntity living, Key key) {
+        for (TimedPotion tp : living.getActiveEffects()) {
+            if (tp.potion().effect().key().equals(key)) return true;
+        }
+        return false;
+    }
+}

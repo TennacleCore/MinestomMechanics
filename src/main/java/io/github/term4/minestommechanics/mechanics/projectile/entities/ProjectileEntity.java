@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.util.Directions;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.collision.CollisionUtils;
@@ -103,6 +104,10 @@ public abstract class ProjectileEntity extends Entity {
     protected boolean deflectVisible;
     /** Removal requested inside movementTick; applied in {@link #tick} after super.tick so {@code instance} isn't nulled mid-tick (NPE). */
     private boolean pendingRemove;
+    /** Power/Punch/Flame levels captured off the launching item at launch (0 = none); Power scales hit damage, Punch the hit knockback, Flame ignites the struck entity. */
+    private int powerLevel;
+    private int punchLevel;
+    private int flameLevel;
 
     protected ProjectileEntity(@Nullable Entity shooter, @NotNull EntityType entityType) {
         super(entityType);
@@ -188,6 +193,15 @@ public abstract class ProjectileEntity extends Entity {
     /** Sets the stuck-tip pull-back distance (launcher applies the resolved config). */
     public void setStickPullback(double v) { this.stickPullback = v; }
 
+    /** The Power enchant level captured at launch (arrow damage bonus); 0 if none. */
+    public int powerLevel() { return powerLevel; }
+    /** The Punch enchant level captured at launch (extra hit knockback); 0 if none. */
+    public int punchLevel() { return punchLevel; }
+    /** The Flame enchant level captured at launch (ignite the struck entity); 0 if none. */
+    public int flameLevel() { return flameLevel; }
+    /** Stamps the projectile's captured Power/Punch/Flame levels (launcher applies them off the launch item's enchants). */
+    public void setProjectileEnchants(int power, int punch, int flame) { this.powerLevel = power; this.punchLevel = punch; this.flameLevel = flame; }
+
     /** Re-arms shooter immunity for another {@link #shooterImmunityTicks} (vanilla {@code as = 0} after a deflect, so
      *  a bounced-back arrow can't instantly re-hit the shooter / loop on a self-deflect). */
     protected void rearmShooterImmunity() { this.shooterImmuneUntilAlive = getAliveTicks() + shooterImmunityTicks; }
@@ -198,10 +212,14 @@ public abstract class ProjectileEntity extends Entity {
     /** Velocity in blocks/tick. */
     public @NotNull Vec velocityBt() { return velocityBt; }
 
-    /** Sets velocity (b/t), mirrored to {@code super.velocity}. Silent (not broadcast) - the client predicts from spawn velocity; use {@link #setVelocity} for a redirect that should reach clients. */
+    /**
+     * Sets velocity in client/vanilla blocks-per-tick (TPS scaling re-rates it to the server tick rate internally so the
+     * arc is TPS-invariant; identity at 20), mirrored to {@code super.velocity}. Silent (not broadcast) - the client
+     * predicts from spawn velocity; use {@link #setVelocity} for a redirect that should reach clients.
+     */
     public void setVelocityBt(@NotNull Vec bt) {
-        this.velocityBt = bt;
-        this.velocity = bt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
+        this.velocityBt = TickScaler.fromClientVelocity(bt);
+        this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
     }
 
     /**
@@ -212,7 +230,7 @@ public abstract class ProjectileEntity extends Entity {
     public void setVelocity(@NotNull Vec velocity) {
         this.velocityBt = velocity.div(ServerFlag.SERVER_TICKS_PER_SECOND);
         this.velocity = velocity;
-        if (!isStuck()) sendVelocityToViewers(velocityBt);
+        if (!isStuck()) sendVelocityToViewers(TickScaler.toClientVelocity(velocityBt));
     }
 
     // =========================================================================
@@ -329,9 +347,12 @@ public abstract class ProjectileEntity extends Entity {
      *  {@code super.velocity} (b/s). Called before or after the move per {@link #physicsOrder}. */
     private void applyDragGravity() {
         Aerodynamics aero = getAerodynamics();
+        // TPS scaling (velocityBt is blocks/tick): drag^(clientTps/serverTps), gravity × (clientTps/serverTps)². Identity at 20.
+        double hDrag = TickScaler.dragPerTick(aero.horizontalAirResistance());
+        double vDrag = TickScaler.dragPerTick(aero.verticalAirResistance());
         velocityBt = velocityBt
-                .mul(aero.horizontalAirResistance(), aero.verticalAirResistance(), aero.horizontalAirResistance())
-                .sub(0, hasNoGravity() ? 0 : aero.gravity(), 0);
+                .mul(hDrag, vDrag, hDrag)
+                .sub(0, hasNoGravity() ? 0 : TickScaler.gravityPerTick(aero.gravity()), 0);
         this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
     }
 
@@ -412,10 +433,10 @@ public abstract class ProjectileEntity extends Entity {
     // Wire sync
     // =========================================================================
 
-    /** Velocity for the wire (b/t); reports ZERO while stuck so no broadcast nudges a 1.8 client off the stuck position. */
+    /** Velocity for the wire, re-rated to the client's b/t (TPS scaling; identity at 20); ZERO while stuck so no broadcast nudges a 1.8 client off the stuck position. */
     @Override
     protected Vec getVelocityForPacket() {
-        return isStuck() ? Vec.ZERO : velocityBt;
+        return isStuck() ? Vec.ZERO : TickScaler.toClientVelocity(velocityBt);
     }
 
     // absolute-teleport position sync (Minestom's relative-move is invisible to 1.8 via Via). Vanilla sends a sparse

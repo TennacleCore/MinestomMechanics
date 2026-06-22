@@ -11,27 +11,27 @@ import io.github.term4.minestommechanics.api.event.DamageEvent;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfigResolver;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackComponent;
+import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.motion.VelocityConfig;
 import io.github.term4.minestommechanics.tracking.motion.VelocityContext;
 import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
+import io.github.term4.minestommechanics.util.tick.TickPhase;
+import io.github.term4.minestommechanics.util.tick.TickSystem;
 import io.github.term4.minestommechanics.util.Directions;
-import net.minestom.server.MinecraftServer;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
+import net.minestom.server.instance.Instance;
 import net.minestom.server.item.ItemStack;
-import net.minestom.server.timer.TaskSchedule;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-// TODO: Check out the hit queue, it seems like it may be buggy with overdamage / projectiles and stuff. Hits seem like they
-//  can happen to quickly to one another rather than being properly queued (time between each "landed hit" should be 10 ticks)
 
 /**
  * <b>MMC 1.8</b> preset - replicates MineMenClub's 1.8 PvP feel (the {@code mmc18} distinction is deliberate: a modern
@@ -59,17 +59,18 @@ public final class mmc18 {
      */
     public static AttackEvent.AttackRule.Ruleset attackProcessor() {
         return services -> {
-            ensureQueueTask();
+            ensureFlushListener();
             AttackEvent.AttackRule vanilla = Vanilla18.legacyAttack().create(services);
             return event -> {
                 if (event.target() instanceof LivingEntity le) {
+                    // the buffer is a vanilla-tick window, so scale it to live TPS (identity at 20) to keep the same real-time slop
                     if (DamageSystem.isInvulnerableToDamage(le)
-                            && DamageSystem.remainingDamageInvul(le) <= HIT_QUEUE_BUFFER) {
-                        pendingHit.put(le, new PendingHit(event, vanilla));
+                            && DamageSystem.remainingDamageInvul(le) <= TickScaler.duration(HIT_QUEUE_BUFFER, services.profiles().scalingFor(le), DamageSystem.KEY)) {
+                        pendingHit.put(le, PendingHit.capture(event, vanilla));
                         return;
                     }
                     // Drain an already-expired queued hit first so the older hit lands before this one.
-                    flushPending(le);
+                    if (flushPending(le)) return;
                 }
                 vanilla.processAttack(event);
             };
@@ -80,33 +81,44 @@ public final class mmc18 {
     private static final int HIT_QUEUE_BUFFER = 1;
     /** At most one pending buffered hit per target, applied as a fresh hit when its window expires. */
     private static final Map<LivingEntity, PendingHit> pendingHit = new ConcurrentHashMap<>();
-    private static final AtomicBoolean queueTaskStarted = new AtomicBoolean();
+    private static final AtomicBoolean flushListenerStarted = new AtomicBoolean();
 
     /** A buffered hit: the fired event plus the processing rule to apply it with on flush. */
-    private record PendingHit(AttackEvent event, AttackEvent.AttackRule rule) {}
-
-    private static void ensureQueueTask() {
-        if (!queueTaskStarted.compareAndSet(false, true)) return;
-        MinecraftServer.getSchedulerManager()
-                .buildTask(mmc18::flushExpired)
-                .repeat(TaskSchedule.tick(1))
-                .schedule();
+    private record PendingHit(AttackEvent event, AttackEvent.AttackRule rule) {
+        private static PendingHit capture(AttackEvent event, AttackEvent.AttackRule rule) {
+            // AttackEvent reads crit/item lazily; freeze them so the delayed hit is the queued swing, not a later state.
+            event.overrideCritical(event.critical());
+            event.overrideItem(event.item());
+            return new PendingHit(event, rule);
+        }
     }
 
-    private static void flushExpired() {
+    /**
+     * Queue expiry runs as a {@link TickPhase#PRE_DISPATCH} {@link TickSystem} tickable - right after the instance's
+     * combat tick advances, strictly before the dispatcher processes that tick's attack packets. Replaces the old
+     * global-scheduler repeat task, which ran on a different phase than the packet path and let a flush-opened window be
+     * judged a physical tick early. Documented order per tick: advance clock -> flush expired -> attacks.
+     */
+    private static void ensureFlushListener() {
+        if (!flushListenerStarted.compareAndSet(false, true)) return;
+        TickSystem.register(TickPhase.PRE_DISPATCH, ctx -> flushExpired(ctx.instance()));
+    }
+
+    private static void flushExpired(Instance instance) {
         for (LivingEntity target : pendingHit.keySet()) {
             if (target.isRemoved()) pendingHit.remove(target);
-            else flushPending(target);
+            else if (target.getInstance() == instance) flushPending(target);
         }
     }
 
     /** Applies the pending hit for {@code le} once its window has expired, claiming the slot atomically. */
-    private static void flushPending(LivingEntity le) {
+    private static boolean flushPending(LivingEntity le) {
         PendingHit p = pendingHit.get(le);
-        if (p == null) return;
-        if (DamageSystem.isInvulnerableToDamage(le)) return; // window still open
-        if (!pendingHit.remove(le, p)) return; // claimed elsewhere
+        if (p == null) return false;
+        if (DamageSystem.isInvulnerableToDamage(le)) return false; // window still open
+        if (!pendingHit.remove(le, p)) return false; // claimed elsewhere
         p.rule().processAttack(p.event());
+        return true;
     }
 
     /** Returns DamageConfig based on Vanilla18 with overdamage enabled and applied silently (no hurt animation). */
@@ -147,7 +159,7 @@ public final class mmc18 {
                 .build();
     }
 
-    // TODO: Update stub
+    // TODO: Update stub with actual minemen projectiles
     /**
      * mmc18 projectile config. Inherits the vanilla 1.8 baseline ({@link Vanilla18#projectileDefaults()} physics +
      * {@link Vanilla18#snowball()} damage/spawn) so projectile behavior is unchanged today. This is the seam to give
@@ -228,7 +240,7 @@ public final class mmc18 {
      * future per-victim sprint-speed modifier (speed effects, attribute scaling, ...).
      */
     private static Vec sprintVel(VelocityContext ctx) {
-        return ctx.wasClientRecentlySprinting(SPRINT_BUFFER)
+        return ctx.wasClientRecentlySprinting(TickScaler.duration(SPRINT_BUFFER, KnockbackSystem.KEY))
                 ? Directions.fromYaw(ctx.entity().getPosition().yaw()).mul(SPRINT_JUMP_IMPULSE)
                 : Vec.ZERO;
     }
@@ -270,7 +282,7 @@ public final class mmc18 {
         Entity attacker = snap.source();
         if (attacker == null || !snap.melee()) return null;
         var tracker = ctx.services().sprintTracker();
-        if (!SprintTracker.wasRecentlySprinting(tracker, attacker, SPRINT_BUFFER)) return null;     // sprint hit
+        if (!SprintTracker.wasRecentlySprinting(tracker, attacker, TickScaler.duration(SPRINT_BUFFER, KnockbackSystem.KEY))) return null;     // sprint hit
 
         Vec vel = ctx.victimVelocity();
         double speed = Math.hypot(vel.x(), vel.z());

@@ -5,12 +5,14 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageProducers;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
+import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionCategory;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.util.BlockContact;
+import io.github.term4.minestommechanics.util.tick.TickPhase;
+import io.github.term4.minestommechanics.util.tick.TickSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import net.kyori.adventure.key.Key;
-import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
@@ -21,12 +23,14 @@ import net.minestom.server.event.entity.EntityTickEvent;
 import net.minestom.server.event.entity.EntityTeleportEvent;
 import net.minestom.server.event.player.PlayerMoveEvent;
 import net.minestom.server.event.player.PlayerSpawnEvent;
+import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.tag.Tag;
-import net.minestom.server.timer.Task;
-import net.minestom.server.timer.TaskSchedule;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Fall damage ({@code minecraft:fall}). Vanilla 1.8: distance accumulates while descending, water/climbing zero it,
@@ -49,11 +53,16 @@ public final class FallDamage extends DamageType {
 
     private @Nullable EventNode<@NotNull Event> node;
     private @Nullable DamageSystem system;
-    private @Nullable Task pollTask;
+    /** The landing poll is registered on {@link TickSystem} once for the JVM (afterAdvance has no removal); {@link #polling} gates it. */
+    private static final AtomicBoolean POLL_HOOK = new AtomicBoolean();
+    private volatile boolean polling;
 
     private FallDamage() {
         super(KEY, "Fall", VanillaTypes.FALL, FallDamageConfig.builder().build());
     }
+
+    /** Fall is the Feather Falling category (plus general Protection); it bypasses armor but not EPF. */
+    @Override public Set<ProtectionCategory> protectionCategories() { return Set.of(ProtectionCategory.FALL); }
 
     @Override
     public void enable(DamageSystem system, MinestomMechanics mm) {
@@ -65,21 +74,17 @@ public final class FallDamage extends DamageType {
         n.addListener(PlayerSpawnEvent.class, e -> resetFallDistance(e.getPlayer()));
         system.node().addChild(n);
         node = n;
-        // fallback poll a tick behind onMove: catches status-only onGround landings (no PlayerMoveEvent)
-        pollTask = MinecraftServer.getSchedulerManager()
-                .buildTask(this::poll)
-                .repeat(TaskSchedule.tick(1))
-                .schedule();
+        // fallback poll a tick behind onMove (catches status-only onGround landings, no PlayerMoveEvent), via the TickSystem
+        // like the other per-tick mechanics. Registered once for the JVM; `polling` makes disable() inert.
+        polling = true;
+        if (POLL_HOOK.compareAndSet(false, true)) TickSystem.register(TickPhase.DEFAULT, ctx -> INSTANCE.pollLandings(ctx.instance()));
     }
 
     @Override
     public void disable() {
         if (system != null && node != null) system.node().removeChild(node);
         node = null;
-        if (pollTask != null) {
-            pollTask.cancel();
-            pollTask = null;
-        }
+        polling = false;
     }
 
     /** Clears an entity's accumulated fall distance (teleports, spawns, custom resets like pearls). */
@@ -123,9 +128,10 @@ public final class FallDamage extends DamageType {
         accumulate(living, y - prev.y(), onGround);
     }
 
-    /** Fallback landing poll for players (status-only onGround packets fire no move event). */
-    private void poll() {
-        for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+    /** Fallback landing poll for players (status-only onGround packets fire no move event); one instance per tick. */
+    private void pollLandings(Instance instance) {
+        if (!polling) return;
+        for (Player p : instance.getPlayers()) {
             if (!p.isOnGround()) continue;
             float dist = fallDistance(p);
             if (dist <= 0) continue;

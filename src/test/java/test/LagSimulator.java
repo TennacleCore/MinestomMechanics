@@ -43,8 +43,8 @@ public final class LagSimulator {
 
     /**
      * The simulator's own tick, incremented at the top of each {@link #flush}. Stamping and draining MUST share
-     * one clock: comparing against {@code TickClock} raced task registration order (flush registered first runs
-     * before TickClock's increment within the same server tick), which held every packet a phantom extra tick -
+     * one clock: comparing against {@code TickSystem} raced task registration order (flush registered first runs
+     * before TickSystem's increment within the same server tick), which held every packet a phantom extra tick -
      * {@code /lag 1} measured as ~2 ticks (~100ms) instead of one.
      */
     private volatile long tick = 0;

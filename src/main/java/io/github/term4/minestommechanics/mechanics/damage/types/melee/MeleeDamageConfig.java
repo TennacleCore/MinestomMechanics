@@ -1,8 +1,12 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.melee;
 
 import io.github.term4.minestommechanics.config.FieldValue;
+import io.github.term4.minestommechanics.item.ItemRegistry;
+import io.github.term4.minestommechanics.item.ItemStat;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
+import net.minestom.server.entity.LivingEntity;
+import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Function;
@@ -13,6 +17,9 @@ import java.util.function.Function;
  */
 public final class MeleeDamageConfig extends DamageTypeConfig {
 
+    /** Bare-hand melee damage (the 1.8 base attack-damage attribute); the fallback for fist/unlisted items. */
+    public static final double FIST_DAMAGE = 1.0;
+
     private final @Nullable FieldValue<DamageContext, Double> critMultiplier;
 
     private MeleeDamageConfig(Builder b) {
@@ -22,6 +29,19 @@ public final class MeleeDamageConfig extends DamageTypeConfig {
 
     /** Damage multiplier applied on a critical melee hit (vanilla 1.8 = 1.5x), or {@code null} (treated as 1x). */
     public @Nullable Double critMultiplier(DamageContext ctx) { return resolve(critMultiplier, ctx); }
+
+    /**
+     * Default melee {@code baseAmount}: the held item's {@code ATTACK_DAMAGE} from the {@link ItemRegistry}
+     * ({@code Services.items()}, version per preset), falling back to {@link #FIST_DAMAGE} for fist/unlisted items
+     * or when no registry is installed.
+     */
+    static double weaponBaseAmount(DamageContext ctx) {
+        ItemStack item = ctx.item();
+        LivingEntity holder = ctx.snap().source() instanceof LivingEntity le ? le : null;
+        if ((item == null || item.isAir()) && holder != null) item = holder.getItemInMainHand();
+        ItemRegistry items = ctx.services() != null ? ctx.services().items() : null;
+        return items != null ? items.value(item, holder, ItemStat.ATTACK_DAMAGE, FIST_DAMAGE) : FIST_DAMAGE;
+    }
 
     @Override
     public DamageTypeConfig fromBase(DamageTypeConfig base) {
@@ -36,9 +56,9 @@ public final class MeleeDamageConfig extends DamageTypeConfig {
     public static Builder builder() { return new Builder(); }
 
     public static final class Builder {
-        // default base amount = the 1.8 weapon table; invul/overdamage stay unset to inherit global
+        // default base amount = the held weapon's ATTACK_DAMAGE via the ItemRegistry; invul/overdamage stay unset to inherit global
         private final DamageTypeConfig.Builder common = new DamageTypeConfig.Builder().key(MeleeDamage.KEY)
-                .baseAmount(LegacyWeaponDamage::baseAmount);
+                .baseAmount(MeleeDamageConfig::weaponBaseAmount);
         private FieldValue<DamageContext, Double> critMultiplier = FieldValue.constant(1.5);
 
         public Builder enabled(Boolean v) { common.enabled(v); return this; }

@@ -4,6 +4,26 @@ import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
+import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfig;
+import io.github.term4.minestommechanics.mechanics.attribute.defense.ArmorConfig;
+import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionConfig;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.VanillaAttributes;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Knockback;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Sharpness;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Absorption;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Strength;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Weakness;
+import io.github.term4.minestommechanics.item.Enchants;
+import io.github.term4.minestommechanics.item.ItemDef;
+import io.github.term4.minestommechanics.item.ItemRegistry;
+import io.github.term4.minestommechanics.item.VanillaItems;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingBehavior;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfig;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingTypeConfig;
+import io.github.term4.minestommechanics.mechanics.blocking.catalog.VanillaBlocking;
+import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfig;
+import io.github.term4.minestommechanics.mechanics.consumable.ConsumableTypeConfig;
+import io.github.term4.minestommechanics.mechanics.consumable.catalog.VanillaConsumables;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
@@ -12,6 +32,9 @@ import io.github.term4.minestommechanics.mechanics.damage.types.burning.BurningC
 import io.github.term4.minestommechanics.mechanics.damage.types.burning.BurningDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.burning.InFireDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.burning.LavaDamage;
+import io.github.term4.minestommechanics.mechanics.damage.types.breathing.BreathingConfig;
+import io.github.term4.minestommechanics.mechanics.damage.types.breathing.DrowningDamage;
+import io.github.term4.minestommechanics.mechanics.damage.types.breathing.SuffocationDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.cactus.CactusDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.fall.FallDamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
@@ -32,6 +55,7 @@ import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
+import net.minestom.server.potion.PotionEffect;
 
 /** Preconfigured vanilla 1.8 values. Use these as defaults when resolving nullable configs. */
 public final class Vanilla18 {
@@ -113,8 +137,10 @@ public final class Vanilla18 {
      * {@code 3.0}, gravity {@code 0.05}), velocity-based damage ({@code damage = 2.0} per-speed multiplier), and it
      * sticks in blocks instead of breaking ({@code removeOnBlockHit = false}). Knockback stays shooter-relative
      * (inherited, not overridden to {@code PROJECTILE}): a plain arrow knocks the victim away from the shooter, not
-     * along the arrow's flight. (Punch adds a separate motion-direction knockback - TODO with Power/Punch/Flame.)
-     * Damage routes through {@link ProjectileDamage} for now (a dedicated {@code minecraft:arrow} type is the follow-up).
+     * along the arrow's flight. Punch rides as the extra-knockback level, scaling {@link #kb()}'s {@code extra}* knobs in
+     * that same shooter-relative direction (vanilla's Punch is along the arrow's motion - close while it flies toward the
+     * victim, exact only if re-sourced to {@code PROJECTILE}). Damage routes through {@link ProjectileDamage} for now (a
+     * dedicated {@code minecraft:arrow} type is the follow-up).
      */
     public static ProjectileTypeConfig arrow() {
         return ProjectileTypeConfig.builder(Arrow.KEY)
@@ -134,6 +160,67 @@ public final class Vanilla18 {
                 .build();
     }
 
+    /**
+     * Vanilla 1.8 attribute config: the LEGACY source variants (Strength, Sharpness) plus the LEGACY defense stages
+     * (armor linear, EPF randomized) the {@code AttributeSystem.mitigate} pipeline runs. A MODERN preset registers the
+     * {@code .MODERN} variants + MODERN formulas instead - the version lives in what's registered, not a flag.
+     */
+    public static AttributeConfig attributes() {
+        return AttributeConfig.builder()
+                .sources(Strength.LEGACY, Weakness.LEGACY, Sharpness.LEGACY, Absorption.LEGACY) // 1.8 version variants
+                .sources(VanillaAttributes.enchants())
+                .sources(VanillaAttributes.effects())
+                .armor(ArmorConfig.builder().formula(ArmorConfig.Formula.LEGACY_LINEAR).build())
+                .protection(ProtectionConfig.builder().formula(ProtectionConfig.Formula.LEGACY_RANDOMIZED).build())
+                .build();
+    }
+
+    /**
+     * Vanilla 1.8 consumables: the golden apples, with 1.8-source effects (the registered
+     * {@link VanillaConsumables#types() types} get their behavior here). Regular = Regen II (5s) + Absorption I (2m);
+     * enchanted ("notch") = Regen V (30s) + Resistance (5m) + Fire Resistance (5m) + Absorption I (2m). Both restore
+     * 4 food + 9.6 saturation. Differs from {@code Vanilla.consumables()} (26: enchanted is Regen II + Absorption IV).
+     */
+    public static ConsumableConfig consumables() {
+        return ConsumableConfig.builder()
+                .typeConfigs(
+                        ConsumableTypeConfig.builder(VanillaConsumables.GOLDEN_APPLE.key())
+                                .behavior(VanillaConsumables.effectFood(4, 9.6f,
+                                        VanillaConsumables.eff(PotionEffect.REGENERATION, 2, 100),
+                                        VanillaConsumables.eff(PotionEffect.ABSORPTION, 1, 2400)))
+                                .build(),
+                        ConsumableTypeConfig.builder(VanillaConsumables.ENCHANTED_GOLDEN_APPLE.key())
+                                .behavior(VanillaConsumables.effectFood(4, 9.6f,
+                                        VanillaConsumables.eff(PotionEffect.REGENERATION, 5, 600),
+                                        VanillaConsumables.eff(PotionEffect.RESISTANCE, 1, 6000),
+                                        VanillaConsumables.eff(PotionEffect.FIRE_RESISTANCE, 1, 6000),
+                                        VanillaConsumables.eff(PotionEffect.ABSORPTION, 1, 2400)))
+                                .build())
+                .build();
+    }
+
+    /**
+     * Vanilla 1.8 blocking: sword block on the {@link VanillaBlocking#SWORDS sword materials}. Reduces a blocked hit to
+     * {@code (1 + f) * 0.5} (vanilla {@code EntityHuman.damageEntity}, pre-armor) via the {@code SWORD} behavior
+     * ({@code base -0.5, factor 0.5}); omnidirectional, no server-side movement slowdown (client-predicted), and only
+     * non-armor-bypassing damage (the {@code SWORD} behavior reads the type's {@code bypassArmor}). Assign per scope via
+     * {@code MechanicsProfile.blocking}, or install as the fallback. A MODERN preset maps the shield to {@code SHIELD}.
+     */
+    public static BlockingConfig blocking() {
+        return BlockingConfig.builder()
+                .defaults(BlockingTypeConfig.builder()
+                        .behavior(BlockingBehavior.SWORD)
+                        .reductionBase(-0.5).reductionFactor(0.5)
+                        .build())
+                .materials(VanillaBlocking.SWORDS)
+                .build();
+    }
+
+    /** Vanilla 1.8 item registry: the LEGACY weapon table; armor rides Minestom's {@code ARMOR} attribute. */
+    public static ItemRegistry items() {
+        return new ItemRegistry(ItemDef.Version.LEGACY, VanillaItems.weapons());
+    }
+
     /** Returns a DamageConfig with vanilla 1.8 values. */
     public static DamageConfig dmg() {
         return DamageConfig.builder()
@@ -147,15 +234,41 @@ public final class Vanilla18 {
                         lavaDamage(),
                         burningDamage(),
                         cactusDamage(),
+                        drownDamage(),
+                        suffocationDamage(),
                         playerAttackDamage()
                 )
                 .build();
     }
 
+    /** Vanilla 1.8 drowning: 2.0 at air {@code <= -20}, air snaps to max instantly out of water ({@code AirRefill.LEGACY}). */
+    private static BreathingConfig drownDamage() {
+        return BreathingConfig.builder()
+                .key(DrowningDamage.KEY)
+                .baseAmount(2.0)
+                .airRefill(BreathingConfig.AirRefill.LEGACY)
+                .bypassArmor(true) // drowning ignores armor in 1.8 (DROWN.setIgnoreArmor) - also makes it unblockable
+                .build();
+    }
+
+    /** Vanilla suffocation: 1.0 per tick while the head is in a solid block (same 1.8 + 26). */
+    private static DamageTypeConfig suffocationDamage() {
+        // STUCK (in_wall) ignores armor in 1.8 (setIgnoreArmor) - also makes it unblockable
+        return DamageTypeConfig.builder(SuffocationDamage.KEY).baseAmount(1.0).bypassArmor(true).build();
+    }
+
     private static FallDamageConfig fallDamage() {
         return FallDamageConfig.builder()
                 .formula(FallDamageConfig.Formula.LEGACY_CEIL)
-                .threshold(3.0)
+                .bypassArmor(true) // fall ignores armor in 1.8 (DamageSource.FALL); only Feather Falling (EPF) reduces it. Also unblockable.
+                // 1.8 has no SAFE_FALL_DISTANCE attribute: Jump Boost subtracts (amp+1) blocks directly (EntityLiving.e)
+                .threshold(ctx -> {
+                    if (ctx.snap().target() instanceof LivingEntity le) {
+                        int amp = le.getEffectLevel(PotionEffect.JUMP_BOOST);
+                        if (amp >= 0) return 3.0 + (amp + 1);
+                    }
+                    return 3.0;
+                })
                 .build();
     }
 
@@ -184,6 +297,7 @@ public final class Vanilla18 {
                 .key(BurningDamage.KEY)
                 .baseAmount(1.0)
                 .intervalTicks(20)
+                .bypassArmor(true) // on_fire (burn tick) ignores armor in 1.8 (BURN.setIgnoreArmor); in_fire/lava don't. Also unblockable.
                 .build();
     }
 
@@ -284,10 +398,12 @@ public final class Vanilla18 {
                         event.attacker(), event.target(), event.critical(), event.item(), services);
                 result = dmg.apply(snap);
             }
-            // 2. Knockback
+            // 2. Knockback - the Knockback enchant feeds the extra-knockback level (read off the weapon actually used,
+            //    frozen for buffered hits; +1 for a sprint hit is added in the calculator).
             KnockbackSystem kb = services.knockback();
             if (result == DamageSystem.DamageOutcome.FRESH_DAMAGE && kb != null) {
-                var kbSnap = new KnockbackSnapshot(event.target(), true, event.attacker(), null, null, null);
+                int extra = Enchants.level(event.item(), Knockback.KEY);
+                var kbSnap = new KnockbackSnapshot(event.target(), true, event.attacker(), null, null, null, extra);
                 kb.apply(kbSnap);
             }
             // 3. Attacker self-effects on a landed sprint/enchant hit: scale the attacker's own horizontal velocity

@@ -1,20 +1,18 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.burning;
 
-import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver;
-import io.github.term4.minestommechanics.mechanics.damage.DamageProducers;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
+import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalDamageTicker;
 import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalTickProducer;
-import io.github.term4.minestommechanics.tracking.EnvironmentalDamageTicker;
 import io.github.term4.minestommechanics.util.BlockContact;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.LivingEntity;
-import net.minestom.server.event.entity.EntityTickEvent;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.Nullable;
@@ -40,16 +38,16 @@ final class BurningTicker implements EnvironmentalTickProducer {
 
     private BurningTicker() {}
 
-    static void activate(Key key, DamageSystem system, MinestomMechanics mm) {
-        INSTANCE.add(key, system, mm);
+    static void activate(Key key, DamageSystem system) {
+        INSTANCE.add(key, system);
     }
 
     static void deactivate(Key key) {
         INSTANCE.remove(key);
     }
 
-    private synchronized void add(Key key, DamageSystem system, MinestomMechanics mm) {
-        EnvironmentalDamageTicker.instance().bind(system, mm);
+    private synchronized void add(Key key, DamageSystem system) {
+        EnvironmentalDamageTicker.instance().bind(system);
         active.add(key);
         if (!registered) {
             EnvironmentalDamageTicker.instance().register(this);
@@ -66,11 +64,7 @@ final class BurningTicker implements EnvironmentalTickProducer {
     }
 
     @Override
-    public void tick(EntityTickEvent event, DamageSystem sys) {
-        if (!(event.getEntity() instanceof LivingEntity living) || living.isDead()) return;
-        if (DamageProducers.exempt(living)) return;
-        if (living.getInstance() == null) return;
-
+    public void tick(LivingEntity living, DamageSystem sys) {
         boolean[] contact = new boolean[3]; // water, lava, fire
         BlockContact.scan(living, block -> {
             if (block.compare(Block.WATER)) contact[0] = true;
@@ -109,13 +103,15 @@ final class BurningTicker implements EnvironmentalTickProducer {
             Integer ignite = bc.igniteTicks(ctx);
             if (ignite != null && ignite > 0) {
                 int invul = resolvedInvul(sys, ctx, bc);
-                int warmup = bc.resolveIgniteWarmup(ctx, invul);
+                // fire duration + warmup are real-time windows; Minestom decrements fireTicks at server TPS, so scale them (identity at 20)
+                int warmup = TickScaler.duration(bc.resolveIgniteWarmup(ctx, invul), DamageSystem.KEY);
+                int scaledIgnite = TickScaler.duration(ignite, DamageSystem.KEY);
                 boolean pin = living.getFireTicks() > 0 || contactTicks >= warmup;
-                if (pin && living.getFireTicks() < ignite) living.setFireTicks(ignite);
+                if (pin && living.getFireTicks() < scaledIgnite) living.setFireTicks(scaledIgnite);
             }
         }
 
-        int interval = interval(bc.contactIntervalTicks(ctx), DEFAULT_CONTACT_INTERVAL);
+        int interval = TickScaler.duration(interval(bc.contactIntervalTicks(ctx), DEFAULT_CONTACT_INTERVAL), DamageSystem.KEY);
         if ((contactTicks - 1) % interval != 0) return;
 
         if (DamageSystem.absorbedByWindow(living, ctx.baseAmount())) return;
@@ -135,9 +131,9 @@ final class BurningTicker implements EnvironmentalTickProducer {
             return;
         }
 
-        int interval = cfg instanceof BurningConfig bc
+        int interval = TickScaler.duration(cfg instanceof BurningConfig bc
                 ? interval(bc.intervalTicks(ctx), DEFAULT_BURN_INTERVAL)
-                : DEFAULT_BURN_INTERVAL;
+                : DEFAULT_BURN_INTERVAL, DamageSystem.KEY);
         if (fireTicks % interval != 0) return;
 
         if (DamageSystem.absorbedByWindow(living, ctx.baseAmount())) return;

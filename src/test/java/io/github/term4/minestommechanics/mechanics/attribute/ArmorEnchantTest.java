@@ -1,0 +1,75 @@
+package io.github.term4.minestommechanics.mechanics.attribute;
+
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.AquaAffinity;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Efficiency;
+import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import net.minestom.server.component.DataComponents;
+import net.minestom.server.coordinate.Pos;
+import net.minestom.server.entity.EquipmentSlot;
+import net.minestom.server.entity.LivingEntity;
+import net.minestom.server.entity.attribute.Attribute;
+import net.minestom.server.entity.attribute.AttributeOperation;
+import net.minestom.server.item.ItemStack;
+import net.minestom.server.item.Material;
+import net.minestom.server.item.component.EnchantmentList;
+import net.minestom.server.item.enchant.Enchantment;
+import net.minestom.server.registry.RegistryKey;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * The worn-equipment source lifecycle: an {@link ArmorSource} (Aqua Affinity) pushes its modifier onto the wearer's
+ * {@code SUBMERGED_MINING_SPEED} while the helmet is worn and clears it on removal - driven off {@code EntityEquipEvent},
+ * mirroring the potion lifecycle. (Consumption still waits on a dig calculator; this proves the delivery half.)
+ */
+class ArmorEnchantTest extends HeadlessServerTest {
+
+    private static ItemStack aquaHelmet() {
+        return ItemStack.of(Material.DIAMOND_HELMET)
+                .with(DataComponents.ENCHANTMENTS, new EnchantmentList(RegistryKey.<Enchantment>unsafeOf(AquaAffinity.KEY), 1));
+    }
+
+    /** Whether the wearer's submerged-mining-speed carries Aqua Affinity's {@code +4 ADD_MULTIPLIED_TOTAL} push. */
+    private static boolean hasAquaModifier(LivingEntity e) {
+        return e.getAttribute(Attribute.SUBMERGED_MINING_SPEED).modifiers().stream()
+                .anyMatch(m -> m.operation() == AttributeOperation.ADD_MULTIPLIED_TOTAL && Math.abs(m.amount() - 4.0) < 1e-9);
+    }
+
+    @Test
+    void aquaAffinityPushesWhileWornAndClearsOnRemoval() {
+        LivingEntity e = zombie(new Pos(0, 64, 90));
+        assertFalse(hasAquaModifier(e), "no helmet yet");
+        e.setEquipment(EquipmentSlot.HELMET, aquaHelmet());
+        assertTrue(hasAquaModifier(e), "Aqua Affinity should push submerged_mining_speed while worn");
+        e.setEquipment(EquipmentSlot.HELMET, ItemStack.AIR);
+        assertFalse(hasAquaModifier(e), "removing the helmet should clear the push");
+    }
+
+    @Test
+    void plainHelmetPushesNothing() {
+        LivingEntity e = zombie(new Pos(0, 64, 91));
+        e.setEquipment(EquipmentSlot.HELMET, ItemStack.of(Material.DIAMOND_HELMET));
+        assertFalse(hasAquaModifier(e), "an unenchanted helmet contributes nothing");
+    }
+
+    /** Whether the holder's mining-efficiency carries Efficiency III's {@code +10 ADD_VALUE} (3²+1) push. */
+    private static boolean hasMiningEfficiency(LivingEntity e) {
+        var inst = e.getAttribute(Attribute.MINING_EFFICIENCY);
+        return inst != null && inst.modifiers().stream()
+                .anyMatch(m -> m.operation() == AttributeOperation.ADD_VALUE && Math.abs(m.amount() - 10.0) < 1e-9);
+    }
+
+    @Test
+    void efficiencyPushesMiningEfficiencyWhileHeld() {
+        LivingEntity e = zombie(new Pos(0, 64, 92));
+        ItemStack pick = ItemStack.of(Material.DIAMOND_PICKAXE)
+                .with(DataComponents.ENCHANTMENTS, new EnchantmentList(RegistryKey.<Enchantment>unsafeOf(Efficiency.KEY), 3));
+        assertFalse(hasMiningEfficiency(e), "no tool yet");
+        e.setEquipment(EquipmentSlot.MAIN_HAND, pick);
+        assertTrue(hasMiningEfficiency(e), "Efficiency III pushes mining_efficiency (3²+1) while the tool is held");
+        e.setEquipment(EquipmentSlot.MAIN_HAND, ItemStack.AIR);
+        assertFalse(hasMiningEfficiency(e), "switching off the tool clears it");
+    }
+}

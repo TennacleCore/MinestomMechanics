@@ -18,5 +18,7 @@ public final class VanillaTypes {
     public static final RegistryKey<DamageType> ON_FIRE = DamageType.ON_FIRE;
     public static final RegistryKey<DamageType> LAVA = DamageType.LAVA;
     public static final RegistryKey<DamageType> CACTUS = DamageType.CACTUS;
+    public static final RegistryKey<DamageType> DROWN = DamageType.DROWN;
+    public static final RegistryKey<DamageType> IN_WALL = DamageType.IN_WALL;
 
 }

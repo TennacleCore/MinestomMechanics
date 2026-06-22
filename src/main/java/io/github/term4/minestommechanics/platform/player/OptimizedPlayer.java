@@ -1,6 +1,7 @@
 package io.github.term4.minestommechanics.platform.player;
 
 import io.github.term4.minestommechanics.platform.fixes.client.SelfMetaFilter;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Metadata;
 import net.minestom.server.entity.Player;
@@ -144,10 +145,10 @@ public class OptimizedPlayer extends Player {
 
     @Override
     public void refreshPosition(Pos newPosition, boolean ignoreView, boolean sendPackets) {
-        if (sendPackets && positionBroadcastInterval > 1) {
-            if (getAliveTicks() % positionBroadcastInterval != 0) {
-                sendPackets = false;
-            }
+        if (sendPackets) {
+            // broadcast at the client's rate: identity at 20, throttled toward ~client Hz as server TPS rises (saves packets)
+            int cadence = TickScaler.clientCadence(positionBroadcastInterval);
+            if (cadence > 1 && getAliveTicks() % cadence != 0) sendPackets = false;
         }
         // Technically api internal but it works. Bite me.
         super.refreshPosition(newPosition, ignoreView, sendPackets);

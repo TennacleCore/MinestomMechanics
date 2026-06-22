@@ -1,12 +1,18 @@
 package io.github.term4.minestommechanics;
 
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
+import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfig;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfig;
+import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
+import io.github.term4.minestommechanics.mechanics.durability.DurabilityConfig;
+import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
 import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
+import io.github.term4.minestommechanics.util.tick.TickScalingConfig;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
@@ -104,6 +110,36 @@ public final class MechanicsProfiles {
     /** Effective client/protocol fixes config for {@code subject}, or {@code null} when no scope sets one. */
     public @Nullable FixesConfig fixesFor(@Nullable Entity subject) {
         return resolve(subject, MechanicsProfile::fixes);
+    }
+
+    /** Effective attribute config for {@code subject}, or {@code null} when no scope sets one (the install config applies). */
+    public @Nullable AttributeConfig attributesFor(@Nullable Entity subject) {
+        return resolve(subject, MechanicsProfile::attributes);
+    }
+
+    /** Effective TPS-scaling config for {@code subject}, or {@code null} when no scope sets one ({@link TickScalingConfig#DEFAULTS} apply). */
+    public @Nullable TickScalingConfig scalingFor(@Nullable Entity subject) {
+        return resolve(subject, MechanicsProfile::tickScaling);
+    }
+
+    /** Effective durability config for {@code subject} (the item holder), or {@code null} when no scope sets one. */
+    public @Nullable DurabilityConfig durabilityFor(@Nullable Entity subject) {
+        return resolve(subject, MechanicsProfile::durability);
+    }
+
+    /** Effective hunger config for {@code subject}, or {@code null} when no scope sets one. */
+    public @Nullable HungerConfig hungerFor(@Nullable Entity subject) {
+        return resolve(subject, MechanicsProfile::hunger);
+    }
+
+    /** Effective consumable config for {@code subject} (the consumer), or {@code null} when no scope sets one. */
+    public @Nullable ConsumableConfig consumablesFor(@Nullable Entity subject) {
+        return resolve(subject, MechanicsProfile::consumables);
+    }
+
+    /** Effective blocking config for {@code subject} (the defender), or {@code null} when no scope sets one. */
+    public @Nullable BlockingConfig blockingFor(@Nullable Entity subject) {
+        return resolve(subject, MechanicsProfile::blocking);
     }
 
     private <T> @Nullable T resolve(@Nullable Entity subject, Function<MechanicsProfile, @Nullable T> member) {

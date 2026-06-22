@@ -25,6 +25,10 @@ public class DamageTypeConfig {
     private final @Nullable FieldValue<DamageContext, Boolean> triggersInvul;
     private final @Nullable FieldValue<DamageContext, Boolean> bypassInvul;
     private final @Nullable FieldValue<DamageContext, Boolean> bypassImmune;
+    private final @Nullable FieldValue<DamageContext, Boolean> bypassArmor;
+    private final @Nullable FieldValue<DamageContext, Boolean> bypassEffects;
+    private final @Nullable FieldValue<DamageContext, Boolean> bypassEnchants;
+    private final @Nullable FieldValue<DamageContext, Boolean> bypassAll;
     private final @Nullable FieldValue<DamageContext, Boolean> ownsVelocityBroadcast;
     private final @Nullable Function<DamageContext, DamageTypeConfig> subConfig;
 
@@ -39,6 +43,10 @@ public class DamageTypeConfig {
         this.triggersInvul = b.triggersInvul;
         this.bypassInvul = b.bypassInvul;
         this.bypassImmune = b.bypassImmune;
+        this.bypassArmor = b.bypassArmor;
+        this.bypassEffects = b.bypassEffects;
+        this.bypassEnchants = b.bypassEnchants;
+        this.bypassAll = b.bypassAll;
         this.ownsVelocityBroadcast = b.ownsVelocityBroadcast;
         this.subConfig = b.subConfig;
     }
@@ -88,6 +96,30 @@ public class DamageTypeConfig {
         return v != null && v;
     }
 
+    /** Whether this type skips the armor stage (vanilla {@code ignoresArmor} / {@code BYPASSES_ARMOR}: fall/drown/starve/suffocation/fire-tick/void/magic/wither). Default {@code false}. */
+    public boolean bypassArmor(DamageContext ctx) {
+        Boolean v = resolve(bypassArmor, ctx);
+        return v != null && v;
+    }
+
+    /** Whether this type skips the resistance (effect) mitigation stage - "true damage" toward potion resistance. Default {@code false}. */
+    public boolean bypassEffects(DamageContext ctx) {
+        Boolean v = resolve(bypassEffects, ctx);
+        return v != null && v;
+    }
+
+    /** Whether this type skips the EPF/Protection (enchant) mitigation stage - "true damage" toward armor enchants. Default {@code false}. */
+    public boolean bypassEnchants(DamageContext ctx) {
+        Boolean v = resolve(bypassEnchants, ctx);
+        return v != null && v;
+    }
+
+    /** Whether this type skips every mitigation stage (armor + resistance + EPF) - the blanket bypass (e.g. void). Default {@code false}. */
+    public boolean bypassAll(DamageContext ctx) {
+        Boolean v = resolve(bypassAll, ctx);
+        return v != null && v;
+    }
+
     /** Whether this type's knockback owns the hurt-velocity broadcast, so {@code DamageSystem} won't also send the generic one. {@code null} = the built-in default (melee + thrown). */
     public @Nullable Boolean ownsVelocityBroadcast(DamageContext ctx) { return resolve(ownsVelocityBroadcast, ctx); }
 
@@ -110,6 +142,10 @@ public class DamageTypeConfig {
         b.triggersInvul = mergeFv(triggersInvul, base.triggersInvul);
         b.bypassInvul = mergeFv(bypassInvul, base.bypassInvul);
         b.bypassImmune = mergeFv(bypassImmune, base.bypassImmune);
+        b.bypassArmor = mergeFv(bypassArmor, base.bypassArmor);
+        b.bypassEffects = mergeFv(bypassEffects, base.bypassEffects);
+        b.bypassEnchants = mergeFv(bypassEnchants, base.bypassEnchants);
+        b.bypassAll = mergeFv(bypassAll, base.bypassAll);
         b.ownsVelocityBroadcast = mergeFv(ownsVelocityBroadcast, base.ownsVelocityBroadcast);
         b.subConfig = subConfig != null ? subConfig : base.subConfig;
         return b.build();
@@ -142,6 +178,10 @@ public class DamageTypeConfig {
         private FieldValue<DamageContext, Boolean> triggersInvul;
         private FieldValue<DamageContext, Boolean> bypassInvul;
         private FieldValue<DamageContext, Boolean> bypassImmune;
+        private FieldValue<DamageContext, Boolean> bypassArmor;
+        private FieldValue<DamageContext, Boolean> bypassEffects;
+        private FieldValue<DamageContext, Boolean> bypassEnchants;
+        private FieldValue<DamageContext, Boolean> bypassAll;
         private FieldValue<DamageContext, Boolean> ownsVelocityBroadcast;
         private Function<DamageContext, DamageTypeConfig> subConfig;
 
@@ -159,6 +199,10 @@ public class DamageTypeConfig {
             this.triggersInvul = src.triggersInvul;
             this.bypassInvul = src.bypassInvul;
             this.bypassImmune = src.bypassImmune;
+            this.bypassArmor = src.bypassArmor;
+            this.bypassEffects = src.bypassEffects;
+            this.bypassEnchants = src.bypassEnchants;
+            this.bypassAll = src.bypassAll;
             this.ownsVelocityBroadcast = src.ownsVelocityBroadcast;
             this.subConfig = src.subConfig;
             return this;
@@ -197,6 +241,18 @@ public class DamageTypeConfig {
         /** Ignore fundamental immunity (creative/spectator); e.g. void / admin kill. */
         public Builder bypassImmune(Boolean v) { bypassImmune = FieldValue.constant(v); return this; }
         public Builder bypassImmune(Function<DamageContext, Boolean> fn) { bypassImmune = FieldValue.of(fn); return this; }
+        /** Skip the armor stage (vanilla {@code ignoresArmor}: fall/drown/starve/suffocation/fire-tick/void/magic/wither). */
+        public Builder bypassArmor(Boolean v) { bypassArmor = FieldValue.constant(v); return this; }
+        public Builder bypassArmor(Function<DamageContext, Boolean> fn) { bypassArmor = FieldValue.of(fn); return this; }
+        /** Skip the resistance (effect) mitigation stage ("true damage" toward potion resistance). */
+        public Builder bypassEffects(Boolean v) { bypassEffects = FieldValue.constant(v); return this; }
+        public Builder bypassEffects(Function<DamageContext, Boolean> fn) { bypassEffects = FieldValue.of(fn); return this; }
+        /** Skip the EPF/Protection (enchant) mitigation stage ("true damage" toward armor enchants). */
+        public Builder bypassEnchants(Boolean v) { bypassEnchants = FieldValue.constant(v); return this; }
+        public Builder bypassEnchants(Function<DamageContext, Boolean> fn) { bypassEnchants = FieldValue.of(fn); return this; }
+        /** Skip every mitigation stage (armor + resistance + EPF) - the blanket bypass (e.g. void). */
+        public Builder bypassAll(Boolean v) { bypassAll = FieldValue.constant(v); return this; }
+        public Builder bypassAll(Function<DamageContext, Boolean> fn) { bypassAll = FieldValue.of(fn); return this; }
 
         /** This type's knockback owns the hurt-velocity broadcast (default: melee + thrown). */
         public Builder ownsVelocityBroadcast(Boolean v) { ownsVelocityBroadcast = FieldValue.constant(v); return this; }

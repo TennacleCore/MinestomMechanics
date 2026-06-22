@@ -32,8 +32,10 @@ public class PearlEntity extends ManagedProjectile {
     protected void onImpact(@Nullable Entity hitEntity) {
         Entity shooter = getShooter();
         if (shooter == null || shooter.isRemoved()) return;
-        // teleport to the pearl's pre-move position, keeping the shooter's own view (not the pearl's flight rotation)
-        // TODO(cross-instance): vanilla only teleports when the shooter shares the pearl's world
+        // vanilla only teleports when the shooter shares the pearl's world (1.8 entityplayer.world == this.world; 26 same
+        // dimension, else a portal transition - out of scope). A different instance -> the pearl just dies, no teleport.
+        if (shooter.getInstance() != getInstance()) return;
+        // teleport to the pearl's impact position, keeping the shooter's own view (not the pearl's flight rotation)
         Pos view = shooter.getPosition();
         shooter.teleport(getPosition().withView(view.yaw(), view.pitch()));
         // zero fallDistance first so the teleport drop adds no extra fall damage

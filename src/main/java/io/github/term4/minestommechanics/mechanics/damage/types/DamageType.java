@@ -1,10 +1,13 @@
 package io.github.term4.minestommechanics.mechanics.damage.types;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionCategory;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.registry.RegistryKey;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Set;
 
 /**
  * Base for a damage type in the {@code DamageTypeRegistry}: identifies a source of damage and maps to a Minestom
@@ -39,6 +42,12 @@ public abstract class DamageType {
 
     /** Immutable per-type defaults, used when the active {@code DamageConfig} has no override for this type. */
     public @NotNull DamageTypeConfig defaultConfig() { return defaultConfig; }
+
+    /**
+     * The EPF protection categories this damage type belongs to (the specialized armor enchants that reduce it). General
+     * Protection always applies; these gate Fire/Feather Falling/Blast/Projectile. Empty by default - override per type.
+     */
+    public @NotNull Set<ProtectionCategory> protectionCategories() { return Set.of(); }
 
     /** Called when the type is enabled. Self-driven types wire triggers here and emit snapshots through {@code system}. No-op by default. */
     public void enable(DamageSystem system, MinestomMechanics mm) {}

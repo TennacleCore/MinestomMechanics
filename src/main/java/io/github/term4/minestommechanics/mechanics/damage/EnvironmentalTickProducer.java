@@ -1,11 +1,14 @@
 package io.github.term4.minestommechanics.mechanics.damage;
 
-import net.minestom.server.event.entity.EntityTickEvent;
+import net.minestom.server.entity.LivingEntity;
 
-// TODO: consolidate every ticker into one lib-wide ticker (we have a tick clock); needs ordering review
-/** Per-tick environmental damage scan registered on {@link io.github.term4.minestommechanics.tracking.EnvironmentalDamageTicker}. */
+/**
+ * A self-driven environmental damage scan, run by {@link EnvironmentalDamageTicker} once per instance tick against each
+ * living, non-exempt {@code entity}. The dispatcher already filtered out dead/creative/spectator/flying entities, so a
+ * producer only does its own contact test and emits.
+ */
 @FunctionalInterface
 public interface EnvironmentalTickProducer {
 
-    void tick(EntityTickEvent event, DamageSystem system);
+    void tick(LivingEntity entity, DamageSystem system);
 }

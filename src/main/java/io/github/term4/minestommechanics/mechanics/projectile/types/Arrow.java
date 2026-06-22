@@ -1,8 +1,8 @@
 package io.github.term4.minestommechanics.mechanics.projectile.types;
 
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
-import io.github.term4.minestommechanics.mechanics.projectile.entities.ArrowEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.arrow.ArrowEntity;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;

@@ -200,16 +200,20 @@ public class ManagedProjectile extends ProjectileEntity {
         return new Vec(v.x() * cos - v.z() * sin, v.y(), v.x() * sin + v.z() * cos);
     }
 
-    /** Builds the hit knockback snapshot for the given {@link ProjectileTypeConfig.KnockbackSource} + config. */
+    /**
+     * Builds the hit knockback snapshot for the given {@link ProjectileTypeConfig.KnockbackSource} + config. The captured
+     * {@link #punchLevel()} rides as the extra-knockback level (vanilla's {@code i}), scaling the config's {@code extra}*
+     * knobs - the same channel the melee Knockback enchant uses; {@code 0} (no Punch) leaves the extra term inert.
+     */
     private KnockbackSnapshot buildKnockback(@NotNull Entity target, ProjectileTypeConfig.KnockbackSource source, KnockbackConfig kb) {
         if (shooter != null && source == ProjectileTypeConfig.KnockbackSource.SHOOTER) {
             // shooter source (like melee): the calculator reads the shooter's position + look (yawWeight picks aim vs direction)
-            return new KnockbackSnapshot(target, false, shooter, null, null, kb);
+            return new KnockbackSnapshot(target, false, shooter, null, null, kb, punchLevel());
         }
         // projectile source: origin = projectile, direction = horizontal flight
         Vec h = new Vec(velocityBt.x(), 0, velocityBt.z());
         Vec flightDir = h.lengthSquared() < 1e-9 ? null : h.normalize();
-        return new KnockbackSnapshot(target, false, null, getPosition(), flightDir, kb);
+        return new KnockbackSnapshot(target, false, null, getPosition(), flightDir, kb, punchLevel());
     }
 
     /** Live services lookup (the systems are install-time singletons); null-tolerant if none installed. */

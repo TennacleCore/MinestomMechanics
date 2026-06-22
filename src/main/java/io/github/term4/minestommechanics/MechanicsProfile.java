@@ -1,12 +1,18 @@
 package io.github.term4.minestommechanics;
 
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
+import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfig;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfig;
+import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
+import io.github.term4.minestommechanics.mechanics.durability.DurabilityConfig;
+import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
 import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
+import io.github.term4.minestommechanics.util.tick.TickScalingConfig;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -26,12 +32,18 @@ public record MechanicsProfile(
         @Nullable PlayerConfig player,
         @Nullable VelocityRule velocity,
         @Nullable ProjectileConfig projectiles,
-        @Nullable FixesConfig fixes
+        @Nullable FixesConfig fixes,
+        @Nullable AttributeConfig attributes,
+        @Nullable TickScalingConfig tickScaling,
+        @Nullable DurabilityConfig durability,
+        @Nullable HungerConfig hunger,
+        @Nullable ConsumableConfig consumables,
+        @Nullable BlockingConfig blocking
 ) {
 
-    /** Full profile with all three combat systems set (no player platform / velocity / projectiles / fixes). */
+    /** Full profile with all three combat systems set (the remaining members - platform / velocity / projectiles / fixes / attributes / scaling / durability / hunger / consumables / blocking - default to null). */
     public static MechanicsProfile of(AttackConfig attack, DamageConfig damage, KnockbackConfig knockback) {
-        return new MechanicsProfile(attack, damage, knockback, null, null, null, null);
+        return new MechanicsProfile(attack, damage, knockback, null, null, null, null, null, null, null, null, null, null);
     }
 
     public Builder toBuilder() { return new Builder(this); }
@@ -45,6 +57,12 @@ public record MechanicsProfile(
         private @Nullable VelocityRule velocity;
         private @Nullable ProjectileConfig projectiles;
         private @Nullable FixesConfig fixes;
+        private @Nullable AttributeConfig attributes;
+        private @Nullable TickScalingConfig tickScaling;
+        private @Nullable DurabilityConfig durability;
+        private @Nullable HungerConfig hunger;
+        private @Nullable ConsumableConfig consumables;
+        private @Nullable BlockingConfig blocking;
 
         Builder() {}
 
@@ -56,6 +74,12 @@ public record MechanicsProfile(
             velocity = p.velocity;
             projectiles = p.projectiles;
             fixes = p.fixes;
+            attributes = p.attributes;
+            tickScaling = p.tickScaling;
+            durability = p.durability;
+            hunger = p.hunger;
+            consumables = p.consumables;
+            blocking = p.blocking;
         }
 
         public Builder attack(@Nullable AttackConfig v) { attack = v; return this; }
@@ -65,9 +89,15 @@ public record MechanicsProfile(
         public Builder velocity(@Nullable VelocityRule v) { velocity = v; return this; }
         public Builder projectiles(@Nullable ProjectileConfig v) { projectiles = v; return this; }
         public Builder fixes(@Nullable FixesConfig v) { fixes = v; return this; }
+        public Builder attributes(@Nullable AttributeConfig v) { attributes = v; return this; }
+        public Builder tickScaling(@Nullable TickScalingConfig v) { tickScaling = v; return this; }
+        public Builder durability(@Nullable DurabilityConfig v) { durability = v; return this; }
+        public Builder hunger(@Nullable HungerConfig v) { hunger = v; return this; }
+        public Builder consumables(@Nullable ConsumableConfig v) { consumables = v; return this; }
+        public Builder blocking(@Nullable BlockingConfig v) { blocking = v; return this; }
 
         public MechanicsProfile build() {
-            return new MechanicsProfile(attack, damage, knockback, player, velocity, projectiles, fixes);
+            return new MechanicsProfile(attack, damage, knockback, player, velocity, projectiles, fixes, attributes, tickScaling, durability, hunger, consumables, blocking);
         }
     }
 }

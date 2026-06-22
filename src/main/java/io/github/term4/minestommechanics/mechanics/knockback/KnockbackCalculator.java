@@ -6,6 +6,7 @@ import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.motion.VelocityContext;
 import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import io.github.term4.minestommechanics.util.Directions;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
@@ -37,7 +38,16 @@ public final class KnockbackCalculator {
         return KnockbackConfigResolver.resolve(merged, ctx);
     }
 
+    /** Knockback vector + the resolved config it was computed against, so a caller (e.g. the quantize check) needn't re-resolve. */
+    public record KnockbackResult(Vec velocity, KnockbackConfigResolver.ResolvedKnockbackConfig config) {}
+
     public @Nullable Vec compute(KnockbackSnapshot snap) {
+        KnockbackResult r = computeResult(snap);
+        return r != null ? r.velocity() : null;
+    }
+
+    /** Like {@link #compute} but also returns the resolved config, so the velocity broadcast can reuse it instead of resolving twice. */
+    public @Nullable KnockbackResult computeResult(KnockbackSnapshot snap) {
         KnockbackConfig base = snap.config();
         if (base == null) return null;
 
@@ -105,18 +115,22 @@ public final class KnockbackCalculator {
             kbVec = new Vec(kbVec.x(), vel.y(), kbVec.z());
         }
 
-        return new Vec(kbVec.x() * tps, kbVec.y() * tps, kbVec.z() * tps);
+        return new KnockbackResult(new Vec(kbVec.x() * tps, kbVec.y() * tps, kbVec.z() * tps), cfg);
     }
 
-    /** The extra-knockback level (vanilla {@code i}): +1 when the attacker was recently sprinting, melee only. {@code 0} = none. */
+    /**
+     * The extra-knockback level (vanilla {@code i}): the snapshot's explicit extra (melee Knockback enchant, set by the
+     * attack ruleset which has the weapon; or a projectile's Punch) plus {@code +1} for a recently-sprinting melee
+     * attacker. Each level scales the config's {@code extra}* knobs. {@code 0} = none.
+     */
     private int extraLevel(KnockbackSnapshot snap, KnockbackConfigResolver.ResolvedKnockbackConfig cfg) {
-        if (!snap.melee()) return 0;
+        int level = snap.extraKnockback();
         Entity a = snap.source();
-        if (a == null) return 0;
-        int level = 0;
-        // TODO(enchants): + the weapon's Knockback enchant level once item enchants/attributes exist.
-        int sprBuf = cfg.sprintBuffer() != null ? cfg.sprintBuffer() : 0;
-        if (SprintTracker.wasRecentlySprinting(services.sprintTracker(), a, sprBuf)) level++;
+        // sprint is server state (not on the snapshot); the leniency window scales to live TPS (identity at 20)
+        if (snap.melee() && a != null) {
+            int sprBuf = TickScaler.duration(cfg.sprintBuffer() != null ? cfg.sprintBuffer() : 0, services.profiles().scalingFor(a), KnockbackSystem.KEY);
+            if (SprintTracker.wasRecentlySprinting(services.sprintTracker(), a, sprBuf)) level++;
+        }
         return level;
     }
 

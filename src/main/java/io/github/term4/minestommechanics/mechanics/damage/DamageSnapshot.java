@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage;
 
+import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
 import net.minestom.server.coordinate.Point;
@@ -19,25 +20,28 @@ import org.jetbrains.annotations.Nullable;
  * @param detail  type-specific payload attached by the producer (e.g. the fall distance), if any
  * @param amount  optional amount override; {@code null} uses {@link DamageTypeConfig#baseAmount(io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext)}
  * @param config  optional per-snapshot config override
+ * @param bypass  optional mitigation-bypass spec the attacking item/attack contributes (targeted attribute/effect/enchant
+ *                skips, e.g. a god-killer ignoring resistance); merged with the damage type's broad bypass. {@code null} = none.
  */
 public record DamageSnapshot(Entity target, DamageType type, @Nullable Entity source,
                              @Nullable Point point, @Nullable ItemStack item, @Nullable Object detail,
-                             @Nullable Float amount, @Nullable DamageConfig config) {
+                             @Nullable Float amount, @Nullable DamageConfig config, @Nullable Bypass bypass) {
 
     public static DamageSnapshot of(Entity target, DamageType type) {
-        return new DamageSnapshot(target, type, null, null, null, null, null, null);
+        return new DamageSnapshot(target, type, null, null, null, null, null, null, null);
     }
 
-    public DamageSnapshot withTarget(Entity e) { return new DamageSnapshot(e, type, source, point, item, detail, amount, config); }
-    public DamageSnapshot withType(DamageType t) { return new DamageSnapshot(target, t, source, point, item, detail, amount, config); }
-    public DamageSnapshot withSource(@Nullable Entity e) { return new DamageSnapshot(target, type, e, point, item, detail, amount, config); }
-    public DamageSnapshot withPoint(@Nullable Point p) { return new DamageSnapshot(target, type, source, p, item, detail, amount, config); }
-    public DamageSnapshot withItem(@Nullable ItemStack i) { return new DamageSnapshot(target, type, source, point, i, detail, amount, config); }
-    public DamageSnapshot withDetail(@Nullable Object d) { return new DamageSnapshot(target, type, source, point, item, d, amount, config); }
-    public DamageSnapshot withAmount(@Nullable Float a) { return new DamageSnapshot(target, type, source, point, item, detail, a, config); }
-    public DamageSnapshot withConfig(@Nullable DamageConfig c) { return new DamageSnapshot(target, type, source, point, item, detail, amount, c); }
+    public DamageSnapshot withTarget(Entity e) { return new DamageSnapshot(e, type, source, point, item, detail, amount, config, bypass); }
+    public DamageSnapshot withType(DamageType t) { return new DamageSnapshot(target, t, source, point, item, detail, amount, config, bypass); }
+    public DamageSnapshot withSource(@Nullable Entity e) { return new DamageSnapshot(target, type, e, point, item, detail, amount, config, bypass); }
+    public DamageSnapshot withPoint(@Nullable Point p) { return new DamageSnapshot(target, type, source, p, item, detail, amount, config, bypass); }
+    public DamageSnapshot withItem(@Nullable ItemStack i) { return new DamageSnapshot(target, type, source, point, i, detail, amount, config, bypass); }
+    public DamageSnapshot withDetail(@Nullable Object d) { return new DamageSnapshot(target, type, source, point, item, d, amount, config, bypass); }
+    public DamageSnapshot withAmount(@Nullable Float a) { return new DamageSnapshot(target, type, source, point, item, detail, a, config, bypass); }
+    public DamageSnapshot withConfig(@Nullable DamageConfig c) { return new DamageSnapshot(target, type, source, point, item, detail, amount, c, bypass); }
+    public DamageSnapshot withBypass(@Nullable Bypass b) { return new DamageSnapshot(target, type, source, point, item, detail, amount, config, b); }
 
-    public Builder toBuilder() { return new Builder(target, type, source, point, item, detail, amount, config); }
+    public Builder toBuilder() { return new Builder(target, type, source, point, item, detail, amount, config, bypass); }
 
     public static final class Builder {
         private Entity target;
@@ -48,10 +52,11 @@ public record DamageSnapshot(Entity target, DamageType type, @Nullable Entity so
         private @Nullable Object detail;
         private @Nullable Float amount;
         private @Nullable DamageConfig config;
+        private @Nullable Bypass bypass;
 
         Builder(Entity target, DamageType type, @Nullable Entity source, @Nullable Point point,
                 @Nullable ItemStack item, @Nullable Object detail,
-                @Nullable Float amount, @Nullable DamageConfig config) {
+                @Nullable Float amount, @Nullable DamageConfig config, @Nullable Bypass bypass) {
             this.target = target;
             this.type = type;
             this.source = source;
@@ -60,6 +65,7 @@ public record DamageSnapshot(Entity target, DamageType type, @Nullable Entity so
             this.detail = detail;
             this.amount = amount;
             this.config = config;
+            this.bypass = bypass;
         }
 
         public Builder target(Entity e) { this.target = e; return this; }
@@ -70,9 +76,10 @@ public record DamageSnapshot(Entity target, DamageType type, @Nullable Entity so
         public Builder detail(@Nullable Object d) { this.detail = d; return this; }
         public Builder amount(@Nullable Float a) { this.amount = a; return this; }
         public Builder config(@Nullable DamageConfig c) { this.config = c; return this; }
+        public Builder bypass(@Nullable Bypass b) { this.bypass = b; return this; }
 
         public DamageSnapshot build() {
-            return new DamageSnapshot(target, type, source, point, item, detail, amount, config);
+            return new DamageSnapshot(target, type, source, point, item, detail, amount, config, bypass);
         }
     }
 }

@@ -1,9 +1,13 @@
-package io.github.term4.minestommechanics.mechanics.projectile.entities;
+package io.github.term4.minestommechanics.mechanics.projectile.entities.arrow;
 
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Flame;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedHit;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
-import io.github.term4.minestommechanics.mechanics.projectile.StuckArrows;
+import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
@@ -18,16 +22,20 @@ import net.minestom.server.item.Material;
 import net.minestom.server.network.packet.server.play.CollectItemPacket;
 import net.minestom.server.network.packet.server.play.ParticlePacket;
 import net.minestom.server.particle.Particle;
+import net.minestom.server.potion.CustomPotionEffect;
+import net.minestom.server.potion.Potion;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Arrow projectile: vanilla velocity-based damage ({@code ceil(speed * damage) (+ crit bonus)}), sticks in blocks
  * (frozen + periodic re-sync from {@link ProjectileEntity}) instead of breaking, and can be picked up while stuck.
  * {@link #setCritical} (set by the bow at full draw) adds the crit bonus + particles. Config: {@code Vanilla18.arrow()}.
- * TODO: Power/Punch/Flame enchants + a dedicated arrow damage type (needs the enchant/attribute system).
+ * Power adds {@code 0.5×level + 0.5} to the per-velocity damage and Punch the extra hit knockback (both captured at
+ * launch; see {@link ProjectileEntity#punchLevel()}). TODO: Flame, and a dedicated {@code minecraft:arrow} damage type.
  */
 public class ArrowEntity extends ManagedProjectile {
 
@@ -48,6 +56,11 @@ public class ArrowEntity extends ManagedProjectile {
     private Pickup pickup = Pickup.ALLOWED;
     /** Remaining pickup-cooldown ticks after sticking (vanilla shake). */
     private int shake;
+
+    /** Tipped-arrow payload captured at launch off the item's {@code potion_contents}: effects applied to a struck entity. Empty = plain arrow. */
+    private List<CustomPotionEffect> onHitEffects = List.of();
+    /** The item's {@code potion_duration_scale} (vanilla bakes {@code 0.125} = 1/8 onto a crafted tipped arrow); default {@code 1.0}. */
+    private float potionDurationScale = 1.0f;
 
     /** Who may pick up a stuck arrow (vanilla {@code AbstractArrow.Pickup}): none, any player (survival gets the item), or creative only. */
     public enum Pickup { DISALLOWED, ALLOWED, CREATIVE_ONLY }
@@ -90,8 +103,10 @@ public class ArrowEntity extends ManagedProjectile {
 
     @Override
     protected float hitDamage(ResolvedHit hit, @NotNull Entity target) {
-        // vanilla: ceil(speed*damage), +rand(i/2+2) on crit
-        int dmg = (int) Math.ceil(velocityBt.length() * hit.damage());
+        // vanilla: ceil(speed * (damage + Power bonus)), +rand(i/2+2) on crit
+        double damage = hit.damage();
+        if (powerLevel() > 0) damage += powerLevel() * 0.5 + 0.5; // Power: +0.5×level + 0.5 to the per-velocity damage
+        int dmg = (int) Math.ceil(velocityBt.length() * damage);
         if (dmg < 0) dmg = 0;
         if (critical) dmg += ThreadLocalRandom.current().nextInt(dmg / 2 + 2);
         return dmg;
@@ -100,16 +115,38 @@ public class ArrowEntity extends ManagedProjectile {
     /** Sets the pickup-cooldown (shake) ticks applied when the arrow sticks (launcher applies the resolved config). */
     public void setShakeTicks(int ticks) { this.shakeTicks = ticks; }
 
-    /** Adds one "stuck arrow" to a living victim on a landed hit (vanilla cosmetic arrows in the body; see {@link StuckArrows}). Block hits are ignored. */
+    /** On a living hit: adds one "stuck arrow" (vanilla cosmetic arrows in the body; see {@link StuckArrows}), ignites with Flame, and applies any tipped-arrow effects. Block hits are ignored. */
     @Override
     protected void onImpact(@Nullable Entity hitEntity) {
-        if (hitEntity instanceof LivingEntity le) StuckArrows.add(le, 1);
+        if (!(hitEntity instanceof LivingEntity le)) return;
+        StuckArrows.add(le, 1);
+        // Flame: ignite the struck entity (vanilla fixed 5s; fire ticks decrement at server TPS, so scale it)
+        if (flameLevel() > 0) le.setFireTicks(TickScaler.duration(Flame.FIRE_TICKS, ProjectileSystem.KEY));
+        applyOnHitEffects(le);
+    }
+
+    /** Stamps the captured tipped-arrow payload (launcher applies it off the launch item's {@code potion_contents}). */
+    public void setOnHitEffects(List<CustomPotionEffect> effects, float durationScale) {
+        this.onHitEffects = effects;
+        this.potionDurationScale = durationScale;
+    }
+
+    /**
+     * Applies the tipped-arrow effects to the struck entity (vanilla {@code Arrow.doPostHurtEffects}): each effect's
+     * duration scaled by the item's {@code potion_duration_scale}, then {@code addEffect} - which routes through the
+     * attribute system's potion lifecycle (TPS-duration scaling, source behavior, e.g. {@code InstantDamage} for harming).
+     */
+    private void applyOnHitEffects(LivingEntity le) {
+        for (CustomPotionEffect e : onHitEffects) {
+            int duration = Math.max(1, Math.round(e.duration() * potionDurationScale));
+            le.addEffect(new Potion(e.id(), e.amplifier(), duration, (byte) (Potion.PARTICLES_FLAG | Potion.ICON_FLAG)));
+        }
     }
 
     /** Starts the pickup cooldown when the arrow sticks in a block, and flags inGround for new viewers. */
     @Override
     protected boolean onStuck() {
-        shake = shakeTicks;
+        shake = TickScaler.duration(shakeTicks, ProjectileSystem.KEY); // pickup cooldown decrements per server tick, so scale it
         if (getEntityMeta() instanceof AbstractArrowMeta meta) meta.setInGround(true);
         return super.onStuck();
     }
@@ -138,8 +175,10 @@ public class ArrowEntity extends ManagedProjectile {
         });
         Player p = collected[0];
         if (p == null) return;
-        // ALLOWED gives a survival collector the arrow item; creative takes none. TODO: inventory-full no-pickup, offhand, pop sound
-        if (pickup == Pickup.ALLOWED && p.getGameMode() != GameMode.CREATIVE) p.getInventory().addItemStack(ItemStack.of(Material.ARROW));
+        // ALLOWED gives a survival collector the arrow item; a full inventory means no pickup (vanilla EntityArrow.d gates
+        // on inventory.pickup succeeding). Creative takes none. TODO: offhand, pop sound
+        if (pickup == Pickup.ALLOWED && p.getGameMode() != GameMode.CREATIVE
+                && !p.getInventory().addItemStack(ItemStack.of(Material.ARROW))) return; // inventory full -> arrow stays stuck
         // pickup animation: the arrow flies into the collector before remove() sends the destroy
         sendPacketToViewersAndSelf(new CollectItemPacket(getEntityId(), p.getEntityId(), 1));
         remove();

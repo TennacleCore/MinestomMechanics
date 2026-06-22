@@ -2,9 +2,12 @@ package io.github.term4.minestommechanics.mechanics.damage.types.burning;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionCategory;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import net.kyori.adventure.key.Key;
+
+import java.util.Set;
 
 /**
  * Lava damage ({@code minecraft:lava}). Vanilla 1.8: 4.0 damage attempted every tick while overlapping lava (the invul
@@ -20,9 +23,12 @@ public final class LavaDamage extends DamageType {
         super(KEY, "Lava", VanillaTypes.LAVA, BurningConfig.builder().key(KEY).build());
     }
 
+    /** Lava is a fire source: Fire Protection (plus general Protection) reduces it. */
+    @Override public Set<ProtectionCategory> protectionCategories() { return Set.of(ProtectionCategory.FIRE); }
+
     @Override
     public void enable(DamageSystem system, MinestomMechanics mm) {
-        BurningTicker.activate(KEY, system, mm);
+        BurningTicker.activate(KEY, system);
     }
 
     @Override
