@@ -90,14 +90,13 @@ public class ExampleServer {
         mm.init();
 
         // 1. Initialize knockback system
-        KnockbackSystem.install(mm, mmc18.kb());
+        KnockbackSystem.install(mm, Hypixel.kb());
 
         // 2. Initialize damage system.
-        DamageSystem.install(mm, mmc18.dmg());
+        DamageSystem.install(mm, Hypixel.dmg());
 
         // 3. Initialize combat system
-        AttackSystem.install(mm, mmc18.atk());
-        ReachLog.install(mm, 4.0); // log reach per hit + synchronously cancel only hits whose lower-bound reach > 4.0 (well above the ~3.6 knockback double-hit artifacts)
+        AttackSystem.install(mm, Vanilla18.atk());
 
         // 4. Initialize projectile system
         ProjectileSystem.install(mm, ProjectileConfig.builder(mmc18.projectiles())
@@ -132,8 +131,8 @@ public class ExampleServer {
 
         // Scoped mechanics (player -> instance -> global)
         mm.profiles().setGlobal(MechanicsProfile.builder()
-                .player(mmc18.player())
-                .velocity(mmc18.velocity())
+                .player(Vanilla18.player())
+                .velocity(Hypixel.velocity())
                 .compat(mmc18.compat())
                 .build());
 

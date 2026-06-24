@@ -38,6 +38,25 @@ public final class FluidFlow {
         /** Whether this model pushes in <b>lava</b> at all (1.8 no; 26 yes - still subject to the {@code flowLava} config gate). */
         boolean pushesInLava();
 
+        /**
+         * This model with LEGACY (1.8) vertical water gravity ({@code 0.02} flat, no sprint exception) - i.e. the modern
+         * horizontal current/friction but the 1.8 sink rate + vertical-knockback feel (e.g. Hypixel: modern flow boost
+         * horizontally, legacy for vertical). Only {@link #waterGravity} changes; {@link #impulse} (incl. its falling-water
+         * Y) stays this model's.
+         */
+        default Model withLegacyWaterGravity() {
+            Model base = this;
+            return new Model() {
+                @Override public Vec impulse(Instance inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {
+                    return base.impulse(inst, pos, box, fluid, scale, movX, movZ);
+                }
+                @Override public double waterGravity(boolean sprinting) { return LEGACY.waterGravity(sprinting); }
+                @Override public double waterFriction(boolean sprinting) { return base.waterFriction(sprinting); }
+                @Override public boolean zeroesAgainstWall() { return base.zeroesAgainstWall(); }
+                @Override public boolean pushesInLava() { return base.pushesInLava(); }
+            };
+        }
+
         /** 1.8: flat impulse, {@code 0.02}/{@code 0.8} water gravity/friction, zeroes against a wall, no lava push. */
         Model LEGACY = new Model() {
             @Override public Vec impulse(Instance inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {

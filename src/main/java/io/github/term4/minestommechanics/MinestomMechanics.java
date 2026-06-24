@@ -3,6 +3,8 @@ package io.github.term4.minestommechanics;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
 import io.github.term4.minestommechanics.platform.compatibility.CompatMovement;
+import io.github.term4.minestommechanics.platform.compatibility.CompatOffhand;
+import io.github.term4.minestommechanics.platform.compatibility.CompatPlacement;
 import io.github.term4.minestommechanics.platform.fixes.client.MetaFix;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.platform.player.PlayerConfigApplier;
@@ -151,8 +153,12 @@ public final class MinestomMechanics {
             // Scoped PlayerConfig (profiles) -> OptimizedPlayer, applied at spawn (join / instance
             // change) and pushed to online players whenever a profile assignment changes.
             PlayerConfigApplier.install(this);
-            // Compat hitbox-collision movement restriction (inert unless a player's CompatConfig.restrictMovement is on).
+            // Compat movement restrictions: hitbox-collision (restrictMovement) + 1.8 speed clamps (restrictSprint*/restrictSwimSpeed).
             CompatMovement.install(this);
+            // Compat offhand disabling (inert unless a player's CompatConfig.disableOffhand is on).
+            CompatOffhand.install(this);
+            // Compat block-placement reach restriction (inert unless a player's CompatConfig.blockPlaceReach is set).
+            CompatPlacement.install(this);
         }
         // The global scope's scaling baselines drive physics + static-context durations; refresh on any profile change.
         profiles.onChange(() -> {

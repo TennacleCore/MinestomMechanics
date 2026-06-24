@@ -167,12 +167,21 @@ public final class mmc18 {
      * visual stays client-local). {@code restrictMovement} then blocks moving where the server hitbox can't fit, so a
      * client rendering itself crawling still can't traverse the gap. {@code legacyHitbox} keeps the server box at 1.8 dims
      * (no crouch shrink) + 1.8 eye heights, which also makes {@code restrictMovement} block the 1.5-block sneak gap.
+     * {@code attackHitboxMargin} 0.1 gives modern 1.21.11+ clients the 1.8 attack box on held items.
+     * {@code disableOffhand} blocks modern clients from using the offhand 1.8 lacks. The {@code restrictSprint*}/
+     * {@code restrictSwimSpeed} knobs cancel the modern sprint speed boost while sneaking / using an item / swimming.
      */
     public static CompatConfig compat() {
         return CompatConfig.builder()
                 .disabledPoses(EntityPose.SWIMMING, EntityPose.FALL_FLYING)
                 .restrictMovement(true)
                 .legacyHitbox(true)
+                .attackHitboxMargin(0.1f)
+                .disableOffhand(true)
+                .restrictSprintSneak(true)
+                .restrictSprintUse(true)
+                .restrictSwimSpeed(true)
+                .blockPlaceReach(4.5) // 1.8 survival block reach; caps modern sneak-bridge over-reach (paired with legacyHitbox's 1.8 eye)
                 .build();
     }
 

@@ -15,7 +15,7 @@ import org.jetbrains.annotations.NotNull;
  * (join and instance change) and on every profile assignment change ({@code MechanicsProfiles} set calls
  * re-apply to all online players), so swaps are live without any polling. Each member is applied only when a
  * scope sets it; otherwise the player is left untouched, so the manual {@link OptimizedPlayer} setters
- * ({@code setPositionBroadcastInterval} / {@code setDisabledPoses}) stay authoritative.
+ * ({@code setPositionBroadcastInterval} / {@code compat().setDisabledPoses}) stay authoritative.
  */
 public final class PlayerConfigApplier {
 
@@ -42,9 +42,21 @@ public final class PlayerConfigApplier {
         }
         CompatConfig compat = mm.profiles().compatFor(player);
         if (compat != null) {
-            if (compat.disabledPoses != null) op.setDisabledPoses(compat.disabledPoses);
-            if (compat.restrictMovement != null) op.setRestrictMovement(compat.restrictMovement);
-            if (compat.legacyHitbox != null) op.setLegacyHitbox(compat.legacyHitbox);
+            var state = op.compat();
+            if (compat.disabledPoses != null) state.setDisabledPoses(compat.disabledPoses);
+            if (compat.restrictMovement != null) state.setRestrictMovement(compat.restrictMovement);
+            if (compat.legacyHitbox != null) state.setLegacyHitbox(compat.legacyHitbox);
+            if (compat.attackHitboxMargin != null) {
+                state.setAttackHitboxMargin(compat.attackHitboxMargin);
+                // the join inventory is sent before this config applies, so the stamp wouldn't reach the client until the
+                // next inventory packet (open/close). Resend now that outgoing items get the attack_range stamp.
+                op.getInventory().update();
+            }
+            if (compat.disableOffhand != null) state.setDisableOffhand(compat.disableOffhand);
+            if (compat.restrictSprintSneak != null) state.setRestrictSprintSneak(compat.restrictSprintSneak);
+            if (compat.restrictSprintUse != null) state.setRestrictSprintUse(compat.restrictSprintUse);
+            if (compat.restrictSwimSpeed != null) state.setRestrictSwimSpeed(compat.restrictSwimSpeed);
+            if (compat.blockPlaceReach != null) state.setBlockPlaceReach(compat.blockPlaceReach);
         }
     }
 }

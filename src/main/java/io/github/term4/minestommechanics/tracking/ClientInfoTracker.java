@@ -87,7 +87,11 @@ public final class ClientInfoTracker implements Tracker {
      * join events) - callers that must not misclassify during that window should check {@link #getProtocol} directly.
      */
     public boolean isLegacy(Player player) {
-        int protocol = getProtocol(player);
+        return isLegacy(getProtocol(player));
+    }
+
+    /** Whether {@code protocol} is a known legacy ({@code <= 1.8.x}) client ({@link #UNKNOWN_PROTOCOL} = not legacy). */
+    public static boolean isLegacy(int protocol) {
         return protocol != UNKNOWN_PROTOCOL && protocol <= LEGACY_PROTOCOL_MAX;
     }
 

@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.platform.player;
 
+import io.github.term4.minestommechanics.platform.compatibility.CompatState;
 import io.github.term4.minestommechanics.platform.fixes.client.SelfMetaFilter;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.collision.BoundingBox;
@@ -16,10 +17,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
-import java.util.Set;
 
 /**
- * The library's custom {@link Player}, with two independent behaviors, both opt-in via {@code MinestomMechanics}.
+ * The library's custom {@link Player}, hosting several independent opt-in behaviors wired by {@code MinestomMechanics}.
  *
  * <p><b>Self-echo meta fix:</b> suppresses client-predicted metadata/attribute echoes (sneak, sprint, pose, item use)
  * so a high-ping 1.9+ client does not stutter for one tick when the server broadcasts state the client already
@@ -30,7 +30,15 @@ import java.util.Set;
  * <p><b>Position-broadcast throttle:</b> drops a fraction of position broadcasts to viewers (Spigot-style),
  * configured by {@link #setPositionBroadcastInterval}.
  *
- * <p>Ported from the standalone {@code minestom-echo-fix} so the library has no external dependency.
+ * <p><b>Self-placement exclusion:</b> lets a player place a passable block into their own body while
+ * {@link #setSelfPlacing self-placing} (driven by {@code fixes.client.SelfPlacementFix}).
+ *
+ * <p><b>Cross-version compat:</b> serves 1.8-style mechanics to modern clients - pose disabling ({@link #setPose}),
+ * legacy hitbox/eye ({@link #getBoundingBox}/{@link #getEyeHeight}) and the attack-box margin ({@link #sendPacket}).
+ * The state + policy live in {@link CompatState} (accessed via {@link #compat()}); these overrides only route to it.
+ * Pushed from {@code CompatConfig} by {@code PlayerConfigApplier}.
+ *
+ * <p>The echo fix + throttle were ported from the standalone {@code minestom-echo-fix} so the library has no external dependency.
  */
 public class OptimizedPlayer extends Player {
 
@@ -44,13 +52,8 @@ public class OptimizedPlayer extends Player {
     // --- self-placement exclusion hook (driven by fixes.client.SelfPlacementFix) ---
     private boolean selfPlacing = false;
 
-    // --- cross-version compat: poses forced back to standing + hitbox-collision movement restriction + legacy hitbox/eye (driven by CompatConfig via PlayerConfigApplier) ---
-    private Set<EntityPose> disabledPoses = Set.of();
-    private boolean restrictMovement = false;
-    private boolean legacyHitbox = false;
-
-    /** 1.8 sneaking eye height for the legacy server-eye preset (1.8 standing 1.62 already = Minestom's default; modern crouch is lower). */
-    private static final double LEGACY_SNEAKING_EYE = 1.54;
+    // --- cross-version compat state + logic (pushed from CompatConfig by PlayerConfigApplier; the overrides below route here) ---
+    private final CompatState compat = new CompatState();
 
     public OptimizedPlayer(PlayerConnection connection, GameProfile gameProfile) {
         super(connection, gameProfile);
@@ -122,6 +125,15 @@ public class OptimizedPlayer extends Player {
     }
 
     /**
+     * Cross-version compat: stamps the {@code attack_range} component onto the items the client sees in its own inventory
+     * ({@link CompatState#stampAttackRange}) when a margin is set, so a modern 1.21.11+ client attacks with the 1.8 hitbox box.
+     */
+    @Override
+    public void sendPacket(@NotNull SendablePacket packet) {
+        super.sendPacket(compat.stampAttackRange(packet));
+    }
+
+    /**
      * Arms the self-echo filter around tick-driven pose recalculation. {@link Player#updatePose()} runs every server
      * tick from {@code update()} (not only inside a client packet listener), recomputing the pose from whether the
      * player still fits their space - this is where crawl enter/exit happens (e.g. squeezing under a closing trapdoor).
@@ -134,6 +146,7 @@ public class OptimizedPlayer extends Player {
     protected void updatePose() {
         boolean previous = processingClientInput;
         processingClientInput = true;
+        compat.resetInterceptedPose(); // reset each tick; setPose (called by super.updatePose) re-captures any disabled pose Minestom computes now
         try {
             super.updatePose();
         } finally {
@@ -151,7 +164,8 @@ public class OptimizedPlayer extends Player {
      */
     @Override
     public void setPose(@NotNull EntityPose pose) {
-        if (disabledPoses != null && disabledPoses.contains(pose)) {
+        if (compat.isPoseDisabled(pose)) {
+            compat.recordInterceptedPose(pose); // remember the pose the client believes it's in, even as we force STANDING server-side
             boolean previous = processingClientInput;
             processingClientInput = false;
             try {
@@ -164,41 +178,27 @@ public class OptimizedPlayer extends Player {
         super.setPose(pose);
     }
 
-    /** Poses rewritten to {@code STANDING} in {@link #setPose} (pushed from {@code CompatConfig} by {@code PlayerConfigApplier}). */
-    public void setDisabledPoses(@NotNull Set<EntityPose> poses) { this.disabledPoses = poses; }
-
-    public @NotNull Set<EntityPose> getDisabledPoses() { return disabledPoses; }
-
-    /** Whether moves into hitbox-block collision are rejected (compat; enforced by {@code CompatMovement}). Pushed from {@code CompatConfig}. */
-    public void setRestrictMovement(boolean v) { this.restrictMovement = v; }
-
-    public boolean isRestrictMovement() { return restrictMovement; }
-
-    /** Whether the server hitbox/eye height stay at 1.8 dimensions regardless of pose (no crouch shrink). Pushed from {@code CompatConfig}. */
-    public void setLegacyHitbox(boolean v) { this.legacyHitbox = v; }
-
-    public boolean isLegacyHitbox() { return legacyHitbox; }
+    /** This player's cross-version compat state + logic (pose/hitbox/eye/attack-box). Driven by {@code CompatConfig} via {@code PlayerConfigApplier}; read by {@code CompatMovement}, {@code ClientEye} and the reach guard. */
+    public @NotNull CompatState compat() { return compat; }
 
     /**
-     * Cross-version compat: with {@link #setLegacyHitbox legacy hitbox} on, the server box stays standing (the {@code boundingBox}
-     * field) regardless of pose, so a modern client's crouch/crawl shrink doesn't apply server-side (1.8 parity; lets
+     * Cross-version compat: with {@code legacyHitbox} on, the server box stays standing (the {@code boundingBox} field)
+     * regardless of pose, so a modern client's crouch/crawl shrink doesn't apply server-side (1.8 parity; lets
      * {@code CompatMovement} block the 1.5-block sneak gap). Disabled poses already resolve to standing, so this only adds the sneak case.
      */
     @Override
     public BoundingBox getBoundingBox() {
-        return legacyHitbox ? boundingBox : super.getBoundingBox();
+        return compat.legacyHitbox() ? boundingBox : super.getBoundingBox();
     }
 
     /**
-     * The SERVER-treated eye height - the preset consumed by projectile spawn, drowning and suffocation. With
-     * {@code legacyHitbox} on it's the fixed 1.8 preset (sneaking 1.54, else the 1.62 standing default), so a crouching
-     * modern client still spawns/drowns at the 1.8 eye; off, it's Minestom's native value. This is value (b) of the
-     * eye-height model; value (a) - what the client believes, for reach/raytrace - is derived from the protocol separately.
+     * The SERVER-treated eye height (value (b) of the eye model) - the preset consumed by projectile spawn, drowning and
+     * suffocation. {@link CompatState#eyeHeight} applies the fixed 1.8 preset when {@code legacyHitbox} is on, else Minestom's
+     * native value. Value (a) - what the client believes, for reach/raytrace - is {@code ClientEye}, derived from the protocol.
      */
     @Override
     public double getEyeHeight() {
-        if (legacyHitbox && getPose() == EntityPose.SNEAKING) return LEGACY_SNEAKING_EYE;
-        return super.getEyeHeight();
+        return compat.eyeHeight(super.getEyeHeight(), getPose());
     }
 
     /**

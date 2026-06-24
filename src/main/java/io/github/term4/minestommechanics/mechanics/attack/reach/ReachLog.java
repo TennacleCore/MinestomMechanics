@@ -2,6 +2,8 @@ package io.github.term4.minestommechanics.mechanics.attack.reach;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.api.event.PreAttackEvent;
+import io.github.term4.minestommechanics.platform.compatibility.ClientEye;
+import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Pos;
@@ -35,17 +37,21 @@ public final class ReachLog {
         Entity target = e.target();
 
         int protocol = clientInfo.getProtocol(attacker);
-        boolean legacy = protocol != ClientInfoTracker.UNKNOWN_PROTOCOL && protocol <= ClientInfoTracker.LEGACY_PROTOCOL_MAX;
         double[] eyes = ClientEye.candidates(protocol); // client-perceived eye candidates; min taken so swim/crawl needn't be detected
-        double pad = legacy ? 0.1 : 0.0; // 1.8 attackers see a 0.1-grown box (modern stays exact until the attack-box compat lands)
+        // attack-box growth this attacker's client applies to targets: 1.8 grows 0.1 natively; a modern client grows by its
+        // compat-stamped attack_range margin - read from the same CompatState as the attack-box feature, so the two don't diverge
+        double nativePad = ClientInfoTracker.isLegacy(protocol) ? 0.1 : 0.0;
+        Float margin = attacker instanceof OptimizedPlayer op ? op.compat().attackHitboxMargin() : null;
+        double pad = Math.max(nativePad, margin != null ? margin : 0.0);
 
         BoundingBox bb = target.getBoundingBox();
         double[][] boxes = {aabb(bb, target.getPosition(), pad), aabb(bb, target.getPreviousPosition(), pad)};
         double optimal = minOptimal(attacker.getPosition(), boxes, eyes);
-        if (optimal > maxReach) {
-            e.setCancelled(true);
-            System.out.printf("[mm][reach] CANCEL %d -> %d: optimal=%.3f > %.1f%n", attacker.getEntityId(), target.getEntityId(), optimal, maxReach);
-        }
+        boolean cancel = optimal > maxReach; // optimal is a rotation-independent lower bound; past maxReach the hit is geometrically impossible
+        if (cancel) e.setCancelled(true);
+        // log both eye-height tracks: clientEye = what the client believes (value a), serverEye = what the server treats it as (value b)
+        System.out.printf("[mm][reach] %d -> %d: clientEye=%.2f serverEye=%.2f optimal=%.3f%s%n",
+                attacker.getEntityId(), target.getEntityId(), ClientEye.perceived(attacker, protocol), attacker.getEyeHeight(), optimal, cancel ? " CANCEL" : "");
     }
 
     /** Minimum nearest-point distance from the eye to any candidate target box, over the eye-height candidates (a lower bound on reach). */
