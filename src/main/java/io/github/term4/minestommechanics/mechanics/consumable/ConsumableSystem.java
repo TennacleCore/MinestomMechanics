@@ -137,16 +137,17 @@ public final class ConsumableSystem {
         }
     }
 
-    /** Installs the system active (a per-scope {@code MechanicsProfile.consumables} config can disable it); {@code types} register up front. Nothing is consumed until a {@link Consumable} is registered. */
-    public static ConsumableSystem install(MinestomMechanics mm, Consumable... types) {
-        return install(mm, ConsumableConfig.builder().build(), types);
+    /** Installs reading the GLOBAL profile's {@link ConsumableConfig}: its {@code types} (the consumable identities) register up front. Set the profile before installing. */
+    public static ConsumableSystem install(MinestomMechanics mm) {
+        ConsumableConfig global = mm.profiles().consumablesFor(null);
+        return install(mm, global != null ? global : ConsumableConfig.builder().build());
     }
 
-    /** Installs the consumable system: registers on {@code mm}, registers {@code types}, installs the node, and hooks the shared tick loop once. */
-    public static ConsumableSystem install(MinestomMechanics mm, ConsumableConfig cfg, Consumable... types) {
+    /** Installs from an explicit config (the modular path): registers its {@code types}, installs the node, and hooks the shared tick loop once. */
+    public static ConsumableSystem install(MinestomMechanics mm, ConsumableConfig cfg) {
         ConsumableSystem system = new ConsumableSystem(mm, cfg);
         mm.registerConsumables(system);
-        for (Consumable c : types) system.register(c);
+        for (Consumable c : cfg.types()) system.register(c);
         mm.install(system.node);
         // Registered once for the JVM (TickSystem has no removal); dispatches through the live registry so a re-install is picked up.
         if (TICK_HOOK.compareAndSet(false, true)) {

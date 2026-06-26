@@ -31,15 +31,15 @@ public final class MeleeDamageConfig extends DamageTypeConfig {
     public @Nullable Double critMultiplier(DamageContext ctx) { return resolve(critMultiplier, ctx); }
 
     /**
-     * Default melee {@code baseAmount}: the held item's {@code ATTACK_DAMAGE} from the {@link ItemRegistry}
-     * ({@code Services.items()}, version per preset), falling back to {@link #FIST_DAMAGE} for fist/unlisted items
-     * or when no registry is installed.
+     * Default melee {@code baseAmount}: the held item's {@code ATTACK_DAMAGE} from the holder's resolved
+     * {@link ItemRegistry} ({@code MechanicsProfile.items}, version per preset), falling back to {@link #FIST_DAMAGE}
+     * for fist/unlisted items or when no registry is set.
      */
     static double weaponBaseAmount(DamageContext ctx) {
         ItemStack item = ctx.item();
         LivingEntity holder = ctx.snap().source() instanceof LivingEntity le ? le : null;
         if ((item == null || item.isAir()) && holder != null) item = holder.getItemInMainHand();
-        ItemRegistry items = ctx.services() != null ? ctx.services().items() : null;
+        ItemRegistry items = ctx.services() != null ? ctx.services().profiles().itemsFor(holder) : null;
         return items != null ? items.value(item, holder, ItemStat.ATTACK_DAMAGE, FIST_DAMAGE) : FIST_DAMAGE;
     }
 

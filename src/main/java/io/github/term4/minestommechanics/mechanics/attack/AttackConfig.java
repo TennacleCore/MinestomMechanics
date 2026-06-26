@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.attack;
 
-import io.github.term4.minestommechanics.mechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Attack;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.config.Config;
 import io.github.term4.minestommechanics.config.FieldValue;
@@ -61,7 +61,7 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
 
         Builder() {
             enabled = FieldValue.constant(true);
-            ruleset = FieldValue.constant(Vanilla18.legacyAttack());
+            ruleset = FieldValue.constant(Attack.ruleset());
             criticalRule = null;
             fullHitScale = FieldValue.constant(0.6); // vanilla 1.8 attacker self-slowdown
         }

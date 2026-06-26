@@ -65,7 +65,10 @@ public final class CompatMovement {
         Player player = event.getPlayer();
         if (!(player instanceof OptimizedPlayer op)) return;
         CompatState c = op.compat();
-        boolean collision = c.restrictMovement();
+        // The collision revert exists only to stop the squeeze-to-fit crawl; a DISABLE_CRAWL_POSE Animatium client already
+        // prevents it natively (its crawl box = standing box), so skip the server revert for it - otherwise the revert
+        // false-positives on its fast 1.8 fluid descent into a pool (box briefly overshoots the floor) and bounces it off water.
+        boolean collision = c.restrictMovement() && !c.handlesNatively(AnimatiumFeature.DISABLE_CRAWL_POSE);
         boolean speed = c.anySpeedRestriction();
         if (!collision && !speed) return;
         // spectators noclip; a passenger's collision is the vehicle's - leave both alone
@@ -89,8 +92,11 @@ public final class CompatMovement {
 
         // Speed restrictions - modern clients only; skip the knockback i-frame window (a hit's velocity would be clamped away).
         if (!speed || clientInfo.isLegacy(player) || DamageSystem.isInvulnerableToDamage(player)) return;
-        // swim cap only when swim-POSED (sprint + in water, the ClientEye proxy) - plain in-water stays natural (bobbing/floating)
-        if (c.restrictSwimSpeed() && player.isSprinting() && inWater(player, instance)) {
+        // swim cap only when swim-POSED (sprint + in water, the ClientEye proxy) - plain in-water stays natural (bobbing/floating).
+        // Skipped for Animatium clients running old_fluid_physics: they already move at 1.8 speed natively, and the dampen would
+        // fight the 1.8 current (e.g. cap the falling-water down-push). Non-Animatium modern clients keep the dampen.
+        if (c.restrictSwimSpeed() && player.isSprinting() && inWater(player, instance)
+                && !c.handlesNatively(AnimatiumFeature.OLD_FLUID_PHYSICS)) {
             dampenSwim(player, from, to);
             return;
         }
@@ -105,7 +111,9 @@ public final class CompatMovement {
      */
     private static void restrictSprint(Player player, CompatState c, @Nullable SprintTracker sprintTracker) {
         if (!SprintTracker.isClientSprinting(sprintTracker, player)) return; // client isn't sprinting -> nothing to strip/restore
-        boolean strip = (c.restrictSprintSneak() && player.isSneaking()) || (c.restrictSprintUse() && player.isUsingItem());
+        // skip the state Animatium fixes natively (it forces sprint off client-side, no rubber-band)
+        boolean strip = (c.restrictSprintSneak() && player.isSneaking() && !c.handlesNatively(AnimatiumFeature.FIX_SPRINT_SNEAKING))
+                || (c.restrictSprintUse() && player.isUsingItem() && !c.handlesNatively(AnimatiumFeature.FIX_SPRINT_ITEM_USE));
         if (strip) {
             if (player.isSprinting()) { player.setSprinting(false); c.setSprintStripped(true); }
         } else if (c.sprintStripped()) {

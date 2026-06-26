@@ -1,9 +1,11 @@
 package io.github.term4.minestommechanics.platform.player;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.platform.compatibility.CompatAnimatium;
 import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
+import net.minestom.server.entity.attribute.Attribute;
 import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerSpawnEvent;
@@ -18,6 +20,9 @@ import org.jetbrains.annotations.NotNull;
  * ({@code setPositionBroadcastInterval} / {@code compat().setDisabledPoses}) stay authoritative.
  */
 public final class PlayerConfigApplier {
+
+    /** Attack-speed base used to remove the modern cooldown: huge, so the cooldown is always full (no indicator, 1.8-style hits). */
+    private static final double REMOVED_ATTACK_COOLDOWN_SPEED = 1024.0;
 
     private PlayerConfigApplier() {}
 
@@ -57,6 +62,17 @@ public final class PlayerConfigApplier {
             if (compat.restrictSprintUse != null) state.setRestrictSprintUse(compat.restrictSprintUse);
             if (compat.restrictSwimSpeed != null) state.setRestrictSwimSpeed(compat.restrictSwimSpeed);
             if (compat.blockPlaceReach != null) state.setBlockPlaceReach(compat.blockPlaceReach);
+            if (compat.oldPlacement != null) state.setOldPlacement(compat.oldPlacement);
+            // Remove the modern attack cooldown server-side (any client): a huge ATTACK_SPEED keeps the cooldown always full,
+            // so hits never weaken (1.8-style) and the crosshair indicator never shows. Idempotent (setBaseValue).
+            if (Boolean.TRUE.equals(compat.removeAttackCooldown)) {
+                var attackSpeed = op.getAttribute(Attribute.ATTACK_SPEED);
+                if (attackSpeed != null) attackSpeed.setBaseValue(REMOVED_ATTACK_COOLDOWN_SPEED);
+            }
         }
+        // Re-push the Animatium feature set on every apply - the client handshakes only once on join, so a kit/profile swap or
+        // instance/world change (this also runs on PlayerSpawnEvent) must re-send it. No-op for non-Animatium clients, and runs
+        // even when compat is null so a profile that drops compat clears the client's features.
+        CompatAnimatium.applyFeatures(mm, player);
     }
 }

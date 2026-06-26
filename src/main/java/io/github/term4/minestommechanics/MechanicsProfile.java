@@ -11,6 +11,7 @@ import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
+import io.github.term4.minestommechanics.item.ItemRegistry;
 import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import io.github.term4.minestommechanics.util.tick.TickScalingConfig;
@@ -40,12 +41,13 @@ public record MechanicsProfile(
         @Nullable HungerConfig hunger,
         @Nullable ConsumableConfig consumables,
         @Nullable BlockingConfig blocking,
-        @Nullable CompatConfig compat
+        @Nullable CompatConfig compat,
+        @Nullable ItemRegistry items
 ) {
 
-    /** Full profile with all three combat systems set (the remaining members - platform / velocity / projectiles / fixes / attributes / scaling / durability / hunger / consumables / blocking / compat - default to null). */
+    /** Full profile with all three combat systems set (the remaining members default to null). */
     public static MechanicsProfile of(AttackConfig attack, DamageConfig damage, KnockbackConfig knockback) {
-        return new MechanicsProfile(attack, damage, knockback, null, null, null, null, null, null, null, null, null, null, null);
+        return new MechanicsProfile(attack, damage, knockback, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public Builder toBuilder() { return new Builder(this); }
@@ -66,6 +68,7 @@ public record MechanicsProfile(
         private @Nullable ConsumableConfig consumables;
         private @Nullable BlockingConfig blocking;
         private @Nullable CompatConfig compat;
+        private @Nullable ItemRegistry items;
 
         Builder() {}
 
@@ -84,6 +87,7 @@ public record MechanicsProfile(
             consumables = p.consumables;
             blocking = p.blocking;
             compat = p.compat;
+            items = p.items;
         }
 
         public Builder attack(@Nullable AttackConfig v) { attack = v; return this; }
@@ -100,9 +104,10 @@ public record MechanicsProfile(
         public Builder consumables(@Nullable ConsumableConfig v) { consumables = v; return this; }
         public Builder blocking(@Nullable BlockingConfig v) { blocking = v; return this; }
         public Builder compat(@Nullable CompatConfig v) { compat = v; return this; }
+        public Builder items(@Nullable ItemRegistry v) { items = v; return this; }
 
         public MechanicsProfile build() {
-            return new MechanicsProfile(attack, damage, knockback, player, velocity, projectiles, fixes, attributes, tickScaling, durability, hunger, consumables, blocking, compat);
+            return new MechanicsProfile(attack, damage, knockback, player, velocity, projectiles, fixes, attributes, tickScaling, durability, hunger, consumables, blocking, compat, items);
         }
     }
 }

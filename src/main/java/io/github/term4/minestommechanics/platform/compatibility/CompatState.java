@@ -4,7 +4,7 @@ import net.minestom.server.component.DataComponents;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.component.AttackRange;
-import net.minestom.server.network.ConnectionState;
+import net.minestom.server.network.packet.server.LazyPacket;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.ServerPacket;
 import net.minestom.server.network.packet.server.play.SetPlayerInventorySlotPacket;
@@ -32,10 +32,15 @@ public final class CompatState {
     private boolean restrictSprintUse = false;
     private boolean restrictSwimSpeed = false;
     private @Nullable Double blockPlaceReach;
+    private boolean oldPlacement = false;
     /** Whether {@code CompatMovement} forced sprint off (sneak/use) and still owes a restore - so it restores only ITS strip, not a combat sprint-reset (which must keep the 1.8 w-tap requirement). */
     private boolean sprintStripped = false;
     /** The disabled pose Minestom computed this tick (e.g. crawl = {@code SWIMMING}), or {@code null} - reset each updatePose, captured in setPose. The client believes it's in this pose while the server pose is forced to STANDING. */
     private @Nullable EntityPose interceptedPose;
+    /** Features this player's Animatium client applies 1.8 behaviour for natively (set by {@code CompatAnimatium} on the {@code animatium:info} handshake) - the enforcers skip the matching server hack for them. */
+    private @NotNull Set<AnimatiumFeature> nativeFeatures = Set.of();
+    /** Whether this player is an Animatium client (sent the {@code animatium:info} handshake). Gates the feature re-send on profile/instance changes, and distinguishes a feature-less Animatium client from a non-Animatium one (both have an empty {@link #nativeFeatures}). */
+    private boolean animatiumClient = false;
 
     /** Poses rewritten to {@code STANDING} in {@code setPose}. */
     public void setDisabledPoses(@NotNull Set<EntityPose> poses) { this.disabledPoses = poses; }
@@ -69,6 +74,10 @@ public final class CompatState {
     public void setBlockPlaceReach(@Nullable Double v) { this.blockPlaceReach = v; }
     public @Nullable Double blockPlaceReach() { return blockPlaceReach; }
 
+    /** Whether 1.8 placement is enforced: refuse a placement whose clicked cell is air (the creative "quick replace" floating block); enforced by {@code CompatPlacement}. */
+    public void setOldPlacement(boolean v) { this.oldPlacement = v; }
+    public boolean oldPlacement() { return oldPlacement; }
+
     /** Whether any speed restriction is enabled (lets {@code CompatMovement} skip players with none). */
     public boolean anySpeedRestriction() { return restrictSprintSneak || restrictSprintUse || restrictSwimSpeed; }
 
@@ -78,6 +87,18 @@ public final class CompatState {
 
     /** Whether {@code pose} is disabled (forced to {@code STANDING}). */
     public boolean isPoseDisabled(@NotNull EntityPose pose) { return disabledPoses.contains(pose); }
+
+    /** Records the Animatium features this client applies natively (sent by {@code CompatAnimatium}); the enforcers gate the matching hack off via {@link #handlesNatively}. */
+    public void setNativeFeatures(@NotNull Set<AnimatiumFeature> features) { this.nativeFeatures = features; }
+
+    /** Whether this player is an Animatium client (handshake received); gates the feature re-send by {@code CompatAnimatium}. */
+    public boolean isAnimatiumClient() { return animatiumClient; }
+    public void setAnimatiumClient(boolean v) { this.animatiumClient = v; }
+
+    /** Whether this player's client applies {@code feature} (or {@link AnimatiumFeature#ALL}) natively, so the matching server-side hack should be skipped for it. */
+    public boolean handlesNatively(@NotNull AnimatiumFeature feature) {
+        return nativeFeatures.contains(AnimatiumFeature.ALL) || nativeFeatures.contains(feature);
+    }
 
     /** Records the disabled pose the client believes it's in (called by setPose when intercepting a disabled pose). */
     public void recordInterceptedPose(@NotNull EntityPose pose) { this.interceptedPose = pose; }
@@ -112,10 +133,22 @@ public final class CompatState {
      * via {@code sendGroupedPacket} wrapped in a {@code CachedPacket}, and the held/hotbar slot uses
      * {@link SetPlayerInventorySlotPacket}, not {@link SetSlotPacket}) - else a slot update (item pickup, held swap, addItem)
      * reaches the client unstamped and the attack box is wrong until the next full {@link WindowItemsPacket} (open/close).
+     *
+     * <p>Skipped when the client applies {@link AnimatiumFeature#PICK_INFLATION} natively - it already grows the 1.8 attack
+     * box client-side, so stamping would be redundant (and would pollute its inventory view).
      */
     public @NotNull SendablePacket stampAttackRange(@NotNull SendablePacket packet) {
-        if (attackHitboxMargin == null) return packet;
-        ServerPacket sp = SendablePacket.extractServerPacket(ConnectionState.PLAY, packet);
+        if (attackHitboxMargin == null || handlesNatively(AnimatiumFeature.PICK_INFLATION)) return packet;
+        // Resolve only the state-independent shapes (the inventory packets we stamp are always sent bare; LazyPacket is the
+        // generic wrapper). NEVER use extractServerPacket here: its CachedPacket branch forces that packet's single,
+        // stateless FramedPacket cache for the state we pass, and stamping runs on every outgoing packet - so a hardcoded
+        // PLAY would poison a CachedPacket's cache during a modern client's CONFIGURATION join and corrupt the real config
+        // send. None of the stamped packets are ever CachedPackets, so skipping that shape loses no coverage.
+        ServerPacket sp = switch (packet) {
+            case ServerPacket s -> s;
+            case LazyPacket lazy -> lazy.packet();
+            default -> null;
+        };
         return switch (sp) {
             case SetSlotPacket p -> new SetSlotPacket(p.windowId(), p.stateId(), p.slot(), withAttackRange(p.itemStack()));
             case SetPlayerInventorySlotPacket p -> new SetPlayerInventorySlotPacket(p.slot(), withAttackRange(p.itemStack()));

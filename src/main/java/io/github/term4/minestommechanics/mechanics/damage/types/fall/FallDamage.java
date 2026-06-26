@@ -6,7 +6,6 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionCategory;
-import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.util.BlockContact;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
@@ -110,8 +109,11 @@ public final class FallDamage extends DamageType {
             return;
         }
         if (prev == null) return; // need a baseline first
-        // ground = client flag or the server collision (MotionTracker), the same source combat ground checks use
-        accumulate(p, newPos.y() - prev.y(), e.isOnGround() || MotionTracker.simCollided(p));
+        // Land on the CLIENT's onGround flag (vanilla-faithful: Entity.checkFallDamage lands on the authoritative onGround,
+        // which for a player is the move packet's flag). NOT MotionTracker.simCollided - the server collision sim
+        // false-positives mid-fall (it trips a tick early during fast falls), firing fall damage above the real ground; the
+        // status-only-landing fallback (pollLandings) also rides the client flag, so nothing is missed.
+        accumulate(p, newPos.y() - prev.y(), e.isOnGround());
     }
 
     /** Non-player living entities: server-side per-tick deltas. */

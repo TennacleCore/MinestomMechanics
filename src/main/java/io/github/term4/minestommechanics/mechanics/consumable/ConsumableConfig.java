@@ -5,7 +5,9 @@ import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigRe
 import net.kyori.adventure.key.Key;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -26,11 +28,14 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
     public final @Nullable ConsumableTypeConfig defaults;
     /** Per-consumable config overrides, keyed by {@link ConsumableTypeConfig#key()}. */
     public final Map<Key, ConsumableTypeConfig> typeConfigs;
+    /** Consumable type identities (key + material) this config registers. Read once at install, from the global profile. */
+    public final List<Consumable> types;
 
     private ConsumableConfig(Builder b) {
         super(b.subConfig);
         this.defaults = b.defaults;
         this.typeConfigs = Map.copyOf(b.typeConfigs);
+        this.types = List.copyOf(b.types);
     }
 
     /** The generic base config every consumable inherits, or {@code null} if none set. */
@@ -39,16 +44,22 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
     /** Per-consumable config for {@code key}, or {@code null} if none registered. */
     public @Nullable ConsumableTypeConfig typeConfig(Key key) { return typeConfigs.get(key); }
 
-    /** Merges this config over base (this config's generic defaults + per-type entries layered over base's). */
+    /** The consumable type identities this config registers. */
+    public List<Consumable> types() { return types; }
+
+    /** Merges this config over base (this config's generic defaults + per-type entries + types layered over base's). */
     public ConsumableConfig fromBase(ConsumableConfig base) {
         Map<Key, ConsumableTypeConfig> merged = new LinkedHashMap<>(base.typeConfigs);
         merged.putAll(typeConfigs);
+        List<Consumable> mergedTypes = new ArrayList<>(base.types);
+        mergedTypes.addAll(types);
         ConsumableTypeConfig mergedDefaults = defaults == null ? base.defaults
                 : base.defaults == null ? defaults : defaults.fromBase(base.defaults);
         return new Builder()
                 .subConfig(subConfig != null ? subConfig : base.subConfig)
                 .defaults(mergedDefaults)
                 .typeConfigs(merged)
+                .types(mergedTypes)
                 .build();
     }
 
@@ -60,9 +71,10 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
         private Function<ConsumableContext, ConsumableConfig> subConfig;
         private @Nullable ConsumableTypeConfig defaults;
         private final Map<Key, ConsumableTypeConfig> typeConfigs = new LinkedHashMap<>();
+        private final List<Consumable> types = new ArrayList<>();
 
         Builder() {}
-        Builder(ConsumableConfig c) { subConfig = c.subConfig; defaults = c.defaults; typeConfigs.putAll(c.typeConfigs); }
+        Builder(ConsumableConfig c) { subConfig = c.subConfig; defaults = c.defaults; typeConfigs.putAll(c.typeConfigs); types.addAll(c.types); }
 
         public Builder subConfig(Function<ConsumableContext, ConsumableConfig> fn) { subConfig = fn; return this; }
         /** Sets the generic base config every consumable inherits (its knobs apply unless a per-type entry overrides them). */
@@ -75,6 +87,11 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
         }
 
         Builder typeConfigs(Map<Key, ConsumableTypeConfig> cfgs) { typeConfigs.putAll(cfgs); return this; }
+
+        /** Adds consumable type identities (key + material) this config registers. */
+        public Builder types(Consumable... t) { for (Consumable c : t) types.add(c); return this; }
+
+        Builder types(List<Consumable> t) { types.addAll(t); return this; }
 
         public ConsumableConfig build() { return new ConsumableConfig(this); }
     }

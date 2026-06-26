@@ -7,6 +7,7 @@ import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.durability.DurabilityConfig;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
+import io.github.term4.minestommechanics.item.ItemRegistry;
 import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
@@ -146,6 +147,11 @@ public final class MechanicsProfiles {
     /** Effective cross-version compatibility config for {@code subject}, or {@code null} when no scope sets one. */
     public @Nullable CompatConfig compatFor(@Nullable Entity subject) {
         return resolve(subject, MechanicsProfile::compat);
+    }
+
+    /** Effective item-stat registry for {@code subject} (weapon/tool gameplay data), or {@code null} when no scope sets one. */
+    public @Nullable ItemRegistry itemsFor(@Nullable Entity subject) {
+        return resolve(subject, MechanicsProfile::items);
     }
 
     private <T> @Nullable T resolve(@Nullable Entity subject, Function<MechanicsProfile, @Nullable T> member) {

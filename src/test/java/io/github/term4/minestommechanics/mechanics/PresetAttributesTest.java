@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.mechanics;
 
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfig;
 import io.github.term4.minestommechanics.mechanics.attribute.source.Source;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Attributes;
 import net.kyori.adventure.key.Key;
 import org.junit.jupiter.api.Test;
 
@@ -11,9 +12,9 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Guards that both preset catalogs register the requested potions. LEGACY ({@link Vanilla18#attributes()}) carries every
+ * Guards that both preset catalogs register the requested potions. LEGACY ({@link Attributes#config()}) carries every
  * effect whose 1.8 form is attribute/behavior-based; MODERN ({@link Vanilla#attributes()}) additionally carries Haste /
- * Mining Fatigue / Jump Boost (attribute-based only in 26).
+ * Mining Fatigue / Jump Boost (attribute-based only in 26). ({@code vanilla18.Attributes#config()} / {@code vanilla.Attributes#config()}.)
  */
 class PresetAttributesTest {
 
@@ -27,7 +28,7 @@ class PresetAttributesTest {
 
     @Test
     void legacyCatalogHasTheAttributeAndBehaviorPotions() {
-        Set<Key> keys = keys(Vanilla18.attributes());
+        Set<Key> keys = keys(Attributes.config());
         for (String id : new String[]{"strength", "weakness", "sharpness", "speed",
                 "invisibility", "regeneration", "instant_health", "absorption"}) {
             assertTrue(keys.contains(k(id)), "legacy catalog missing " + id);
@@ -36,7 +37,7 @@ class PresetAttributesTest {
 
     @Test
     void modernCatalogHasTheFullRequestedSet() {
-        Set<Key> keys = keys(Vanilla.attributes());
+        Set<Key> keys = keys(io.github.term4.minestommechanics.mechanics.vanilla.Attributes.config());
         for (String id : new String[]{"strength", "weakness", "sharpness", "speed", "invisibility",
                 "regeneration", "instant_health", "absorption", "haste", "mining_fatigue", "jump_boost"}) {
             assertTrue(keys.contains(k(id)), "modern catalog missing " + id);

@@ -2,7 +2,7 @@ package io.github.term4.minestommechanics.mechanics.damage;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.mechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
 import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
@@ -80,7 +80,7 @@ public final class DamageSystem {
         this.node = EventNode.all("mm:damage");
         this.config = config;
         this.services = mm.services();
-        this.calc = new DamageCalculator(this.services, Vanilla18.dmg());
+        this.calc = new DamageCalculator(this.services, io.github.term4.minestommechanics.mechanics.vanilla18.Damage.config());
         this.registry = new DamageTypeRegistry(this, mm).registerVanillaDefaults();
         // i-frame window stamps use the victim's per-instance clock; drop the window state on (re)spawn (the TickState
         // future-guard covers most cross-instance carries, but a long-lived target instance could coincide with one).
@@ -263,7 +263,7 @@ public final class DamageSystem {
     /** Vanilla {@code damageEntity}: drowning is the one source that never triggers {@code ac()}. */
     private static final Key DROWN_KEY = Key.key("minecraft:drown");
     /** Fallback hurt knockback when no config sets one (built once - it is immutable). */
-    private static final KnockbackConfig DEFAULT_HURT_KB = Vanilla18.hurtKb();
+    private static final KnockbackConfig DEFAULT_HURT_KB = Knockback.hurt();
 
     /**
      * Defense mitigation: hands the hit to the attribute system's {@link AttributeSystem#mitigate pipeline} (armor →
@@ -380,14 +380,15 @@ public final class DamageSystem {
     public EventNode<@NotNull Event> node() { return node; }
 
     /**
-     * Installs the system inert (no install-level config): a hit with no scoped or snapshot config is a no-op, and no
-     * self-driven types (fall/fire/cactus) start - those only enable from a config's {@link DamageConfig#typeConfigs}.
-     * Pass an empty config to process hits at the vanilla floor. {@code extraTypes} registers + enables custom types.
+     * Installs reading the GLOBAL profile's {@link DamageConfig}: its {@code typeConfigs} start the self-driven
+     * producers (fall/fire/cactus/...). Set the profile before installing. With no global profile this is inert
+     * (a hit with no scoped or snapshot config is a no-op). {@code extraTypes} registers + enables custom types.
      */
     public static DamageSystem install(MinestomMechanics mm, DamageType... extraTypes) {
-        return install(mm, (DamageConfig) null, extraTypes);
+        return install(mm, mm.profiles().damageFor(null), extraTypes);
     }
 
+    /** Installs from an explicit config (the modular path): enables its {@code typeConfigs} producers. */
     public static DamageSystem install(MinestomMechanics mm, DamageConfig cfg, DamageType... extraTypes) {
         var system = new DamageSystem(mm, cfg);
         mm.registerDamage(system);

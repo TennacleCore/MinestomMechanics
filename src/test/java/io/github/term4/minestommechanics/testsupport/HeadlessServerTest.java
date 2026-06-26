@@ -1,8 +1,12 @@
 package io.github.term4.minestommechanics.testsupport;
 
+import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.mechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Attributes;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Damage;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Items;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
@@ -37,15 +41,17 @@ public abstract class HeadlessServerTest {
 
         mm = MinestomMechanics.getInstance();
         mm.init();
-        DamageSystem.install(mm, Vanilla18.dmg());
-        KnockbackSystem.install(mm, Vanilla18.kb());
-        AttributeSystem.install(mm, Vanilla18.attributes());
-        mm.registerItems(Vanilla18.items());
+        DamageSystem.install(mm, Damage.config());
+        KnockbackSystem.install(mm, Knockback.melee());
+        AttributeSystem.install(mm, Attributes.config());
         services = mm.services();
 
         instance = MinecraftServer.getInstanceManager().createInstanceContainer();
         instance.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
         instance.loadChunk(0, 0).join();
+        // Item-stat lookups resolve from the profile; scope them to this instance so tests that swap the GLOBAL profile
+        // (e.g. AttributeTuningTest's setGlobal(null)) don't wipe the registry for entities placed here.
+        mm.profiles().setInstance(instance, MechanicsProfile.builder().items(Items.registry()).build());
     }
 
     /** A stationary zombie placed at {@code pos} (yaw/pitch from the {@link Pos}); non-player, so its tracked velocity is zero. */

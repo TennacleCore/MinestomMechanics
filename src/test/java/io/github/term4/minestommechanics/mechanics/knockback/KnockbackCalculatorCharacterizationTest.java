@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.knockback;
 
-import io.github.term4.minestommechanics.mechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Golden/characterization pins for {@link KnockbackCalculator#compute} under the vanilla-1.8 config
- * ({@link Vanilla18#kb()}), across sprint/no-sprint, the dirCtx branches (source / explicit direction / origin-look-at),
+ * ({@link Knockback#melee()}), across sprint/no-sprint, the dirCtx branches (source / explicit direction / origin-look-at),
  * a diagonal, and the velocity friction fold. The attribute refactor folds {@code extraLevel} into a {@code KB_BONUS}
  * slot and the built-in steps into named seams; the resulting LEGACY stages must reproduce these vectors 1:1.
  *
@@ -24,7 +24,7 @@ class KnockbackCalculatorCharacterizationTest extends HeadlessServerTest {
     private static final double EPS = 1e-9;
 
     private KnockbackCalculator calc() {
-        return new KnockbackCalculator(services, Vanilla18.kb());
+        return new KnockbackCalculator(services, Knockback.melee());
     }
 
     private static void assertVec(Vec expected, Vec actual) {
@@ -39,7 +39,7 @@ class KnockbackCalculatorCharacterizationTest extends HeadlessServerTest {
         LivingEntity target = zombie(new Pos(0, 64, 0));
         LivingEntity source = zombie(new Pos(0, 64, -1, 0f, 0f)); // due south, looking +Z
         source.setSprinting(false);
-        Vec kb = calc().compute(new KnockbackSnapshot(target, true, source, null, null, Vanilla18.kb()));
+        Vec kb = calc().compute(new KnockbackSnapshot(target, true, source, null, null, Knockback.melee()));
         assertVec(new Vec(0.0, 8.0, 8.0), kb);
     }
 
@@ -49,7 +49,7 @@ class KnockbackCalculatorCharacterizationTest extends HeadlessServerTest {
         LivingEntity target = zombie(new Pos(10, 64, 0));
         LivingEntity source = zombie(new Pos(10, 64, -1, 0f, 0f));
         source.setSprinting(true);
-        Vec kb = calc().compute(new KnockbackSnapshot(target, true, source, null, null, Vanilla18.kb()));
+        Vec kb = calc().compute(new KnockbackSnapshot(target, true, source, null, null, Knockback.melee()));
         assertVec(new Vec(0.0, 10.0, 18.0), kb);
     }
 
@@ -58,7 +58,7 @@ class KnockbackCalculatorCharacterizationTest extends HeadlessServerTest {
     void explicitDirection_noSource() {
         LivingEntity target = looseZombie(); // instance-less; position is the origin
         Vec kb = calc().compute(new KnockbackSnapshot(target, false, null,
-                new Pos(0, 64, -1), new Vec(0, 0, 1), Vanilla18.kb()));
+                new Pos(0, 64, -1), new Vec(0, 0, 1), Knockback.melee()));
         assertVec(new Vec(0.0, 8.0, 8.0), kb);
     }
 
@@ -67,7 +67,7 @@ class KnockbackCalculatorCharacterizationTest extends HeadlessServerTest {
     void originLooksAtTarget() {
         LivingEntity target = zombie(new Pos(0, 64, 5));
         Vec kb = calc().compute(new KnockbackSnapshot(target, false, null,
-                new Pos(0, 64, 0), null, Vanilla18.kb()));
+                new Pos(0, 64, 0), null, Knockback.melee()));
         assertVec(new Vec(0.0, 8.0, 8.0), kb);
     }
 
@@ -77,7 +77,7 @@ class KnockbackCalculatorCharacterizationTest extends HeadlessServerTest {
         LivingEntity target = zombie(new Pos(20, 64, 0));
         LivingEntity source = zombie(new Pos(19, 64, -1, 0f, 0f));
         source.setSprinting(false);
-        Vec kb = calc().compute(new KnockbackSnapshot(target, true, source, null, null, Vanilla18.kb()));
+        Vec kb = calc().compute(new KnockbackSnapshot(target, true, source, null, null, Knockback.melee()));
         assertVec(new Vec(5.65685424949238, 8.0, 5.65685424949238), kb);
     }
 
@@ -88,7 +88,7 @@ class KnockbackCalculatorCharacterizationTest extends HeadlessServerTest {
         target.setVelocity(new Vec(8, 0, 4)); // b/s -> 0.4/0 /0.2 b/t -> × 0.5 fold -> +0.2 / +0.1 onto the impulse
         LivingEntity source = zombie(new Pos(30, 64, -1, 0f, 0f));
         source.setSprinting(false);
-        Vec kb = calc().compute(new KnockbackSnapshot(target, true, source, null, null, Vanilla18.kb()));
+        Vec kb = calc().compute(new KnockbackSnapshot(target, true, source, null, null, Knockback.melee()));
         assertVec(new Vec(4.0, 8.0, 10.0), kb);
     }
 }

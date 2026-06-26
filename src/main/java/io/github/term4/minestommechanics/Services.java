@@ -7,7 +7,6 @@ import io.github.term4.minestommechanics.mechanics.consumable.ConsumableSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.durability.DurabilitySystem;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
-import io.github.term4.minestommechanics.item.ItemRegistry;
 import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
@@ -28,8 +27,6 @@ public record Services(MinestomMechanics mm) {
     public @Nullable ProjectileSystem projectiles() { return mm.projectileSystem(); }
     public @Nullable FixesSystem fixes() { return mm.fixesSystem(); }
     public @Nullable AttributeSystem attributes() { return mm.attributeSystem(); }
-    /** The item-stat registry (weapon/tool gameplay data), or {@code null} if not installed. */
-    public @Nullable ItemRegistry items() { return mm.itemRegistry(); }
     /** Item durability (damage-on-use), or {@code null} if not installed. */
     public @Nullable DurabilitySystem durability() { return mm.durabilitySystem(); }
     /** The hunger subsystem (food/saturation/regen/starvation), or {@code null} if not installed. */

@@ -204,20 +204,23 @@ public final class ProjectileSystem {
     }
 
     /**
-     * Installs with an empty config: the system + {@code shootables} (the item launchers, e.g. {@code new Bow()}) are wired,
-     * but no self-launching type is enabled - enablement comes from a config's {@code typeConfigs} or explicit {@link #enable}.
+     * Installs reading the GLOBAL profile's {@link ProjectileConfig}: its {@code typeConfigs} enable the self-launching
+     * types and its {@code shootables} (item launchers, e.g. {@code new Bow()}) are mounted. Set the profile before
+     * installing. Per-hit physics still resolves per-scope; only these one-time registrations are read here.
      */
-    public static ProjectileSystem install(MinestomMechanics mm, Shootable... shootables) {
-        return install(mm, ProjectileConfig.builder().build(), shootables);
+    public static ProjectileSystem install(MinestomMechanics mm) {
+        ProjectileConfig global = mm.profiles().projectilesFor(null);
+        return install(mm, global != null ? global : ProjectileConfig.builder().build());
     }
 
-    public static ProjectileSystem install(MinestomMechanics mm, ProjectileConfig cfg, Shootable... shootables) {
+    /** Installs from an explicit config (the modular path): enables its {@code typeConfigs} and mounts its {@code shootables}. */
+    public static ProjectileSystem install(MinestomMechanics mm, ProjectileConfig cfg) {
         ProjectileSystem system = new ProjectileSystem(mm, cfg);
         mm.registerProjectiles(system);
         system.registerVanillaDefaults();
         mm.install(system.node);
         for (Key key : cfg.typeConfigs.keySet()) system.enable(key);
-        for (Shootable shootable : shootables) shootable.install(system.node, system);
+        for (Shootable shootable : cfg.shootables()) shootable.install(system.node, system);
         return system;
     }
 }

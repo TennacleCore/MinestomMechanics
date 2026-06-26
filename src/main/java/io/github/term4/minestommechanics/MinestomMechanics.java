@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics;
 
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
+import io.github.term4.minestommechanics.platform.compatibility.CompatAnimatium;
 import io.github.term4.minestommechanics.platform.compatibility.CompatMovement;
 import io.github.term4.minestommechanics.platform.compatibility.CompatOffhand;
 import io.github.term4.minestommechanics.platform.compatibility.CompatPlacement;
@@ -16,7 +17,6 @@ import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
 import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
-import io.github.term4.minestommechanics.item.ItemRegistry;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
@@ -81,7 +81,6 @@ public final class MinestomMechanics {
     private @Nullable ProjectileSystem projectileSystem;
     private @Nullable FixesSystem fixesSystem;
     private @Nullable AttributeSystem attributeSystem;
-    private @Nullable ItemRegistry itemRegistry;
     private @Nullable DurabilitySystem durabilitySystem;
     private @Nullable HungerSystem hungerSystem;
     private @Nullable ConsumableSystem consumableSystem;
@@ -93,7 +92,6 @@ public final class MinestomMechanics {
     public void registerProjectiles(ProjectileSystem p) { projectileSystem = p; }
     public void registerFixes(FixesSystem f) { fixesSystem = f; }
     public void registerAttributes(AttributeSystem a) { attributeSystem = a; }
-    public void registerItems(ItemRegistry r) { itemRegistry = r; }
     public void registerDurability(DurabilitySystem d) { durabilitySystem = d; }
     public void registerHunger(HungerSystem h) { hungerSystem = h; }
     public void registerConsumables(ConsumableSystem c) { consumableSystem = c; }
@@ -107,7 +105,6 @@ public final class MinestomMechanics {
     public @Nullable ProjectileSystem projectileSystem() { return projectileSystem; }
     public @Nullable FixesSystem fixesSystem() { return fixesSystem; }
     public @Nullable AttributeSystem attributeSystem() { return attributeSystem; }
-    public @Nullable ItemRegistry itemRegistry() { return itemRegistry; }
     public @Nullable DurabilitySystem durabilitySystem() { return durabilitySystem; }
     public @Nullable HungerSystem hungerSystem() { return hungerSystem; }
     public @Nullable ConsumableSystem consumableSystem() { return consumableSystem; }
@@ -175,10 +172,14 @@ public final class MinestomMechanics {
         trackersNode = EventNode.all("mm:trackers");
         root.addChild(trackersNode);
 
-        clientInfo = new ClientInfoTracker();
+        clientInfo = new ClientInfoTracker(viaProxyDetails);
         if (installSprintTracker) mountTracker(sprintTracker = new SprintTracker());
         if (installMotionTracker) mountTracker(motionTracker = new MotionTracker(profiles));
-        if (viaProxyDetails) mountTracker(clientInfo);
+        // The client-info hub also routes client-mod handshakes (Animatium), so mount it whenever either is wanted.
+        if (viaProxyDetails || installPlayerProvider) mountTracker(clientInfo);
+        // Animatium integration: detect Animatium clients via animatium:info, send their native feature set, and gate the
+        // matching server-side hacks off for them. Needs the player provider (feature set recorded on OptimizedPlayer.compat()).
+        if (installPlayerProvider) CompatAnimatium.install(this);
     }
 
     private EventNode<@NotNull Event> trackersNode;

@@ -1,6 +1,8 @@
 package io.github.term4.minestommechanics.platform.player;
 
 import io.github.term4.minestommechanics.platform.compatibility.CompatState;
+import io.github.term4.minestommechanics.platform.fixes.client.LegacyEquipmentFix;
+import io.github.term4.minestommechanics.platform.fixes.client.LegacyViewDistanceFix;
 import io.github.term4.minestommechanics.platform.fixes.client.SelfMetaFilter;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.collision.BoundingBox;
@@ -11,6 +13,7 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.play.EntityAttributesPacket;
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket;
+import net.minestom.server.network.player.ClientSettings;
 import net.minestom.server.network.player.GameProfile;
 import net.minestom.server.network.player.PlayerConnection;
 import org.jetbrains.annotations.NotNull;
@@ -125,12 +128,14 @@ public class OptimizedPlayer extends Player {
     }
 
     /**
-     * Cross-version compat: stamps the {@code attack_range} component onto the items the client sees in its own inventory
-     * ({@link CompatState#stampAttackRange}) when a margin is set, so a modern 1.21.11+ client attacks with the 1.8 hitbox box.
+     * Outgoing-packet transforms: {@link CompatState#stampAttackRange} stamps the {@code attack_range} component onto the items a
+     * client sees (so a modern 1.21.11+ client attacks with the 1.8 hitbox box), then {@link LegacyEquipmentFix#rewrite} strips
+     * empty equipment slots from {@code EntityEquipmentPacket}s (vanilla parity; avoids the ViaBackwards BODY-&gt;chestplate
+     * collision). Both no-op when their fix is off, so the hot path stays cheap.
      */
     @Override
     public void sendPacket(@NotNull SendablePacket packet) {
-        super.sendPacket(compat.stampAttackRange(packet));
+        super.sendPacket(LegacyEquipmentFix.rewrite(compat.stampAttackRange(packet)));
     }
 
     /**
@@ -223,6 +228,16 @@ public class OptimizedPlayer extends Player {
         }
         // Technically api internal but it works. Bite me.
         super.refreshPosition(newPosition, ignoreView, sendPackets);
+    }
+
+    /**
+     * Routes client settings through {@link LegacyViewDistanceFix} - a temporary workaround that clamps the reported
+     * view distance to the instance's so Minestom's {@code refreshSettings} does not over-send chunks (the legacy-client
+     * "invisibility band" far from spawn). No-op when the fix is off or the client is already within the cap.
+     */
+    @Override
+    public void refreshSettings(@NotNull ClientSettings settings) {
+        super.refreshSettings(LegacyViewDistanceFix.clamp(getInstance(), settings));
     }
 
     /**

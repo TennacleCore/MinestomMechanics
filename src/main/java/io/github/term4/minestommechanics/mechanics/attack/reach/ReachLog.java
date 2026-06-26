@@ -5,6 +5,7 @@ import io.github.term4.minestommechanics.api.event.PreAttackEvent;
 import io.github.term4.minestommechanics.platform.compatibility.ClientEye;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
+import io.github.term4.minestommechanics.tracking.ClientVersion;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
@@ -37,10 +38,10 @@ public final class ReachLog {
         Entity target = e.target();
 
         int protocol = clientInfo.getProtocol(attacker);
-        double[] eyes = ClientEye.candidates(protocol); // client-perceived eye candidates; min taken so swim/crawl needn't be detected
+        double[] eyes = ClientEye.candidates(attacker, protocol); // client-perceived eye candidates; min taken so swim/crawl needn't be detected
         // attack-box growth this attacker's client applies to targets: 1.8 grows 0.1 natively; a modern client grows by its
         // compat-stamped attack_range margin - read from the same CompatState as the attack-box feature, so the two don't diverge
-        double nativePad = ClientInfoTracker.isLegacy(protocol) ? 0.1 : 0.0;
+        double nativePad = ClientVersion.isLegacy(protocol) ? 0.1 : 0.0;
         Float margin = attacker instanceof OptimizedPlayer op ? op.compat().attackHitboxMargin() : null;
         double pad = Math.max(nativePad, margin != null ? margin : 0.0);
 

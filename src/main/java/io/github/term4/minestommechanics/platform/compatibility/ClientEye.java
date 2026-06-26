@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.platform.compatibility;
 
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
-import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
+import io.github.term4.minestommechanics.tracking.ClientVersion;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.entity.Player;
@@ -29,24 +29,33 @@ public final class ClientEye {
     /** Modern crawl / swim / elytra / riptide eye. */
     public static final double POSE_EYE = 0.4;
 
-    /** Every eye height {@code protocol}'s client could believe it has (unknown protocol = modern). */
-    public static double[] candidates(int protocol) {
-        return ClientInfoTracker.isLegacy(protocol)
-                ? new double[]{STANDING, LEGACY_SNEAKING}
-                : new double[]{STANDING, MODERN_CROUCH, POSE_EYE};
+    /**
+     * Every eye height {@code player}'s client could believe it has (unknown protocol = modern). A modern client that applies
+     * Animatium's {@link AnimatiumFeature#OLD_SNEAK_HEIGHT} natively crouches to the 1.8 sneak eye, so its crouch candidate is
+     * {@link #LEGACY_SNEAKING} (1.54), not {@link #MODERN_CROUCH} (1.27) - that feature rewrites the real crouch dimensions
+     * client-side, which feed the pick raytrace, so the reach origin really moves.
+     */
+    public static double[] candidates(Player player, int protocol) {
+        if (ClientVersion.isLegacy(protocol)) return new double[]{STANDING, LEGACY_SNEAKING};
+        return new double[]{STANDING, oldSneakHeight(player) ? LEGACY_SNEAKING : MODERN_CROUCH, POSE_EYE};
     }
 
     /** Single best-guess client-perceived eye for {@code player} from its protocol + the pose the client believes it's in. */
     public static double perceived(Player player, int protocol) {
-        if (ClientInfoTracker.isLegacy(protocol)) return player.isSneaking() ? LEGACY_SNEAKING : STANDING; // 1.8 has no lower pose
+        if (ClientVersion.isLegacy(protocol)) return player.isSneaking() ? LEGACY_SNEAKING : STANDING; // 1.8 has no lower pose
         // the client's BELIEVED pose: the disabled pose we intercepted (crawl=SWIMMING) even though the server pose is forced to STANDING
         EntityPose pose = player instanceof OptimizedPlayer op ? op.compat().clientPose(op.getPose()) : player.getPose();
         return switch (pose) {
             case FALL_FLYING, SWIMMING, SPIN_ATTACK -> POSE_EYE; // crawl / elytra / riptide
-            case SNEAKING -> MODERN_CROUCH;
+            case SNEAKING -> oldSneakHeight(player) ? LEGACY_SNEAKING : MODERN_CROUCH; // Animatium old_sneak_height -> real 1.8 sneak eye
             // STANDING: Minestom never computes the swim pose (no client signal), so detect sprint-swimming directly
             default -> player.isSprinting() && inWater(player) ? POSE_EYE : STANDING;
         };
+    }
+
+    /** Whether {@code player}'s client applies Animatium's {@code OLD_SNEAK_HEIGHT} natively (its crouch eye is then the 1.8 1.54, not the modern 1.27). */
+    private static boolean oldSneakHeight(Player player) {
+        return player instanceof OptimizedPlayer op && op.compat().handlesNatively(AnimatiumFeature.OLD_SNEAK_HEIGHT);
     }
 
     private static boolean inWater(Player player) {

@@ -1,0 +1,16 @@
+package io.github.term4.minestommechanics.mechanics.vanilla18;
+
+import io.github.term4.minestommechanics.platform.player.PlayerConfig;
+
+/** Vanilla 1.8 player platform config: position broadcast every 2 ticks (a networking cadence, not movement physics). */
+public final class Player {
+
+    private Player() {}
+
+    /** PlayerConfig with vanilla 1.8 values: position broadcast every 2 ticks. */
+    public static PlayerConfig config() {
+        return PlayerConfig.builder()
+                .positionBroadcastInterval(2)
+                .build();
+    }
+}

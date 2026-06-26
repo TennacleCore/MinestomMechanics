@@ -22,7 +22,7 @@ import java.util.List;
  * Vanilla consumable <em>type identities</em> (the golden apples) + the building blocks presets use to give them their
  * version-specific behavior. The types here are version-agnostic (key + material); the actual effects/food live in the
  * preset's per-type {@link io.github.term4.minestommechanics.mechanics.consumable.ConsumableTypeConfig} behavior, so the
- * same registered apple gets 1.8 vs 26 effects by scope ({@code Vanilla18.consumables()} / {@code Vanilla.consumables()}).
+ * same registered apple gets 1.8 vs 26 effects by scope ({@code vanilla18.Consumables.config()} / {@code vanilla.Consumables.config()}).
  * Effects are applied with {@code addEffect} (the attribute potion lifecycle, the path tipped arrows use); food/saturation
  * routes through {@link HungerSystem} (a no-op until that lands). Deliberately not a full vanilla food table - add more
  * types/behaviors through the API.

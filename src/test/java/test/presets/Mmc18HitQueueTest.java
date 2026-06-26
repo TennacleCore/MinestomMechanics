@@ -2,6 +2,7 @@ package test.presets;
 
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
+import test.presets.mmc18.Attack;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
@@ -49,7 +50,7 @@ class Mmc18HitQueueTest extends HeadlessServerTest {
         attacker.setItemInMainHand(ItemStack.of(Material.DIAMOND_SWORD));
         victim.setHealth(20f);
 
-        AttackEvent.AttackRule rule = mmc18.attackProcessor().create(services);
+        AttackEvent.AttackRule rule = Attack.ruleset().create(services);
 
         setCombatTick(0);
         rule.processAttack(attack(attacker, victim, false));
@@ -76,7 +77,7 @@ class Mmc18HitQueueTest extends HeadlessServerTest {
         LivingEntity victim = zombie(new Pos(0, 64, 603));
         attacker.setItemInMainHand(ItemStack.of(Material.DIAMOND_SWORD));
 
-        AttackEvent.AttackRule rule = mmc18.attackProcessor().create(services);
+        AttackEvent.AttackRule rule = Attack.ruleset().create(services);
 
         List<Long> freshTicks = new ArrayList<>();
         for (long t = 0; t <= 40; t++) {
@@ -95,7 +96,7 @@ class Mmc18HitQueueTest extends HeadlessServerTest {
     }
 
     private static AttackEvent attack(LivingEntity attacker, LivingEntity victim, boolean critical) {
-        AttackEvent event = new AttackEvent(new AttackSnapshot(attacker, victim, mmc18.atk()), services);
+        AttackEvent event = new AttackEvent(new AttackSnapshot(attacker, victim, Attack.config()), services);
         event.overrideCritical(critical);
         return event;
     }
@@ -115,7 +116,7 @@ class Mmc18HitQueueTest extends HeadlessServerTest {
 
     @SuppressWarnings("unchecked")
     private static Map<LivingEntity, ?> pendingHits() throws Exception {
-        Field f = mmc18.class.getDeclaredField("pendingHit");
+        Field f = Attack.class.getDeclaredField("pendingHit");
         f.setAccessible(true);
         return (Map<LivingEntity, ?>) f.get(null);
     }

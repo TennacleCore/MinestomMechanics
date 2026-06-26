@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.attack;
 
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.mechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Attack;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.config.FieldValue;
 import org.jetbrains.annotations.Nullable;
@@ -33,7 +33,7 @@ public final class AttackConfigResolver {
 
         return new ResolvedAttackConfig(
                 enabledVal != null ? enabledVal : true,
-                rulesetVal != null ? rulesetVal : Vanilla18.legacyAttack(),
+                rulesetVal != null ? rulesetVal : Attack.ruleset(),
                 cfg.criticalRule != null ? cfg.criticalRule : AttackEvent.CriticalRule.DEFAULT,
                 fullHitScaleVal != null ? fullHitScaleVal : 0.6
         );
@@ -53,7 +53,7 @@ public final class AttackConfigResolver {
         public static ResolvedAttackConfig defaults() {
             return new ResolvedAttackConfig(
                     true,
-                    Vanilla18.legacyAttack(),
+                    Attack.ruleset(),
                     AttackEvent.CriticalRule.DEFAULT,
                     0.6
             );

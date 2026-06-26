@@ -1,6 +1,5 @@
 package io.github.term4.minestommechanics.mechanics.knockback;
 
-import io.github.term4.minestommechanics.mechanics.Vanilla18;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Knockback;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import io.github.term4.minestommechanics.item.Enchants;
@@ -26,8 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class KnockbackEnchantTest extends HeadlessServerTest {
 
     private Vec hit(LivingEntity source, LivingEntity target, int extraLevel) {
-        return new KnockbackCalculator(services, Vanilla18.kb())
-                .compute(new KnockbackSnapshot(target, true, source, null, null, Vanilla18.kb(), extraLevel));
+        return new KnockbackCalculator(services, io.github.term4.minestommechanics.mechanics.vanilla18.Knockback.melee())
+                .compute(new KnockbackSnapshot(target, true, source, null, null, io.github.term4.minestommechanics.mechanics.vanilla18.Knockback.melee(), extraLevel));
     }
 
     @Test
@@ -57,10 +56,10 @@ class KnockbackEnchantTest extends HeadlessServerTest {
         // extra* knobs must still scale by it - guards ManagedProjectile.buildKnockback passing punchLevel() through.
         LivingEntity target = zombie(new Pos(44, 64, 0));
         LivingEntity source = zombie(new Pos(44, 64, -1, 0f, 0f));
-        Vec none = new KnockbackCalculator(services, Vanilla18.kb())
-                .compute(new KnockbackSnapshot(target, false, source, null, null, Vanilla18.kb(), 0));
-        Vec punch = new KnockbackCalculator(services, Vanilla18.kb())
-                .compute(new KnockbackSnapshot(target, false, source, null, null, Vanilla18.kb(), 1));
+        Vec none = new KnockbackCalculator(services, io.github.term4.minestommechanics.mechanics.vanilla18.Knockback.melee())
+                .compute(new KnockbackSnapshot(target, false, source, null, null, io.github.term4.minestommechanics.mechanics.vanilla18.Knockback.melee(), 0));
+        Vec punch = new KnockbackCalculator(services, io.github.term4.minestommechanics.mechanics.vanilla18.Knockback.melee())
+                .compute(new KnockbackSnapshot(target, false, source, null, null, io.github.term4.minestommechanics.mechanics.vanilla18.Knockback.melee(), 1));
         assertTrue(punch.z() > none.z(), "Punch level 1 reaches further than no Punch (" + punch.z() + " vs " + none.z() + ")");
     }
 

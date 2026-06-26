@@ -4,7 +4,7 @@ import io.github.term4.minestommechanics.MechanicsProfiles;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.KnockbackEvent;
-import io.github.term4.minestommechanics.mechanics.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
 import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.coordinate.Vec;
@@ -34,7 +34,7 @@ public final class KnockbackSystem {
         this.profiles = mm.profiles();
         this.node = EventNode.all("mm:knockback");
         Services services = mm.services();
-        KnockbackConfig defaults = Vanilla18.kb();
+        KnockbackConfig defaults = Knockback.melee();
         this.calc = new KnockbackCalculator(services, defaults);
     }
 

@@ -1,6 +1,9 @@
 package io.github.term4.minestommechanics.platform.fixes;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.platform.fixes.client.LegacyEquipmentFix;
+import io.github.term4.minestommechanics.platform.fixes.client.LegacyTabCompleteFix;
+import io.github.term4.minestommechanics.platform.fixes.client.LegacyViewDistanceFix;
 import io.github.term4.minestommechanics.platform.fixes.client.SelfPlacementFix;
 import io.github.term4.minestommechanics.platform.fixes.visuals.VisualsConfig;
 import io.github.term4.minestommechanics.platform.fixes.visuals.legacy_1_8.LegacyArrowVisibility;
@@ -65,13 +68,17 @@ public final class FixesSystem {
         return c != null && Boolean.TRUE.equals(c.deflectParticles());
     }
 
-    /** Installs with no install-level config: the system handles per-scope {@code MechanicsProfile.fixes} configs,
-     *  but does nothing when none is set (no fix enabled, nothing to apply). */
+    /**
+     * Installs reading the GLOBAL profile's {@link FixesConfig} - which fixes are enabled lives in the profile, like the
+     * other systems. The server-wide fixes (equipment / view-distance / tab-complete / placement) gate from it at install;
+     * the event-driven arrow-visibility fix still resolves per-scope. Set the profile before installing.
+     */
     public static FixesSystem install(MinestomMechanics mm) {
-        return install(mm, FixesConfig.builder().build());
+        FixesConfig global = mm.profiles().fixesFor(null);
+        return install(mm, global != null ? global : FixesConfig.builder().build());
     }
 
-    /** Installs the fixes system: registers on {@code mm}, wires each fix's manager, installs the event node. */
+    /** Installs from an explicit config (the modular path): registers on {@code mm}, wires each fix's manager, installs the event node. */
     public static FixesSystem install(MinestomMechanics mm, FixesConfig cfg) {
         FixesSystem system = new FixesSystem(mm, cfg);
         mm.registerFixes(system);
@@ -85,6 +92,18 @@ public final class FixesSystem {
         boolean selfPlace = cfg.selfPlacement() != null && Boolean.TRUE.equals(cfg.selfPlacement().enabled());
         if (selfPlace) SelfPlacementFix.install();
         else if (chunkSync) BlockPlacementFix.install();
+        // Equipment-slot fix rides the OptimizedPlayer send-packet override (server-wide), so it reads the install config directly.
+        if (cfg.legacyEquipmentFix() != null && Boolean.TRUE.equals(cfg.legacyEquipmentFix().enabled())) {
+            LegacyEquipmentFix.install();
+        }
+        // View-distance clamp rides the OptimizedPlayer refresh-settings override (server-wide), so it reads the install config directly.
+        if (cfg.legacyViewDistanceFix() != null && Boolean.TRUE.equals(cfg.legacyViewDistanceFix().enabled())) {
+            LegacyViewDistanceFix.install();
+        }
+        // Tab-completion fix registers a PlayerPacketEvent listener on the fixes node (server-wide), so it reads the install config directly.
+        if (cfg.legacyTabCompleteFix() != null && Boolean.TRUE.equals(cfg.legacyTabCompleteFix().enabled())) {
+            LegacyTabCompleteFix.install(system.node);
+        }
         mm.install(system.node);
         return system;
     }
