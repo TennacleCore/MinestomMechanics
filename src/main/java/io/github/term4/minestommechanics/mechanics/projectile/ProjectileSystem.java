@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.projectile;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.ProjectileLaunchEvent;
@@ -44,7 +46,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * and spawns the entity. Mirrors {@code DamageSystem} - types with a {@code typeConfigs} entry enable at install (the
  * per-type {@code enabled} knob gates per launch). Self-driven types wire their item triggers in {@link ProjectileType#enable}.
  */
-public final class ProjectileSystem {
+public final class ProjectileSystem implements MechanicsModule {
 
     /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
     public static final Key KEY = Key.key("mm:projectile");
@@ -68,7 +70,7 @@ public final class ProjectileSystem {
 
     /** Effective config for a snapshot carrying none: the shooter's scoped profile, else the install config. */
     private ProjectileConfig configFor(@Nullable Entity shooter) {
-        ProjectileConfig scoped = mm.profiles().projectilesFor(shooter);
+        ProjectileConfig scoped = mm.profiles().resolve(shooter, MechanicsKeys.PROJECTILES);
         return scoped != null ? scoped : config;
     }
 
@@ -209,14 +211,14 @@ public final class ProjectileSystem {
      * installing. Per-hit physics still resolves per-scope; only these one-time registrations are read here.
      */
     public static ProjectileSystem install(MinestomMechanics mm) {
-        ProjectileConfig global = mm.profiles().projectilesFor(null);
+        ProjectileConfig global = mm.profiles().resolve(null, MechanicsKeys.PROJECTILES);
         return install(mm, global != null ? global : ProjectileConfig.builder().build());
     }
 
     /** Installs from an explicit config (the modular path): enables its {@code typeConfigs} and mounts its {@code shootables}. */
     public static ProjectileSystem install(MinestomMechanics mm, ProjectileConfig cfg) {
         ProjectileSystem system = new ProjectileSystem(mm, cfg);
-        mm.registerProjectiles(system);
+        mm.register(system);
         system.registerVanillaDefaults();
         mm.install(system.node);
         for (Key key : cfg.typeConfigs.keySet()) system.enable(key);

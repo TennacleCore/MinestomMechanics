@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.tracking.motion;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfiles;
 import io.github.term4.minestommechanics.tracking.Tracker;
 import io.github.term4.minestommechanics.util.BlockContact;
@@ -319,7 +320,7 @@ public final class MotionTracker implements Tracker {
                 p.removeTag(LAUNCHED);
             }
             // resolve the rule once; detect the env before the sim so friction/gravity match. each category gated by the rule (default on)
-            VelocityRule rule = profiles.velocityFor(p);
+            VelocityRule rule = profiles.resolve(p, MechanicsKeys.VELOCITY);
             ClimbModel climbModel = VelocityRule.climbModel(rule);
             boolean modernBlocks = VelocityRule.modernBlockPhysicsEnabled(rule);
             FluidFlow.Model flowModel = VelocityRule.flowModel(rule);

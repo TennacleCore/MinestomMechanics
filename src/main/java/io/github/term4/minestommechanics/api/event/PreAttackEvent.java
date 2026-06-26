@@ -1,35 +1,30 @@
 package io.github.term4.minestommechanics.api.event;
 
 import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
+import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
 import net.minestom.server.entity.Entity;
-import net.minestom.server.event.trait.CancellableEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired the moment a hit is detected, before config resolution, the {@link AttackEvent}, and the ruleset - the earliest
- * combat hook. Carries the raw attacker/target so observers (reach logging, a future anticheat) can inspect or veto a hit
- * before it is processed; cancelling drops it. Today nothing cancels it (the reach log is observe-only).
+ * The pre-attack gate: fired the moment a hit is detected, <em>before</em> config resolution, the {@link AttackEvent},
+ * and the ruleset - the earliest combat hook. Cancel to drop the hit before any processing, or redirect the inputs
+ * (target / config) via {@link #finalSnap}. Observe-only today (reach logging; a future anticheat can veto here).
  */
-public final class PreAttackEvent implements CancellableEvent {
+public final class PreAttackEvent extends CancellableMechanicsEvent<AttackSnapshot> {
 
-    private final Entity attacker;
-    private final @Nullable Entity target;
-    private final Services services;
-    private boolean cancelled;
-
-    public PreAttackEvent(Entity attacker, @Nullable Entity target, Services services) {
-        this.attacker = attacker;
-        this.target = target;
-        this.services = services;
+    public PreAttackEvent(AttackSnapshot snapshot, Services services) {
+        super(snapshot, services);
     }
 
-    public Entity attacker() { return attacker; }
+    /** Attack config carried so far, or {@code null} when not yet resolved (resolution runs after this gate). */
+    public @Nullable AttackConfig config() { return finalSnap().config(); }
+
+    /** Replaces the config for this hit (resolution after the gate honours it). */
+    public void config(@Nullable AttackConfig config) { finalSnap(finalSnap().withConfig(config)); }
+
+    public Entity attacker() { return finalSnap().attacker(); }
 
     /** The hit target, or {@code null} for a target-less detection (e.g. a raytraced swing miss). */
-    public @Nullable Entity target() { return target; }
-
-    public Services services() { return services; }
-
-    @Override public boolean isCancelled() { return cancelled; }
-    @Override public void setCancelled(boolean cancel) { this.cancelled = cancel; }
+    public @Nullable Entity target() { return finalSnap().target(); }
 }

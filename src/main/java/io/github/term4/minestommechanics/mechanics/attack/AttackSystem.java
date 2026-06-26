@@ -1,13 +1,17 @@
 package io.github.term4.minestommechanics.mechanics.attack;
 
 import io.github.term4.minestommechanics.MechanicsProfiles;
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.api.event.AttackAppliedEvent;
 import io.github.term4.minestommechanics.api.event.PreAttackEvent;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.event.ListenerHandle;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -15,12 +19,16 @@ import org.jetbrains.annotations.NotNull;
  * API and runs the configured ruleset. No invul window or hit buffering of its own - every hit is processed and the
  * damage/knockback systems gate themselves. Preset behaviors (e.g. Mmc18's hit queue) live in custom rulesets/detections.
  */
-public final class AttackSystem {
+public final class AttackSystem implements MechanicsModule {
 
     private final AttackConfig config;
     private final MechanicsProfiles profiles;
     private final Services services;
     private final EventNode<@NotNull Event> node;
+
+    // Auxiliary phases are fired only when a listener exists (the main AttackEvent always fires).
+    private static final ListenerHandle<PreAttackEvent> PRE_ATTACK = EventDispatcher.getHandle(PreAttackEvent.class);
+    private static final ListenerHandle<AttackAppliedEvent> ATTACK_APPLIED = EventDispatcher.getHandle(AttackAppliedEvent.class);
 
     /**
      * @param detection how hits are detected; none given installs {@link HitDetection#PACKET}. Always live - {@code enabled}
@@ -41,14 +49,17 @@ public final class AttackSystem {
      * -> ruleset. Public so custom hit detection submits hits exactly like the built-in packet detection.
      */
     public void apply(AttackSnapshot snap) {
-        // earliest hook: raw detected hit, before any config/ruleset. Observe-only today (reach log); a future anticheat can veto here.
-        PreAttackEvent pre = new PreAttackEvent(snap.attacker(), snap.target(), services);
-        EventDispatcher.call(pre);
-        if (pre.isCancelled()) return;
+        // Pre phase (lazy): raw detected hit, before any config/ruleset - cancel/inspect, or redirect inputs.
+        if (PRE_ATTACK.hasListener()) {
+            PreAttackEvent pre = new PreAttackEvent(snap, services);
+            EventDispatcher.call(pre);
+            if (pre.isCancelled()) return;
+            snap = pre.finalSnap();
+        }
         // config chain: snapshot -> attacker scope -> install. inert when all three are absent; an empty config processes at the vanilla floor
         AttackConfig effective = snap.config();
         if (effective == null) {
-            AttackConfig scoped = profiles.attackFor(snap.attacker());
+            AttackConfig scoped = profiles.resolve(snap.attacker(), MechanicsKeys.ATTACK);
             effective = scoped != null ? scoped : config;
         }
         if (effective == null) return;
@@ -63,6 +74,9 @@ public final class AttackSystem {
                 ? api.processor().create(services)
                 : api.resolvedConfig().ruleset().create(services);
         proc.processAttack(api);
+
+        // Applied phase (lazy): the ruleset ran - report the processed attack.
+        if (ATTACK_APPLIED.hasListener()) EventDispatcher.call(new AttackAppliedEvent(api.finalSnap(), services));
     }
 
     /** Installs inert (no install-level config): a detected hit with no scoped or snapshot config is dropped. Pass an empty config to process at the vanilla floor. */
@@ -73,7 +87,7 @@ public final class AttackSystem {
     /** Installs the system. {@code detection} as in {@link #AttackSystem(MinestomMechanics, AttackConfig, HitDetection...)}. */
     public static AttackSystem install(MinestomMechanics mm, AttackConfig config, HitDetection... detection) {
         var system = new AttackSystem(mm, config, detection);
-        mm.registerAttack(system);
+        mm.register(system);
         mm.install(system.node);
         return system;
     }

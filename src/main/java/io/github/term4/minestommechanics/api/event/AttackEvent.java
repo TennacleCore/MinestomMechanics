@@ -8,21 +8,18 @@ import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
-import net.minestom.server.event.trait.CancellableEvent;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.potion.PotionEffect;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Public API fired when a hit is detected, before the attack ruleset runs. Wraps the {@link AttackSnapshot} like
- * {@link KnockbackEvent}/{@link DamageEvent}: an immutable {@link #snapshot()} plus a mutable {@link #finalSnap()},
- * with per-hit overrides for the ruleset, crit verdict, and item.
+ * The main attack phase: fired when a hit is detected and its config resolved, before the ruleset runs. Bracketed by
+ * {@link PreAttackEvent} (raw detection) and {@link AttackAppliedEvent} (after the ruleset). Shares the
+ * {@link CancellableMechanicsEvent} shape - an immutable {@link #snapshot()} plus a mutable {@link #finalSnap()} - with
+ * per-hit overrides for the ruleset, crit verdict, and item.
  */
 // Future plans to allow mobs / other entities to fire this event, or for users to manually fire it.
-public final class AttackEvent implements CancellableEvent {
-
-    private final AttackSnapshot snapshot;
-    private @Nullable AttackSnapshot finalSnap;
+public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot> {
 
     private boolean process = true;
     private @Nullable AttackRule.Ruleset ruleset;
@@ -30,24 +27,9 @@ public final class AttackEvent implements CancellableEvent {
     private @Nullable Boolean overrideCritical;
     private @Nullable ItemStack overrideItem;
 
-    private boolean cancelled;
-
-    private final Services services;
-
     public AttackEvent(AttackSnapshot snapshot, Services services) {
-        this.snapshot = snapshot;
-        this.services = services;
+        super(snapshot, services);
     }
-
-    /** Original attack data (immutable). */
-    public AttackSnapshot snapshot() { return snapshot; }
-
-    /**
-     * Snapshot handed to attack processing.
-     * Set via {@code event.finalSnap(event.snapshot().toBuilder().target(x).build())}.
-     */
-    public AttackSnapshot finalSnap() { return finalSnap != null ? finalSnap : snapshot; }
-    public void finalSnap(AttackSnapshot snap) { this.finalSnap = snap; }
 
     /** Attack config used for this hit ({@code null} = defaults). */
     public @Nullable AttackConfig config() { return finalSnap().config(); }
@@ -62,7 +44,7 @@ public final class AttackEvent implements CancellableEvent {
     public AttackConfigResolver.ResolvedAttackConfig resolvedConfig() {
         AttackSnapshot s = finalSnap();
         return s.config() != null
-                ? AttackConfigResolver.resolve(s.config(), AttackConfigResolver.AttackContext.of(s, services))
+                ? AttackConfigResolver.resolve(s.config(), AttackConfigResolver.AttackContext.of(s, services()))
                 : AttackConfigResolver.ResolvedAttackConfig.defaults();
     }
 
@@ -117,12 +99,6 @@ public final class AttackEvent implements CancellableEvent {
         return attacker() instanceof LivingEntity le ? le.getItemInMainHand() : ItemStack.AIR;
     }
 
-    /** Cancel the attack (no ruleset runs). */
-    public void cancel() { setCancelled(true); }
-
-    @Override public boolean isCancelled() { return cancelled; }
-    @Override public void setCancelled(boolean cancel) { this.cancelled = cancel; }
-
     /**
      * Defines what counts as a critical hit. Supplied via {@code AttackConfig.criticalRule(...)} and evaluated per
      * attack; it only decides whether a hit is critical (the melee type applies the multiplier). Receives the full
@@ -167,5 +143,4 @@ public final class AttackEvent implements CancellableEvent {
             AttackRule create(Services services);
         }
     }
-
 }

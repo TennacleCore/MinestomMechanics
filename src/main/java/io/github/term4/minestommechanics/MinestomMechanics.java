@@ -1,7 +1,5 @@
 package io.github.term4.minestommechanics;
 
-import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
-import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
 import io.github.term4.minestommechanics.platform.compatibility.CompatAnimatium;
 import io.github.term4.minestommechanics.platform.compatibility.CompatMovement;
 import io.github.term4.minestommechanics.platform.compatibility.CompatOffhand;
@@ -9,25 +7,22 @@ import io.github.term4.minestommechanics.platform.compatibility.CompatPlacement;
 import io.github.term4.minestommechanics.platform.fixes.client.MetaFix;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.platform.player.PlayerConfigApplier;
-import io.github.term4.minestommechanics.mechanics.consumable.ConsumableSystem;
-import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
-import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
-import io.github.term4.minestommechanics.mechanics.durability.DurabilitySystem;
-import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
-import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
-import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
+import io.github.term4.minestommechanics.tracking.ClientProfile;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.Tracker;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.MinecraftServer;
+import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class MinestomMechanics {
 
@@ -72,57 +67,25 @@ public final class MinestomMechanics {
     private ClientInfoTracker clientInfo;
     private final MechanicsProfiles profiles = new MechanicsProfiles();
 
-    // Optional registry
+    // Core trackers (optional, mounted under mm:trackers)
     private @Nullable SprintTracker sprintTracker;
     private @Nullable MotionTracker motionTracker;
-    private @Nullable AttackSystem attackSystem;
-    private @Nullable KnockbackSystem knockbackSystem;
-    private @Nullable DamageSystem damageSystem;
-    private @Nullable ProjectileSystem projectileSystem;
-    private @Nullable FixesSystem fixesSystem;
-    private @Nullable AttributeSystem attributeSystem;
-    private @Nullable DurabilitySystem durabilitySystem;
-    private @Nullable HungerSystem hungerSystem;
-    private @Nullable ConsumableSystem consumableSystem;
-    private @Nullable BlockingSystem blockingSystem;
 
-    public void registerAttack(AttackSystem a) { attackSystem = a; }
-    public void registerKnockback(KnockbackSystem k) { knockbackSystem = k; }
-    public void registerDamage(DamageSystem d) { damageSystem = d; }
-    public void registerProjectiles(ProjectileSystem p) { projectileSystem = p; }
-    public void registerFixes(FixesSystem f) { fixesSystem = f; }
-    public void registerAttributes(AttributeSystem a) { attributeSystem = a; }
-    public void registerDurability(DurabilitySystem d) { durabilitySystem = d; }
-    public void registerHunger(HungerSystem h) { hungerSystem = h; }
-    public void registerConsumables(ConsumableSystem c) { consumableSystem = c; }
-    public void registerBlocking(BlockingSystem b) { blockingSystem = b; }
+    /** Installed systems, keyed by concrete type. Populated at install (boot); read during gameplay. */
+    private final Map<Class<? extends MechanicsModule>, MechanicsModule> modules = new ConcurrentHashMap<>();
+
+    /** Registers an installed system; later retrievable via {@link #module(Class)}. Called from each system's {@code install}. */
+    public <M extends MechanicsModule> void register(M module) {
+        modules.put(module.getClass(), module);
+    }
+
+    /** The installed system of the given type, or {@code null} if it was not installed. */
+    public <M extends MechanicsModule> @Nullable M module(Class<M> type) {
+        return type.cast(modules.get(type));
+    }
 
     public @Nullable SprintTracker sprintTracker() { return sprintTracker; }
     public @Nullable MotionTracker motionTracker() { return motionTracker; }
-    public @Nullable AttackSystem attackSystem() { return attackSystem; }
-    public @Nullable KnockbackSystem knockbackSystem() { return knockbackSystem; }
-    public @Nullable DamageSystem damageSystem() { return damageSystem; }
-    public @Nullable ProjectileSystem projectileSystem() { return projectileSystem; }
-    public @Nullable FixesSystem fixesSystem() { return fixesSystem; }
-    public @Nullable AttributeSystem attributeSystem() { return attributeSystem; }
-    public @Nullable DurabilitySystem durabilitySystem() { return durabilitySystem; }
-    public @Nullable HungerSystem hungerSystem() { return hungerSystem; }
-    public @Nullable ConsumableSystem consumableSystem() { return consumableSystem; }
-    public @Nullable BlockingSystem blockingSystem() { return blockingSystem; }
-
-    /** Vanilla 1.8 keep-alive cadence (40 ticks). */
-    public static final long LEGACY_KEEP_ALIVE_MS = 2000;
-
-    /**
-     * Sets the keep-alive interval - which is also how often {@link net.minestom.server.entity.Player#getLatency()}
-     * refreshes (Minestom measures the round-trip on the read thread, sub-tick accurate; only the cadence is
-     * coarse, defaulting to 10s). Must be called before {@code MinecraftServer.init()}: the flag is read once
-     * at {@code ServerFlag} class-load. {@link #LEGACY_KEEP_ALIVE_MS} = vanilla 1.8's 2s cadence; pass smaller
-     * (e.g. 500, Hypixel's dedicated probe rate) for fresher latency reads.
-     */
-    public static void keepAliveInterval(long millis) {
-        System.setProperty("minestom.keep-alive-delay", Long.toString(millis));
-    }
 
     private static final MinestomMechanics INSTANCE = new MinestomMechanics();
     private boolean initialized = false;
@@ -209,6 +172,16 @@ public final class MinestomMechanics {
     }
 
     /**
+     * A unified, extensible per-player view of client-side info: protocol version, Animatium status, and an end-user
+     * typed store ({@link ClientProfile#get}/{@link ClientProfile#set} keyed by {@code ClientKey}) for custom data to
+     * record / persist. A fresh lightweight view each call.
+     */
+    public ClientProfile client(@NotNull Player player) {
+        if (!initialized) throw new IllegalStateException("MinestomMechanics has not been initialized");
+        return clientInfo.of(player);
+    }
+
+    /**
      * Scoped config profiles (player / instance / global). Assignable any time - including before
      * {@link #init()} - and swappable at runtime; systems consult them per hit.
      */
@@ -216,7 +189,7 @@ public final class MinestomMechanics {
 
     /** Pushes the global scope's scaling config into {@link TickScaler} (physics + static-context durations read it). */
     private void refreshGlobalScaling() {
-        TickScaler.setGlobal(profiles.scalingFor(null));
+        TickScaler.setGlobal(profiles.resolve(null, MechanicsKeys.TICK_SCALING));
     }
 
     /**

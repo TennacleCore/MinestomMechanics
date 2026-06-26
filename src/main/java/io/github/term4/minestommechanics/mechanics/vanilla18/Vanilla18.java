@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.vanilla18;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 
 /**
@@ -17,16 +18,16 @@ public final class Vanilla18 {
     /** The vanilla 1.8 mechanics profile (attack, damage, knockback, movement, projectiles, attributes, consumables, blocking). */
     public static MechanicsProfile profile() {
         return MechanicsProfile.builder()
-                .attack(Attack.config())
-                .damage(Damage.config())
-                .knockback(Knockback.melee())
-                .player(Player.config())
-                .velocity(Movement.velocity())
-                .projectiles(Projectiles.config())
-                .attributes(Attributes.config())
-                .consumables(Consumables.config())
-                .blocking(Blocking.config())
-                .items(Items.registry())
+                .set(MechanicsKeys.ATTACK, Attack.config())
+                .set(MechanicsKeys.DAMAGE, Damage.config())
+                .set(MechanicsKeys.KNOCKBACK, Knockback.melee())
+                .set(MechanicsKeys.PLAYER, Player.config())
+                .set(MechanicsKeys.VELOCITY, Movement.velocity())
+                .set(MechanicsKeys.PROJECTILES, Projectiles.config())
+                .set(MechanicsKeys.ATTRIBUTES, Attributes.config())
+                .set(MechanicsKeys.CONSUMABLES, Consumables.config())
+                .set(MechanicsKeys.BLOCKING, Blocking.config())
+                .set(MechanicsKeys.ITEMS, Items.registry())
                 .build();
     }
 }

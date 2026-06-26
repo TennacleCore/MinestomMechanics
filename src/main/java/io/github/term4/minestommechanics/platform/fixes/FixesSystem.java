@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.platform.fixes;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyEquipmentFix;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyTabCompleteFix;
@@ -25,7 +27,7 @@ import org.jetbrains.annotations.Nullable;
  * <p>(The self-meta smoothing fix lives in {@code fixes.client} but its delivery is the custom player override, so it
  * is armed by {@code MetaFix.installListeners()} from {@code MinestomMechanics.init} rather than this system.)
  */
-public final class FixesSystem {
+public final class FixesSystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
     private final FixesConfig config; // install config (the resolution fallback)
@@ -46,7 +48,7 @@ public final class FixesSystem {
 
     /** Effective fixes config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
     public FixesConfig configFor(@Nullable Entity subject) {
-        FixesConfig scoped = mm.profiles().fixesFor(subject);
+        FixesConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.FIXES);
         return scoped != null ? scoped : config;
     }
 
@@ -74,14 +76,14 @@ public final class FixesSystem {
      * the event-driven arrow-visibility fix still resolves per-scope. Set the profile before installing.
      */
     public static FixesSystem install(MinestomMechanics mm) {
-        FixesConfig global = mm.profiles().fixesFor(null);
+        FixesConfig global = mm.profiles().resolve(null, MechanicsKeys.FIXES);
         return install(mm, global != null ? global : FixesConfig.builder().build());
     }
 
     /** Installs from an explicit config (the modular path): registers on {@code mm}, wires each fix's manager, installs the event node. */
     public static FixesSystem install(MinestomMechanics mm, FixesConfig cfg) {
         FixesSystem system = new FixesSystem(mm, cfg);
-        mm.registerFixes(system);
+        mm.register(system);
         system.legacyArrowVisibility.install(system.node);
         // Block-placement fixes override a server-wide packet listener, so they read the install config directly (cannot
         // vary per scope). Two toggles share the one listener: the chunk-resend sync fix, and the 1.8 self-placement

@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.vanilla;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 
 /**
@@ -17,12 +18,12 @@ public final class Vanilla {
     /** The (incomplete) modern 26.1 mechanics profile (damage, projectiles, attributes, consumables, velocity). */
     public static MechanicsProfile profile() {
         return MechanicsProfile.builder()
-                .damage(Damage.config())
-                .projectiles(Projectiles.config())
-                .attributes(Attributes.config())
-                .consumables(Consumables.config())
-                .velocity(Movement.velocity())
-                .items(Items.registry())
+                .set(MechanicsKeys.DAMAGE, Damage.config())
+                .set(MechanicsKeys.PROJECTILES, Projectiles.config())
+                .set(MechanicsKeys.ATTRIBUTES, Attributes.config())
+                .set(MechanicsKeys.CONSUMABLES, Consumables.config())
+                .set(MechanicsKeys.VELOCITY, Movement.velocity())
+                .set(MechanicsKeys.ITEMS, Items.registry())
                 .build();
     }
 }

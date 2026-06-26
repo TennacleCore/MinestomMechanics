@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.damage;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
@@ -9,6 +11,8 @@ import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.MitigationRequest;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionCategory;
 import io.github.term4.minestommechanics.api.event.DamageEvent;
+import io.github.term4.minestommechanics.api.event.PreDamageEvent;
+import io.github.term4.minestommechanics.api.event.DamageAppliedEvent;
 import io.github.term4.minestommechanics.mechanics.damage.DamageCalculator.DamageResult;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.ResolvedDamageConfig;
@@ -37,6 +41,7 @@ import net.minestom.server.entity.damage.Damage;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
+import net.minestom.server.event.ListenerHandle;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.entity.EntityDeathEvent;
 import net.minestom.server.event.player.PlayerSpawnEvent;
@@ -54,7 +59,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * <p>Every fresh hit except drowning broadcasts the victim's server-tracked velocity. Non-melee hits route it through
  * the {@link KnockbackSystem} with {@link DamageConfig#hurtKnockback}; melee's broadcast is its own knockback.
  */
-public final class DamageSystem {
+public final class DamageSystem implements MechanicsModule {
 
     /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
     public static final Key KEY = Key.key("mm:damage");
@@ -67,6 +72,10 @@ public final class DamageSystem {
 
     /** Default invul ticks (vanilla 1.8) when nothing resolves; scaled to live TPS at the stamp site. */
     public static final int DEFAULT_INVUL_TICKS = 10;
+
+    // Auxiliary phases are fired only when a listener exists (the main DamageEvent always fires).
+    private static final ListenerHandle<PreDamageEvent> PRE_DAMAGE = EventDispatcher.getHandle(PreDamageEvent.class);
+    private static final ListenerHandle<DamageAppliedEvent> DAMAGE_APPLIED = EventDispatcher.getHandle(DamageAppliedEvent.class);
 
     private final MinestomMechanics mm;
     private final DamageConfig config;
@@ -97,7 +106,7 @@ public final class DamageSystem {
 
     /** Effective config for a snapshot carrying none: the victim's scoped profile, else the install config. */
     private DamageConfig configFor(@Nullable Entity target) {
-        DamageConfig scoped = mm.profiles().damageFor(target);
+        DamageConfig scoped = mm.profiles().resolve(target, MechanicsKeys.DAMAGE);
         return scoped != null ? scoped : config;
     }
 
@@ -147,12 +156,22 @@ public final class DamageSystem {
         if (effective == null) return DamageOutcome.BLOCKED;
 
         DamageSnapshot working = snap.config() != null ? snap : snap.withConfig(effective);
+
+        // Pre phase (lazy): cancel before any computation / i-frame cost, or redirect the inputs (type/source/target/config).
+        if (PRE_DAMAGE.hasListener()) {
+            PreDamageEvent pre = new PreDamageEvent(working, services);
+            EventDispatcher.call(pre);
+            if (pre.isCancelled()) return DamageOutcome.BLOCKED;
+            working = pre.finalSnap();
+            if (!(working.target() instanceof LivingEntity)) return DamageOutcome.BLOCKED;
+        }
+
         DamageResult result = calc.compute(working);
 
         float amount = result.amount();
 
-        // TODO(events): split into phased events (pre/modify/final) and carry the resolved config to avoid double-resolution
-        DamageEvent event = new DamageEvent(working, amount);
+        // Main phase: inspect / modify the computed amount before it is applied.
+        DamageEvent event = new DamageEvent(working, amount, services);
         EventDispatcher.call(event);
         if (event.isCancelled()) return DamageOutcome.BLOCKED;
 
@@ -201,6 +220,7 @@ public final class DamageSystem {
                 boolean replacementSilent = odSilent != null ? odSilent : generalSilent;
                 living.setTag(LAST_DAMAGE, Math.max(event.stored(), amount));
                 applyDamage(living, type, finalSnap, applied, replacementSilent);
+                fireDamageApplied(finalSnap, applied, DamageOutcome.OVERDAMAGE);
                 return DamageOutcome.OVERDAMAGE;
             }
             return DamageOutcome.BLOCKED;
@@ -232,10 +252,16 @@ public final class DamageSystem {
         Integer invulTicks = pick(typeCfg.invulTicks(typeCtx), resolved.invulTicks());
         if (triggersInvul && invulTicks != null && invulTicks > 0) {
             // i-frame window is a server-authoritative duration: stretch the vanilla-tick count to live TPS (identity at 20)
-            setDamageInvulnerable(living, TickScaler.duration(invulTicks, mm.profiles().scalingFor(living), KEY));
+            setDamageInvulnerable(living, TickScaler.duration(invulTicks, mm.profiles().resolve(living, MechanicsKeys.TICK_SCALING), KEY));
         }
         dispatchWeaponOnHit(living, finalSnap);
+        fireDamageApplied(finalSnap, amount, DamageOutcome.FRESH_DAMAGE);
         return DamageOutcome.FRESH_DAMAGE;
+    }
+
+    /** Applied phase (lazy): a hit landed - report the dealt amount + outcome to listeners (stats/logging/triggers). */
+    private void fireDamageApplied(DamageSnapshot snap, float dealt, DamageOutcome outcome) {
+        if (DAMAGE_APPLIED.hasListener()) EventDispatcher.call(new DamageAppliedEvent(snap, dealt, outcome, services));
     }
 
     /**
@@ -385,13 +411,13 @@ public final class DamageSystem {
      * (a hit with no scoped or snapshot config is a no-op). {@code extraTypes} registers + enables custom types.
      */
     public static DamageSystem install(MinestomMechanics mm, DamageType... extraTypes) {
-        return install(mm, mm.profiles().damageFor(null), extraTypes);
+        return install(mm, mm.profiles().resolve(null, MechanicsKeys.DAMAGE), extraTypes);
     }
 
     /** Installs from an explicit config (the modular path): enables its {@code typeConfigs} producers. */
     public static DamageSystem install(MinestomMechanics mm, DamageConfig cfg, DamageType... extraTypes) {
         var system = new DamageSystem(mm, cfg);
-        mm.registerDamage(system);
+        mm.register(system);
         EnvironmentalDamageTicker.instance().bind(system);
         HurtSuppression.install(system.node);
         mm.install(system.node);

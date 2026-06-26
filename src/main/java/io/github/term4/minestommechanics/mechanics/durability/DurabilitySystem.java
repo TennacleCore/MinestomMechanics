@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.durability;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EquipmentSlot;
@@ -17,7 +19,7 @@ import org.jetbrains.annotations.Nullable;
  * <p><b>Stub.</b> The API surface is in place - {@link #install}, scope resolution, and the {@link #damage} entry point
  * other systems (combat, mining, Thorns) will call - but no durability is consumed yet (the path is a documented TODO).
  */
-public final class DurabilitySystem {
+public final class DurabilitySystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
     private final DurabilityConfig config; // install config (the resolution fallback)
@@ -35,7 +37,7 @@ public final class DurabilitySystem {
 
     /** Effective durability config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
     public DurabilityConfig configFor(@Nullable Entity subject) {
-        DurabilityConfig scoped = mm.profiles().durabilityFor(subject);
+        DurabilityConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.DURABILITY);
         return scoped != null ? scoped : config;
     }
 
@@ -61,7 +63,7 @@ public final class DurabilitySystem {
     /** Installs the durability system: registers on {@code mm} and installs the event node. */
     public static DurabilitySystem install(MinestomMechanics mm, DurabilityConfig cfg) {
         DurabilitySystem system = new DurabilitySystem(mm, cfg);
-        mm.registerDurability(system);
+        mm.register(system);
         mm.install(system.node);
         return system;
     }

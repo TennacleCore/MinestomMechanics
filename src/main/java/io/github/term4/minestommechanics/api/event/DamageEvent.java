@@ -1,24 +1,22 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
-import net.minestom.server.event.trait.CancellableEvent;
 import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Public API for inspecting and modifying a damage instance before it is applied. Wraps the
- * {@link DamageSnapshot} and follows the same shape as {@link KnockbackEvent}: an immutable
- * original {@link #snapshot()} plus a mutable {@link #finalSnap()} used for application.
+ * The main damage phase: inspect and modify a computed damage instance before it is applied. Fired after mitigation,
+ * with the resolved {@link #amount()}; bracketed by {@link PreDamageEvent} (before computation) and
+ * {@link DamageAppliedEvent} (after application). Shares the {@link CancellableMechanicsEvent} shape - an immutable
+ * {@link #snapshot()} plus a mutable {@link #finalSnap()} used for application.
  */
-public final class DamageEvent implements CancellableEvent {
-
-    private final DamageSnapshot snap;
-    private @Nullable DamageSnapshot finalSnap;
+public final class DamageEvent extends CancellableMechanicsEvent<DamageSnapshot> {
 
     private float amount;
     private final boolean invulnerable;
@@ -27,10 +25,8 @@ public final class DamageEvent implements CancellableEvent {
     private boolean bypassInvul;   // ignore the i-frame window
     private boolean bypassImmune;  // ignore fundamental immunity (creative/spectator)
 
-    private boolean cancelled;
-
-    public DamageEvent(DamageSnapshot snap, float amount) {
-        this.snap = snap;
+    public DamageEvent(DamageSnapshot snap, float amount, Services services) {
+        super(snap, services);
         this.amount = amount;
         this.invulnerable = DamageSystem.isInvulnerableToDamage(snap.target());
         this.remainingInvul = snap.target() instanceof LivingEntity le
@@ -38,16 +34,6 @@ public final class DamageEvent implements CancellableEvent {
         this.stored = snap.target() instanceof LivingEntity le
                 ? DamageSystem.lastDamage(le) : 0f;
     }
-
-    /** Original damage data (immutable). */
-    public DamageSnapshot snapshot() { return snap; }
-
-    /**
-     * Snapshot used when applying damage.
-     * Set via {@code event.finalSnap(event.snapshot().toBuilder().target(x).build())}.
-     */
-    public DamageSnapshot finalSnap() { return finalSnap != null ? finalSnap : snap; }
-    public void finalSnap(DamageSnapshot snap) { this.finalSnap = snap; }
 
     /** Final damage amount to apply (mutable). */
     public float amount() { return amount; }
@@ -82,10 +68,4 @@ public final class DamageEvent implements CancellableEvent {
     public @Nullable ItemStack item() { return finalSnap().item(); }
     /** Type-specific payload attached by the producer (e.g. the fall distance), or {@code null}. */
     public @Nullable Object detail() { return finalSnap().detail(); }
-
-    /** Cancel the damage. */
-    public void cancel() { setCancelled(true); }
-
-    @Override public boolean isCancelled() { return cancelled; }
-    @Override public void setCancelled(boolean cancel) { this.cancelled = cancel; }
 }

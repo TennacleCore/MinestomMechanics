@@ -8,6 +8,8 @@ import io.github.term4.minestommechanics.mechanics.attribute.source.HeldSource;
 import io.github.term4.minestommechanics.mechanics.attribute.source.Behavior;
 import io.github.term4.minestommechanics.mechanics.attribute.source.SourceRegistry;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfigResolver.AttributeContext;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfigResolver.ResolvedAttributeConfig;
@@ -55,7 +57,7 @@ import java.util.Map;
  * and its in-context item's enchants into active sources, exposing {@link #context} -> {@link AttributeContext} for
  * consumers (calculators) to read an attribute's value. Mirrors the other systems' {@code install}/{@code node} shape.
  */
-public final class AttributeSystem {
+public final class AttributeSystem implements MechanicsModule {
 
     /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
     public static final Key KEY = Key.key("mm:attribute");
@@ -325,7 +327,7 @@ public final class AttributeSystem {
 
     /** Effective config for {@code entity}: the scoped profile's attribute config merged over the install config. */
     public AttributeConfig configFor(@Nullable Entity entity) {
-        AttributeConfig scoped = mm.profiles().attributesFor(entity);
+        AttributeConfig scoped = mm.profiles().resolve(entity, MechanicsKeys.ATTRIBUTES);
         return scoped != null ? scoped.fromBase(config) : config;
     }
 
@@ -414,14 +416,19 @@ public final class AttributeSystem {
     /** A source active on an entity at a resolved {@code level} (1-based). */
     public record Active(Source source, int level) {}
 
-    /** Installs inert (no sources). */
+    /**
+     * Installs reading the GLOBAL profile's {@link AttributeConfig}: its {@code sources} (the enchant / effect /
+     * attribute behaviors) register up front. Set the profile before installing; with no global profile this is
+     * inert (no sources). Per-scope tuning still resolves per hit.
+     */
     public static AttributeSystem install(MinestomMechanics mm) {
-        return install(mm, null);
+        return install(mm, mm.profiles().resolve(null, MechanicsKeys.ATTRIBUTES));
     }
 
+    /** Installs from an explicit config (the modular path): registers its {@code sources}. */
     public static AttributeSystem install(MinestomMechanics mm, @Nullable AttributeConfig config) {
         AttributeSystem system = new AttributeSystem(mm, config);
-        mm.registerAttributes(system);
+        mm.register(system);
         mm.install(system.node);
         return system;
     }

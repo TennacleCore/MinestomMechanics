@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.knockback;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
@@ -85,7 +86,7 @@ public final class KnockbackCalculator {
         // velocity rule resolved once (config override -> victim scope -> DEFAULT); threaded onto the component ctx so a
         // custom component reads the same velocity
         VelocityRule velRule = cfg.velocity();
-        if (velRule == null) velRule = services.profiles().velocityFor(t);
+        if (velRule == null) velRule = services.profiles().resolve(t, MechanicsKeys.VELOCITY);
         if (velRule == null) velRule = VelocityRule.DEFAULT;
         Vec vel = velRule.estimate(VelocityContext.of(t, services.sprintTracker()));
 
@@ -128,7 +129,7 @@ public final class KnockbackCalculator {
         Entity a = snap.source();
         // sprint is server state (not on the snapshot); the leniency window scales to live TPS (identity at 20)
         if (snap.melee() && a != null) {
-            int sprBuf = TickScaler.duration(cfg.sprintBuffer() != null ? cfg.sprintBuffer() : 0, services.profiles().scalingFor(a), KnockbackSystem.KEY);
+            int sprBuf = TickScaler.duration(cfg.sprintBuffer() != null ? cfg.sprintBuffer() : 0, services.profiles().resolve(a, MechanicsKeys.TICK_SCALING), KnockbackSystem.KEY);
             if (SprintTracker.wasRecentlySprinting(services.sprintTracker(), a, sprBuf)) level++;
         }
         return level;

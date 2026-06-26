@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.consumable;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigResolver.ConsumableContext;
@@ -39,7 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * the resolved {@link ResolvedConsumable#consumeTicks()} in the start handler ({@link PlayerUseItemEvent#setItemUseTime}),
  * making completion server-authoritative and independent of the client version / item components.
  */
-public final class ConsumableSystem {
+public final class ConsumableSystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
     private final Services services;
@@ -69,7 +71,7 @@ public final class ConsumableSystem {
 
     /** Effective consumable config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
     public ConsumableConfig configFor(@Nullable Entity subject) {
-        ConsumableConfig scoped = mm.profiles().consumablesFor(subject);
+        ConsumableConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.CONSUMABLES);
         return scoped != null ? scoped : config;
     }
 
@@ -139,20 +141,20 @@ public final class ConsumableSystem {
 
     /** Installs reading the GLOBAL profile's {@link ConsumableConfig}: its {@code types} (the consumable identities) register up front. Set the profile before installing. */
     public static ConsumableSystem install(MinestomMechanics mm) {
-        ConsumableConfig global = mm.profiles().consumablesFor(null);
+        ConsumableConfig global = mm.profiles().resolve(null, MechanicsKeys.CONSUMABLES);
         return install(mm, global != null ? global : ConsumableConfig.builder().build());
     }
 
     /** Installs from an explicit config (the modular path): registers its {@code types}, installs the node, and hooks the shared tick loop once. */
     public static ConsumableSystem install(MinestomMechanics mm, ConsumableConfig cfg) {
         ConsumableSystem system = new ConsumableSystem(mm, cfg);
-        mm.registerConsumables(system);
+        mm.register(system);
         for (Consumable c : cfg.types()) system.register(c);
         mm.install(system.node);
         // Registered once for the JVM (TickSystem has no removal); dispatches through the live registry so a re-install is picked up.
         if (TICK_HOOK.compareAndSet(false, true)) {
             TickSystem.register(TickPhase.DEFAULT, ctx -> {
-                ConsumableSystem live = mm.consumableSystem();
+                ConsumableSystem live = mm.module(ConsumableSystem.class);
                 if (live != null) live.tick(ctx.instance());
             });
         }

@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.attribute;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Strength;
 import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
@@ -26,7 +27,7 @@ class AttributeTuningTest extends HeadlessServerTest {
     void clearScope() { mm.profiles().setGlobal(null); }
 
     private float meleeWithStrength(AttributeConfig scoped) {
-        mm.profiles().setGlobal(MechanicsProfile.builder().attributes(scoped).build());
+        mm.profiles().setGlobal(MechanicsProfile.builder().set(MechanicsKeys.ATTRIBUTES, scoped).build());
         LivingEntity atk = zombie(new Pos(0, 64, 90));
         PotionEffect strength = PotionEffect.fromKey(Strength.KEY);
         assertNotNull(strength);

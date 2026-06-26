@@ -1,5 +1,6 @@
 package test.presets.mmc18;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
@@ -44,7 +45,7 @@ public final class Attack {
                 if (event.target() instanceof LivingEntity le) {
                     // the buffer is a vanilla-tick window, so scale it to live TPS (identity at 20) to keep the same real-time slop
                     if (DamageSystem.isInvulnerableToDamage(le)
-                            && DamageSystem.remainingDamageInvul(le) <= TickScaler.duration(HIT_QUEUE_BUFFER, services.profiles().scalingFor(le), DamageSystem.KEY)) {
+                            && DamageSystem.remainingDamageInvul(le) <= TickScaler.duration(HIT_QUEUE_BUFFER, services.profiles().resolve(le, MechanicsKeys.TICK_SCALING), DamageSystem.KEY)) {
                         pendingHit.put(le, PendingHit.capture(event, vanilla));
                         return;
                     }

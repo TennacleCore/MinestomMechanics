@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.testsupport;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
@@ -51,7 +52,7 @@ public abstract class HeadlessServerTest {
         instance.loadChunk(0, 0).join();
         // Item-stat lookups resolve from the profile; scope them to this instance so tests that swap the GLOBAL profile
         // (e.g. AttributeTuningTest's setGlobal(null)) don't wipe the registry for entities placed here.
-        mm.profiles().setInstance(instance, MechanicsProfile.builder().items(Items.registry()).build());
+        mm.profiles().setInstance(instance, MechanicsProfile.builder().set(MechanicsKeys.ITEMS, Items.registry()).build());
     }
 
     /** A stationary zombie placed at {@code pos} (yaw/pitch from the {@link Pos}); non-player, so its tracked velocity is zero. */

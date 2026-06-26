@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.platform.player;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsProfiles;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.platform.compatibility.CompatAnimatium;
 import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
@@ -23,6 +25,8 @@ public final class PlayerConfigApplier {
 
     /** Attack-speed base used to remove the modern cooldown: huge, so the cooldown is always full (no indicator, 1.8-style hits). */
     private static final double REMOVED_ATTACK_COOLDOWN_SPEED = 1024.0;
+    /** Vanilla generic.attack_speed base, restored when compat stops removing the cooldown. */
+    private static final double DEFAULT_ATTACK_SPEED = 4.0;
 
     private PlayerConfigApplier() {}
 
@@ -41,34 +45,29 @@ public final class PlayerConfigApplier {
     /** Applies the player's scoped platform configs; each member is a no-op when no scope sets it. */
     public static void apply(MinestomMechanics mm, Player player) {
         if (!(player instanceof OptimizedPlayer op)) return;
-        PlayerConfig cfg = mm.profiles().playerFor(player);
+        // Reads two members of the same player's profile - resolve its scope chain once.
+        MechanicsProfiles.Resolved profile = mm.profiles().resolved(player);
+        PlayerConfig cfg = profile.get(MechanicsKeys.PLAYER);
         if (cfg != null && cfg.positionBroadcastInterval != null) {
             op.setPositionBroadcastInterval(Math.max(1, cfg.positionBroadcastInterval));
         }
-        CompatConfig compat = mm.profiles().compatFor(player);
-        if (compat != null) {
-            var state = op.compat();
-            if (compat.disabledPoses != null) state.setDisabledPoses(compat.disabledPoses);
-            if (compat.restrictMovement != null) state.setRestrictMovement(compat.restrictMovement);
-            if (compat.legacyHitbox != null) state.setLegacyHitbox(compat.legacyHitbox);
-            if (compat.attackHitboxMargin != null) {
-                state.setAttackHitboxMargin(compat.attackHitboxMargin);
-                // the join inventory is sent before this config applies, so the stamp wouldn't reach the client until the
-                // next inventory packet (open/close). Resend now that outgoing items get the attack_range stamp.
-                op.getInventory().update();
-            }
-            if (compat.disableOffhand != null) state.setDisableOffhand(compat.disableOffhand);
-            if (compat.restrictSprintSneak != null) state.setRestrictSprintSneak(compat.restrictSprintSneak);
-            if (compat.restrictSprintUse != null) state.setRestrictSprintUse(compat.restrictSprintUse);
-            if (compat.restrictSwimSpeed != null) state.setRestrictSwimSpeed(compat.restrictSwimSpeed);
-            if (compat.blockPlaceReach != null) state.setBlockPlaceReach(compat.blockPlaceReach);
-            if (compat.oldPlacement != null) state.setOldPlacement(compat.oldPlacement);
-            // Remove the modern attack cooldown server-side (any client): a huge ATTACK_SPEED keeps the cooldown always full,
-            // so hits never weaken (1.8-style) and the crosshair indicator never shows. Idempotent (setBaseValue).
-            if (Boolean.TRUE.equals(compat.removeAttackCooldown)) {
-                var attackSpeed = op.getAttribute(Attribute.ATTACK_SPEED);
-                if (attackSpeed != null) attackSpeed.setBaseValue(REMOVED_ATTACK_COOLDOWN_SPEED);
-            }
+        // Compat is set in one pass from the resolved config (or all-off when no scope sets it), so a profile swap is a clean
+        // mode SWITCH - the previous mode's state never sticks. Operational/identity state (Animatium features) is untouched.
+        CompatConfig compat = profile.get(MechanicsKeys.COMPAT);
+        var state = op.compat();
+        Float prevMargin = state.attackHitboxMargin();
+        boolean prevCooldownRemoved = state.attackCooldownRemoved();
+        state.apply(compat);
+        // Re-send items only when the attack_range stamp actually changed (margin set / cleared / retuned) - the join inventory
+        // is sent before this applies, so a change wouldn't reach the client until the next inventory packet otherwise.
+        if (!java.util.Objects.equals(prevMargin, state.attackHitboxMargin())) op.getInventory().update();
+        // Attack cooldown: a huge ATTACK_SPEED removes the modern cooldown (1.8-style, hits never weaken). Touch the attribute
+        // only on a real change, so a non-compat server's attack speed is never clobbered; restore the default base on switch-off.
+        boolean nowCooldownRemoved = compat != null && Boolean.TRUE.equals(compat.removeAttackCooldown);
+        if (nowCooldownRemoved != prevCooldownRemoved) {
+            var attackSpeed = op.getAttribute(Attribute.ATTACK_SPEED);
+            if (attackSpeed != null) attackSpeed.setBaseValue(nowCooldownRemoved ? REMOVED_ATTACK_COOLDOWN_SPEED : DEFAULT_ATTACK_SPEED);
+            state.setAttackCooldownRemoved(nowCooldownRemoved);
         }
         // Re-push the Animatium feature set on every apply - the client handshakes only once on join, so a kit/profile swap or
         // instance/world change (this also runs on PlayerSpawnEvent) must re-send it. No-op for non-Animatium clients, and runs

@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.hunger;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
@@ -22,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p><b>Stub.</b> The per-instance tick is installed and scope-gated, but does nothing yet; depletion/regen and the
  * starvation route through {@code DamageSystem} land with the hunger logic.
  */
-public final class HungerSystem {
+public final class HungerSystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
     private final HungerConfig config; // install config (the resolution fallback)
@@ -42,7 +44,7 @@ public final class HungerSystem {
 
     /** Effective hunger config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
     public HungerConfig configFor(@Nullable Entity subject) {
-        HungerConfig scoped = mm.profiles().hungerFor(subject);
+        HungerConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.HUNGER);
         return scoped != null ? scoped : config;
     }
 
@@ -76,12 +78,12 @@ public final class HungerSystem {
     /** Installs the hunger system: registers on {@code mm}, installs the event node, and hooks the shared tick loop once. */
     public static HungerSystem install(MinestomMechanics mm, HungerConfig cfg) {
         HungerSystem system = new HungerSystem(mm, cfg);
-        mm.registerHunger(system);
+        mm.register(system);
         mm.install(system.node);
         // Registered once for the JVM (TickSystem has no removal); dispatches through the live registry so a re-install is picked up.
         if (TICK_HOOK.compareAndSet(false, true)) {
             TickSystem.register(TickPhase.DEFAULT, ctx -> {
-                HungerSystem live = mm.hungerSystem();
+                HungerSystem live = mm.module(HungerSystem.class);
                 if (live != null) live.tick(ctx);
             });
         }

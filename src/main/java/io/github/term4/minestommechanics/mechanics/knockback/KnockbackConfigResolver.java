@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.knockback;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
@@ -46,7 +47,7 @@ public final class KnockbackConfigResolver {
             if (resolvedVelocity != null) return resolvedVelocity;
             KnockbackConfig cfg = snap.config();
             VelocityRule rule = cfg != null && cfg.velocity != null ? cfg.velocity.resolve(this) : null;
-            if (rule == null && services != null) rule = services.profiles().velocityFor(snap.target());
+            if (rule == null && services != null) rule = services.profiles().resolve(snap.target(), MechanicsKeys.VELOCITY);
             return rule != null ? rule : VelocityRule.DEFAULT;
         }
         /**

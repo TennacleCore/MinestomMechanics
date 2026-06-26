@@ -21,20 +21,20 @@ public record Services(MinestomMechanics mm) {
     // lazy per hit and install order does not matter.
     public @Nullable SprintTracker sprintTracker() { return mm.sprintTracker(); }
     public @Nullable MotionTracker motionTracker() { return mm.motionTracker(); }
-    public @Nullable AttackSystem attack() { return mm.attackSystem(); }
-    public @Nullable KnockbackSystem knockback() { return mm.knockbackSystem(); }
-    public @Nullable DamageSystem damage() { return mm.damageSystem(); }
-    public @Nullable ProjectileSystem projectiles() { return mm.projectileSystem(); }
-    public @Nullable FixesSystem fixes() { return mm.fixesSystem(); }
-    public @Nullable AttributeSystem attributes() { return mm.attributeSystem(); }
+    public @Nullable AttackSystem attack() { return mm.module(AttackSystem.class); }
+    public @Nullable KnockbackSystem knockback() { return mm.module(KnockbackSystem.class); }
+    public @Nullable DamageSystem damage() { return mm.module(DamageSystem.class); }
+    public @Nullable ProjectileSystem projectiles() { return mm.module(ProjectileSystem.class); }
+    public @Nullable FixesSystem fixes() { return mm.module(FixesSystem.class); }
+    public @Nullable AttributeSystem attributes() { return mm.module(AttributeSystem.class); }
     /** Item durability (damage-on-use), or {@code null} if not installed. */
-    public @Nullable DurabilitySystem durability() { return mm.durabilitySystem(); }
+    public @Nullable DurabilitySystem durability() { return mm.module(DurabilitySystem.class); }
     /** The hunger subsystem (food/saturation/regen/starvation), or {@code null} if not installed. */
-    public @Nullable HungerSystem hunger() { return mm.hungerSystem(); }
+    public @Nullable HungerSystem hunger() { return mm.module(HungerSystem.class); }
     /** Consumable items (eat/drink over time), or {@code null} if not installed. */
-    public @Nullable ConsumableSystem consumables() { return mm.consumableSystem(); }
+    public @Nullable ConsumableSystem consumables() { return mm.module(ConsumableSystem.class); }
     /** Item blocking (sword block / shield), or {@code null} if not installed. */
-    public @Nullable BlockingSystem blocking() { return mm.blockingSystem(); }
+    public @Nullable BlockingSystem blocking() { return mm.module(BlockingSystem.class); }
     /** Scoped config profiles (player / instance / global). */
     public MechanicsProfiles profiles() { return mm.profiles(); }
 

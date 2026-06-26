@@ -1,5 +1,6 @@
 package test.presets.mmc18;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Projectiles;
@@ -21,12 +22,12 @@ public final class Mmc18 {
     /** The mmc18 mechanics profile: the vanilla 1.8 baseline with the MMC combat/movement deltas; projectiles left unset. */
     public static MechanicsProfile profile() {
         return Vanilla18.profile().toBuilder()
-                .attack(Attack.config())
-                .damage(Damage.config())
-                .knockback(Knockback.melee())
-                .player(Player.config())
-                .velocity(Movement.velocity())
-                .projectiles(null) // placeholder: mmc18 projectiles TBD from testing - do NOT inherit vanilla18's
+                .set(MechanicsKeys.ATTACK, Attack.config())
+                .set(MechanicsKeys.DAMAGE, Damage.config())
+                .set(MechanicsKeys.KNOCKBACK, Knockback.melee())
+                .set(MechanicsKeys.PLAYER, Player.config())
+                .set(MechanicsKeys.VELOCITY, Movement.velocity())
+                .set(MechanicsKeys.PROJECTILES, null) // placeholder: mmc18 projectiles TBD from testing - do NOT inherit vanilla18's
                 .build();
     }
 

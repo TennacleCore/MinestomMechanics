@@ -1,9 +1,9 @@
 package test;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
-import net.minestom.server.entity.attribute.Attribute;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
@@ -61,16 +61,8 @@ public class ExampleServer {
         // Set server TPS (default is 20, library should work with any TPS tested up to 1000)
         System.setProperty("minestom.tps", "20");
 
-        // TODO: Probably remove this entirely. It's more anticheat based than mechanics.
-        MinestomMechanics.keepAliveInterval(MinestomMechanics.LEGACY_KEEP_ALIVE_MS);
-
         // Initialize the server
         MinecraftServer server = MinecraftServer.init(new Auth.Bungee()); // bungee auth allows 1.7 clients to join (velocity works for all later versions, and a proxy is not required)
-
-        // Debug: test-only inbound-lag simulator (delays a player's movement packets so the server perceives
-        // their position/onGround late, like a high-ping client). Purely in the test server - mechanics is untouched.
-        final LagSimulator lag = new LagSimulator();
-        lag.install();
 
         // Get mm instance
         MinestomMechanics mm = MinestomMechanics.getInstance();
@@ -83,9 +75,9 @@ public class ExampleServer {
         // general 1.8 compat layer, and the legacy-client fixes. Each system below just enables itself and reads its
         // config from here, so swapping the profile swaps the whole setup.
         mm.profiles().setGlobal(Mmc18.profile().toBuilder()
-                .projectiles(Mmc18.projectiles())
-                .compat(Compat18.config())
-                .fixes(Fixes18.config())
+                .set(MechanicsKeys.PROJECTILES, Mmc18.projectiles())
+                .set(MechanicsKeys.COMPAT, Compat18.config())
+                .set(MechanicsKeys.FIXES, Fixes18.config())
                 .build());
 
         AttackSystem.install(mm);
@@ -183,8 +175,52 @@ public class ExampleServer {
             player.setBoots(ItemStack.of(Material.DIAMOND_BOOTS));
         });
 
-        // Debug: /lag <ticks> sets the sender's own simulated inbound packet latency (0 = off). Lets you
-        // toggle/tune the laggy-landing scenario at runtime on whichever account you're testing the victim with.
+        // ─── DEV / TEST TOOLS — delete this call + the DEV TOOLS section at the bottom of this file for production ───
+        installDevTools(mm);
+
+        // Start the server
+        server.start("0.0.0.0", 25566);
+    }
+
+    /**
+     * Builds a 1-wide enclosed water channel with a manual {@code level} gradient (source/marker end = level 0,
+     * rising along {@code (dirX,dirZ)}) so the water flows toward the far end - a deterministic flow-push test pad.
+     * Stone floor + side/end walls isolate the lane; the player stands feet-in-water on the floor (the verified
+     * standing {@code -0.02} motY case), so only the horizontal flow term folds into a hit.
+     */
+    private static void buildFlowLane(InstanceContainer inst, int sx, int baseY, int sz,
+                                      int dirX, int dirZ, int length, Block marker) {
+        int pdx = dirZ, pdz = -dirX; // perpendicular = side-wall offset
+        for (int i = -1; i <= length; i++) { // -1 and length = solid end caps
+            int cx = sx + dirX * i, cz = sz + dirZ * i;
+            boolean cap = i < 0 || i >= length;
+            Block fill = cap ? Block.STONE : Block.WATER.withProperty("level", Integer.toString(Math.min(i, 7)));
+            inst.setBlock(cx, baseY - 1, cz, Block.STONE); // floor
+            inst.setBlock(cx, baseY, cz, fill);            // feet
+            inst.setBlock(cx, baseY + 1, cz, fill);        // body
+            inst.setBlock(cx, baseY + 2, cz, Block.AIR);   // headroom
+            for (int s = -1; s <= 1; s += 2) {             // side walls (solid -> no spurious side flow)
+                int wx = cx + pdx * s, wz = cz + pdz * s;
+                inst.setBlock(wx, baseY - 1, wz, Block.STONE);
+                inst.setBlock(wx, baseY, wz, Block.STONE);
+                inst.setBlock(wx, baseY + 1, wz, Block.STONE);
+            }
+        }
+        inst.setBlock(sx, baseY + 2, sz, marker); // flow points AWAY from this marker
+    }
+
+    // ================================================================================================================
+    //  DEV / TEST TOOLS  —  in-game testing commands + the inbound-lag simulator. Delete this whole section (and the
+    //  installDevTools(mm) call in main) for production; LagSimulator.java is then unused and can also be deleted.
+    // ================================================================================================================
+
+    private static void installDevTools(MinestomMechanics mm) {
+        // test-only inbound-lag simulator (delays a player's movement packets so the server perceives their
+        // position/onGround late, like a high-ping client). Purely test-side - mechanics is untouched.
+        final LagSimulator lag = new LagSimulator();
+        lag.install();
+
+        // /lag <ticks> sets the sender's own simulated inbound packet latency (0 = off).
         Command lagCmd = new Command("lag");
         Argument<Integer> ticksArg = ArgumentType.Integer("ticks");
         lagCmd.setDefaultExecutor((sender, ctx) -> sender.sendMessage("usage: /lag <ticks>  (0 = off)"));
@@ -196,7 +232,7 @@ public class ExampleServer {
         }, ticksArg);
         MinecraftServer.getCommandManager().register(lagCmd);
 
-        // /gmc, /gms: quick gamemode toggles for in-game testing
+        // /gmc, /gms: quick gamemode toggles
         Command gmc = new Command("gmc");
         gmc.setDefaultExecutor((sender, ctx) -> {
             if (sender instanceof Player p) { p.setGameMode(GameMode.CREATIVE); p.sendMessage("gamemode: creative"); }
@@ -209,25 +245,18 @@ public class ExampleServer {
         });
         MinecraftServer.getCommandManager().register(gms);
 
-        // /compat: toggle this player's full 1.8 compat layer (Compat18) ON/OFF. Re-resolves the player's CompatConfig and
-        // re-sends the Animatium set_server_features payload, so it re-applies the full 1.8 set.
+        // /compat: toggle this player between the global 1.8 profile and a per-player modern override (mode switch demo).
         Command compatCmd = new Command("compat");
         compatCmd.setDefaultExecutor((sender, ctx) -> {
             if (!(sender instanceof OptimizedPlayer op)) return;
             boolean turningOff = mm.profiles().player(op) == null; // no per-player override = currently on the global mmc18 profile
             if (turningOff) {
-                // Per-player OFF profile: resets every boolean knob + clears the pose set, and derives an empty Animatium feature
-                // set. PlayerConfigApplier.applyAll runs via the profile-change hook.
-                mm.profiles().setPlayer(op, MechanicsProfile.builder().compat(Compat18.off()).build());
-                // The layered apply only writes non-null fields, so clear the ones it can't null + restore the attack cooldown:
-                op.compat().setAttackHitboxMargin(null);
-                op.compat().setBlockPlaceReach(null);
-                op.getInventory().update();             // re-send items without the 1.8 attack_range stamp
-                var atk = op.getAttribute(Attribute.ATTACK_SPEED);
-                if (atk != null) atk.setBaseValue(4.0); // 1024 (removed cooldown) -> vanilla default
+                // A per-player override to modern. The full reset-then-layer apply (PlayerConfigApplier, via the profile-change
+                // hook) switches the player cleanly off 1.8 - no manual undo of sticky knobs / attack cooldown needed.
+                mm.profiles().setPlayer(op, MechanicsProfile.builder().set(MechanicsKeys.COMPAT, Compat18.off()).build());
                 op.sendMessage("Mechanics set to latest version");
             } else {
-                // Drop the override -> fall back to the global mmc18 profile, which re-applies every knob ON (incl. the sticky ones).
+                // Drop the override -> fall back to the global mmc18 profile; the apply restores the full 1.8 set.
                 mm.profiles().setPlayer(op, null);
                 op.sendMessage("Mechanics set to 1.8");
             }
@@ -263,9 +292,7 @@ public class ExampleServer {
         });
         MinecraftServer.getCommandManager().register(nbsword);
 
-        // /enchant <enchantment> [level]: enchant the held item, to test combat/defense enchants in game
-        // (e.g. /enchant fire_aspect 2, /enchant protection 4, /enchant sharpness 5). Reads the adventure key our
-        // catalog sources match on; namespace defaults to minecraft:.
+        // /enchant <enchantment> [level]: enchant the held item (e.g. /enchant fire_aspect 2, /enchant sharpness 5).
         Command enchant = new Command("enchant");
         Argument<String> enchName = ArgumentType.String("enchantment");
         Argument<Integer> enchLevel = ArgumentType.Integer("level");
@@ -279,9 +306,7 @@ public class ExampleServer {
         }, enchName, enchLevel);
         MinecraftServer.getCommandManager().register(enchant);
 
-        // /effect <effect> [strength] [seconds]  |  /effect clear: apply a potion effect to the sender, to test the
-        // potion catalog in game (e.g. /effect strength 2, /effect resistance 1 60, /effect speed, /effect clear).
-        // strength = level (1 = level I); seconds default 30. Namespace defaults to minecraft:.
+        // /effect <effect> [strength] [seconds]  |  /effect clear: apply a potion effect (e.g. /effect strength 2).
         Command effectCmd = new Command("effect");
         Argument<String> effName = ArgumentType.String("effect");
         Argument<Integer> effStrength = ArgumentType.Integer("strength");
@@ -298,26 +323,6 @@ public class ExampleServer {
             if (sender instanceof Player p) applyEffect(p, ctx.get(effName), ctx.get(effStrength), ctx.get(effSeconds));
         }, effName, effStrength, effSeconds);
         MinecraftServer.getCommandManager().register(effectCmd);
-
-        // === TEST (1.8 invisibility-band / async-light frontier hypothesis) — remove after the test ===
-        // Pre-generate + pre-light a large area around spawn BEFORE accepting connections, so every chunk a player
-        // will see already has all its neighbors loaded. That removes the generation-time light invalidate/resend
-        // churn at the spawn frontier. If the 1.8 invisibility band DISAPPEARS with this on (keep client render
-        // distance <= 20 so the whole view stays inside the pre-lit area), the cause is that frontier churn.
-        // RESULT 2026-06-25: band STILL present with this on -> NOT lighting/generation. Gated off now (it slows startup).
-        final boolean RUN_PREGEN = false;
-        if (RUN_PREGEN) {
-            final int pregenRadius = 24; // chunks; covers the ~13-17 chunk band + a render-distance-20 client
-            final java.util.List<java.util.concurrent.CompletableFuture<net.minestom.server.instance.Chunk>> pregen = new java.util.ArrayList<>();
-            for (int cx = -pregenRadius; cx <= pregenRadius; cx++)
-                for (int cz = -pregenRadius; cz <= pregenRadius; cz++)
-                    pregen.add(instanceContainer.loadChunk(cx, cz));
-            java.util.concurrent.CompletableFuture.allOf(pregen.toArray(java.util.concurrent.CompletableFuture[]::new)).join();
-            System.out.println("[pregen-test] pre-loaded " + pregen.size() + " chunks around spawn (radius " + pregenRadius + ")");
-        }
-
-        // Start the server
-        server.start("0.0.0.0", 25566);
     }
 
     /** Applies (or clears) a potion effect on the sender for in-game testing. {@code strength} is the level (1 = level I); duration in seconds. */
@@ -340,32 +345,5 @@ public class ExampleServer {
         EnchantmentList updated = (existing != null ? existing : EnchantmentList.EMPTY).with(ench, level);
         p.setItemInMainHand(held.with(DataComponents.ENCHANTMENTS, updated));
         p.sendMessage("enchanted held item with " + key.asString() + " " + level);
-    }
-
-    /**
-     * Builds a 1-wide enclosed water channel with a manual {@code level} gradient (source/marker end = level 0,
-     * rising along {@code (dirX,dirZ)}) so the water flows toward the far end - a deterministic flow-push test pad.
-     * Stone floor + side/end walls isolate the lane; the player stands feet-in-water on the floor (the verified
-     * standing {@code -0.02} motY case), so only the horizontal flow term folds into a hit.
-     */
-    private static void buildFlowLane(InstanceContainer inst, int sx, int baseY, int sz,
-                                      int dirX, int dirZ, int length, Block marker) {
-        int pdx = dirZ, pdz = -dirX; // perpendicular = side-wall offset
-        for (int i = -1; i <= length; i++) { // -1 and length = solid end caps
-            int cx = sx + dirX * i, cz = sz + dirZ * i;
-            boolean cap = i < 0 || i >= length;
-            Block fill = cap ? Block.STONE : Block.WATER.withProperty("level", Integer.toString(Math.min(i, 7)));
-            inst.setBlock(cx, baseY - 1, cz, Block.STONE); // floor
-            inst.setBlock(cx, baseY, cz, fill);            // feet
-            inst.setBlock(cx, baseY + 1, cz, fill);        // body
-            inst.setBlock(cx, baseY + 2, cz, Block.AIR);   // headroom
-            for (int s = -1; s <= 1; s += 2) {             // side walls (solid -> no spurious side flow)
-                int wx = cx + pdx * s, wz = cz + pdz * s;
-                inst.setBlock(wx, baseY - 1, wz, Block.STONE);
-                inst.setBlock(wx, baseY, wz, Block.STONE);
-                inst.setBlock(wx, baseY + 1, wz, Block.STONE);
-            }
-        }
-        inst.setBlock(sx, baseY + 2, sz, marker); // flow points AWAY from this marker
     }
 }

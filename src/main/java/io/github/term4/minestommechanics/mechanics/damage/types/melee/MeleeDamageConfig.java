@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.melee;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.item.ItemRegistry;
 import io.github.term4.minestommechanics.item.ItemStat;
@@ -39,7 +40,7 @@ public final class MeleeDamageConfig extends DamageTypeConfig {
         ItemStack item = ctx.item();
         LivingEntity holder = ctx.snap().source() instanceof LivingEntity le ? le : null;
         if ((item == null || item.isAir()) && holder != null) item = holder.getItemInMainHand();
-        ItemRegistry items = ctx.services() != null ? ctx.services().profiles().itemsFor(holder) : null;
+        ItemRegistry items = ctx.services() != null ? ctx.services().profiles().resolve(holder, MechanicsKeys.ITEMS) : null;
         return items != null ? items.value(item, holder, ItemStat.ATTACK_DAMAGE, FIST_DAMAGE) : FIST_DAMAGE;
     }
 

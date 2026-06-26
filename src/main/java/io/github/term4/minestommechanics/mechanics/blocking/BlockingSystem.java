@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.blocking;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.BlockingDamageEvent;
@@ -38,7 +40,7 @@ import org.jetbrains.annotations.Nullable;
  * ({@code VanillaBlocking.withBlocking} / {@code item}); the config still gates which materials may block + how. Movement
  * slowdown is client-predicted, so nothing is applied server-side.
  */
-public final class BlockingSystem {
+public final class BlockingSystem implements MechanicsModule {
 
     /**
      * Per-item opt-out: absent = blockable, {@code false} = opted out. A configured-blockable material blocks unless its
@@ -93,7 +95,7 @@ public final class BlockingSystem {
 
     /** Effective blocking config for {@code subject} (the defender): the scoped profile, else the install config. */
     public BlockingConfig configFor(@Nullable Entity subject) {
-        BlockingConfig scoped = mm.profiles().blockingFor(subject);
+        BlockingConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.BLOCKING);
         return scoped != null ? scoped : config;
     }
 
@@ -138,7 +140,7 @@ public final class BlockingSystem {
     /** Installs the blocking system: registers on {@code mm} and installs the node. */
     public static BlockingSystem install(MinestomMechanics mm, BlockingConfig cfg) {
         BlockingSystem system = new BlockingSystem(mm, cfg);
-        mm.registerBlocking(system);
+        mm.register(system);
         mm.install(system.node);
         return system;
     }

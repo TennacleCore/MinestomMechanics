@@ -97,6 +97,11 @@ public final class ClientInfoTracker implements Tracker {
         return parsed;
     }
 
+    /** A unified, extensible per-player {@link ClientProfile} view (protocol / Animatium / end-user store). Also reachable via {@code mm.client(player)}. */
+    public ClientProfile of(Player player) {
+        return new ClientProfile(player, this);
+    }
+
     /**
      * Whether {@code player}'s tracked protocol is a known legacy ({@code <= 1.8.x}) client. Returns {@code false} while the
      * protocol is still {@link ClientVersion#UNKNOWN_PROTOCOL} (proxy details arrive shortly after login, not during the

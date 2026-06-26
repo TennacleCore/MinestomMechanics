@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.attribute;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.AquaAffinity;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Efficiency;
@@ -82,7 +83,7 @@ class PlayerEquipAttributeTest extends HeadlessServerTest {
 
         void permitAttributeSwapping() {
             mm.profiles().setPlayer(player, MechanicsProfile.builder()
-                    .attributes(AttributeConfig.builder().attributeSwapping(true).build()).build());
+                    .set(MechanicsKeys.ATTRIBUTES, AttributeConfig.builder().attributeSwapping(true).build()).build());
         }
 
         void tick() { EventDispatcher.call(new EntityTickEvent(player)); }

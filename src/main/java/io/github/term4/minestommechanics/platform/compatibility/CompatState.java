@@ -33,6 +33,8 @@ public final class CompatState {
     private boolean restrictSwimSpeed = false;
     private @Nullable Double blockPlaceReach;
     private boolean oldPlacement = false;
+    /** Whether compat removed the modern attack cooldown (huge ATTACK_SPEED); tracked so a profile swap restores the default base only on a real change. */
+    private boolean attackCooldownRemoved = false;
     /** Whether {@code CompatMovement} forced sprint off (sneak/use) and still owes a restore - so it restores only ITS strip, not a combat sprint-reset (which must keep the 1.8 w-tap requirement). */
     private boolean sprintStripped = false;
     /** The disabled pose Minestom computed this tick (e.g. crawl = {@code SWIMMING}), or {@code null} - reset each updatePose, captured in setPose. The client believes it's in this pose while the server pose is forced to STANDING. */
@@ -78,6 +80,30 @@ public final class CompatState {
     public void setOldPlacement(boolean v) { this.oldPlacement = v; }
     public boolean oldPlacement() { return oldPlacement; }
 
+    /** Whether compat removed the modern attack cooldown ({@code PlayerConfigApplier} restores the default base when this clears). */
+    public boolean attackCooldownRemoved() { return attackCooldownRemoved; }
+    public void setAttackCooldownRemoved(boolean v) { this.attackCooldownRemoved = v; }
+
+    /**
+     * Sets all compat <em>policy</em> from {@code config} in a single pass - each field takes the config's value or its off
+     * default, so assigning a different config is a clean mode SWITCH, never a sticky merge. {@code null} = all off (modern).
+     * Operational / identity state (Animatium native features, the client flag, sprint-strip, intercepted pose, attack-cooldown
+     * tracking) is left untouched; the {@code attackHitboxMargin} re-send and attack-cooldown attribute are the caller's
+     * ({@code PlayerConfigApplier}) job since they touch the player, not this state.
+     */
+    public void apply(@Nullable CompatConfig config) {
+        disabledPoses        = config != null && config.disabledPoses != null ? config.disabledPoses : Set.of();
+        restrictMovement     = config != null && Boolean.TRUE.equals(config.restrictMovement);
+        legacyHitbox         = config != null && Boolean.TRUE.equals(config.legacyHitbox);
+        attackHitboxMargin   = config != null ? config.attackHitboxMargin : null;
+        disableOffhand       = config != null && Boolean.TRUE.equals(config.disableOffhand);
+        restrictSprintSneak  = config != null && Boolean.TRUE.equals(config.restrictSprintSneak);
+        restrictSprintUse    = config != null && Boolean.TRUE.equals(config.restrictSprintUse);
+        restrictSwimSpeed    = config != null && Boolean.TRUE.equals(config.restrictSwimSpeed);
+        blockPlaceReach      = config != null ? config.blockPlaceReach : null;
+        oldPlacement         = config != null && Boolean.TRUE.equals(config.oldPlacement);
+    }
+
     /** Whether any speed restriction is enabled (lets {@code CompatMovement} skip players with none). */
     public boolean anySpeedRestriction() { return restrictSprintSneak || restrictSprintUse || restrictSwimSpeed; }
 
@@ -90,6 +116,8 @@ public final class CompatState {
 
     /** Records the Animatium features this client applies natively (sent by {@code CompatAnimatium}); the enforcers gate the matching hack off via {@link #handlesNatively}. */
     public void setNativeFeatures(@NotNull Set<AnimatiumFeature> features) { this.nativeFeatures = features; }
+    /** The Animatium features this client applies natively (empty for non-Animatium clients). */
+    public @NotNull Set<AnimatiumFeature> nativeFeatures() { return nativeFeatures; }
 
     /** Whether this player is an Animatium client (handshake received); gates the feature re-send by {@code CompatAnimatium}. */
     public boolean isAnimatiumClient() { return animatiumClient; }

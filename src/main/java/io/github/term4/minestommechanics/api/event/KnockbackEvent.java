@@ -1,47 +1,28 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfigResolver;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
-import net.minestom.server.event.trait.CancellableEvent;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.function.Function;
-
 /**
- * Public API for inspecting and modifying a knockback instance before it is applied. Wraps the
- * {@link KnockbackSnapshot}: an immutable original {@link #snapshot()} plus a mutable
- * {@link #finalSnap()} used for calculation, with optional {@link #velocity(Vec)} /
- * {@link #direction(Vec)} overrides that bypass or steer the calculator. Per-hit config changes go
- * through {@link #config(KnockbackConfig)}; {@link #resolvedConfig()} previews the effective values.
+ * The main knockback phase: inspect and modify a knockback instance before it is applied. Bracketed by
+ * {@link PreKnockbackEvent} (before computation) and {@link KnockbackAppliedEvent} (after the velocity is set). Shares
+ * the {@link CancellableMechanicsEvent} shape; optional {@link #velocity(Vec)} / {@link #direction(Vec)} overrides
+ * bypass or steer the calculator. Per-hit config changes go through {@link #config(KnockbackConfig)};
+ * {@link #resolvedConfig()} previews the effective values.
  */
-public final class KnockbackEvent implements CancellableEvent {
+public final class KnockbackEvent extends CancellableMechanicsEvent<KnockbackSnapshot> {
 
-    private final KnockbackSnapshot snap;
-    private final Function<KnockbackSnapshot, KnockbackConfigResolver.ResolvedKnockbackConfig> resolver;
-    private @Nullable KnockbackSnapshot finalSnap;
     private @Nullable Vec velocity;
     private @Nullable Vec direction;
 
-    private boolean cancelled;
-
-    public KnockbackEvent(KnockbackSnapshot snap,
-                          Function<KnockbackSnapshot, KnockbackConfigResolver.ResolvedKnockbackConfig> resolver) {
-        this.snap = snap;
-        this.resolver = resolver;
+    public KnockbackEvent(KnockbackSnapshot snap, Services services) {
+        super(snap, services);
     }
-
-    /** Original knockback data (immutable). */
-    public KnockbackSnapshot snapshot() { return snap; }
-
-    /**
-     * Snapshot used in knockback calculation.
-     * Set via {@code event.finalSnap(event.snapshot().toBuilder().target(x).build())}.
-     */
-    public KnockbackSnapshot finalSnap() { return finalSnap != null ? finalSnap : snap; }
-    public void finalSnap(KnockbackSnapshot snap) { this.finalSnap = snap; }
 
     /** Knockback config used for calculation ({@code null} = the system config). */
     public @Nullable KnockbackConfig config() { return finalSnap().config(); }
@@ -50,11 +31,13 @@ public final class KnockbackEvent implements CancellableEvent {
     public void config(@Nullable KnockbackConfig config) { finalSnap(finalSnap().withConfig(config)); }
 
     /**
-     * The effective plain values this hit will be calculated with: the {@link #config() current config}
-     * (else the system config) merged over the calculator defaults and resolved against this hit.
-     * Re-resolved from the current {@link #finalSnap()} on each call, so it tracks listener changes.
+     * The effective plain values this hit will be calculated with: the {@link #config() current config} (else the
+     * system config) merged over the calculator defaults and resolved against this hit. Re-resolved from the current
+     * {@link #finalSnap()} on each call, so it tracks listener changes.
      */
-    public KnockbackConfigResolver.ResolvedKnockbackConfig resolvedConfig() { return resolver.apply(finalSnap()); }
+    public KnockbackConfigResolver.ResolvedKnockbackConfig resolvedConfig() {
+        return services().knockback().resolveConfig(finalSnap());
+    }
 
     /** Whether this is a melee hit (gates the sprint extra / melee-only components). Override via {@link #finalSnap}. */
     public boolean melee() { return finalSnap().melee(); }
@@ -70,10 +53,4 @@ public final class KnockbackEvent implements CancellableEvent {
     // delegating accessors
     public @Nullable Entity source() { return finalSnap().source(); }
     public @Nullable Entity target() { return finalSnap().target(); }
-
-    /** Cancel the knockback. */
-    public void cancel() { setCancelled(true); }
-
-    @Override public boolean isCancelled() { return cancelled; }
-    @Override public void setCancelled(boolean cancel) { this.cancelled = cancel; }
 }

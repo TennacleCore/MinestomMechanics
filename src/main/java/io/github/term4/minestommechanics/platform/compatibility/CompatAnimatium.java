@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.platform.compatibility;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import net.minestom.server.entity.EntityPose;
@@ -50,7 +51,7 @@ public final class CompatAnimatium {
      */
     public static void applyFeatures(MinestomMechanics mm, Player player) {
         if (!(player instanceof OptimizedPlayer op) || !op.compat().isAnimatiumClient()) return;
-        CompatConfig cfg = mm.profiles().compatFor(player);
+        CompatConfig cfg = mm.profiles().resolve(player, MechanicsKeys.COMPAT);
         Set<AnimatiumFeature> features = cfg == null ? Set.of() : resolve(cfg);
         op.compat().setNativeFeatures(features);
         player.sendPluginMessage(SET_FEATURES_CHANNEL, encode(features));

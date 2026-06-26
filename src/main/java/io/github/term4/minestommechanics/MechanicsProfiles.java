@@ -1,43 +1,26 @@
 package io.github.term4.minestommechanics;
 
-import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
-import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfig;
-import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfig;
-import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfig;
-import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
-import io.github.term4.minestommechanics.mechanics.durability.DurabilityConfig;
-import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
-import io.github.term4.minestommechanics.item.ItemRegistry;
-import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
-import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
-import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
-import io.github.term4.minestommechanics.platform.player.PlayerConfig;
-import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
-import io.github.term4.minestommechanics.util.tick.TickScalingConfig;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.function.Function;
-
 /**
- * Scoped {@link MechanicsProfile} registry: assign profiles per player, per instance (world), or globally,
- * and swap them at runtime (configs are immutable, so a swap takes effect on the next hit; the {@code player}
- * platform member is pushed by {@code PlayerConfigApplier} on change). Resolution is per <em>member</em>,
- * highest scope first:
+ * Scoped {@link MechanicsProfile} registry: assign profiles per player, per instance (world), or globally, and swap
+ * them at runtime (configs are immutable, so a swap takes effect on the next hit; the {@code player} platform member
+ * is pushed by {@code PlayerConfigApplier} on change). Resolution is per <em>member</em>, highest scope first:
  * <pre>player profile -> instance profile -> global profile -> the system's install config</pre>
- * so a partial profile (e.g. knockback only) overrides just that system. With nothing assigned, every hit
- * uses the install configs.
+ * so a partial profile (e.g. knockback only) overrides just that system. With nothing assigned, every hit uses the
+ * install configs. Resolve a single member with {@link #resolve}; a hit reading several members should use
+ * {@link #resolved} to walk the scopes once.
  *
- * <p><b>Scope subject.</b> Attack resolves against the <em>attacker</em> (hit detection/ruleset is the
- * attacker's action); damage and knockback resolve against the <em>victim</em> (whose mechanics they are).
- * In the usual minigame case both share the instance, so the distinction only matters for player overrides.
+ * <p><b>Scope subject.</b> Attack resolves against the <em>attacker</em> (hit detection/ruleset is the attacker's
+ * action); damage and knockback resolve against the <em>victim</em> (whose mechanics they are). In the usual minigame
+ * case both share the instance, so the distinction only matters for player overrides.
  *
- * <p>Player and instance assignments live in transient tags, so they clean up with their holder
- * (a player's profile drops on disconnect).
+ * <p>Player and instance assignments live in transient tags, so they clean up with their holder (a player's profile
+ * drops on disconnect).
  */
 public final class MechanicsProfiles {
 
@@ -79,98 +62,61 @@ public final class MechanicsProfiles {
     }
     public @Nullable MechanicsProfile player(Player player) { return player.getTag(PROFILE); }
 
-    /** Effective attack config for {@code subject} (the attacker), or {@code null} when no scope sets one. */
-    public @Nullable AttackConfig attackFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::attack);
-    }
-
-    /** Effective damage config for {@code subject} (the victim), or {@code null} when no scope sets one. */
-    public @Nullable DamageConfig damageFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::damage);
-    }
-
-    /** Effective knockback config for {@code subject} (the victim), or {@code null} when no scope sets one. */
-    public @Nullable KnockbackConfig knockbackFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::knockback);
-    }
-
-    /** Effective player platform config for {@code subject}, or {@code null} when no scope sets one. */
-    public @Nullable PlayerConfig playerFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::player);
-    }
-
-    /** Effective velocity tracking rule for {@code subject} (the victim), or {@code null} when no scope sets one. */
-    public @Nullable VelocityRule velocityFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::velocity);
-    }
-
-    /** Effective projectile config for {@code subject} (the shooter), or {@code null} when no scope sets one. */
-    public @Nullable ProjectileConfig projectilesFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::projectiles);
-    }
-
-    /** Effective client/protocol fixes config for {@code subject}, or {@code null} when no scope sets one. */
-    public @Nullable FixesConfig fixesFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::fixes);
-    }
-
-    /** Effective attribute config for {@code subject}, or {@code null} when no scope sets one (the install config applies). */
-    public @Nullable AttributeConfig attributesFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::attributes);
-    }
-
-    /** Effective TPS-scaling config for {@code subject}, or {@code null} when no scope sets one ({@link TickScalingConfig#DEFAULTS} apply). */
-    public @Nullable TickScalingConfig scalingFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::tickScaling);
-    }
-
-    /** Effective durability config for {@code subject} (the item holder), or {@code null} when no scope sets one. */
-    public @Nullable DurabilityConfig durabilityFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::durability);
-    }
-
-    /** Effective hunger config for {@code subject}, or {@code null} when no scope sets one. */
-    public @Nullable HungerConfig hungerFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::hunger);
-    }
-
-    /** Effective consumable config for {@code subject} (the consumer), or {@code null} when no scope sets one. */
-    public @Nullable ConsumableConfig consumablesFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::consumables);
-    }
-
-    /** Effective blocking config for {@code subject} (the defender), or {@code null} when no scope sets one. */
-    public @Nullable BlockingConfig blockingFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::blocking);
-    }
-
-    /** Effective cross-version compatibility config for {@code subject}, or {@code null} when no scope sets one. */
-    public @Nullable CompatConfig compatFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::compat);
-    }
-
-    /** Effective item-stat registry for {@code subject} (weapon/tool gameplay data), or {@code null} when no scope sets one. */
-    public @Nullable ItemRegistry itemsFor(@Nullable Entity subject) {
-        return resolve(subject, MechanicsProfile::items);
-    }
-
-    private <T> @Nullable T resolve(@Nullable Entity subject, Function<MechanicsProfile, @Nullable T> member) {
+    /**
+     * The effective value of {@code key} for {@code subject}: player scope, else instance scope, else global, else
+     * {@code null}. For a hit that reads several members, prefer {@link #resolved} (one scope walk for all keys).
+     */
+    public <C> @Nullable C resolve(@Nullable Entity subject, ConfigKey<C> key) {
         if (subject != null) {
             if (subject instanceof Player p) {
-                T v = memberOf(p.getTag(PROFILE), member);
+                C v = memberOf(p.getTag(PROFILE), key);
                 if (v != null) return v;
             }
             Instance in = subject.getInstance();
             if (in != null) {
-                T v = memberOf(in.getTag(PROFILE), member);
+                C v = memberOf(in.getTag(PROFILE), key);
                 if (v != null) return v;
             }
         }
-        return memberOf(global, member);
+        return memberOf(global, key);
     }
 
-    private static <T> @Nullable T memberOf(@Nullable MechanicsProfile profile,
-                                            Function<MechanicsProfile, @Nullable T> member) {
-        return profile != null ? member.apply(profile) : null;
+    private static <C> @Nullable C memberOf(@Nullable MechanicsProfile profile, ConfigKey<C> key) {
+        return profile != null ? profile.get(key) : null;
+    }
+
+    /**
+     * Captures {@code subject}'s resolution scopes (player / instance / global) once, then answers any key off that
+     * snapshot. Use it when a single hit reads several members, to avoid re-walking the scopes per member.
+     */
+    public Resolved resolved(@Nullable Entity subject) {
+        MechanicsProfile player = subject instanceof Player p ? p.getTag(PROFILE) : null;
+        MechanicsProfile instance = null;
+        if (subject != null) {
+            Instance in = subject.getInstance();
+            if (in != null) instance = in.getTag(PROFILE);
+        }
+        return new Resolved(player, instance, global);
+    }
+
+    /** A one-shot resolution view over fixed player / instance / global scopes; resolve any key with {@link #get}. */
+    public static final class Resolved {
+        private final @Nullable MechanicsProfile player;
+        private final @Nullable MechanicsProfile instance;
+        private final @Nullable MechanicsProfile global;
+
+        private Resolved(@Nullable MechanicsProfile player, @Nullable MechanicsProfile instance, @Nullable MechanicsProfile global) {
+            this.player = player;
+            this.instance = instance;
+            this.global = global;
+        }
+
+        /** The effective value of {@code key}: player, else instance, else global; {@code null} if no scope sets it. */
+        public <C> @Nullable C get(ConfigKey<C> key) {
+            C v;
+            if (player != null && (v = player.get(key)) != null) return v;
+            if (instance != null && (v = instance.get(key)) != null) return v;
+            return global != null ? global.get(key) : null;
+        }
     }
 }
