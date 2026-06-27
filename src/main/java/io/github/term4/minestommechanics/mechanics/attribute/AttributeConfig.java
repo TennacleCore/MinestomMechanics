@@ -16,11 +16,9 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Immutable attribute-system config: the {@link Source} catalog to register, the {@code enabled} switch, and per-source
- * <em>tunings</em> - the value knobs. A {@link Config} like the other systems', resolvable per scope (player → instance →
- * global) via {@link io.github.term4.minestommechanics.MechanicsProfile}. The version is encoded by which source variants
- * you register ({@code Strength.LEGACY} vs {@code Strength.MODERN}); per-scope you {@link Builder#disable}/{@link Builder#scale}/
- * {@link Builder#tune} a registered source without writing a new one. Use {@link #builder()}.
+ * Immutable attribute-system config: the {@link Source} catalog, the {@code enabled} switch, and per-source <em>tunings</em>.
+ * A {@link Config} resolvable per scope (player → instance → global). Version = which source variants you register
+ * ({@code Strength.LEGACY} vs {@code MODERN}); per-scope {@link Builder#disable}/{@link Builder#scale}/{@link Builder#tune} without a new source. Use {@link #builder()}.
  */
 public final class AttributeConfig extends Config<AttributeContext, AttributeConfig> {
 
@@ -44,11 +42,10 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
     @Nullable public final ProtectionConfig protection;
 
     /**
-     * Whether legacy "attribute swapping" is permitted (a held-item PvP tech). When {@code true}, held attribute modifiers
-     * ride the per-tick equipment reconcile (vanilla {@code detectEquipmentUpdates} timing), so a hotbar-slot swap lags a
-     * tick - the exploitable window. {@code false} (default, patched) force-refreshes held attributes immediately on the
-     * slot change, closing it (mirrors Paper's {@code updateEquipmentOnPlayerActions}). Armor attributes always ride the
-     * tick (post-settle, to avoid the use-item client-prediction race), and 1.8 has no attribute swapping, so it's inert there.
+     * Whether legacy "attribute swapping" is permitted (a held-item PvP tech). {@code true}: held modifiers ride the
+     * per-tick reconcile (vanilla {@code detectEquipmentUpdates} timing), so a hotbar swap lags a tick - the exploitable
+     * window. {@code false} (default, patched): held attributes refresh immediately on the slot change, closing it (Paper's
+     * {@code updateEquipmentOnPlayerActions}). Armor always rides the tick (post-settle, avoiding the use-item prediction race); 1.8 has none, so inert there.
      */
     @Nullable public final Boolean attributeSwapping;
 

@@ -15,7 +15,7 @@ public final class Vanilla18 {
 
     private Vanilla18() {}
 
-    /** The vanilla 1.8 mechanics profile (attack, damage, knockback, movement, projectiles, attributes, consumables, blocking). */
+    /** The vanilla 1.8 mechanics profile. */
     public static MechanicsProfile profile() {
         return MechanicsProfile.builder()
                 .set(MechanicsKeys.ATTACK, Attack.config())

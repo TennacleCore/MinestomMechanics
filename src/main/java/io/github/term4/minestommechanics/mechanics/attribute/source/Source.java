@@ -8,13 +8,9 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * A source of attribute modifiers - an enchant, potion effect, or custom entry in the {@link SourceRegistry}. A
- * pluggable strategy in the {@code ClimbModel}/{@code FluidFlow.Model} mould: version differences are <em>different
- * source instances</em> (e.g. {@code Strength.LEGACY} / {@code Strength.MODERN}, or your own), not a version flag the
- * source branches on - the preset registers the ones it wants. Keyed by the vanilla effect/enchant key it answers to.
- *
- * <p>Adding a source is one instance + a {@code register(...)}; consumers read an attribute's value, never a specific
- * source, so no calculator changes.
+ * A source of attribute modifiers - an enchant, potion effect, or custom registry entry. Version differences are
+ * <em>different instances</em> ({@code Strength.LEGACY} / {@code MODERN}), not a flag the source branches on. Keyed by the
+ * vanilla effect/enchant key it answers to. Consumers read an attribute's value, never a specific source.
  */
 public abstract class Source {
 

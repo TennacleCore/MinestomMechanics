@@ -11,13 +11,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A unified, extensible per-player view of client-side info: the built-in {@link #protocol()} version and Animatium
- * status, plus a typed store for whatever the end user wants to attach ({@link #get} / {@link #set} keyed by
- * {@link ClientKey}). The library puts nothing mod-specific here itself - it's the place a consumer records things like
- * the player's login version or whether they used Animatium, then persists them to their own database on disconnect.
+ * A per-player view of client-side info: the built-in {@link #protocol()} version and Animatium status, plus a typed
+ * store ({@link #get} / {@link #set} keyed by {@link ClientKey}) for whatever the end user wants to attach. The library
+ * puts nothing mod-specific here - it's where a consumer records e.g. the login version or Animatium use, then persists
+ * to their own database on disconnect.
  *
  * <p>Obtained from {@code mm.client(player)}; a fresh lightweight view each call (state lives on the player). Custom
- * values are stored in a transient player tag, so they drop automatically when the player disconnects.
+ * values use a transient player tag, so they drop when the player disconnects.
  */
 public final class ClientProfile {
 

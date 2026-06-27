@@ -7,9 +7,10 @@ import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
-import net.minestom.server.event.Event;
+import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerUseItemEvent;
+import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import org.jetbrains.annotations.NotNull;
@@ -22,7 +23,7 @@ import org.jetbrains.annotations.Nullable;
 public abstract class ThrowableItemType extends ProjectileType {
 
     private final Material material;
-    private @Nullable EventNode<@NotNull Event> node;
+    private @Nullable EventNode<@NotNull PlayerEvent> node;
     private @Nullable ProjectileSystem system;
 
     protected ThrowableItemType(Key key, String name, EntityType entityType, Material material) {
@@ -36,7 +37,7 @@ public abstract class ThrowableItemType extends ProjectileType {
     @Override
     public void enable(ProjectileSystem system, MinestomMechanics mm) {
         this.system = system;
-        EventNode<@NotNull Event> n = EventNode.all("mm:" + key().value());
+        EventNode<@NotNull PlayerEvent> n = EventNode.type("mm:" + key().value(), EventFilter.PLAYER);
         n.addListener(PlayerUseItemEvent.class, e -> {
             if (e.getItemStack().material() != material) return;
             Player p = e.getPlayer();

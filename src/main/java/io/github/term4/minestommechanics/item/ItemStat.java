@@ -45,9 +45,7 @@ public final class ItemStat {
         return (base + add) * (1 + multBase) * multTotal;
     }
 
-    // future, one line each as the attributes come online:
-    // public static final ItemStat ATTACK_SPEED = new ItemStat("attack_speed", ...);
-    // public static final ItemStat MINING_SPEED = new ItemStat("mining_speed", ...);
+    // TODO: ATTACK_SPEED, MINING_SPEED, ... as the attributes come online
 
     private final String id;
     private final BiFunction<ItemStack, @Nullable LivingEntity, Double> minestomDefault;

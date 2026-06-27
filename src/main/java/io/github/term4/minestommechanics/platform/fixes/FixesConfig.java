@@ -11,9 +11,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Top-level config for the lib's client/protocol behavior <b>fixes</b> - covering both cross-version compatibility
  * fixes (papering over how an older client behaves, e.g. the 1.8 arrow-visibility fix) and single-version client
- * smoothing (papering over a modern client's own prediction echo, e.g. the self-meta fix). Assigned per scope via
- * the {@link io.github.term4.minestommechanics.MechanicsProfile} {@code fixes} member, resolved player -&gt; instance
- * -&gt; global with the install config as the final fallback. Installed by {@link FixesSystem}.
+ * smoothing (a modern client's own prediction echo, e.g. the self-meta fix). Assigned per scope via the
+ * {@link io.github.term4.minestommechanics.MechanicsProfile} {@code fixes} member.
  */
 public final class FixesConfig {
 

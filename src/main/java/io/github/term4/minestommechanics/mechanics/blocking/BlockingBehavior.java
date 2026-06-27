@@ -4,14 +4,12 @@ import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfigResolv
 import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfigResolver.ResolvedBlocking;
 
 /**
- * <em>How</em> blocking works for an item - the central abstraction of the blocking system (the {@code ProjectileBehavior}
- * / {@code ConsumableBehavior} idiom). An item maps to a behavior via the scope {@link BlockingConfig}; the behavior
- * decides whether a given hit is blocked and by how much. Sword vs shield are two behaviors, not two item types; a server
- * can map any material to {@link #SWORD}, {@link #SHIELD}, or a custom one.
+ * <em>How</em> blocking works for an item - the blocking system's central abstraction (the {@code ProjectileBehavior} /
+ * {@code ConsumableBehavior} idiom). An item maps to a behavior via the scope {@link BlockingConfig}. Sword vs shield are
+ * two behaviors, not two item types; a server can map any material to {@link #SWORD}, {@link #SHIELD}, or a custom one.
  *
- * <p>Reduction math is shared ({@link #reduced}: vanilla's {@code damage - clamp(base + factor*damage)}); the behaviors
- * differ in <em>applicability</em> - the 1.8 sword blocks any non-armor-bypassing hit from any direction; the modern
- * shield gates on a frontal arc, a use-delay, and per-type bypasses.
+ * <p>Reduction math is shared ({@link #reduced}: vanilla's {@code damage - clamp(base + factor*damage)}); behaviors differ
+ * in <em>applicability</em> - the 1.8 sword blocks any non-armor-bypassing hit from any direction; the modern shield gates on a frontal arc, use-delay, and per-type bypasses.
  */
 @FunctionalInterface
 public interface BlockingBehavior {

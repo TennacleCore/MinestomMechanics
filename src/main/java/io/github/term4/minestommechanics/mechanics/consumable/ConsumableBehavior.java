@@ -3,11 +3,9 @@ package io.github.term4.minestommechanics.mechanics.consumable;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigResolver.ConsumableContext;
 
 /**
- * The pre/during/post hooks of a {@link Consumable} - the open seam for custom consume behavior (the
- * {@code Source.Behavior} / {@code ProjectileBehavior} idiom). Built-ins (golden apples, food, potions) implement
- * {@link #onFinish}; anything beyond effects/hunger (a chorus-fruit teleport, a custom trigger) writes its own. Every
- * hook is a no-op by default. Resolved per consume as a {@link ConsumableTypeConfig} knob, so a preset / scope supplies
- * the version-appropriate behavior for a registered type.
+ * The pre/during/post hooks of a {@link Consumable} - the open seam for custom consume behavior (the {@code Source.Behavior}
+ * / {@code ProjectileBehavior} idiom). Built-ins (golden apples, food, potions) implement {@link #onFinish}; anything beyond
+ * effects/hunger (a chorus-fruit teleport, a custom trigger) writes its own. No-op by default; resolved per consume as a {@link ConsumableTypeConfig} knob.
  */
 public interface ConsumableBehavior {
 

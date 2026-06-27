@@ -12,10 +12,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired once a projectile {@link #projectile() entity} has been built and configured but before it enters
- * the world. Listeners can cancel to discard the entity, redirect it via {@link #setSpawnPos}/{@link #setVelocity},
- * attach a per-launch {@link #behavior(ProjectileBehavior)} override, or keep a reference to {@link #projectile()}
- * to add cosmetics. To react to the end of flight, use {@link ProjectileHitEvent} instead.
+ * Fired after a projectile entity is built and configured but before it enters the world: cancel to discard, redirect
+ * via {@link #setSpawnPos}/{@link #setVelocity}, override {@link #behavior(ProjectileBehavior)}, or keep the
+ * {@link #projectile()} handle for cosmetics. End of flight is {@link ProjectileHitEvent}.
  */
 public class ProjectileLaunchEvent implements CancellableEvent {
 
@@ -38,12 +37,10 @@ public class ProjectileLaunchEvent implements CancellableEvent {
     public ProjectileSnapshot snapshot() { return snapshot; }
     public @Nullable Entity shooter() { return snapshot.shooter(); }
 
-    /** The resolved flight knobs (physics, spawn offsets, sync, immunity) the entity was stamped with; the entity
-     *  is already configured, so mutate {@link #setSpawnPos}/{@link #setVelocity} to redirect. */
+    /** Resolved flight knobs the entity was stamped with; redirect via {@link #setSpawnPos}/{@link #setVelocity}. */
     public ResolvedFlight resolvedFlight() { return resolvedFlight; }
 
-    /** The built projectile entity, not yet in the world - a typed handle: set physics ({@code setAerodynamics},
-     *  {@code setPhysicsOrder}, ...), velocity, behavior, attach cosmetics, or cancel to discard it. */
+    /** The built projectile entity (not yet in the world) - a typed handle for physics, velocity, behavior, cosmetics. */
     public @NotNull ProjectileEntity projectile() { return projectile; }
 
     public @NotNull Pos spawnPos() { return spawnPos; }
@@ -53,8 +50,7 @@ public class ProjectileLaunchEvent implements CancellableEvent {
     public @NotNull Vec velocity() { return velocity; }
     public void setVelocity(@NotNull Vec velocityBt) { this.velocity = velocityBt; }
 
-    /** Per-launch {@link ProjectileBehavior} override ({@code null} = keep the config/snapshot one). Applied after the
-     *  event - the event-driven seam for custom-item flight/impact behavior. */
+    /** Per-launch {@link ProjectileBehavior} override ({@code null} = keep the config/snapshot one). */
     public @Nullable ProjectileBehavior behavior() { return behavior; }
     public void behavior(@Nullable ProjectileBehavior behavior) { this.behavior = behavior; }
 

@@ -5,6 +5,7 @@ import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.entity.Player;
+import net.minestom.server.network.NetworkBuffer;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.BitSet;
@@ -12,15 +13,13 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Animatium integration: an Animatium client applies 1.8 behaviour natively client-side, so rather than rubber-banding it
- * with our server-side hacks we tell it which features to apply and skip those hacks. Detection is the {@code animatium:info}
- * plugin message the client sends on join (routed here by {@link io.github.term4.minestommechanics.tracking.ClientInfoTracker});
- * on receipt we resolve the feature set for the player's {@link CompatConfig}, send {@code animatium:set_server_features}, and
- * record the set on {@link CompatState} so the enforcers (attack-box stamp, sneak/use sprint strip) gate themselves off for it.
+ * Animatium integration: an Animatium client applies 1.8 behaviour natively, so instead of server-side hacks we tell it
+ * which features to apply and skip those hacks. Detection is the {@code animatium:info} plugin message on join (routed by
+ * {@link io.github.term4.minestommechanics.tracking.ClientInfoTracker}); on receipt we resolve the feature set for the
+ * player's {@link CompatConfig}, send {@code animatium:set_server_features}, and record it on {@link CompatState} so the enforcers gate off for it.
  *
- * <p>The feature set is <em>derived</em> from the compat knobs ({@link #derive}), or fully overridden by
- * {@code CompatConfig.animatiumFeatures}. Features Animatium can't yet do natively (pose disabling, fluids, typed eye height)
- * stay server-side hacks for everyone - that's Track 2 (a fork/PR).
+ * <p>The set is <em>derived</em> from the compat knobs ({@link #derive}) or overridden by {@code CompatConfig.animatiumFeatures}.
+ * Features Animatium can't yet do natively (pose disabling, fluids, typed eye height) stay server-side hacks for everyone (Track 2: a fork/PR).
  */
 public final class CompatAnimatium {
 
@@ -33,13 +32,14 @@ public final class CompatAnimatium {
 
     /** Routes the {@code animatium:info} handshake through {@link io.github.term4.minestommechanics.tracking.ClientInfoTracker}. Needs the player provider (the feature set is recorded on {@code OptimizedPlayer.compat()}). */
     public static void install(MinestomMechanics mm) {
-        mm.clientInfo().onPluginMessage(INFO_CHANNEL, (player, data) -> onInfo(mm, player));
+        mm.clientInfo().onPluginMessage(INFO_CHANNEL, (player, data) -> onInfo(mm, player, data));
     }
 
-    /** An Animatium client identified itself: mark it, then resolve + send its feature set (re-sent later by {@link #applyFeatures}). */
-    private static void onInfo(MinestomMechanics mm, Player player) {
+    /** An Animatium client identified itself: record its advertised native-feature capabilities, then resolve + send its feature set (re-sent later by {@link #applyFeatures}). */
+    private static void onInfo(MinestomMechanics mm, Player player, byte[] info) {
         if (!(player instanceof OptimizedPlayer op)) return;
         op.compat().setAnimatiumClient(true);
+        op.compat().setSupportedFeatures(parseSupportedFeatures(info));
         applyFeatures(mm, player);
     }
 
@@ -53,6 +53,7 @@ public final class CompatAnimatium {
         if (!(player instanceof OptimizedPlayer op) || !op.compat().isAnimatiumClient()) return;
         CompatConfig cfg = mm.profiles().resolve(player, MechanicsKeys.COMPAT);
         Set<AnimatiumFeature> features = cfg == null ? Set.of() : resolve(cfg);
+        features = gateWireFeatures(features, op.compat());
         op.compat().setNativeFeatures(features);
         player.sendPluginMessage(SET_FEATURES_CHANNEL, encode(features));
     }
@@ -92,12 +93,46 @@ public final class CompatAnimatium {
         if (Boolean.TRUE.equals(cfg.disableEntityPush)) set.add(AnimatiumFeature.DISABLE_ENTITY_PUSH);
         if (Boolean.TRUE.equals(cfg.oldPlacement)) set.add(AnimatiumFeature.OLD_PLACEMENT);
         if (Boolean.TRUE.equals(cfg.disableOffhand)) set.add(AnimatiumFeature.DISABLE_OFFHAND);
+        if (Boolean.TRUE.equals(cfg.nativeShortVelocity)) set.add(AnimatiumFeature.SHORTS_VELOCITY);
         return set;
     }
 
     /** A per-aspect physics knob's effective value: explicit {@code true}/{@code false} overrides, {@code null} follows the {@code oldPhysics} bundle. */
     private static boolean physicsAspect(@Nullable Boolean knob, boolean bundle) {
         return knob != null ? knob : bundle;
+    }
+
+    /** Drops wire-format features the client didn't advertise support for - sending those to a client that can't decode them corrupts the stream. */
+    private static Set<AnimatiumFeature> gateWireFeatures(Set<AnimatiumFeature> features, CompatState state) {
+        if (!features.contains(AnimatiumFeature.SHORTS_VELOCITY) || state.supports(AnimatiumFeature.SHORTS_VELOCITY)) {
+            return features;
+        }
+        EnumSet<AnimatiumFeature> gated = EnumSet.copyOf(features);
+        gated.remove(AnimatiumFeature.SHORTS_VELOCITY);
+        return gated;
+    }
+
+    /**
+     * The {@link AnimatiumFeature}s an Animatium client advertised it handles natively, parsed from its {@code animatium:info}
+     * payload ({@code double version}, optional dev string, then a length-prefixed {@code BitSet.toByteArray()}). Empty for a
+     * client that sends no capability field (upstream/old Animatium) or a malformed payload.
+     */
+    private static Set<AnimatiumFeature> parseSupportedFeatures(byte[] info) {
+        try {
+            NetworkBuffer buf = NetworkBuffer.wrap(info, 0, info.length);
+            buf.read(NetworkBuffer.DOUBLE);
+            if (buf.read(NetworkBuffer.BOOLEAN)) buf.read(NetworkBuffer.STRING);
+            if (buf.readableBytes() <= 0) return Set.of();   // upstream/old client: no capability field
+            // byte[]-backed, NOT NetworkBuffer.BITSET (long[]-backed)
+            BitSet bits = BitSet.valueOf(buf.read(NetworkBuffer.BYTE_ARRAY));
+            EnumSet<AnimatiumFeature> supported = EnumSet.noneOf(AnimatiumFeature.class);
+            for (AnimatiumFeature f : AnimatiumFeature.values()) {
+                if (bits.get(f.bit)) supported.add(f);
+            }
+            return supported;
+        } catch (RuntimeException malformed) {
+            return Set.of();
+        }
     }
 
     /** Packs the feature bits into the {@code set_server_features} payload ({@code BitSet.toByteArray}, the inverse of Animatium's {@code BitSet.valueOf}). */

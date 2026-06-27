@@ -10,9 +10,8 @@ import java.util.List;
 
 /**
  * Jump Boost (potion). {@link #MODERN} is {@code +1 × level} safe-fall-distance ({@code ADD_VALUE}, 26) - the
- * fall-damage-reduction part, read by the modern fall threshold. The jump-velocity part ({@code +0.1/level}, both 1.8 and
- * 26) is not an attribute - {@link io.github.term4.minestommechanics.tracking.motion.MotionTracker#jumpSeed} seeds it
- * directly off the live effect (like Levitation), for either preset, so there's no LEGACY source here.
+ * fall-damage-reduction part. The jump-velocity part ({@code +0.1/level}, both versions) isn't an attribute -
+ * {@link io.github.term4.minestommechanics.tracking.motion.MotionTracker#jumpSeed} seeds it off the live effect, so no LEGACY source here.
  */
 public final class JumpBoost {
 

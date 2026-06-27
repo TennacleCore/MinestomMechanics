@@ -10,9 +10,9 @@ import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired after a damage instance has been applied - informational (not cancellable). Carries the amount actually
- * {@link #dealt()} and the {@link #outcome()}, for stats, logging, and on-hit triggers that need the real result.
- * The post-damage counterpart to {@link PreDamageEvent} / {@link DamageEvent}.
+ * Fired after a damage instance has been applied - informational. Carries the amount actually {@link #dealt()} and the
+ * {@link #outcome()}, for stats, logging, and on-hit triggers that need the real result. The post-damage counterpart to
+ * {@link PreDamageEvent} / {@link DamageEvent}.
  */
 public final class DamageAppliedEvent implements Event {
 
@@ -34,16 +34,15 @@ public final class DamageAppliedEvent implements Event {
     /** The active services (system lookups, scoped profiles). */
     public Services services() { return services; }
 
-    /** The damage amount actually applied (after overdamage/mitigation); {@code 0} when nothing landed. */
+    /** Amount actually applied (after overdamage/mitigation); {@code 0} if nothing landed. */
     public float dealt() { return dealt; }
 
     /** How the hit resolved (fresh / overdamage / blocked / immune). */
     public DamageOutcome outcome() { return outcome; }
 
-    // delegating accessors
     public DamageType type() { return snapshot.type(); }
     public Entity target() { return snapshot.target(); }
     public @Nullable Entity source() { return snapshot.source(); }
-    /** Item involved in the damage (melee weapon, later a projectile's bow), or {@code null}. */
+    /** The attacker's weapon, or {@code null}. */
     public @Nullable ItemStack item() { return snapshot.item(); }
 }

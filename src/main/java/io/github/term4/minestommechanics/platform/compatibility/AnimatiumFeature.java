@@ -50,7 +50,10 @@ public enum AnimatiumFeature {
     // --- forked: 1.8 block physics, split from the former OLD_PHYSICS bundle (driven by CompatConfig.oldPhysics + per-aspect knobs) ---
     DISABLE_BED_BOUNCE(21),     // 1.8 beds don't bounce
     DISABLE_HONEY_PHYSICS(22),  // honey acts like a plain block (no slide, no jump/walk slowdown)
-    DISABLE_BUBBLE_COLUMN(23);  // no bubble-column push
+    DISABLE_BUBBLE_COLUMN(23),  // no bubble-column push
+    // --- forked + WIRE-FORMAT: decode SET_ENTITY_MOTION as byte-exact 1.8 shorts instead of lossy LpVec3. Unlike the toggles
+    // above, sending this to a client that can't decode it corrupts the stream - the server must confirm native support first ---
+    SHORTS_VELOCITY(24);
 
     /** Bit index in the {@code set_server_features} BitSet payload (= Animatium's {@code ServerFeature} id). */
     public final int bit;

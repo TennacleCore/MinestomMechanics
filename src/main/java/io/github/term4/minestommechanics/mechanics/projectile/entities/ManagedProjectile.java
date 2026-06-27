@@ -90,8 +90,8 @@ public class ManagedProjectile extends ProjectileEntity {
     }
 
     /**
-     * Routes the hit through damage first (vanilla: even a 0-damage thrown hit calls damageEntity - the hurt flash + invul
-     * gate), then knockback only if it landed. With no damage type the hit always lands. Values are the event's effective ones.
+     * Damage first (vanilla: even a 0-damage thrown hit calls damageEntity - the hurt flash + invul gate), then knockback
+     * only if it landed. No damage type = the hit always lands.
      */
     private DamageSystem.DamageOutcome applyDamageAndKnockback(@NotNull Entity target, ProjectileHitEvent ev) {
         Services s = services();
@@ -180,9 +180,8 @@ public class ManagedProjectile extends ProjectileEntity {
     protected float hitDamage(ResolvedHit hit, @NotNull Entity target) { return (float) hit.damage(); }
 
     /**
-     * Bounces the projectile off an entity it may not damage - keep flying, no damage/KB/break. The
-     * {@link ProjectileTypeConfig.Deflect} knob transforms the velocity (1.8 {@code *-0.1}; 26.1 {@code *-0.5} + a small
-     * turn), then re-arms shooter immunity so the bounced arrow can't instantly re-hit the shooter.
+     * Bounces off an entity it may not damage (no damage/KB/break): the {@link ProjectileTypeConfig.Deflect} knob transforms
+     * the velocity (1.8 {@code *-0.1}; 26.1 {@code *-0.5} + a small turn), then re-arms shooter immunity so the bounced arrow can't instantly re-hit the shooter.
      */
     protected void deflect(ProjectileTypeConfig.Deflect d) {
         setVelocityBt(applyDeflect(d, velocityBt));
@@ -201,9 +200,8 @@ public class ManagedProjectile extends ProjectileEntity {
     }
 
     /**
-     * Builds the hit knockback snapshot for the given {@link ProjectileTypeConfig.KnockbackSource} + config. The captured
-     * {@link #punchLevel()} rides as the extra-knockback level (vanilla's {@code i}), scaling the config's {@code extra}*
-     * knobs - the same channel the melee Knockback enchant uses; {@code 0} (no Punch) leaves the extra term inert.
+     * Hit knockback snapshot for the {@link ProjectileTypeConfig.KnockbackSource} + config. The captured {@link #punchLevel()}
+     * rides as the extra-knockback level (vanilla's {@code i}), scaling the config's {@code extra}* knobs (the same channel as the melee Knockback enchant); {@code 0} leaves the extra term inert.
      */
     private KnockbackSnapshot buildKnockback(@NotNull Entity target, ProjectileTypeConfig.KnockbackSource source, KnockbackConfig kb) {
         if (shooter != null && source == ProjectileTypeConfig.KnockbackSource.SHOOTER) {

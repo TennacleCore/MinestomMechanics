@@ -27,14 +27,13 @@ public final class BlockContact {
 
     private BlockContact() {}
 
-    // --- cell occupancy (fluids, fire) ---
+    // cell occupancy (fluids, fire)
 
     /** True when any overlapped cell matches (vanilla inset). */
     public static boolean touching(Entity entity, Predicate<Block> match) {
         return touching(entity, VANILLA_INSET, match);
     }
 
-    /** True when any overlapped cell matches. */
     public static boolean touching(Entity entity, double inset, Predicate<Block> match) {
         return scan(entity, inset, match);
     }

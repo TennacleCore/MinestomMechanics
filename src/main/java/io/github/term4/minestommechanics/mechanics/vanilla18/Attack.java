@@ -70,7 +70,7 @@ public final class Attack {
             }
         }
 
-        /** Whether the attacker had the sprint knockback bonus (vanilla's {@code i > 0} gate); enchant levels fold in here once supported. */
+        /** Whether the attacker had the sprint knockback bonus (vanilla's {@code i > 0} gate). */
         private boolean sprintingForKb(LivingEntity le) {
             if (!(le instanceof Player p)) return false;
             return services.sprintTracker() != null

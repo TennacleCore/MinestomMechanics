@@ -3,8 +3,11 @@ package io.github.term4.minestommechanics.util.tick;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.entity.Entity;
+import net.minestom.server.event.EventFilter;
+import net.minestom.server.event.EventNode;
 import net.minestom.server.event.instance.InstanceTickEvent;
 import net.minestom.server.event.instance.InstanceUnregisterEvent;
+import net.minestom.server.event.trait.InstanceEvent;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.timer.TaskSchedule;
 import org.jetbrains.annotations.Nullable;
@@ -46,9 +49,11 @@ public final class TickSystem {
         if (!STARTED.compareAndSet(false, true)) return;
         MinecraftServer.getSchedulerManager()
                 .buildTask(serverTick::incrementAndGet).repeat(TaskSchedule.tick(1)).schedule();
-        var handler = MinecraftServer.getGlobalEventHandler();
-        handler.addListener(InstanceTickEvent.class, e -> { advance(e.getInstance()); dispatch(e.getInstance()); });
-        handler.addListener(InstanceUnregisterEvent.class, e -> CLOCKS.remove(e.getInstance()));
+        // Clock + cleanup on a typed INSTANCE node rather than raw global listeners, mounted on the global handler.
+        EventNode<InstanceEvent> node = EventNode.type("mm:tick", EventFilter.INSTANCE);
+        node.addListener(InstanceTickEvent.class, e -> { advance(e.getInstance()); dispatch(e.getInstance()); });
+        node.addListener(InstanceUnregisterEvent.class, e -> CLOCKS.remove(e.getInstance()));
+        MinecraftServer.getGlobalEventHandler().addChild(node);
     }
 
     /** The server-wide tick (state not owned by any one instance). */

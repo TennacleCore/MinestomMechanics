@@ -12,9 +12,8 @@ import java.util.List;
 
 /**
  * Fire Aspect (enchant) - ignites the victim on a melee hit. Vanilla (1.8 + 26 identical): {@code level × 4} seconds of
- * fire ({@code EntityHuman.attack} {@code setOnFire(level*4)}). An {@link ItemSource} with no attribute modifiers - it's
- * an {@link OnHit} side effect; the burn itself is the existing {@code on_fire} damage type once the victim is alight.
- * Triggered by the damage system's post-hit weapon dispatch (a damage-domain combat enchant).
+ * fire ({@code EntityHuman.attack} {@code setOnFire(level*4)}). An {@link ItemSource} with no modifiers - an {@link OnHit}
+ * side effect; the burn is the existing {@code on_fire} damage type once the victim is alight.
  */
 public final class FireAspect {
 

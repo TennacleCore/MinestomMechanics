@@ -4,8 +4,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Config for the hunger subsystem (food / saturation / exhaustion, natural regen, starvation). Assigned per scope via
- * the {@link io.github.term4.minestommechanics.MechanicsProfile} {@code hunger} member, resolved player -&gt; instance
- * -&gt; global with the install config as the final fallback. Installed by {@link HungerSystem}.
+ * the {@link io.github.term4.minestommechanics.MechanicsProfile} {@code hunger} member.
  *
  * <p><b>Stub.</b> Only {@link #enabled} exists today; exhaustion costs, the saturation/regen cadence, and starvation
  * damage land with the hunger logic (and feed the consumables eat-&gt;effect flow).

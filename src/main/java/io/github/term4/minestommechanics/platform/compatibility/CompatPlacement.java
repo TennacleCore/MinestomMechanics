@@ -16,18 +16,14 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Server-side 1.8 block-placement rules. Two independent restrictions, each gated by its own {@code CompatConfig} knob:
  *
- * <p><b>Reach ({@code blockPlaceReach}):</b> cancels a placement whose clicked point is farther than the configured reach
- * from the player's <em>server</em> eye ({@code OptimizedPlayer.getEyeHeight} - the 1.8 preset under {@code legacyHitbox}:
- * 1.54 sneaking vs the modern 1.27 crouch eye). Closes the modern sneak-bridge over-reach, where the lower crouch eye lets a
- * modern client place blocks a 1.8 player couldn't. Only needed for <em>modern, non-Animatium</em> clients - the only ones
- * whose client eye (1.27) under-shoots the 1.8 eye; skipped for everyone who already aims correctly to avoid cancelling legit
- * placements: <b>legacy (1.8) clients</b> (aim from the 1.8 eye), <b>Animatium clients with {@code old_sneak_height}</b> (eye
- * corrected client-side), <b>creative / spectator</b> (extra reach by design; spectators can't place).
+ * <p><b>Reach ({@code blockPlaceReach}):</b> cancels a placement whose clicked point is farther than the reach from the
+ * player's <em>server</em> eye (the 1.8 preset under {@code legacyHitbox}: 1.54 sneaking vs modern 1.27 crouch). Closes the
+ * modern sneak-bridge over-reach (the lower crouch eye out-reaches 1.8). Only modern, non-Animatium clients need it (the only
+ * eye that under-shoots 1.8); skipped for legacy, Animatium-{@code old_sneak_height}, and creative/spectator clients (they already aim correctly).
  *
  * <p><b>Air placement ({@code oldPlacement}):</b> refuses a placement whose clicked cell is air - the server half of the 1.8
  * "don't place against air" rule (Animatium enforces the client half via {@code OLD_PLACEMENT}). A live raycast only block-hits
- * a <em>solid</em> cell, so an air target means the client aimed at a cell it just broke: the creative "quick replace" that
- * drops a block back into the emptied spot (it floats). Catches any non-Animatium / modified client that still sends it.
+ * a <em>solid</em> cell, so an air target = the client aimed at a cell it just broke (the creative "quick replace" floating block). Catches any non-Animatium client that still sends it.
  *
  * <p>Installed once when the player provider is on; each rule is inert unless the player's config enables it.
  */

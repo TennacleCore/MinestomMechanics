@@ -27,13 +27,14 @@ import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.attribute.AttributeInstance;
 import net.minestom.server.entity.attribute.AttributeModifier;
-import net.minestom.server.event.Event;
+import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.entity.EntityPotionAddEvent;
 import net.minestom.server.event.entity.EntityPotionRemoveEvent;
 import net.minestom.server.event.entity.EntityTickEvent;
 import net.minestom.server.event.item.EntityEquipEvent;
 import net.minestom.server.event.player.PlayerChangeHeldSlotEvent;
+import net.minestom.server.event.trait.EntityEvent;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.component.EnchantmentList;
 import net.minestom.server.item.enchant.Enchantment;
@@ -53,9 +54,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The attribute/enchant/potion system: a {@link SourceRegistry} + the scan that turns an entity's active potion effects
- * and its in-context item's enchants into active sources, exposing {@link #context} -> {@link AttributeContext} for
- * consumers (calculators) to read an attribute's value. Mirrors the other systems' {@code install}/{@code node} shape.
+ * Attribute/enchant/potion system: a {@link SourceRegistry} plus a scan of active effects and the in-context item's
+ * enchants into active sources, read via {@link #context}. {@code install}/{@code node} shape like the other systems.
  */
 public final class AttributeSystem implements MechanicsModule {
 
@@ -70,7 +70,7 @@ public final class AttributeSystem implements MechanicsModule {
     private final MinestomMechanics mm;
     private final SourceRegistry registry = new SourceRegistry();
     private final AttributeConfig config;
-    private final EventNode<@NotNull Event> node;
+    private final EventNode<@NotNull EntityEvent> node;
     /** Re-entry guard for the TPS duration rescale (the re-added potion fires the add event again). */
     private final ThreadLocal<Boolean> rescaling = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** Per-entity {@code armorEnchantKey -> worn level}, driving {@link ArmorSource} behavior transitions + ticking. */
@@ -81,10 +81,10 @@ public final class AttributeSystem implements MechanicsModule {
     public AttributeSystem(MinestomMechanics mm, @Nullable AttributeConfig config) {
         this.mm = mm;
         this.config = config != null ? config : AttributeConfig.builder().build();
-        this.node = EventNode.all("mm:attributes");
+        this.node = EventNode.type("mm:attributes", EventFilter.ENTITY);
         for (Source source : this.config.sources()) registry.register(source);
-        // Lifecycle listeners (handlers below). Potion: a source's vanilla modifiers ride the holder's Minestom
-        // AttributeInstance (client-facing) and its Behavior fires on/off; Minestom only stores the effect.
+        // Potion: a source's vanilla modifiers ride the holder's Minestom AttributeInstance (client-facing) and its
+        // Behavior fires on/off; Minestom only stores the effect.
         node.addListener(EntityPotionAddEvent.class, this::onPotionAdd);
         node.addListener(EntityPotionRemoveEvent.class, e -> onPotion(e.getEntity(), e.getPotion(), false));
         node.addListener(EntityTickEvent.class, this::onEntityTick);
@@ -94,7 +94,7 @@ public final class AttributeSystem implements MechanicsModule {
         // that clearing fires (which drop the pushed modifiers).
     }
 
-    /** Per-tick lifecycle for a living entity: timed-effect ticking, armor-behavior ticking, and - for players - the equipment-attribute reconcile ({@link #tickEquipment}). */
+    /** Per-tick lifecycle: effects, armor behavior, and (players only) the equipment reconcile. */
     private void onEntityTick(EntityTickEvent e) {
         if (!(e.getEntity() instanceof LivingEntity le)) return;
         tickEffects(le);
@@ -115,13 +115,7 @@ public final class AttributeSystem implements MechanicsModule {
     /**
      * A hotbar-slot switch changes the held item without an equip event. With attribute swapping disabled (default) the held
      * push is forced immediately off the new slot, closing the swap window; when permitted it's left to {@link #tickEquipment}
-     * so the held attributes lag a tick. See {@link AttributeConfig#attributeSwapping}.
-     * <p>
-     * Future-proofing (not implemented): Mojang's 26.2-pre-2 swap fix was purely client-side (a {@code deferredSelection} the
-     * client applies once per tick; the server stayed passive) and was reverted. A re-add wouldn't defeat {@code attributeSwapping=true}
-     * - the window is recreated server-side here (held attributes lag past packet processing), surviving as long as the server
-     * sees a switch + attack in one tick. Only a client that also tick-defers the attack would need a deliberate server-side
-     * swap trigger. See memory: equip-attribute-tick-timing.
+     * so the held attributes lag a tick. See {@link AttributeConfig#attributeSwapping} and memory equip-attribute-tick-timing.
      */
     private void onHeldSlotChange(PlayerChangeHeldSlotEvent e) {
         if (!configFor(e.getPlayer()).attributeSwapping()) syncHeld(e.getPlayer(), e.getItemInNewSlot());
@@ -145,9 +139,8 @@ public final class AttributeSystem implements MechanicsModule {
     }
 
     /**
-     * Potions carry a duration in ticks that Minestom decrements at the live server TPS, so at high TPS an effect would
-     * expire too early in real time. On add, re-add the potion at a TPS-scaled duration (identity at 20) so its real
-     * lifetime is correct; the re-add fires this event again, guarded by {@link #rescaling}.
+     * Minestom decrements potion duration at the live TPS, so at high TPS an effect expires too early in real time. Re-add
+     * it at a TPS-scaled duration (identity at 20); the re-add re-fires this event, guarded by {@link #rescaling}.
      */
     private void onPotionAdd(EntityPotionAddEvent e) {
         Potion p = e.getPotion();
@@ -193,18 +186,16 @@ public final class AttributeSystem implements MechanicsModule {
     }
 
     /**
-     * Stable per-source-per-level modifier id, so the live push can be removed when the effect ends. Including the
-     * level keeps a higher effect's push from being stripped when a replaced lower effect's removal fires (Minestom
-     * replaces an effect via add-then-remove, sharing the effect key), e.g. Speed II -> Speed X.
+     * Stable per-source-per-level modifier id (removable when the effect ends). The level keeps a higher effect's push
+     * from being stripped when a replaced lower one's removal fires (Minestom replaces via add-then-remove, same key), e.g. Speed II -> X.
      */
     private static Key modifierId(Source source, int level) {
         return Key.key("mm", source.key().asString().replace(':', '.') + "." + level);
     }
 
     /**
-     * Reconciles every registered {@link ArmorSource} against {@code entity}'s worn armor: pushes/clears its attribute
-     * modifiers and fires its behavior on equip/unequip. A full recompute off the current armor (not an add/remove diff),
-     * so it's order-independent - no add-then-remove race like the potion path.
+     * Reconciles every {@link ArmorSource} against {@code entity}'s worn armor: push/clear modifiers, fire behavior on
+     * equip/unequip. A full recompute off current armor (not an add/remove diff), so order-independent - no potion-path race.
      */
     private void syncArmor(LivingEntity entity, EquipmentSlot changedSlot, ItemStack changedItem) {
         Map<Key, Integer> worn = wornArmorMap(entity);
@@ -252,11 +243,9 @@ public final class AttributeSystem implements MechanicsModule {
     }
 
     /**
-     * The player equipment-attribute reconcile (vanilla's {@code detectEquipmentUpdates}): re-applies the worn-armor +
-     * held pushes off the SETTLED equipment when any tracked stack changed. The canonical path for player equipment
-     * attributes - run on the tick (post-settle) so it matches vanilla timing and isn't raced by the use-item client
-     * prediction (a synchronous push on the equip event is dropped by the predicting client). No-op unless one of the
-     * five tracked stacks differs from last tick.
+     * Player equipment-attribute reconcile (vanilla {@code detectEquipmentUpdates}): re-applies worn-armor + held pushes
+     * off the SETTLED equipment, on the tick (post-settle) so it matches vanilla timing and isn't raced by the use-item
+     * client prediction (a synchronous equip-event push is dropped by the predicting client). No-op unless a tracked stack changed.
      */
     private void tickEquipment(Player player) {
         ItemStack[] cur = {
@@ -342,11 +331,11 @@ public final class AttributeSystem implements MechanicsModule {
     }
 
     /**
-     * Runs the defense mitigation pipeline against {@code damage} for {@code victim} in vanilla order:
+     * Defense mitigation against {@code damage} for {@code victim}, vanilla order:
      * <pre>armor → resistance → EPF/protection</pre>
      * (absorption is Minestom's, applied later by {@code living.damage()}). Each stage self-gates on its
-     * {@link MitigationRequest} bypass flag ("true damage") and on whether the victim's resolved config configures it.
-     * Reads the armor/protection {@code Formula} off the victim's scope-resolved {@link AttributeConfig} (preset-set).
+     * {@link MitigationRequest} bypass and on whether the victim's config configures it; the per-stage {@code Formula}
+     * comes from the victim's scoped {@link AttributeConfig}.
      */
     public float mitigate(LivingEntity victim, float damage, MitigationRequest req) {
         if (damage <= 0) return damage;
@@ -376,9 +365,8 @@ public final class AttributeSystem implements MechanicsModule {
     }
 
     /**
-     * Whether {@code living} has the Fire Resistance effect ({@code minecraft:fire_resistance}) - vanilla's total
-     * immunity to fire-source damage. Read by {@code DamageSystem} at the hit entry (a fire-source hit on a resistant
-     * victim is blocked outright, like vanilla's {@code return false}), not a mitigation-stage reduction.
+     * Whether {@code living} has Fire Resistance ({@code minecraft:fire_resistance}) - total immunity to fire damage. Read
+     * by {@code DamageSystem} at hit entry (blocked outright, like vanilla's {@code return false}), not a mitigation-stage reduction.
      */
     public boolean fireResistant(LivingEntity living) {
         for (TimedPotion tp : living.getActiveEffects()) {
@@ -411,15 +399,14 @@ public final class AttributeSystem implements MechanicsModule {
 
     public SourceRegistry registry() { return registry; }
     public AttributeConfig config() { return config; }
-    public EventNode<@NotNull Event> node() { return node; }
+    public EventNode<@NotNull EntityEvent> node() { return node; }
 
     /** A source active on an entity at a resolved {@code level} (1-based). */
     public record Active(Source source, int level) {}
 
     /**
-     * Installs reading the GLOBAL profile's {@link AttributeConfig}: its {@code sources} (the enchant / effect /
-     * attribute behaviors) register up front. Set the profile before installing; with no global profile this is
-     * inert (no sources). Per-scope tuning still resolves per hit.
+     * Installs from the GLOBAL profile's {@link AttributeConfig}: its {@code sources} register up front. Set the profile
+     * before installing; no global profile = inert (no sources). Per-scope tuning still resolves per hit.
      */
     public static AttributeSystem install(MinestomMechanics mm) {
         return install(mm, mm.profiles().resolve(null, MechanicsKeys.ATTRIBUTES));

@@ -8,8 +8,8 @@ import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 
 /**
  * <b>MMC 1.8</b> preset - replicates MineMenClub's 1.8 PvP feel, built on the {@link Vanilla18} 1.8 baseline with the
- * MMC deltas in this package ({@link Attack} hit-queue, {@link Damage} silent overdamage, {@link Knockback} components,
- * {@link Movement} velocity rule). The facade {@link #profile()} composes them.
+ * MMC deltas in this package ({@link Attack} hit-queue, {@link Damage} silent overdamage, {@link Knockback} components).
+ * The facade {@link #profile()} composes them; velocity tracking is inherited from {@link Vanilla18}.
  *
  * <p>Carries mechanics only - cross-version compat ({@code Compat18}) and fixes install separately. Projectiles are
  * deliberately left unset on the profile - mmc18's values are still a {@link #projectiles() placeholder} until measured,
@@ -26,7 +26,7 @@ public final class Mmc18 {
                 .set(MechanicsKeys.DAMAGE, Damage.config())
                 .set(MechanicsKeys.KNOCKBACK, Knockback.melee())
                 .set(MechanicsKeys.PLAYER, Player.config())
-                .set(MechanicsKeys.VELOCITY, Movement.velocity())
+                // VELOCITY inherited from Vanilla18 (plain simulated): the vertical hold masks fluid, horizontal is unused
                 .set(MechanicsKeys.PROJECTILES, null) // placeholder: mmc18 projectiles TBD from testing - do NOT inherit vanilla18's
                 .build();
     }

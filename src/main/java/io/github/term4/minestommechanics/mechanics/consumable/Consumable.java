@@ -12,10 +12,9 @@ import java.util.Set;
 
 /**
  * A consumable <em>type</em>: its identity ({@link #key} + the {@link Material}(s) it triggers on) and its
- * {@link #defaultConfig()} baseline ({@link ConsumableTypeConfig}). Mirrors {@code ProjectileType}/{@code DamageType} -
- * the type is registered in a {@link ConsumableRegistry} and stays version-agnostic; the per-version behavior/effects
- * come from the active {@link ConsumableConfig}'s per-type override (so {@code Vanilla18} vs {@code Vanilla} give the
- * same registered apple different effects). A custom consumable is one instance + a {@code register(...)}.
+ * {@link #defaultConfig()} baseline. Mirrors {@code ProjectileType}/{@code DamageType} - version-agnostic; per-version
+ * behavior/effects come from the active {@link ConsumableConfig}'s per-type override (so {@code Vanilla18} vs {@code Vanilla}
+ * give the same registered apple different effects). A custom consumable is one instance + a {@code register(...)}.
  */
 public final class Consumable {
 

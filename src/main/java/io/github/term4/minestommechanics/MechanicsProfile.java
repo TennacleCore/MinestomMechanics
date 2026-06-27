@@ -7,12 +7,9 @@ import java.util.Map;
 
 /**
  * A bundle of mechanics configs assignable to a scope (player / instance / global) via {@link MechanicsProfiles}.
- * Backed by a typed-key map: members are keyed by {@link ConfigKey} (built-ins catalogued in {@link MechanicsKeys}) and
- * read with {@link #get}. A partial profile (e.g. knockback only) overrides just that member and lets the rest fall
- * through to the next scope.
- *
- * <p>Compose with the builder: {@code MechanicsProfile.builder().set(MechanicsKeys.ATTACK, cfg).set(...).build()}.
- * A module adds a member with no change here by declaring its own {@link ConfigKey} and using {@code set} / {@code get}.
+ * Backed by a typed-key map: members are keyed by {@link ConfigKey} (built-ins in {@link MechanicsKeys}) and read with
+ * {@link #get}. A partial profile (e.g. knockback only) overrides just that member and lets the rest fall through to the
+ * next scope. Compose with the builder: {@code MechanicsProfile.builder().set(MechanicsKeys.ATTACK, cfg).build()}.
  */
 public final class MechanicsProfile {
 

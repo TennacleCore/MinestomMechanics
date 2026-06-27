@@ -4,10 +4,8 @@ import io.github.term4.minestommechanics.Services;
 import net.minestom.server.event.trait.CancellableEvent;
 
 /**
- * A {@link MechanicsEvent} that can be cancelled (the {@code Pre} gate and the main modify phase). Cancelling drops the
- * pending action - what that means is documented per event (e.g. no damage, no knockback).
- *
- * @param <S> the domain snapshot type
+ * A {@link MechanicsEvent} that can be cancelled (the {@code Pre} gate and the main phase); cancelling drops the
+ * pending action, as documented per event (e.g. no damage, no knockback).
  */
 public abstract class CancellableMechanicsEvent<S> extends MechanicsEvent<S> implements CancellableEvent {
 
@@ -17,7 +15,6 @@ public abstract class CancellableMechanicsEvent<S> extends MechanicsEvent<S> imp
         super(snapshot, services);
     }
 
-    /** Cancels the action. */
     public void cancel() { setCancelled(true); }
 
     @Override public boolean isCancelled() { return cancelled; }

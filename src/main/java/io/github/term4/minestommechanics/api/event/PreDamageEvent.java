@@ -20,18 +20,15 @@ public final class PreDamageEvent extends CancellableMechanicsEvent<DamageSnapsh
         super(snap, services);
     }
 
-    /** Damage config used for resolution ({@code null} = the system config). */
+    /** {@code null} = the system config. */
     public @Nullable DamageConfig config() { return finalSnap().config(); }
-
-    /** Replaces the config used for resolution for this hit (sugar for rebuilding {@link #finalSnap()}). */
     public void config(@Nullable DamageConfig config) { finalSnap(finalSnap().withConfig(config)); }
 
-    // delegating accessors
     public DamageType type() { return finalSnap().type(); }
     public Entity target() { return finalSnap().target(); }
     public @Nullable Entity source() { return finalSnap().source(); }
-    /** Item involved in the damage (melee weapon, later a projectile's bow), or {@code null}. */
+    /** The attacker's weapon, or {@code null}. */
     public @Nullable ItemStack item() { return finalSnap().item(); }
-    /** Type-specific payload attached by the producer (e.g. the fall distance), or {@code null}. */
+    /** Type-specific payload from the producer (e.g. fall distance), or {@code null}. */
     public @Nullable Object detail() { return finalSnap().detail(); }
 }

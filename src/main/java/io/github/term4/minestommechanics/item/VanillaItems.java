@@ -12,7 +12,7 @@ public final class VanillaItems {
 
     private VanillaItems() {}
 
-    /** The 1.8 weapon table as defs: swords 4/4/5/6/7(/8), axes 3/3/4/5/6(/7), pickaxes 2/2/3/4/5(/6), shovels 1/1/2/3/4(/5). */
+    /** The 1.8 weapon attack-damage table as defs. */
     public static ItemDef[] weapons() {
         return new ItemDef[]{
                 w(Material.WOODEN_SWORD, 4), w(Material.GOLDEN_SWORD, 4), w(Material.STONE_SWORD, 5),

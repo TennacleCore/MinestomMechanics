@@ -1,12 +1,9 @@
 package io.github.term4.minestommechanics.tracking;
 
 /**
- * Typed identifier for a custom value stored on a player's {@link ClientProfile} (the same heterogeneous-key pattern as
- * {@code ConfigKey}). An end user declares one as a static constant and reads/writes it via
- * {@link ClientProfile#get} / {@link ClientProfile#set} - e.g. to record the player's login version, whether they used
- * Animatium, or any client-side flag they want to persist to their own database.
- *
- * <p>Keys are equal by {@link #id()}, so each distinct value must use a unique id (convention: {@code "namespace:name"}).
+ * Type-safe identifier for a custom value on a player's {@link ClientProfile} (the same heterogeneous-key pattern as
+ * {@code ConfigKey}). An end user declares one as a static constant and reads/writes it via {@link ClientProfile#get} /
+ * {@link ClientProfile#set}. Keys are equal by {@link #id()}, so each must use a unique id (convention {@code "namespace:name"}).
  */
 public final class ClientKey<T> {
 
@@ -14,7 +11,6 @@ public final class ClientKey<T> {
 
     private ClientKey(String id) { this.id = id; }
 
-    /** Creates a key with the given unique id. */
     public static <T> ClientKey<T> of(String id) { return new ClientKey<>(id); }
 
     public String id() { return id; }

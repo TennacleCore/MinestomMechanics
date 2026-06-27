@@ -42,9 +42,8 @@ public final class Knockback {
     }
 
     /**
-     * Projectile knockback. In 1.8 a thrown projectile knocks the victim with the thrower's {@link #melee() melee
-     * knockback}, applied as a non-melee hit (no sprint bonus). Its own method so a preset can tune projectile knockback
-     * independently of melee once it has tested values.
+     * Projectile knockback: in 1.8 a thrown projectile uses the thrower's {@link #melee() melee knockback}, as a non-melee
+     * hit (no sprint bonus). A separate method so a preset can tune it independently of melee.
      */
     public static KnockbackConfig projectile() {
         return melee();
@@ -53,9 +52,7 @@ public final class Knockback {
     /**
      * Generic damage-tick "knockback" (fire, cactus, fall, ...): vanilla broadcasts the victim's server-tracked velocity
      * with no impulse, so this config is all zeroes with a 1:1 friction fold - the velocity rule is the broadcast. Bounds
-     * are explicitly cleared (the melee {@code 0.4} vertical cap must not clip a jump's {@code 0.42} seed). {@code
-     * DamageSystem} routes every fresh non-melee, non-drown hit through the KnockbackSystem with this config while {@code
-     * DamageConfig.syncHurtVelocity} is on.
+     * are explicitly cleared (the melee {@code 0.4} vertical cap must not clip a jump's {@code 0.42} seed).
      */
     public static KnockbackConfig hurt() {
         return KnockbackConfig.builder()

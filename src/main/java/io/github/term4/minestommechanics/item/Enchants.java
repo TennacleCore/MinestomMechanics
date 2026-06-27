@@ -11,10 +11,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Map;
 
 /**
- * Reads an enchantment level off an item's {@code ENCHANTMENTS} component by its {@link Key} - item-data, so it lives
- * with the rest of the item helpers ({@link ItemRegistry}/{@link ItemStat}). The shared reader the domains that consume
- * enchant data use (the bow's Infinity, the projectile Power/Punch capture, the attribute equipment lifecycle, the melee
- * Knockback enchant), so the component walk lives in one place instead of being re-copied per consumer.
+ * Reads an enchantment level off an item's {@code ENCHANTMENTS} component by {@link Key} - the shared reader, so the
+ * component walk lives in one place instead of being re-copied per consumer.
  */
 public final class Enchants {
 

@@ -11,9 +11,8 @@ import org.jetbrains.annotations.Nullable;
  * them at runtime (configs are immutable, so a swap takes effect on the next hit; the {@code player} platform member
  * is pushed by {@code PlayerConfigApplier} on change). Resolution is per <em>member</em>, highest scope first:
  * <pre>player profile -> instance profile -> global profile -> the system's install config</pre>
- * so a partial profile (e.g. knockback only) overrides just that system. With nothing assigned, every hit uses the
- * install configs. Resolve a single member with {@link #resolve}; a hit reading several members should use
- * {@link #resolved} to walk the scopes once.
+ * so a partial profile (e.g. knockback only) overrides just that system. Resolve a single member with {@link #resolve};
+ * a hit reading several members should use {@link #resolved} to walk the scopes once.
  *
  * <p><b>Scope subject.</b> Attack resolves against the <em>attacker</em> (hit detection/ruleset is the attacker's
  * action); damage and knockback resolve against the <em>victim</em> (whose mechanics they are). In the usual minigame

@@ -31,10 +31,9 @@ public final class Projectiles {
     }
 
     /**
-     * The 26.1 throwable baseline: the 1.8 baseline with the documented deltas - no throwing-hand lateral, full
-     * shooter-momentum inheritance (vertical only when airborne), {@code REVERSE} deflection ({@code motion *= -0.5} + a
-     * cosmetic +-10-degree yaw), drag + gravity before the move, and shooter immunity until the projectile clears the
-     * shooter's box. Everything else (speed, spread, gravity/drag, knockback, damage) matches 1.8.
+     * The 26.1 throwable baseline: the 1.8 baseline with the deltas - no throwing-hand lateral, full shooter-momentum
+     * inheritance (vertical only when airborne), reverse-damp deflection ({@code motion *= -0.5} + a cosmetic +-10-degree
+     * yaw), drag + gravity before the move, shooter immunity until the projectile clears the shooter's box. Else matches 1.8.
      */
     public static ProjectileTypeConfig defaults() {
         return modernDeltas(ProjectileTypeConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla18.Projectiles.defaults())).build();

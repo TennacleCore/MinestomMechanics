@@ -16,10 +16,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Set;
 
 /**
- * Resolves a {@link BlockingConfig} into plain values against a {@link BlockingContext}. Mirrors the other resolvers:
- * the effective per-item config layers the active config's per-material entry over its generic {@link
- * BlockingConfig#defaults()}, then each knob resolves against the context. The {@link BlockingBehavior} then reads the
- * resolved knobs + the hit (carried as a {@link DamageContext}) to decide the block.
+ * Resolves a {@link BlockingConfig} into plain values against a {@link BlockingContext}. Mirrors the other resolvers
+ * (per-material entry over {@link BlockingConfig#defaults()}, then resolve each knob). The {@link BlockingBehavior} reads
+ * the resolved knobs + the hit (carried as a {@link DamageContext}) to decide the block.
  */
 public final class BlockingConfigResolver {
 

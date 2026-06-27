@@ -16,10 +16,7 @@ import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import io.github.term4.minestommechanics.util.tick.TickScalingConfig;
 
-/**
- * Catalog of the built-in {@link MechanicsProfile} config keys. A user module adds a member by declaring its own
- * {@link ConfigKey} the same way (no change here) and using {@link MechanicsProfile.Builder#set} / {@link MechanicsProfile#get}.
- */
+/** Catalog of the built-in {@link MechanicsProfile} config keys. A module declares its own {@link ConfigKey} the same way - no change here. */
 public final class MechanicsKeys {
 
     private MechanicsKeys() {}

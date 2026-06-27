@@ -26,7 +26,7 @@ public final class AttackSystem implements MechanicsModule {
     private final Services services;
     private final EventNode<@NotNull Event> node;
 
-    // Auxiliary phases are fired only when a listener exists (the main AttackEvent always fires).
+    // Pre/Applied fire only when listened to; main always fires
     private static final ListenerHandle<PreAttackEvent> PRE_ATTACK = EventDispatcher.getHandle(PreAttackEvent.class);
     private static final ListenerHandle<AttackAppliedEvent> ATTACK_APPLIED = EventDispatcher.getHandle(AttackAppliedEvent.class);
 
@@ -49,14 +49,14 @@ public final class AttackSystem implements MechanicsModule {
      * -> ruleset. Public so custom hit detection submits hits exactly like the built-in packet detection.
      */
     public void apply(AttackSnapshot snap) {
-        // Pre phase (lazy): raw detected hit, before any config/ruleset - cancel/inspect, or redirect inputs.
+        // Pre (lazy): cancel or redirect the raw hit, before any config/ruleset
         if (PRE_ATTACK.hasListener()) {
             PreAttackEvent pre = new PreAttackEvent(snap, services);
             EventDispatcher.call(pre);
             if (pre.isCancelled()) return;
             snap = pre.finalSnap();
         }
-        // config chain: snapshot -> attacker scope -> install. inert when all three are absent; an empty config processes at the vanilla floor
+        // config: snapshot -> attacker scope -> install (none = inert, empty = vanilla floor)
         AttackConfig effective = snap.config();
         if (effective == null) {
             AttackConfig scoped = profiles.resolve(snap.attacker(), MechanicsKeys.ATTACK);
@@ -67,7 +67,7 @@ public final class AttackSystem implements MechanicsModule {
 
         AttackEvent api = new AttackEvent(snap, services);
         EventDispatcher.call(api);
-        // enabled read off the live resolved config, so a listener can swap in an enabled config to let a hit through
+        // enabled is read live, so a listener can swap in an enabled config to let the hit through
         if (api.isCancelled() || !api.process() || !api.resolvedConfig().enabled()) return;
 
         AttackEvent.AttackRule proc = api.processor() != null
@@ -75,7 +75,7 @@ public final class AttackSystem implements MechanicsModule {
                 : api.resolvedConfig().ruleset().create(services);
         proc.processAttack(api);
 
-        // Applied phase (lazy): the ruleset ran - report the processed attack.
+        // Applied (lazy): report the processed attack
         if (ATTACK_APPLIED.hasListener()) EventDispatcher.call(new AttackAppliedEvent(api.finalSnap(), services));
     }
 
@@ -94,6 +94,6 @@ public final class AttackSystem implements MechanicsModule {
 
     public AttackConfig config() { return config; }
 
-    /** This system's listener node ({@code mm:attack}); everything the system hooks lives under it. */
+    /** This system's listener node ({@code mm:attack}); detection listeners mount here. */
     public EventNode<@NotNull Event> node() { return node; }
 }

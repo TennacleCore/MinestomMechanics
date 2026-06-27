@@ -19,9 +19,9 @@ public final class AttributeConfigResolver {
     private AttributeConfigResolver() {}
 
     /**
-     * Resolution + query context for one entity (and the in-context item) under the scope-resolved {@code config}. The
-     * active sources are scanned lazily off {@link AttributeSystem}; each source's modifiers pass through the config's
-     * per-source {@link AttributeConfig#tuningFor tuning} before they fold (disable / scale / custom).
+     * Resolution + query context for one entity (and in-context item) under the scope-resolved {@code config}. Active
+     * sources are scanned lazily off {@link AttributeSystem}; each source's modifiers pass the config's per-source
+     * {@link AttributeConfig#tuningFor tuning} before they fold.
      */
     public record AttributeContext(LivingEntity entity, @Nullable ItemStack item, AttributeConfig config, Services services,
                                    Map<FactKey<?>, Object> facts) {

@@ -50,9 +50,12 @@ repositories {
 
 dependencies {
     val minestomVersion = "2026.05.17c-26.1.1"
+    val slf4jVersion = "2.0.18"
     val junitVersion = "6.0.3"
 
     compileOnly("net.minestom:minestom:$minestomVersion")
+    // SLF4J facade only; a Minestom runtime always provides the api + a binding, so compileOnly (like Minestom). Never ship a binding.
+    compileOnly("org.slf4j:slf4j-api:$slf4jVersion")
 
     // Unit testing
     testImplementation("net.minestom:minestom:$minestomVersion")

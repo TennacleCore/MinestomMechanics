@@ -14,11 +14,10 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Per-type projectile config: everything tunable about one projectile, keyed by {@link #key()}. Extends {@link Config},
- * so every value is a {@link FieldValue} resolved against a {@link ProjectileContext} (constant or per-launch lambda);
- * unset fields fall back through the resolver chain (per-type override -&gt; the active {@link ProjectileConfig}'s
- * {@link ProjectileConfig#defaults()} -&gt; the type's {@code defaultConfig()} -&gt; hard fallbacks). Launchers resolve it
- * once per launch and stamp the entity. Covers spawn/physics, the hit knockback + damage, deflect, removal, and behavior.
+ * Per-type projectile config, keyed by {@link #key()}: every value is a {@link FieldValue} resolved against a
+ * {@link ProjectileContext} (constant or per-launch lambda), unset fields falling back per-type override -&gt;
+ * {@link ProjectileConfig#defaults()} -&gt; the type's {@code defaultConfig()} -&gt; hard fallbacks. Launchers resolve it
+ * once per launch and stamp the entity. Covers spawn/physics, hit knockback + damage, deflect, removal, behavior.
  */
 public final class ProjectileTypeConfig extends Config<ProjectileContext, ProjectileTypeConfig> {
 
@@ -30,8 +29,8 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
     public enum KnockbackSource { PROJECTILE, SHOOTER }
 
     /**
-     * What a projectile does for a hit it doesn't deal normally - for {@link #selfHit} (hit its own shooter) and
-     * {@link InvulnResponse} (the hit was rejected as invulnerable):
+     * How a projectile responds to a hit it doesn't deal normally ({@link #selfHit}, or {@link InvulnResponse} when a hit
+     * is rejected as invulnerable):
      * <ul>
      *   <li>{@link #HIT} - the normal hit (damage/KB/impact/break).</li>
      *   <li>{@link #PASS_THROUGH} - ignore the entity, keep flying unchanged (the 1.8 pearl through its thrower).</li>
@@ -43,10 +42,9 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
     public enum HitResponse { HIT, PASS_THROUGH, DEFLECT, DESTROY }
 
     /**
-     * What a projectile does for a hit the target rejects as invulnerable - the {@link HitResponse} for the two cases
-     * vanilla distinguishes: {@link #invulWindow} (recently-hit i-frame window; 1.8 + 26.1 arrow {@code DEFLECT}) and
-     * {@link #immune} (fundamental: creative/spectator; 1.8 arrow {@code PASS_THROUGH}, 26.1 {@code DEFLECT}). Creative
-     * and spectator aren't split (no vanilla version differs - use a lambda). Set via {@code invulnHit(...)} or {@link #of}.
+     * The {@link HitResponse} for the two invulnerability cases vanilla distinguishes: {@link #invulWindow} (i-frame window;
+     * 1.8 + 26.1 arrow {@code DEFLECT}) and {@link #immune} (creative/spectator; 1.8 arrow {@code PASS_THROUGH}, 26.1 {@code DEFLECT}).
+     * Creative/spectator aren't split (use a lambda if needed). Set via {@code invulnHit(...)} or {@link #of}.
      */
     public record InvulnResponse(HitResponse invulWindow, HitResponse immune) {
         /** The same response for both cases (e.g. {@code of(DESTROY)} = vanilla throwable, {@code of(DEFLECT)} = 26.1 arrow). */

@@ -16,12 +16,10 @@ import org.jetbrains.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Hunger subsystem: food / saturation / exhaustion depletion, natural regen, and starvation. Mirrors the other systems
- * (registers on {@code mm}, owns an {@code EventNode}, resolves per-scope config through
- * {@code MechanicsProfiles.hungerFor}), and drives its periodic work off the shared {@link TickSystem} as a
- * {@link io.github.term4.minestommechanics.util.tick.Tickable} - the pattern future per-tick subsystems copy.
+ * Hunger subsystem: food / saturation / exhaustion depletion, natural regen, and starvation. Mirrors the other systems;
+ * per-scope config via {@code HUNGER}; drives periodic work off the shared {@link TickSystem}.
  *
- * <p><b>Stub.</b> The per-instance tick is installed and scope-gated, but does nothing yet; depletion/regen and the
+ * <p><b>Stub.</b> The per-instance tick is installed and scope-gated but does nothing yet; depletion/regen and the
  * starvation route through {@code DamageSystem} land with the hunger logic.
  */
 public final class HungerSystem implements MechanicsModule {
@@ -38,7 +36,7 @@ public final class HungerSystem implements MechanicsModule {
         this.node = EventNode.all("mm:hunger");
     }
 
-    /** This system's listener node ({@code mm:hunger}); everything the system hooks lives under it. */
+    /** This system's listener node ({@code mm:hunger}). */
     public EventNode<@NotNull Event> node() { return node; }
     public HungerConfig config() { return config; }
 

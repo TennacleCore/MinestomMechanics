@@ -17,8 +17,7 @@ import org.jetbrains.annotations.Nullable;
 /** Access to the systems registered on MinestomMechanics. */
 public record Services(MinestomMechanics mm) {
 
-    // Accessors read the live registry, so cross-system lookups (e.g. a ruleset pulling damage()) are
-    // lazy per hit and install order does not matter.
+    // Accessors read the live registry, so lookups are lazy per hit and install order doesn't matter; null = not installed.
     public @Nullable SprintTracker sprintTracker() { return mm.sprintTracker(); }
     public @Nullable MotionTracker motionTracker() { return mm.motionTracker(); }
     public @Nullable AttackSystem attack() { return mm.module(AttackSystem.class); }
@@ -27,13 +26,9 @@ public record Services(MinestomMechanics mm) {
     public @Nullable ProjectileSystem projectiles() { return mm.module(ProjectileSystem.class); }
     public @Nullable FixesSystem fixes() { return mm.module(FixesSystem.class); }
     public @Nullable AttributeSystem attributes() { return mm.module(AttributeSystem.class); }
-    /** Item durability (damage-on-use), or {@code null} if not installed. */
     public @Nullable DurabilitySystem durability() { return mm.module(DurabilitySystem.class); }
-    /** The hunger subsystem (food/saturation/regen/starvation), or {@code null} if not installed. */
     public @Nullable HungerSystem hunger() { return mm.module(HungerSystem.class); }
-    /** Consumable items (eat/drink over time), or {@code null} if not installed. */
     public @Nullable ConsumableSystem consumables() { return mm.module(ConsumableSystem.class); }
-    /** Item blocking (sword block / shield), or {@code null} if not installed. */
     public @Nullable BlockingSystem blocking() { return mm.module(BlockingSystem.class); }
     /** Scoped config profiles (player / instance / global). */
     public MechanicsProfiles profiles() { return mm.profiles(); }

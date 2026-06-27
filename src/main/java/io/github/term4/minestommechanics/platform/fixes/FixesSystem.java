@@ -19,13 +19,11 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Installs the client/protocol behavior fixes from a {@link FixesConfig}. Mirrors the other systems
- * (DamageSystem / ProjectileSystem): registers itself on {@code mm}, owns an {@code EventNode}, and wires each fix's
- * manager. Per-scope config resolves through {@code MechanicsProfiles.fixesFor} (player -&gt; instance -&gt; global),
- * with the install config as the final fallback. Today the only managed fix is the 1.8 legacy arrow-visibility
- * ({@link LegacyArrowVisibility}); future fixes register their own managers here.
+ * (DamageSystem / ProjectileSystem); per-scope config via {@code FIXES}. Today the only managed fix is the 1.8 legacy
+ * arrow-visibility ({@link LegacyArrowVisibility}); future fixes register their own managers here.
  *
- * <p>(The self-meta smoothing fix lives in {@code fixes.client} but its delivery is the custom player override, so it
- * is armed by {@code MetaFix.installListeners()} from {@code MinestomMechanics.init} rather than this system.)
+ * <p>(The self-meta smoothing fix lives in {@code fixes.client} but its delivery is the custom player override, so it is
+ * armed by {@code MetaFix.installListeners()} from {@code MinestomMechanics.init}, not this system.)
  */
 public final class FixesSystem implements MechanicsModule {
 

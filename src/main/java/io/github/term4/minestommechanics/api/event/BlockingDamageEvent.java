@@ -8,12 +8,8 @@ import net.minestom.server.registry.RegistryKey;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired when a player blocks an incoming hit (sword block / shield), after the reduction is computed but before armor
- * mitigation runs. Listen to show feedback (an action-bar "Blocked! X -&gt; Y", a block sound). The amounts are
- * pre-mitigation (the value handed to armor is {@link #blockedAmount()}).
- *
- * <p><b>Cancellable:</b> cancelling vetoes the block - the hit takes its full {@link #originalAmount()} (e.g. a weapon
- * that pierces blocks).
+ * Fired when a player blocks a hit (sword/shield), after the reduction is computed but before armor mitigation. Cancel
+ * to veto the block - the hit takes its full {@link #originalAmount()} (e.g. a piercing weapon).
  */
 public final class BlockingDamageEvent implements CancellableEvent {
 
@@ -33,15 +29,12 @@ public final class BlockingDamageEvent implements CancellableEvent {
         this.damageType = damageType;
     }
 
-    /** The blocking player. */
     public Player defender() { return defender; }
-    /** The entity dealing the hit, or {@code null}. */
     public @Nullable Entity attacker() { return attacker; }
-    /** The incoming damage before the block. */
+    /** Incoming damage before the block. */
     public float originalAmount() { return originalAmount; }
-    /** The damage after the block (less than {@link #originalAmount()}); the value the block passes on to armor. */
+    /** Damage after the block (passed on to armor). */
     public float blockedAmount() { return blockedAmount; }
-    /** The Minestom damage type of the hit. */
     public RegistryKey<DamageType> damageType() { return damageType; }
 
     @Override public boolean isCancelled() { return cancelled; }

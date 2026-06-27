@@ -12,6 +12,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
 import io.github.term4.minestommechanics.platform.fixes.Fixes18;
 import io.github.term4.minestommechanics.platform.compatibility.Compat18;
+import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableSystem;
 import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
 import io.github.term4.minestommechanics.mechanics.blocking.catalog.VanillaBlocking;
@@ -26,7 +27,11 @@ import net.minestom.server.command.builder.arguments.Argument;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.GlobalEventHandler;
+import net.minestom.server.event.EventFilter;
+import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.AsyncPlayerConfigurationEvent;
+import net.minestom.server.event.trait.PlayerEvent;
+import org.jetbrains.annotations.NotNull;
 import net.minestom.server.instance.InstanceContainer;
 import net.minestom.server.instance.InstanceManager;
 import net.minestom.server.instance.LightingChunk;
@@ -97,7 +102,7 @@ public class ExampleServer {
         instanceContainer.setGenerator(unit -> unit.modifier().fillHeight(0, 40, Block.GRASS_BLOCK));
         instanceContainer.setChunkSupplier(LightingChunk::new);
 
-        // Test dammage types
+        // Test damage types
         instanceContainer.loadChunk(1, 0).thenRun(() -> {
             for (int x = 18; x <= 20; x++)
                 for (int z = 0; z <= 2; z++)
@@ -263,6 +268,20 @@ public class ExampleServer {
         });
         MinecraftServer.getCommandManager().register(compatCmd);
 
+        // /shorts: toggle nativeShortVelocity for this player (A/B the byte-exact Animatium velocity vs the lossy LpVec3). A
+        // profile change re-pushes the Animatium feature set, so it flips live - take a >2 b/t knockback to see a difference.
+        Command shortsCmd = new Command("shorts");
+        shortsCmd.setDefaultExecutor((sender, ctx) -> {
+            if (!(sender instanceof OptimizedPlayer op)) return;
+            CompatConfig current = mm.profiles().resolve(op, MechanicsKeys.COMPAT);
+            boolean on = !(current != null && Boolean.TRUE.equals(current.nativeShortVelocity));
+            mm.profiles().setPlayer(op, MechanicsProfile.builder()
+                    .set(MechanicsKeys.COMPAT, Compat18.config().toBuilder().nativeShortVelocity(on).build())
+                    .build());
+            op.sendMessage("Shorts velocity: " + (on ? "ON" : "OFF") + " (take a >2 b/t knockback to compare)");
+        });
+        MinecraftServer.getCommandManager().register(shortsCmd);
+
         // /suffocate: drops a stone block into your head to test suffocation damage (be in survival - /gms)
         Command suffocate = new Command("suffocate");
         suffocate.setDefaultExecutor((sender, ctx) -> {
@@ -323,6 +342,23 @@ public class ExampleServer {
             if (sender instanceof Player p) applyEffect(p, ctx.get(effName), ctx.get(effStrength), ctx.get(effSeconds));
         }, effName, effStrength, effSeconds);
         MinecraftServer.getCommandManager().register(effectCmd);
+
+        // /velcap (LpVec3 snap) vs /velcapbridge (exact 1.8 short): A/B for the LegacyVelocityBridge knockback path
+        EventNode<@NotNull PlayerEvent> playerNode = EventNode.type("mm:test-player", EventFilter.PLAYER);
+        VelocityCapTestCommands.install(playerNode);
+        MinecraftServer.getGlobalEventHandler().addChild(playerNode);
+
+        Command velCap = new Command("velcap");
+        velCap.setDefaultExecutor((sender, ctx) -> {
+            if (sender instanceof Player p) VelocityCapTestCommands.applyNormalCap(p);
+        });
+        MinecraftServer.getCommandManager().register(velCap);
+
+        Command velCapBridge = new Command("velcapbridge");
+        velCapBridge.setDefaultExecutor((sender, ctx) -> {
+            if (sender instanceof Player p) VelocityCapTestCommands.applyBridgeCap(p);
+        });
+        MinecraftServer.getCommandManager().register(velCapBridge);
     }
 
     /** Applies (or clears) a potion effect on the sender for in-game testing. {@code strength} is the level (1 = level I); duration in seconds. */

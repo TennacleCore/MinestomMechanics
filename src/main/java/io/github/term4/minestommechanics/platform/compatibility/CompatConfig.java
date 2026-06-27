@@ -12,43 +12,31 @@ import java.util.Set;
  * Plain values - rarely-changing platform knobs, not per-hit values, so deliberately no {@code FieldValue}/subconfig
  * machinery. Unset ({@code null}) fields are left unmanaged.
  *
- * <p>{@code disabledPoses} - poses the server forces back to {@link EntityPose#STANDING} (e.g. {@code SWIMMING} for
- * swim/crawl, {@code FALL_FLYING} for elytra) so a modern client can't enter a pose 1.8 lacks. The pose visual itself is
- * client-authoritative (the client recomputes its own pose each tick), so this only fixes the server + other viewers; the
- * gameplay half is {@code restrictMovement}.
+ * <p>{@code disabledPoses} - poses the server forces back to {@link EntityPose#STANDING} (e.g. {@code SWIMMING}, {@code FALL_FLYING})
+ * so a modern client can't enter a pose 1.8 lacks. The pose visual is client-authoritative, so this only fixes the server + other viewers; the gameplay half is {@code restrictMovement}.
  *
- * <p>{@code restrictMovement} - rejects a move that would newly place the player's <em>server</em> hitbox in block
- * collision, so a client rendering itself crawling/swimming still cannot traverse a gap its server hitbox can't fit through
- * (Minemen behaviour). Uses the player's current bounding box, so with {@code legacyHitbox} on, the 1.5-block sneak gap is
- * restricted too. Enforced by {@code CompatMovement}.
+ * <p>{@code restrictMovement} - rejects a move that newly places the <em>server</em> hitbox in block collision, so a client
+ * rendering itself crawling/swimming can't traverse a gap its server hitbox can't fit. With {@code legacyHitbox} on, the 1.5-block sneak gap is restricted too. Enforced by {@code CompatMovement}.
  *
- * <p>{@code legacyHitbox} - keeps the server bounding box at standing dimensions regardless of pose (no modern crouch
- * shrink to 1.5) and uses 1.8 eye heights (1.54 sneaking vs the modern crouch eye), for server-side collision / drowning /
- * projectile spawn. The client still renders its own (shrunk) pose; this is the server-treated half. Enforced by
- * {@code OptimizedPlayer.getBoundingBox}/{@code getEyeHeight}.
+ * <p>{@code legacyHitbox} - keeps the server bounding box at standing dimensions (no crouch shrink to 1.5) + 1.8 eye heights
+ * (1.54 sneaking), for server-side collision / drowning / projectile spawn. The client still renders its own pose; this is the server half. Enforced by {@code OptimizedPlayer}.
  *
- * <p>{@code attackHitboxMargin} - the {@code attack_range} item-component {@code hitbox_margin} stamped onto the player's
- * items as the client sees them, so a modern 1.21.11+ client gets a 1.8-style attack box ({@code 0.1}) instead of the
- * modern default ({@code 0.3}). Held-item only (a bare-hand attack hardcodes {@code 0.0} client-side - unfixable here).
- * Enforced by {@code OptimizedPlayer} intercepting outgoing inventory packets.
+ * <p>{@code attackHitboxMargin} - the {@code attack_range.hitbox_margin} stamped onto the player's items as the client sees
+ * them, so a modern 1.21.11+ client gets a 1.8 attack box ({@code 0.1}) not the modern {@code 0.3}. Held-item only (bare-hand hardcodes {@code 0.0} client-side - unfixable). Enforced by {@code OptimizedPlayer} on outgoing inventory packets.
  *
- * <p>{@code disableOffhand} - blocks a modern client from putting items in / using the offhand 1.8 lacks: the gameplay
- * F-swap and any inventory click targeting the offhand slot are cancelled. Enforced by {@code CompatOffhand}. No effect on
- * 1.8 clients (they have no offhand).
+ * <p>{@code disableOffhand} - blocks a modern client using the offhand 1.8 lacks (F-swap + offhand-slot clicks cancelled).
+ * Enforced by {@code CompatOffhand}; no effect on 1.8 clients.
  *
  * <p>{@code restrictSprintSneak} / {@code restrictSprintUse} / {@code restrictSwimSpeed} - independently remove the modern
- * speed advantage of sprinting while sneaking / using an item / swimming (all forbidden or slower in 1.8). Enforced by
- * {@code CompatMovement} clamping the horizontal move (stripping the sprint bonus) and setting the client back, only while
- * the player is sprinting in that state (the knockback i-frame window is skipped so hits still launch).
+ * speed of sprinting while sneaking / using an item / swimming (forbidden or slower in 1.8). Enforced by {@code CompatMovement}
+ * (strips the sprint bonus while sprinting in that state; the knockback i-frame window is skipped so hits still launch).
  *
- * <p>{@code blockPlaceReach} - max distance (blocks) from the server eye to a placement's clicked point; a farther placement
- * is cancelled. Closes the modern sneak-bridge over-reach (the lower crouch eye out-reaches 1.8). Uses the server eye
- * (1.8 preset under {@code legacyHitbox}), so pair the two. Enforced by {@code CompatPlacement}; {@code null} = unmanaged.
+ * <p>{@code blockPlaceReach} - max blocks from the server eye to a placement's clicked point; farther is cancelled. Closes
+ * the modern sneak-bridge over-reach. Uses the server eye (1.8 preset under {@code legacyHitbox}), so pair the two. Enforced by {@code CompatPlacement}.
  *
  * <p>{@code animatiumFeatures} - explicit override for the {@link AnimatiumFeature} set sent to an Animatium client (which
- * applies 1.8 behaviour natively, letting us skip the matching server hacks). {@code null} (default) derives the set from the
- * knobs above ({@code attackHitboxMargin}/{@code legacyHitbox}/{@code restrictSprintUse}/{@code restrictSprintSneak}); set a
- * value to send exactly that set. Enforced by {@code CompatAnimatium}; no effect on non-Animatium clients.
+ * applies 1.8 behaviour natively, so the matching server hacks are skipped). {@code null} (default) derives it from the knobs
+ * above; set a value to send exactly that set. Enforced by {@code CompatAnimatium}; no effect on non-Animatium clients.
  */
 public final class CompatConfig {
 
@@ -96,6 +84,8 @@ public final class CompatConfig {
     public final @Nullable Boolean oldPlacement;
     /** When {@code true}, the modern attack cooldown + crosshair indicator is removed (huge {@code ATTACK_SPEED} so hits are always full, 1.8-style); {@code null} = unmanaged. Server-side (attribute), works for any client. */
     public final @Nullable Boolean removeAttackCooldown;
+    /** When {@code true}, Animatium clients that advertise the {@code SHORTS_VELOCITY} capability get byte-exact 1.8 velocity (3 shorts) instead of the lossy modern wire; {@code null} = unmanaged. Client-side (Animatium fork feature); gated on advertised support so a client that can't decode it is never sent shorts. */
+    public final @Nullable Boolean nativeShortVelocity;
     /** Explicit set of Animatium features to send (overrides the knob-derived set); {@code null} = derive from the knobs above. */
     public final @Nullable Set<AnimatiumFeature> animatiumFeatures;
 
@@ -122,6 +112,7 @@ public final class CompatConfig {
         disableEntityPush = b.disableEntityPush;
         oldPlacement = b.oldPlacement;
         removeAttackCooldown = b.removeAttackCooldown;
+        nativeShortVelocity = b.nativeShortVelocity;
         animatiumFeatures = b.animatiumFeatures;
     }
 
@@ -153,6 +144,7 @@ public final class CompatConfig {
         private @Nullable Boolean disableEntityPush;
         private @Nullable Boolean oldPlacement;
         private @Nullable Boolean removeAttackCooldown;
+        private @Nullable Boolean nativeShortVelocity;
         private @Nullable Set<AnimatiumFeature> animatiumFeatures;
 
         Builder() {}
@@ -180,6 +172,7 @@ public final class CompatConfig {
             disableEntityPush = c.disableEntityPush;
             oldPlacement = c.oldPlacement;
             removeAttackCooldown = c.removeAttackCooldown;
+            nativeShortVelocity = c.nativeShortVelocity;
             animatiumFeatures = c.animatiumFeatures;
         }
 
@@ -229,6 +222,8 @@ public final class CompatConfig {
         public Builder oldPlacement(@Nullable Boolean v) { oldPlacement = v; return this; }
         /** Remove the modern attack cooldown + crosshair indicator (huge {@code ATTACK_SPEED}; 1.8-style full hits). Server-side, any client. */
         public Builder removeAttackCooldown(@Nullable Boolean v) { removeAttackCooldown = v; return this; }
+        /** Send Animatium clients byte-exact 1.8 velocity (3 shorts) when they advertise the {@code SHORTS_VELOCITY} capability (fork feature; safe no-op for clients without the decoder). */
+        public Builder nativeShortVelocity(@Nullable Boolean v) { nativeShortVelocity = v; return this; }
         /** Override the Animatium feature set sent to Animatium clients ({@code null} = derive from the knobs above). Defensively copied. */
         public Builder animatiumFeatures(@Nullable Set<AnimatiumFeature> v) { animatiumFeatures = v != null ? Set.copyOf(v) : null; return this; }
         /** Convenience: send exactly these Animatium features (overriding the knob-derived set). */

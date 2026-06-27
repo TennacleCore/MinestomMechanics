@@ -7,9 +7,9 @@ import net.minestom.server.event.Event;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired after a detected attack has been processed by its ruleset (damage / knockback applied) - informational, not
- * cancellable. The post-attack counterpart to {@link PreAttackEvent} / {@link AttackEvent}; carries the finalized
- * snapshot for combo / cooldown tracking and the like.
+ * Fired after a detected attack has been processed by its ruleset (damage / knockback applied) - informational. The
+ * post-attack counterpart to {@link PreAttackEvent} / {@link AttackEvent}; carries the finalized snapshot for combo /
+ * cooldown tracking.
  */
 public final class AttackAppliedEvent implements Event {
 
@@ -27,7 +27,6 @@ public final class AttackAppliedEvent implements Event {
     /** The active services (system lookups, scoped profiles). */
     public Services services() { return services; }
 
-    // delegating accessors
     public Entity attacker() { return snapshot.attacker(); }
     public @Nullable Entity target() { return snapshot.target(); }
 }

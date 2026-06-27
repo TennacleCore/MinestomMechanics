@@ -35,7 +35,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * (frozen + periodic re-sync from {@link ProjectileEntity}) instead of breaking, and can be picked up while stuck.
  * {@link #setCritical} (set by the bow at full draw) adds the crit bonus + particles. Config: {@code Vanilla18.arrow()}.
  * Power adds {@code 0.5×level + 0.5} to the per-velocity damage and Punch the extra hit knockback (both captured at
- * launch; see {@link ProjectileEntity#punchLevel()}). TODO: Flame, and a dedicated {@code minecraft:arrow} damage type.
+ * launch; see {@link ProjectileEntity#punchLevel()}). TODO: a dedicated {@code minecraft:arrow} damage type.
  */
 public class ArrowEntity extends ManagedProjectile {
 
@@ -132,9 +132,8 @@ public class ArrowEntity extends ManagedProjectile {
     }
 
     /**
-     * Applies the tipped-arrow effects to the struck entity (vanilla {@code Arrow.doPostHurtEffects}): each effect's
-     * duration scaled by the item's {@code potion_duration_scale}, then {@code addEffect} - which routes through the
-     * attribute system's potion lifecycle (TPS-duration scaling, source behavior, e.g. {@code InstantDamage} for harming).
+     * Applies the tipped-arrow effects (vanilla {@code Arrow.doPostHurtEffects}): each effect's duration scaled by the
+     * item's {@code potion_duration_scale}, then {@code addEffect} - routing through the attribute potion lifecycle (TPS scaling, source behavior, e.g. {@code InstantDamage}).
      */
     private void applyOnHitEffects(LivingEntity le) {
         for (CustomPotionEffect e : onHitEffects) {

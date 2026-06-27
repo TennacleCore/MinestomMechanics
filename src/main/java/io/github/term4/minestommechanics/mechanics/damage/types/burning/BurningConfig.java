@@ -8,7 +8,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Function;
 
-// TODO: API hook for extinguishing? Or some other way to config what extinguishes it or whether it can be extinguished.
+// TODO: an API hook / config for what extinguishes burning (or whether it can be).
 /**
  * Config for the burning family ({@link InFireDamage}, {@link LavaDamage}, {@link BurningDamage}), keyed per member.
  * Adds the family's scheduling knobs (ignite ticks, ignite warmup, contact/burn intervals, skip-burn-in-lava) on top of

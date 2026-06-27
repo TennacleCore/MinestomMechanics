@@ -11,11 +11,6 @@ import java.util.function.Function;
  * <p>When built from a plain {@link #constant(Object)}, the value is also kept in {@code constant}
  * so callers with no context (e.g. a hit-independent default) can read it via
  * {@link #constantOrNull()} without invoking the function.
- *
- * @param <CTX>     the resolution context (e.g. a damage/attack context record)
- * @param <T>       the resolved value type
- * @param fn        the resolution function
- * @param constant  the constant value when context-independent, otherwise {@code null}
  */
 public record FieldValue<CTX, T>(Function<CTX, T> fn, @Nullable T constant) {
 

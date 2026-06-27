@@ -3,9 +3,8 @@ package io.github.term4.minestommechanics.mechanics.attribute.source;
 import net.minestom.server.entity.Entity;
 
 /**
- * Generic lifecycle hooks a {@link Source} runs while active on an entity - the {@code ProjectileBehavior} idiom. Kept
- * version-agnostic and domain-agnostic (apply / remove / tick); domain dispatch (e.g. combat on-hit) layers on top of
- * these in the system that owns those events. Every hook is a no-op by default.
+ * Generic lifecycle hooks a {@link Source} runs while active on an entity (apply / remove / tick). Domain-agnostic -
+ * domain dispatch (e.g. combat on-hit) layers on top in the owning system. Every hook is a no-op by default.
  */
 public interface Behavior {
 

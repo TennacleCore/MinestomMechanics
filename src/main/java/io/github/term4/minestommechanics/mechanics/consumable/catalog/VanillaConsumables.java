@@ -19,13 +19,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Vanilla consumable <em>type identities</em> (the golden apples) + the building blocks presets use to give them their
- * version-specific behavior. The types here are version-agnostic (key + material); the actual effects/food live in the
- * preset's per-type {@link io.github.term4.minestommechanics.mechanics.consumable.ConsumableTypeConfig} behavior, so the
- * same registered apple gets 1.8 vs 26 effects by scope ({@code vanilla18.Consumables.config()} / {@code vanilla.Consumables.config()}).
- * Effects are applied with {@code addEffect} (the attribute potion lifecycle, the path tipped arrows use); food/saturation
- * routes through {@link HungerSystem} (a no-op until that lands). Deliberately not a full vanilla food table - add more
- * types/behaviors through the API.
+ * Vanilla consumable <em>type identities</em> (the golden apples) + the building blocks presets use for their
+ * version-specific behavior. The types are version-agnostic (key + material); effects/food live in the preset's per-type
+ * behavior, so the same registered apple gets 1.8 vs 26 effects by scope. Effects apply via {@code addEffect} (the attribute
+ * potion lifecycle); food/saturation routes through {@link HungerSystem} (a no-op until that lands). Not a full vanilla food table - add more via the API.
  */
 public final class VanillaConsumables {
 
@@ -67,8 +64,7 @@ public final class VanillaConsumables {
 
     /**
      * A {@link ConsumableBehavior} that, on finish, restores {@code nutrition} food + {@code saturation} (through the
-     * {@link HungerSystem}) and applies each {@link Effect} (with particles + icon). The building block for food /
-     * golden-apple / potion behaviors; anything beyond this writes its own behavior.
+     * {@link HungerSystem}) and applies each {@link Effect} (particles + icon). The building block for food/golden-apple behaviors.
      */
     public static ConsumableBehavior effectFood(int nutrition, float saturation, Effect... effects) {
         return new ConsumableBehavior() {

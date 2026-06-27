@@ -16,48 +16,44 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.PlayerHand;
-import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
+import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.item.PlayerCancelItemUseEvent;
 import net.minestom.server.event.item.PlayerFinishItemUseEvent;
 import net.minestom.server.event.player.PlayerUseItemEvent;
+import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Item blocking (sword block / shield) - a thin damage hook over the scope {@link BlockingConfig}. Blocking is driven by
- * the item's {@code blocks_attacks} component: the client predicts the block from it (every version), Minestom turns it
- * into a use time, and the server is "blocking" while {@link Player#isUsingItem()}. So an item blocks when it (a) carries
- * the component, (b) has a material the active config marks blockable, and (c) isn't opted out via {@link #BLOCKABLE}.
- * The reduction is applied by {@link DamageSystem#apply} via {@link #reduce} (before armor, vanilla order); <em>how</em> a
- * hit is reduced is the resolved {@link BlockingBehavior}'s call.
+ * Item blocking (sword block / shield) - a thin damage hook over the scope {@link BlockingConfig}. Driven by the item's
+ * {@code blocks_attacks} component: the client predicts the block (every version), Minestom turns it into a use time, and
+ * the server is "blocking" while {@link Player#isUsingItem()}. So an item blocks when it (a) carries the component,
+ * (b) has a config-blockable material, and (c) isn't opted out via {@link #BLOCKABLE}. The reduction is applied before
+ * armor (vanilla order) by {@link DamageSystem#apply} via {@link #reduce}; <em>how</em> is the resolved {@link BlockingBehavior}'s call.
  *
  * <p>Blocking is <b>not</b> forced for a plain (component-less) blockable material - a modern client can't block a plain
- * sword, so forcing it server-side would desync. Give a sword the component to make it block
- * ({@code VanillaBlocking.withBlocking} / {@code item}); the config still gates which materials may block + how. Movement
- * slowdown is client-predicted, so nothing is applied server-side.
+ * sword, so forcing it server-side would desync. Add the component to make a sword block ({@code VanillaBlocking.withBlocking});
+ * the config still gates which materials block + how. Movement slowdown is client-predicted, nothing applied server-side.
  */
 public final class BlockingSystem implements MechanicsModule {
 
-    /**
-     * Per-item opt-out: absent = blockable, {@code false} = opted out. A configured-blockable material blocks unless its
-     * stack sets this {@code false}; an opted-out item never enters the block state and never affects damage.
-     */
+    /** Per-item opt-out: absent = blockable, {@code false} = opted out (never enters the block state, never affects damage). */
     public static final Tag<Boolean> BLOCKABLE = Tag.Boolean("mm:blockable");
 
     private final MinestomMechanics mm;
     private final Services services;
     private final BlockingConfig config; // install config (the resolution fallback)
-    private final EventNode<@NotNull Event> node;
+    private final EventNode<@NotNull PlayerEvent> node;
 
     public BlockingSystem(MinestomMechanics mm, BlockingConfig config) {
         this.mm = mm;
         this.services = mm.services();
         this.config = config;
-        this.node = EventNode.all("mm:blocking");
+        this.node = EventNode.type("mm:blocking", EventFilter.PLAYER);
         node.addListener(PlayerUseItemEvent.class, this::onUse);
         node.addListener(PlayerCancelItemUseEvent.class, e -> onStopUsing(e.getPlayer(), e.getHand(), e.getItemStack()));
         node.addListener(PlayerFinishItemUseEvent.class, e -> onStopUsing(e.getPlayer(), e.getHand(), e.getItemStack()));
@@ -90,7 +86,7 @@ public final class BlockingSystem implements MechanicsModule {
     }
 
     /** This system's listener node ({@code mm:blocking}). */
-    public EventNode<@NotNull Event> node() { return node; }
+    public EventNode<@NotNull PlayerEvent> node() { return node; }
     public BlockingConfig config() { return config; }
 
     /** Effective blocking config for {@code subject} (the defender): the scoped profile, else the install config. */
@@ -107,9 +103,8 @@ public final class BlockingSystem implements MechanicsModule {
     }
 
     /**
-     * Reduces a blocked hit, returning the (possibly reduced) amount. Returns {@code amount} unchanged when the victim
-     * isn't blocking (or the item/material is opted out / not blockable in the scope) or the behavior declines; otherwise
-     * fires {@link BlockingDamageEvent} and returns the reduced amount. A block never increases damage.
+     * Reduces a blocked hit. Returns {@code amount} unchanged if the victim isn't blocking, the item isn't blockable in
+     * scope, or the behavior declines; else fires {@link BlockingDamageEvent} and returns the reduced amount (never increases it).
      */
     public float reduce(LivingEntity victim, DamageContext damage, float amount) {
         if (amount <= 0 || !(victim instanceof Player p) || !p.isUsingItem()) return amount;

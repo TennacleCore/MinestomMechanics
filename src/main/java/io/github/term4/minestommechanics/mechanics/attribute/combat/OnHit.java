@@ -1,11 +1,10 @@
 package io.github.term4.minestommechanics.mechanics.attribute.combat;
 
 /**
- * An item-borne enchant that fires a side effect when its holder lands a hit (Fire Aspect's ignite, later Thorns'
- * reflect, etc.). The enchant is an {@link io.github.term4.minestommechanics.mechanics.attribute.source.ItemSource} that also
- * implements this; the relevant system triggers it (the damage system dispatches weapon on-hit after a fresh landed
- * hit), and the effect routes to its own domain via the {@link HitContext}'s services. Knockback-domain enchants instead
- * feed the knockback computation, so they are not {@code OnHit}.
+ * An item-borne enchant that fires a side effect when its holder lands a hit (e.g. Fire Aspect's ignite). An
+ * {@link io.github.term4.minestommechanics.mechanics.attribute.source.ItemSource} that also implements this; the damage
+ * system dispatches it after a landed hit, and the effect routes via {@link HitContext}'s services. Knockback enchants
+ * feed the KB computation instead, so they aren't {@code OnHit}.
  */
 public interface OnHit {
 

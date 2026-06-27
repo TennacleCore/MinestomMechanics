@@ -34,23 +34,31 @@ class LegacyVelocityCharacterizationTest {
 
     @Test
     void snapsToVanillaShortBucket() {
-        // 8 b/s = 0.4 b/t -> (int)(0.4*8000)=3200 shorts -> (3200+0.25)/8000 b/t -> *20 b/s
-        assertVec(new Vec(8.000625, 0, 0), LegacyVelocity.snap(new Vec(8, 0, 0)));
-        // negative truncates toward zero then re-centres negative
-        assertVec(new Vec(-8.000625, 0, 0), LegacyVelocity.snap(new Vec(-8, 0, 0)));
+        // 8 b/s = 0.4 b/t -> (int)(0.4*8000)=3200 shorts -> exact on-grid 3200*20/8000 = 8.0 b/s
+        assertVec(new Vec(8.0, 0, 0), LegacyVelocity.snap(new Vec(8, 0, 0)));
+        // negative truncates toward zero
+        assertVec(new Vec(-8.0, 0, 0), LegacyVelocity.snap(new Vec(-8, 0, 0)));
     }
 
     @Test
     void allAxesSnapIndependently() {
-        // x=8->0.4, y=4->0.2 (1600 shorts), z=-8->-0.4
-        assertVec(new Vec(8.000625, 4.000625, -8.000625), LegacyVelocity.snap(new Vec(8, 4, -8)));
+        // x=8->0.4 (3200), y=4->0.2 (1600), z=-8->-0.4 (-3200), each re-emitted exact on-grid
+        assertVec(new Vec(8.0, 4.0, -8.0), LegacyVelocity.snap(new Vec(8, 4, -8)));
     }
 
     @Test
     void clampsToVanillaWireLimit() {
-        // 100 b/s = 5 b/t -> clamped to 3.9 b/t -> (int)(3.9*8000)=31200 -> (31200+0.25)/8000 -> *20
-        assertVec(new Vec(78.000625, 0, 0), LegacyVelocity.snap(new Vec(100, 0, 0)));
-        assertVec(new Vec(0, -78.000625, 0), LegacyVelocity.snap(new Vec(0, -100, 0)));
+        // 100 b/s = 5 b/t -> clamped to 3.9 b/t -> (int)(3.9*8000)=31200 -> exact on-grid 31200*20/8000 = 78.0 (decodes 3.9, not 3.900125)
+        assertVec(new Vec(78.0, 0, 0), LegacyVelocity.snap(new Vec(100, 0, 0)));
+        assertVec(new Vec(0, -78.0, 0), LegacyVelocity.snap(new Vec(0, -100, 0)));
+    }
+
+    @Test
+    void clampsToConfiguredCap() {
+        // a tighter cap overrides the 3.9 default: 100 b/s = 5 b/t -> clamped to 2.0 b/t -> (int)(2.0*8000)=16000 -> 40.0 b/s
+        assertVec(new Vec(40.0, 0, 0), LegacyVelocity.snap(new Vec(100, 0, 0), 2.0));
+        // below the cap the bucket is unchanged
+        assertVec(new Vec(8.0, 0, 0), LegacyVelocity.snap(new Vec(8, 0, 0), 2.0));
     }
 
     @Test

@@ -46,9 +46,8 @@ public class PearlEntity extends ManagedProjectile {
         // portal transition). crossInstanceTeleport (off by default) opts into teleporting a shooter who has since left.
         boolean sameInstance = shooter.getInstance() == getInstance();
         if (!sameInstance && (!crossInstanceTeleport || getInstance() == null)) return;
-        // Teleport to the pearl's impact, keeping the shooter's own look. Same instance: a RELATIVE-view teleport
-        // (yaw/pitch delta 0) so the camera isn't snapped (the pearl's flight rotation never reaches the client). Cross
-        // instance: setInstance can't carry relative flags, so keep the shooter's current view absolutely.
+        // Teleport to the pearl's impact, keeping the shooter's look. Same instance: RELATIVE-view teleport (delta 0) so the
+        // camera isn't snapped (the pearl's flight rotation never reaches the client). Cross instance: setInstance can't carry relative flags, so keep the view absolutely.
         if (sameInstance) {
             shooter.teleport(getPosition().withView(0f, 0f), null, RelativeFlags.VIEW);
         } else {
@@ -60,7 +59,7 @@ public class PearlEntity extends ManagedProjectile {
         if (shooter instanceof Player) {
             Services s = services();
             if (s != null && s.damage() != null) {
-                // GenericDamage + explicit 5 stands in for the dedicated FALL/enderPearl type (no armor model yet). TODO(verify): hurt + invul in-game
+                // GenericDamage + explicit 5 stands in for a dedicated pearl/fall type. TODO(verify): hurt + invul in-game
                 s.damage().apply(DamageSnapshot.of(shooter, GenericDamage.INSTANCE).withAmount(FALL_DAMAGE).withSource(this));
             }
         }

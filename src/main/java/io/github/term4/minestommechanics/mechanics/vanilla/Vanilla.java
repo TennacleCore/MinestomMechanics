@@ -15,7 +15,7 @@ public final class Vanilla {
 
     private Vanilla() {}
 
-    /** The (incomplete) modern 26.1 mechanics profile (damage, projectiles, attributes, consumables, velocity). */
+    /** The (incomplete) modern 26.1 mechanics profile. */
     public static MechanicsProfile profile() {
         return MechanicsProfile.builder()
                 .set(MechanicsKeys.DAMAGE, Damage.config())

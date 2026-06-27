@@ -139,13 +139,11 @@ public class OptimizedPlayer extends Player {
     }
 
     /**
-     * Arms the self-echo filter around tick-driven pose recalculation. {@link Player#updatePose()} runs every server
-     * tick from {@code update()} (not only inside a client packet listener), recomputing the pose from whether the
-     * player still fits their space - this is where crawl enter/exit happens (e.g. squeezing under a closing trapdoor).
-     * Without arming the flag here that self-bound pose echo slips through unfiltered, causing the crawl/stand stutter;
-     * {@link SelfMetaFilter} already suppresses the pose index, it just needs the flag set. Save/restore the previous
-     * value so it nests safely if a packet listener already armed it. A direct {@code setPose(...)} does not route
-     * through here, so server-authoritative poses still echo.
+     * Arms the self-echo filter around tick-driven pose recalculation. {@link Player#updatePose()} runs every server tick
+     * (not only in a packet listener), recomputing the pose from whether the player still fits - where crawl enter/exit
+     * happens. Without arming the flag here the self-bound pose echo slips through, causing the crawl/stand stutter
+     * ({@link SelfMetaFilter} suppresses the pose index, it just needs the flag). Save/restore so it nests if a listener
+     * already armed it; a direct {@code setPose} doesn't route here, so server-authoritative poses still echo.
      */
     @Override
     protected void updatePose() {
@@ -161,11 +159,9 @@ public class OptimizedPlayer extends Player {
 
     /**
      * Cross-version compat: a {@code CompatConfig}-disabled pose is rewritten to {@link EntityPose#STANDING} <em>before</em>
-     * it reaches metadata, so the player genuinely never enters it - nothing visible to self or viewers, matching a 1.8
-     * server. {@link #updatePose()} routes both the swim flag and the squeeze-to-fit crawl through {@code setPose}, so
-     * intercepting here covers both at the source (no after-the-fact flip-flop). The metadata layer dedups the repeated
-     * {@code STANDING} write, so a client holding a disabled input costs a single correction packet, not per-tick spam.
-     * Sent with the self-echo guard cleared so the {@code STANDING} correction reaches the mispredicting client too.
+     * it reaches metadata, so the player never enters it (nothing visible to self or viewers, like a 1.8 server). {@link #updatePose()}
+     * routes both the swim flag and the squeeze-crawl through {@code setPose}, so intercepting here covers both at the source.
+     * The metadata layer dedups the repeated {@code STANDING} write (a held input = one correction packet, not per-tick spam); sent with the self-echo guard cleared so the correction reaches the mispredicting client.
      */
     @Override
     public void setPose(@NotNull EntityPose pose) {
@@ -226,7 +222,7 @@ public class OptimizedPlayer extends Player {
             int cadence = TickScaler.clientCadence(positionBroadcastInterval);
             if (cadence > 1 && getAliveTicks() % cadence != 0) sendPackets = false;
         }
-        // Technically api internal but it works. Bite me.
+        // api-internal override, but it works.
         super.refreshPosition(newPosition, ignoreView, sendPackets);
     }
 

@@ -8,10 +8,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The registered {@link Source} catalog, split by kind: {@link EntitySource}s keyed by potion-effect key, {@link ItemSource}s
- * by held-item enchant key, {@link ArmorSource}s by worn-armor enchant key. Keeping them apart lets the scan match active
- * effects only against entity sources, held enchants only against item sources, and worn armor only against armor sources.
- * Adding one is a single {@link #register} call (dispatched by subtype).
+ * The registered {@link Source} catalog, split by kind ({@link EntitySource} by effect key, {@link ItemSource}/{@link HeldSource}
+ * by enchant key, {@link ArmorSource} by armor-enchant key) so each scan matches only the relevant kind. {@link #register}
+ * dispatches by subtype.
  */
 public final class SourceRegistry {
 

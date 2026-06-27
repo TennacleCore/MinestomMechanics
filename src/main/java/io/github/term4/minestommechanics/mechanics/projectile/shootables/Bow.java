@@ -28,7 +28,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * <p>Vanilla 1.8: draw power {@code (s^2 + 2s)/3} capped at 1, {@code < 0.1} fires nothing, full draw is critical
  * (chance configurable via {@link #fullPowerCritChance}); consumes one arrow (unless creative); the arrow launches at
  * speed {@code power * speed}.
- * TODO: gate the draw on having arrows, offhand selection, Infinity/Power/Punch/Flame (needs the enchant system).
+ * TODO: offhand arrow selection; gate drawing (not just release) on ammo.
  */
 public final class Bow implements Shootable {
 

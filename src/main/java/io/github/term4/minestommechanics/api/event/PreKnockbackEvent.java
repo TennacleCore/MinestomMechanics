@@ -17,16 +17,13 @@ public final class PreKnockbackEvent extends CancellableMechanicsEvent<Knockback
         super(snap, services);
     }
 
-    /** Knockback config used for calculation ({@code null} = the system config). */
+    /** {@code null} = the system config. */
     public @Nullable KnockbackConfig config() { return finalSnap().config(); }
-
-    /** Replaces the config used for calculation for this hit (sugar for rebuilding {@link #finalSnap()}). */
     public void config(@Nullable KnockbackConfig config) { finalSnap(finalSnap().withConfig(config)); }
 
-    /** Whether this is a melee hit (gates the sprint extra / melee-only components). */
+    /** Melee hit (gates sprint extra / melee-only components). */
     public boolean melee() { return finalSnap().melee(); }
 
-    // delegating accessors
     public @Nullable Entity source() { return finalSnap().source(); }
     public @Nullable Entity target() { return finalSnap().target(); }
 }

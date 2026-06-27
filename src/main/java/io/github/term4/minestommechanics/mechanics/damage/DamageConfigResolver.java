@@ -17,7 +17,7 @@ public final class DamageConfigResolver {
             return new DamageContext(snap, services);
         }
 
-        /** Item involved in the damage (melee weapon, later a projectile's bow), or {@code null}. */
+        /** Item involved in the damage (melee weapon), or {@code null}. */
         public @Nullable ItemStack item() { return snap.item(); }
 
         /** Type-specific payload attached by the producer (e.g. the fall distance), or {@code null}. */

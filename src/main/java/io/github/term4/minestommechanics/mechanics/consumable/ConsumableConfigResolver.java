@@ -10,10 +10,9 @@ import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Resolves a {@link ConsumableConfig} + a {@link Consumable} type into plain values, against a {@link ConsumableContext}.
- * Mirrors {@code ProjectileConfigResolver}: the effective per-consumable config is layered (active config's per-type
- * override -&gt; its generic {@link ConsumableConfig#defaults()} -&gt; the type's {@code defaultConfig()} -&gt; hard
- * fallbacks), then each knob is resolved against the context.
+ * Resolves a {@link ConsumableConfig} + {@link Consumable} type into plain values against a {@link ConsumableContext}.
+ * Mirrors {@code ProjectileConfigResolver}: per-type override -&gt; {@link ConsumableConfig#defaults()} -&gt; the type's
+ * {@code defaultConfig()} -&gt; hard fallbacks, then resolve each knob.
  */
 public final class ConsumableConfigResolver {
 
@@ -44,9 +43,8 @@ public final class ConsumableConfigResolver {
         }
 
         /**
-         * The resolved {@link ParticleVisibility} for this consume (the {@code particles} knob off the scope's config),
-         * default {@link ParticleVisibility#SHOWN}. The built-in effect behaviors read it to flag {@code addEffect}, so a
-         * potion's particle behaviour is a config knob rather than behavior code. Resolve once per behavior (it re-reads the config).
+         * The resolved {@link ParticleVisibility} for this consume ({@code particles} knob, default {@link ParticleVisibility#SHOWN}).
+         * The built-in effect behaviors read it to flag {@code addEffect}. Resolve once per behavior (it re-reads the config).
          */
         public ParticleVisibility particles() {
             ConsumableSystem sys = services != null ? services.consumables() : null;

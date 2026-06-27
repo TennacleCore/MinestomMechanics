@@ -34,9 +34,8 @@ public final class MeleeDamage extends DamageType {
     /**
      * Builds a melee snapshot for a hit with {@code item}, in vanilla order:
      * <pre>attackDamage (1.8 weapon table + modifiers) → crit (×multiplier) → + melee flat-add (Sharpness)</pre>
-     * The attack-damage and flat-add terms read attribute <em>values</em> through the {@link AttributeSystem} - never a
-     * specific enchant/potion - so adding a contributor is a registration, not an edit here. With no contributors active
-     * (or the system absent), this reduces 1:1 to the old table×crit behavior.
+     * The attack-damage and flat-add terms read attribute <em>values</em> through the {@link AttributeSystem}, so adding a
+     * contributor is a registration, not an edit here; with none active (or the system absent) it reduces to table×crit.
      */
     public DamageSnapshot snapshot(Entity attacker, Entity target, boolean critical, @Nullable ItemStack item,
                                    Services services) {

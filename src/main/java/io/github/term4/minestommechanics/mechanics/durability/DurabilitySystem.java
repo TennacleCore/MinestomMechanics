@@ -12,12 +12,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Item durability (damage-on-use). Mirrors the other systems: registers itself on {@code mm}, owns an {@code EventNode},
- * and resolves per-scope config through {@code MechanicsProfiles.durabilityFor} (player -&gt; instance -&gt; global) with
- * the install config as the final fallback.
+ * Item durability (damage-on-use). Mirrors the other systems; per-scope config via {@code DURABILITY}.
  *
  * <p><b>Stub.</b> The API surface is in place - {@link #install}, scope resolution, and the {@link #damage} entry point
- * other systems (combat, mining, Thorns) will call - but no durability is consumed yet (the path is a documented TODO).
+ * combat/mining/Thorns will call - but no durability is consumed yet (TODO).
  */
 public final class DurabilitySystem implements MechanicsModule {
 
@@ -31,7 +29,7 @@ public final class DurabilitySystem implements MechanicsModule {
         this.node = EventNode.all("mm:durability");
     }
 
-    /** This system's listener node ({@code mm:durability}); everything the system hooks lives under it. */
+    /** This system's listener node ({@code mm:durability}). */
     public EventNode<@NotNull Event> node() { return node; }
     public DurabilityConfig config() { return config; }
 
@@ -47,8 +45,8 @@ public final class DurabilitySystem implements MechanicsModule {
     }
 
     /**
-     * Applies {@code amount} points of durability damage to {@code holder}'s item in {@code slot} - the entry point
-     * combat, mining, and Thorns will call. <b>Stub:</b> a no-op until the durability logic lands.
+     * Applies {@code amount} durability damage to {@code holder}'s item in {@code slot} (the combat/mining/Thorns entry point).
+     * <b>Stub:</b> a no-op until the durability logic lands.
      */
     public void damage(LivingEntity holder, EquipmentSlot slot, int amount) {
         if (!enabled(holder)) return;

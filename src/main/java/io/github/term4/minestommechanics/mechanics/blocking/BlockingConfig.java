@@ -11,13 +11,11 @@ import java.util.function.Function;
 
 /**
  * Immutable blocking config, assignable per scope via the {@link io.github.term4.minestommechanics.MechanicsProfile}
- * {@code blocking} member (resolved player -&gt; instance -&gt; global, install config as the final fallback; installed by
- * {@link BlockingSystem}). A {@code Material} blocks iff it has an entry in {@link #materials} - that map is both "which
+ * {@code blocking} member. A {@code Material} blocks iff it has an entry in {@link #materials} - that map is both "which
  * items block" and their per-item config; {@link #defaults} supplies shared knobs every entry inherits.
  *
- * <p>So a server disables blocking with an empty config (or {@code defaults(enabled(false))}), retunes it per profile, or
- * maps materials to different {@link BlockingBehavior}s (swords -&gt; {@code SWORD}, shield -&gt; {@code SHIELD}, a custom
- * sword -&gt; a custom behavior). The behavior is the unit; items map to it here.
+ * <p>So a server disables blocking with an empty config (or {@code defaults(enabled(false))}), retunes per profile, or
+ * maps materials to different {@link BlockingBehavior}s. The behavior is the unit; items map to it here.
  */
 public final class BlockingConfig extends Config<BlockingContext, BlockingConfig> {
 

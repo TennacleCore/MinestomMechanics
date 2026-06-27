@@ -13,10 +13,9 @@ import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Resolves a {@link ProjectileConfig} + snapshot into plain values, in two phases against the same
- * {@link ProjectileContext}: {@link #resolveFlight} at launch (spawn + physics knobs) and {@link #resolveHit} at impact
- * (hit knobs, against a context carrying the struck target + throw origin). The merged {@link ProjectileTypeConfig} is
- * computed once at launch and reused for impact.
+ * Resolves a {@link ProjectileConfig} + snapshot into plain values, in two phases: {@link #resolveFlight} at launch
+ * (spawn + physics) and {@link #resolveHit} at impact (hit knobs, against a context with the struck target + throw
+ * origin). The merged {@link ProjectileTypeConfig} is computed once at launch and reused for impact.
  */
 public final class ProjectileConfigResolver {
 

@@ -11,21 +11,18 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Per-consumable config, keyed by {@link #key()}. Extends {@link Config}, so every value is a {@link FieldValue} resolved
- * against a {@link ConsumableContext} (constant or per-consume lambda); unset fields fall back through the resolver chain
- * (per-type override -&gt; the active {@link ConsumableConfig}'s {@link ConsumableConfig#defaults()} -&gt; the type's
- * {@code defaultConfig()} -&gt; hard fallbacks). The {@link #behavior} knob is where presets supply the version-specific
- * effects/hunger for a registered type, so the same {@link Consumable} identity gets 1.8 vs 26 behavior by scope.
+ * Per-consumable config, keyed by {@link #key()}: every value is a {@link FieldValue} resolved against a
+ * {@link ConsumableContext} (constant or per-consume lambda), unset fields falling back per-type override -&gt;
+ * {@link ConsumableConfig#defaults()} -&gt; the type's {@code defaultConfig()} -&gt; hard fallbacks. The {@link #behavior}
+ * knob is where presets supply the version-specific effects/hunger, so one {@link Consumable} identity gets 1.8 vs 26 behavior by scope.
  */
 public final class ConsumableTypeConfig extends Config<ConsumableContext, ConsumableTypeConfig> {
 
     /**
      * How a consumable's applied effects render: {@link #SHOWN} (vanilla swirl + HUD icon), {@link #HIDDEN} (icon only,
-     * no swirl), or {@link #CUSTOM} (no vanilla swirl; reserved for the platform particle system). The built-in effect
-     * behaviors read the resolved value via {@code ctx.particles()} and flag {@code addEffect} from it.
+     * no swirl), or {@link #CUSTOM} (no vanilla swirl; reserved for the platform particle system). Read via {@code ctx.particles()}.
      *
-     * <p><b>Stub:</b> {@link #CUSTOM} suppresses the vanilla swirl like {@link #HIDDEN} for now; custom particle rendering
-     * lands with the platform particle system.
+     * <p><b>Stub:</b> {@link #CUSTOM} suppresses the vanilla swirl like {@link #HIDDEN} for now; custom particle rendering lands with the platform particle system.
      */
     public enum ParticleVisibility {
         SHOWN, HIDDEN, CUSTOM;

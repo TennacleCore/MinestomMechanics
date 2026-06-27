@@ -9,6 +9,7 @@ import io.github.term4.minestommechanics.api.event.KnockbackEvent;
 import io.github.term4.minestommechanics.api.event.PreKnockbackEvent;
 import io.github.term4.minestommechanics.api.event.KnockbackAppliedEvent;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
+import io.github.term4.minestommechanics.platform.compatibility.LegacyVelocityBridge;
 import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.coordinate.Vec;
@@ -35,7 +36,7 @@ public final class KnockbackSystem implements MechanicsModule {
     private final Services services;
     private final EventNode<@NotNull Event> node;
 
-    // Auxiliary phases are fired only when a listener exists (the main KnockbackEvent always fires).
+    // Pre/Applied fire only when listened to; main always fires
     private static final ListenerHandle<PreKnockbackEvent> PRE_KNOCKBACK = EventDispatcher.getHandle(PreKnockbackEvent.class);
     private static final ListenerHandle<KnockbackAppliedEvent> KNOCKBACK_APPLIED = EventDispatcher.getHandle(KnockbackAppliedEvent.class);
 
@@ -60,10 +61,10 @@ public final class KnockbackSystem implements MechanicsModule {
     }
 
     public void apply(KnockbackSnapshot snap) {
-        // config chain: snapshot -> victim scope -> install. inert when none resolves; an empty config applies at the vanilla floor
+        // config: snapshot -> victim scope -> install (none = inert, empty = vanilla floor)
         if (snap.config() == null && configFor(snap.target()) == null) return;
 
-        // Pre phase (lazy): cancel the knockback before it's computed (no-KB zones, abilities), or redirect inputs.
+        // Pre (lazy): cancel or redirect before compute
         if (PRE_KNOCKBACK.hasListener()) {
             PreKnockbackEvent pre = new PreKnockbackEvent(snap, services);
             EventDispatcher.call(pre);
@@ -71,19 +72,16 @@ public final class KnockbackSystem implements MechanicsModule {
             snap = pre.finalSnap();
         }
 
-        // Main phase: inspect / modify the computed knockback before it is applied.
         var event = new KnockbackEvent(snap, services);
         EventDispatcher.call(event);
         if (event.isCancelled()) return;
         KnockbackSnapshot finalSnap = event.finalSnap();
 
-        // Knockback requires a target
         Entity target = finalSnap.target();
         if (target == null) return;
         KnockbackSnapshot cfgSnap = finalSnap.config() != null ? finalSnap : finalSnap.withConfig(configFor(target));
 
-        // Build the velocity. The computed path resolves the config once and reuses it for quantize below; an API velocity
-        // override skips compute, so it resolves lazily just for quantize.
+        // override skips compute; resolved is fetched lazily below, for quantize
         @Nullable Vec velocity;
         @Nullable KnockbackConfigResolver.ResolvedKnockbackConfig resolved;
         if (event.velocity() != null) {
@@ -93,7 +91,6 @@ public final class KnockbackSystem implements MechanicsModule {
             KnockbackCalculator.KnockbackResult result = calc.computeResult(cfgSnap);
             velocity = result != null ? result.velocity() : null;
             resolved = result != null ? result.config() : null;
-            // API direction + computed magnitude
             if (velocity != null && event.direction() != null) {
                 double mag = Math.sqrt(velocity.x() * velocity.x() + velocity.z() * velocity.z());
                 Vec dir = event.direction().normalize();
@@ -101,14 +98,15 @@ public final class KnockbackSystem implements MechanicsModule {
             }
         }
 
-        // vanilla broadcasts the KB but restores the victim's pre-KB server velocity, so it's never folded into the next
-        // hit (the tracker isn't told). quantizeVelocity (default on) sends what a 1.8 server's wire encoding would.
+        // broadcast only: not fed to the tracker, so it won't fold into the next hit
         if (velocity != null) {
             if (resolved == null) resolved = calc.resolveConfig(cfgSnap);
             boolean quantize = !Boolean.FALSE.equals(resolved.quantizeVelocity());
-            Vec applied = quantize ? LegacyVelocity.snap(velocity) : velocity;
-            target.setVelocity(applied);
-            // Applied phase (lazy): the velocity was set.
+            double cap = resolved.velocityCap() != null ? resolved.velocityCap() : LegacyVelocity.DEFAULT_CAP;
+            Vec applied = quantize ? LegacyVelocity.snap(velocity, cap) : velocity;
+            // exact 1.8 wire for a knocked legacy client above the LP-exact band (via ViaBridge); else the normal LP broadcast
+            if (!(quantize && LegacyVelocityBridge.applyExact(target, velocity, applied, cap))) target.setVelocity(applied);
+            // Applied (lazy)
             if (KNOCKBACK_APPLIED.hasListener()) EventDispatcher.call(new KnockbackAppliedEvent(finalSnap, applied, services));
         }
     }

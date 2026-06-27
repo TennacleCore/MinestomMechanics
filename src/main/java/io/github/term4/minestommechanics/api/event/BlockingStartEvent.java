@@ -6,9 +6,8 @@ import net.minestom.server.event.trait.CancellableEvent;
 import net.minestom.server.item.ItemStack;
 
 /**
- * Fired when a player begins blocking - raises a blockable item (right-click). <b>Cancellable:</b> cancelling denies the
- * block, so the player never enters the blocking state. For a shield the raise is immediate but the block only becomes
- * effective after its block-delay; the actual per-hit reduction fires {@link BlockingDamageEvent}, and the lower fires
+ * Fired when a player begins blocking (raises a blockable item). Cancel to deny the block (never enters the state).
+ * A shield only becomes effective after its block-delay; per-hit reduction is {@link BlockingDamageEvent}, the lower is
  * {@link BlockingStopEvent}.
  */
 public final class BlockingStartEvent implements CancellableEvent {
@@ -24,11 +23,8 @@ public final class BlockingStartEvent implements CancellableEvent {
         this.item = item;
     }
 
-    /** The blocking player. */
     public Player player() { return player; }
-    /** The hand holding the blocking item. */
     public PlayerHand hand() { return hand; }
-    /** The item being raised to block. */
     public ItemStack item() { return item; }
 
     @Override public boolean isCancelled() { return cancelled; }

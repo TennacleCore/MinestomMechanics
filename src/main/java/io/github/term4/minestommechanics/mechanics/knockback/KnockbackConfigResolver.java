@@ -92,6 +92,7 @@ public final class KnockbackConfigResolver {
                 resolve(cfg.frictionModeV, ctx),
                 resolve(cfg.velocity, ctx),
                 resolve(cfg.quantizeVelocity, ctx),
+                resolve(cfg.velocityCap, ctx),
                 resolve(cfg.airborneVertical, ctx),
                 cfg.customComponents
         );
@@ -126,6 +127,7 @@ public final class KnockbackConfigResolver {
             @Nullable KnockbackConfig.FrictionMode frictionModeV,
             @Nullable VelocityRule velocity,
             @Nullable Boolean quantizeVelocity,
+            @Nullable Double velocityCap,
             @Nullable Boolean airborneVertical,
             @Nullable List<KnockbackComponent> customComponents
     ) {}

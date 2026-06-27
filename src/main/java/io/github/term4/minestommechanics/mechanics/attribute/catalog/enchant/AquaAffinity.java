@@ -11,8 +11,7 @@ import java.util.List;
 /**
  * Aqua Affinity (enchant) - faster mining while submerged. An {@link ArmorSource} (worn-helmet enchant), pushed onto the
  * wearer's {@code SUBMERGED_MINING_SPEED} while equipped: 26's {@code +4 × level} {@code ADD_MULTIPLIED_TOTAL}
- * ({@code submerged_mining_speed} data effect). Like {@link Efficiency}, this is the <em>delivery</em> half - it is inert
- * until a dig/mining calculator consumes the attribute (1.8 instead removes the underwater 5x penalty in that calculator).
+ * ({@code submerged_mining_speed} data effect). Inert until a mining calculator consumes the attribute (1.8 instead drops the underwater 5x penalty there).
  */
 public final class AquaAffinity {
 

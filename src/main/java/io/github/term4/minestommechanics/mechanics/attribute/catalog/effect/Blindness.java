@@ -5,9 +5,9 @@ import io.github.term4.minestommechanics.mechanics.attribute.source.Source;
 import net.kyori.adventure.key.Key;
 
 /**
- * Blindness (potion) - no attribute modifier and no server behavior; a purely client-rendered effect (reduced render
- * distance + black vignette). The client applies the visual off the stored effect, so the source is a no-op - registered
- * only so it's a first-class, discoverable catalog effect (scope-disableable like any other). Version-agnostic.
+ * Blindness (potion) - no modifier or server behavior; a purely client-rendered effect (reduced render distance + black
+ * vignette) the client applies off the stored effect. The no-op source is registered to be a discoverable,
+ * scope-disableable catalog entry. Version-agnostic.
  */
 public final class Blindness {
 

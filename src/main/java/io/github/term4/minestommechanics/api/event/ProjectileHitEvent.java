@@ -14,11 +14,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired when a projectile hits an entity or a block, before the effects apply. Same shape as {@link DamageEvent} /
- * {@link KnockbackEvent}: {@link #snapshot()} + a {@link #resolvedHit()} preview + per-hit overrides applied instead of
- * the resolved values (each unset = use resolved): {@link #damage(double)}, {@link #knockback(KnockbackConfig)} /
- * {@link #knockbackSource(KnockbackSource)}, {@link #removeOnHit(boolean)}, and {@link #response(HitResponse)} to force
- * the outcome. {@code cancel} suppresses everything (projectile keeps flying). {@link #target()} is {@code null} for a block hit.
+ * Fired when a projectile hits an entity or block, before effects apply. Same shape as {@link DamageEvent} /
+ * {@link KnockbackEvent}: a {@link #snapshot()}, a {@link #resolvedHit()} preview, and per-hit overrides (each unset =
+ * use resolved). Cancel suppresses everything (the projectile keeps flying); {@link #target()} is {@code null} for a block hit.
  */
 public class ProjectileHitEvent implements CancellableEvent {
 
@@ -53,48 +51,43 @@ public class ProjectileHitEvent implements CancellableEvent {
     }
 
     public @NotNull ProjectileEntity projectile() { return projectile; }
-    /** The launch snapshot (shooter, type, item, power, ...). */
     public ProjectileSnapshot snapshot() { return snapshot; }
     public @Nullable Entity shooter() { return shooter; }
     /** The hit entity, or {@code null} for a block hit. */
     public @Nullable Entity target() { return target; }
     public @NotNull Point hitPoint() { return hitPoint; }
     public boolean isBlockHit() { return target == null; }
-    /** Whether the struck entity is the shooter itself. */
     public boolean isSelfHit() { return target != null && target == shooter; }
-    /** The shooter's position + yaw/pitch stamped at throw time, or {@code null} if there was no shooter. */
+    /** Shooter pos + view at throw time, or {@code null}. */
     public @Nullable Pos throwOrigin() { return throwOrigin; }
 
-    /** The resolved hit knobs for this hit (the config preview, before overrides). */
+    /** Resolved hit knobs (config preview, before overrides). */
     public ResolvedHit resolvedHit() { return resolved; }
 
-    /** Final damage this hit will deal: the {@link #damage(double) override} when set, else the resolved amount
-     *  (arrows: {@code ceil(speed * perSpeed) + crit}). {@code 0} for a block hit. */
+    /** Final damage: the {@link #damage(double) override} else the resolved amount. {@code 0} for a block hit. */
     public double damage() { return damage != null ? damage : resolvedDamage; }
     public void damage(double amount) { this.damage = amount; }
 
-    /** Knockback applied on a landing hit: the override when set, else the resolved {@link KnockbackConfig} ({@code null} = none). */
+    /** Knockback on a landing hit: override else resolved ({@code null} = none). */
     public @Nullable KnockbackConfig knockback() { return knockback != null ? knockback : resolved.knockback(); }
     public void knockback(@Nullable KnockbackConfig kb) { this.knockback = kb; }
 
-    /** Knockback origin frame: the override when set, else the resolved {@link KnockbackSource}. */
+    /** Knockback origin frame: override else resolved. */
     public KnockbackSource knockbackSource() { return knockbackSource != null ? knockbackSource : resolved.knockbackSource(); }
     public void knockbackSource(KnockbackSource source) { this.knockbackSource = source; }
 
-    /** Whether the projectile is removed on this hit: the override when set, else the resolved remove-on-{entity,block}-hit. */
+    /** Whether the projectile is removed on this hit (override else the resolved entity/block-hit flag). */
     public boolean removeOnHit() {
         if (removeOnHit != null) return removeOnHit;
         return isBlockHit() ? resolved.removeOnBlockHit() : resolved.removeOnEntityHit();
     }
     public void removeOnHit(boolean remove) { this.removeOnHit = remove; }
 
-    /** Forced outcome for this hit, or {@code null} to use the config's self-hit / invuln-hit logic. {@code HIT} =
-     *  deal damage + knockback + impact; {@code PASS_THROUGH} = keep flying; {@code DEFLECT} = bounce; {@code DESTROY}
-     *  = impact effect then remove. */
+    /** Forced outcome, or {@code null} to use the config's self-hit / invuln-hit logic. */
     public @Nullable HitResponse response() { return response; }
     public void response(@Nullable HitResponse response) { this.response = response; }
 
-    /** Cancel the hit: no damage/knockback/impact/removal - the projectile keeps flying. */
+    /** Cancel the hit (no damage/knockback/impact/removal); the projectile keeps flying. */
     public void cancel() { setCancelled(true); }
 
     @Override public boolean isCancelled() { return cancelled; }

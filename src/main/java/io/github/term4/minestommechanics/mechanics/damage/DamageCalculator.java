@@ -5,8 +5,8 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.D
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.ResolvedDamageConfig;
 
 /**
- * Computes the base damage amount for a snapshot (type-specific modifiers are applied by the producer first); the
- * future attribute system will inject weapon/enchant/armor math here. Mirrors KnockbackCalculator.
+ * Computes the base damage amount for a snapshot (type-specific modifiers are applied by the producer first). Mirrors
+ * KnockbackCalculator.
  */
 public final class DamageCalculator {
 

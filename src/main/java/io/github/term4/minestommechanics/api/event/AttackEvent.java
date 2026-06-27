@@ -14,11 +14,10 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The main attack phase: fired when a hit is detected and its config resolved, before the ruleset runs. Bracketed by
- * {@link PreAttackEvent} (raw detection) and {@link AttackAppliedEvent} (after the ruleset). Shares the
- * {@link CancellableMechanicsEvent} shape - an immutable {@link #snapshot()} plus a mutable {@link #finalSnap()} - with
- * per-hit overrides for the ruleset, crit verdict, and item.
+ * {@link PreAttackEvent} (raw detection) and {@link AttackAppliedEvent} (after the ruleset); carries per-hit overrides
+ * for the ruleset, crit verdict, and item.
  */
-// Future plans to allow mobs / other entities to fire this event, or for users to manually fire it.
+// TODO: allow mobs/other entities, or manual firing
 public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot> {
 
     private boolean process = true;
@@ -31,16 +30,11 @@ public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot>
         super(snapshot, services);
     }
 
-    /** Attack config used for this hit ({@code null} = defaults). */
+    /** {@code null} = defaults. */
     public @Nullable AttackConfig config() { return finalSnap().config(); }
-
-    /** Replaces the config used for this hit (sugar for rebuilding {@link #finalSnap()}). */
     public void config(AttackConfig config) { finalSnap(finalSnap().withConfig(config)); }
 
-    /**
-     * The effective plain values for this hit: the {@link #config() current config} resolved against it (re-resolved
-     * from the current {@link #finalSnap()} each call, so it reflects listener changes). {@code null} config = defaults.
-     */
+    /** Effective values for this hit, re-resolved from {@link #finalSnap()} each call (reflects listener changes). */
     public AttackConfigResolver.ResolvedAttackConfig resolvedConfig() {
         AttackSnapshot s = finalSnap();
         return s.config() != null
@@ -48,11 +42,11 @@ public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot>
                 : AttackConfigResolver.ResolvedAttackConfig.defaults();
     }
 
-    /** Whether the attack proceeds to the ruleset after the event ({@code false} = detected but not processed). */
+    /** Whether the attack proceeds to the ruleset ({@code false} = detected but not processed). */
     public boolean process() { return process; }
     public void process(boolean process) { this.process = process; }
 
-    /** Per-hit ruleset override, or {@code null} to use the config's ruleset. */
+    /** Per-hit ruleset override ({@code null} = the config's). */
     public @Nullable AttackRule.Ruleset processor() { return ruleset; }
     public void processor(AttackRule.Ruleset ruleset) { this.ruleset = ruleset; }
 
@@ -64,77 +58,62 @@ public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot>
     public @Nullable ItemStack overrideItem() { return overrideItem; }
     public void overrideItem(@Nullable ItemStack item) { this.overrideItem = item; }
 
-    // delegating accessors
     public Entity attacker() { return finalSnap().attacker(); }
     public @Nullable Entity target() { return finalSnap().target(); }
 
-    /** Attacker is off the ground and descending (a melee crit precondition). */
+    /** Attacker is off the ground and descending (a crit precondition). */
     public boolean attackerFalling() {
         return MotionTracker.isFalling(attacker());
     }
 
-    /** Whether the attacker is a flying player (creative/spectator flight or granted flight). */
+    /** Attacker is a flying player. */
     public boolean attackerFlying() {
         return attacker() instanceof Player p && p.isFlying();
     }
 
-    /** Whether the attacker is blinded - vanilla blindness suppresses crits ({@code 1.8/26: !hasEffect(BLINDNESS)}). */
+    /** Attacker is blinded (vanilla blindness suppresses crits). */
     public boolean attackerBlind() {
         return attacker().getEffectLevel(PotionEffect.BLINDNESS) >= 0;
     }
 
-    /**
-     * Whether this attack is a critical hit, as decided by the configured {@link CriticalRule}.
-     * An explicit {@link #overrideCritical(Boolean)} takes precedence over the rule.
-     */
+    /** Whether this is a crit (per {@link CriticalRule}; {@link #overrideCritical(Boolean)} wins). */
     public boolean critical() {
         if (overrideCritical != null) return overrideCritical;
         CriticalRule rule = resolvedConfig().criticalRule();
         return rule != null && rule.isCritical(this);
     }
 
-    /** The attacking item: the {@link #overrideItem(ItemStack) override} when set, else the attacker's main hand. */
+    /** The attacking item: {@link #overrideItem(ItemStack) override} else the attacker's main hand. */
     public @Nullable ItemStack item() {
         if (overrideItem != null) return overrideItem;
         return attacker() instanceof LivingEntity le ? le.getItemInMainHand() : ItemStack.AIR;
     }
 
     /**
-     * Defines what counts as a critical hit. Supplied via {@code AttackConfig.criticalRule(...)} and evaluated per
-     * attack; it only decides whether a hit is critical (the melee type applies the multiplier). Receives the full
-     * {@link AttackEvent}; must not call {@link AttackEvent#critical()} (infinite recursion).
+     * Decides whether a hit is critical (the melee type applies the multiplier). Must not call
+     * {@link AttackEvent#critical()} (infinite recursion).
      */
     @FunctionalInterface
     public interface CriticalRule {
 
-        /** Rule used when an attack config does not specify one. */
+        /** Default when a config sets none. */
         CriticalRule DEFAULT = vanilla();
 
-        /** Whether the given attack is a critical hit. */
         boolean isCritical(AttackEvent event);
 
-        /** Vanilla rule: attacker is falling (or flying), and not blinded (1.8/26 blindness suppresses crits). */
+        /** Vanilla: falling (or flying) and not blinded. */
         static CriticalRule vanilla() { return e -> (e.attackerFalling() || e.attackerFlying()) && !e.attackerBlind(); }
 
-        /** Never critical. */
         static CriticalRule never() { return e -> false; }
 
-        /** Always critical. */
         static CriticalRule always() { return e -> true; }
     }
 
-    /**
-     * Processes a detected hit: applies the configured combat ruleset (damage, knockback, ...). Selected via
-     * {@code AttackConfig.ruleset(...)} as a {@link Ruleset} factory so a fresh rule is created per attack.
-     */
+    /** Applies the combat ruleset (damage, knockback, ...) to a detected hit. */
     @FunctionalInterface
     public interface AttackRule {
 
-        /**
-         * Called when the server receives an attack packet (or an emulated attack).
-         *
-         * @param event the finalized attack event for this hit (target is nullable for swing + raytraced emulated attacks)
-         */
+        /** Processes the finalized attack (target may be null for swing/raytraced emulated attacks). */
         void processAttack(AttackEvent event);
 
         /** Factory that creates an {@link AttackRule} bound to the active services. */

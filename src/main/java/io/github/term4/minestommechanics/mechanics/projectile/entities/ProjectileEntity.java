@@ -36,23 +36,23 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Collection;
 
 /**
- * Base projectile entity: 1.8-style physics, block stick, entity hits. See {@code docs/projectiles-design.md} for the
- * architecture. A stuck arrow freezes movement but {@link #resyncStuck()} periodically re-asserts position + rotation
- * so a 1.8 client (via Via) self-heals; modern clients hold via the {@code inGround} metadata.
- *
- * <p>Velocity is blocks/tick internally ({@code super.velocity} mirrors b/s). Physics constants come from
- * {@link Aerodynamics}, read live each tick.
+ * Base projectile entity: 1.8-style physics, block stick, entity hits (architecture in {@code docs/projectiles-design.md}).
+ * A stuck arrow freezes but {@link #resyncStuck()} periodically re-asserts pos + rotation so a 1.8 client (via Via)
+ * self-heals; modern clients hold via {@code inGround} metadata. Velocity is b/t internally ({@code super.velocity} mirrors b/s); constants from {@link Aerodynamics}, read live.
  */
 public abstract class ProjectileEntity extends Entity {
 
     /** Default ticks a freshly launched projectile cannot hit its own shooter (vanilla pass-through at spawn). */
     public static final int DEFAULT_SHOOTER_IMMUNITY_TICKS = 5;
 
-    /** Default entity-hit margin: grow the zero-size projectile box by {@code 0.3} each side (vanilla grows the target instead). Per-type override on {@code ProjectileTypeConfig.entityHitGrow}. */
+    /** Default entity-hit margin: grow the zero-size projectile box {@code 0.3} each side (vanilla grows the target instead). */
     public static final double DEFAULT_ENTITY_HIT_GROW = 0.3;
 
     /** Margin the shooter's box is grown by for the {@link #leftOwnerImmunity} "left its owner" check (vanilla {@code inflate(1.0)}). */
     private static final double LEFT_OWNER_INFLATE = 1.0;
+
+    /** Vanilla projectile rotation smoothing: render rotation eases this fraction toward the motion direction each tick (1.8 {@code EntityArrow}, 26.1 {@code Projectile#lerpRotation}), so a stuck arrow keeps the lagged angle, not the raw velocity. */
+    private static final float ROTATION_LERP = 0.2f;
 
     /** Ticks the shooter is immune (configurable per type; set by the launcher). */
     protected int shooterImmunityTicks = DEFAULT_SHOOTER_IMMUNITY_TICKS;
@@ -95,10 +95,11 @@ public abstract class ProjectileEntity extends Entity {
 
     private @Nullable PhysicsResult previousPhysicsResult;
     private float prevYaw, prevPitch;
+    private boolean rotationInitialized;
     private float stuckYaw, stuckPitch;
     private boolean justBecameStuck;
-    /** Set by {@link #setDeflected} when a hit bounced the projectile this tick (velocity reversed, not removed); the
-     *  entity-collision block then stops the forward move at the hit point so it doesn't overshoot before bouncing. */
+    /** A hit bounced the projectile this tick (velocity reversed, not removed); the entity-collision block stops the
+     *  forward move at the hit point so it doesn't overshoot. */
     private boolean deflectedThisTick;
     /** {@code deflectParticles} opt-in: on a deflect/pass-through, let a subclass spawn a server-side crit trail. Cosmetic only, off by default. */
     protected boolean deflectVisible;
@@ -213,19 +214,15 @@ public abstract class ProjectileEntity extends Entity {
     public @NotNull Vec velocityBt() { return velocityBt; }
 
     /**
-     * Sets velocity in client/vanilla blocks-per-tick (TPS scaling re-rates it to the server tick rate internally so the
-     * arc is TPS-invariant; identity at 20), mirrored to {@code super.velocity}. Silent (not broadcast) - the client
-     * predicts from spawn velocity; use {@link #setVelocity} for a redirect that should reach clients.
+     * Sets velocity in client b/t (TPS-rescaled to the server tick rate so the arc is TPS-invariant; identity at 20),
+     * mirrored to {@code super.velocity}. Silent - the client predicts from spawn velocity; use {@link #setVelocity} to broadcast a redirect.
      */
     public void setVelocityBt(@NotNull Vec bt) {
         this.velocityBt = TickScaler.fromClientVelocity(bt);
         this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
     }
 
-    /**
-     * Explicit velocity set (external API / redirect / homing) - broadcasts even for arrows, so unlike {@link #setVelocityBt}
-     * it reaches 1.8 clients through the per-tick suppression.
-     */
+    /** Explicit velocity set (redirect / homing): broadcasts even for arrows, so unlike {@link #setVelocityBt} it reaches 1.8 clients through the per-tick suppression. */
     @Override
     public void setVelocity(@NotNull Vec velocity) {
         this.velocityBt = velocity.div(ServerFlag.SERVER_TICKS_PER_SECOND);
@@ -262,6 +259,13 @@ public abstract class ProjectileEntity extends Entity {
         if (instance.isInVoid(position)) {
             pendingRemove = true;
             return;
+        }
+
+        // seed the render rotation at the launch direction on the first moving tick (vanilla onUpdate first-tick snap)
+        if (!rotationInitialized && velocityBt.lengthSquared() > 1e-8) {
+            prevYaw = Directions.yaw(velocityBt);
+            prevPitch = Directions.pitch(velocityBt);
+            rotationInitialized = true;
         }
 
         // 26.1 applies drag/gravity before the move (1.8 after)
@@ -321,7 +325,7 @@ public abstract class ProjectileEntity extends Entity {
         if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_AFTER_MOVE && !justBecameStuck) applyDragGravity();
         this.onGround = physics.isOnGround();
 
-        // --- Rotation: displacement-based; latched at impact when sticking ---
+        // --- Rotation: eased toward the motion direction (vanilla 0.2 lerp); latched at impact when sticking ---
         float yaw = prevYaw, pitch = prevPitch;
         if (justBecameStuck) {
             yaw = stuckYaw;
@@ -329,8 +333,8 @@ public abstract class ProjectileEntity extends Entity {
         } else {
             Vec displacement = newPosition.sub(position).asVec();
             if (displacement.lengthSquared() > 1e-8) {
-                yaw = Directions.yaw(displacement);
-                pitch = Directions.pitch(displacement);
+                yaw = lerpRotation(prevYaw, Directions.yaw(displacement));
+                pitch = lerpRotation(prevPitch, Directions.pitch(displacement));
             }
         }
         this.prevYaw = yaw;
@@ -369,6 +373,13 @@ public abstract class ProjectileEntity extends Entity {
                 && point.z() >= sp.z() + bb.relativeStart().z() - g && point.z() <= sp.z() + bb.relativeEnd().z() + g;
     }
 
+    /** Vanilla {@code Projectile.lerpRotation}: ease {@code from} toward {@code target} by {@link #ROTATION_LERP}, shortest-arc (degrees wrap). */
+    private static float lerpRotation(float from, float target) {
+        while (target - from < -180f) from -= 360f;
+        while (target - from >= 180f) from += 360f;
+        return from + (target - from) * ROTATION_LERP;
+    }
+
     private void stick(Block hitBlock, Point hitPoint, int hitAxis, Pos resolvedPosition) {
         var event = new ProjectileCollideWithBlockEvent(this, hitPoint.asPos(), hitBlock);
         EventDispatcher.call(event);
@@ -376,8 +387,8 @@ public abstract class ProjectileEntity extends Entity {
 
         // Latch the flight rotation (for the stuck render) + the face normal, while velocity is still the flight value.
         if (velocityBt.lengthSquared() > 1e-8) {
-            stuckYaw = Directions.yaw(velocityBt);
-            stuckPitch = Directions.pitch(velocityBt);
+            stuckYaw = lerpRotation(prevYaw, Directions.yaw(velocityBt));
+            stuckPitch = lerpRotation(prevPitch, Directions.pitch(velocityBt));
         } else {
             stuckYaw = prevYaw;
             stuckPitch = prevPitch;
@@ -439,8 +450,8 @@ public abstract class ProjectileEntity extends Entity {
         return isStuck() ? Vec.ZERO : TickScaler.toClientVelocity(velocityBt);
     }
 
-    // absolute-teleport position sync (Minestom's relative-move is invisible to 1.8 via Via). Vanilla sends a sparse
-    // absolute teleport every updateInterval and the client predicts the arc between.
+    // absolute-teleport position sync (Minestom's relative-move is invisible to 1.8 via Via): a sparse absolute teleport
+    // every updateInterval, client predicts the arc between.
     @Override
     protected void synchronizePosition() {
         // while stuck, resyncStuck() owns the broadcast; don't send on the stick tick (the resync's next teleport is the correction)
@@ -477,9 +488,8 @@ public abstract class ProjectileEntity extends Entity {
     }
 
     /**
-     * The block-edge "slide" fix: vanilla sends an arrow's velocity once at spawn and the 1.8 client predicts the flight;
-     * Minestom's per-tick re-broadcast perturbs that over Via, so drop the automatic {@code EntityVelocityPacket}
-     * (gated by {@code velocitySyncInterval}). See the design doc §3f.
+     * The block-edge "slide" fix: vanilla sends an arrow's velocity once at spawn, the 1.8 client predicts the flight, and
+     * Minestom's per-tick re-broadcast perturbs that over Via - so drop the automatic packet (gated by {@code velocitySyncInterval}). See design doc §3f.
      */
     @Override
     public void sendPacketToViewers(@NotNull SendablePacket packet) {

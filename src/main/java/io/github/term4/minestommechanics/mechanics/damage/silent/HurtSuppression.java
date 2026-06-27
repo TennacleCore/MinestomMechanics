@@ -2,9 +2,11 @@ package io.github.term4.minestommechanics.mechanics.damage.silent;
 
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
+import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerDisconnectEvent;
 import net.minestom.server.event.player.PlayerPacketOutEvent;
+import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.network.packet.server.play.EntityAttributesPacket;
 import net.minestom.server.network.packet.server.play.UpdateHealthPacket;
 import net.minestom.server.tag.Tag;
@@ -27,7 +29,7 @@ public final class HurtSuppression {
         if (installed) return;
         installed = true;
 
-        EventNode<@NotNull Event> node = EventNode.all("mm:hurt-suppression");
+        EventNode<@NotNull PlayerEvent> node = EventNode.type("mm:hurt-suppression", EventFilter.PLAYER);
         node.addListener(PlayerPacketOutEvent.class, e -> {
             Player player = e.getPlayer();
             if (!Boolean.TRUE.equals(player.getTag(SUPPRESS))) return;

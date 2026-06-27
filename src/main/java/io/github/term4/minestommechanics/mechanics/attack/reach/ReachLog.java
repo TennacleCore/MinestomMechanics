@@ -48,11 +48,7 @@ public final class ReachLog {
         BoundingBox bb = target.getBoundingBox();
         double[][] boxes = {aabb(bb, target.getPosition(), pad), aabb(bb, target.getPreviousPosition(), pad)};
         double optimal = minOptimal(attacker.getPosition(), boxes, eyes);
-        boolean cancel = optimal > maxReach; // optimal is a rotation-independent lower bound; past maxReach the hit is geometrically impossible
-        if (cancel) e.setCancelled(true);
-        // log both eye-height tracks: clientEye = what the client believes (value a), serverEye = what the server treats it as (value b)
-        System.out.printf("[mm][reach] %d -> %d: clientEye=%.2f serverEye=%.2f optimal=%.3f%s%n",
-                attacker.getEntityId(), target.getEntityId(), ClientEye.perceived(attacker, protocol), attacker.getEyeHeight(), optimal, cancel ? " CANCEL" : "");
+        if (optimal > maxReach) e.setCancelled(true); // optimal is a rotation-independent lower bound; past maxReach the hit is geometrically impossible
     }
 
     /** Minimum nearest-point distance from the eye to any candidate target box, over the eye-height candidates (a lower bound on reach). */

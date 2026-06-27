@@ -135,7 +135,6 @@ public final class KnockbackCalculator {
         return level;
     }
 
-    /** Gets the direction context for this knockback. */
     private record DirContext(Point oPt, Vec dir) {}
 
     private @Nullable DirContext dirCtx(KnockbackSnapshot snap) {

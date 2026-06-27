@@ -9,8 +9,8 @@ import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.attribute.Attribute;
 
 /**
- * Instant Health (potion) - heals {@code 4 << amplifier} on apply, capped at max health (1.8 + 26 identical). The splash
- * proximity-scaling / undead inversion belong to the potion-throw path (not built yet).
+ * Instant Health (potion) - heals {@code 4 << amplifier} on apply, capped at max health (1.8 + 26 identical). Direct-apply
+ * only; splash proximity-scaling / undead inversion live on the potion-throw path.
  */
 public final class InstantHealth {
 

@@ -4,34 +4,57 @@ import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Vec;
 
 /**
- * Snaps an outgoing velocity (b/s) onto the legacy 1.8 wire grid. 1.8 encodes velocity as {@code (int)(motPerTick*8000)}
- * shorts (truncating), but the modern pipeline + ViaVersion can round a value one short high for legacy clients.
- * {@link #snap} re-centres each component in vanilla's truncation bucket so it survives quantization and lands on the
- * vanilla short. A server-emulation concern, toggled via {@code KnockbackConfig.quantizeVelocity}.
+ * Snaps an outgoing velocity onto the 1.8 wire grid so it matches a native 1.8 server: each axis is
+ * {@code (int)(blocksPerTick*8000)} (truncates toward zero), clamped to a per-axis cap (default {@link #DEFAULT_CAP},
+ * vanilla's {@code PacketPlayOutEntityVelocity} limit). Gated by {@code KnockbackConfig.quantizeVelocity}.
+ *
+ * <p>{@link #snap} is byte-exact only for |v| &lt;= 2 b/t; above that the 26.1 LpVec3 wire is coarser than the 1.8 short
+ * grid, so a snapped value drifts &lt;=1 wire-tick through Via. For the knocked player above that band, {@link #wireShorts}
+ * + {@code LegacyVelocityBridge} send the exact short over ViaBridge; {@code snap} is the fallback.
  */
 public final class LegacyVelocity {
 
-    /** Vanilla 1.8 wire scale: shorts per block-per-tick. */
+    /** 1.8 wire unit: shorts per block-per-tick. */
     private static final double WIRE_SCALE = 8000.0;
-    /** Vanilla per-component clamp ({@code PacketPlayOutEntityVelocity}): {@code +-3.9} b/t. */
-    private static final double WIRE_CLAMP = 3.9;
+    /** Default per-axis cap (b/t): vanilla 1.8's {@code PacketPlayOutEntityVelocity} clamp. The wire saturates near {@code +-4.0} (short range / 8000). */
+    public static final double DEFAULT_CAP = 3.9;
+    private static final double LP_EXACT_BT = 2.0;
 
     private LegacyVelocity() {}
 
-    /** Snaps a velocity in blocks/second onto the vanilla 1.8 wire grid (see class doc). */
     public static Vec snap(Vec perSecond) {
-        double tps = ServerFlag.SERVER_TICKS_PER_SECOND;
-        return new Vec(
-                snapAxis(perSecond.x() / tps) * tps,
-                snapAxis(perSecond.y() / tps) * tps,
-                snapAxis(perSecond.z() / tps) * tps);
+        return snap(perSecond, DEFAULT_CAP);
     }
 
-    /** One component in b/t: vanilla clamp, vanilla {@code (int)} truncation, re-encode. */
-    private static double snapAxis(double bt) {
-        bt = Math.max(-WIRE_CLAMP, Math.min(WIRE_CLAMP, bt));
-        int shorts = (int) (bt * WIRE_SCALE); // vanilla cast: truncation toward zero
-        if (shorts == 0) return 0;
-        return (shorts + Math.copySign(0.25, shorts)) / WIRE_SCALE;
+    public static Vec snap(Vec perSecond, double capBt) {
+        double tps = ServerFlag.SERVER_TICKS_PER_SECOND;
+        return new Vec(snapAxis(perSecond.x(), tps, capBt), snapAxis(perSecond.y(), tps, capBt), snapAxis(perSecond.z(), tps, capBt));
+    }
+
+    private static double snapAxis(double perSecond, double tps, double capBt) {
+        return wireShort(perSecond, tps, capBt) * tps / WIRE_SCALE;   // decode the wire short; multiply before divide stays on-grid
+    }
+
+    /** The exact per-axis 1.8 wire shorts ({@code (int)(clamp(bt)*8000)}) - the {@code SET_ENTITY_MOTION} payload for the exact ViaBridge path. */
+    public static short[] wireShorts(Vec perSecond) {
+        return wireShorts(perSecond, DEFAULT_CAP);
+    }
+
+    public static short[] wireShorts(Vec perSecond, double capBt) {
+        double tps = ServerFlag.SERVER_TICKS_PER_SECOND;
+        return new short[]{wireShort(perSecond.x(), tps, capBt), wireShort(perSecond.y(), tps, capBt), wireShort(perSecond.z(), tps, capBt)};
+    }
+
+    private static short wireShort(double perSecond, double tps, double capBt) {
+        double bt = Math.max(-capBt, Math.min(capBt, perSecond / tps));
+        return (short) (int) (bt * WIRE_SCALE);   // vanilla truncates, not rounds
+    }
+
+    /** Whether any axis exceeds the LP-exact band (|v| &gt; 2 b/t), where {@link #snap} drifts through Via - the gate for the exact ViaBridge path. */
+    public static boolean exceedsLpExactBand(Vec perSecond) {
+        double tps = ServerFlag.SERVER_TICKS_PER_SECOND;
+        return Math.abs(perSecond.x() / tps) > LP_EXACT_BT
+                || Math.abs(perSecond.y() / tps) > LP_EXACT_BT
+                || Math.abs(perSecond.z() / tps) > LP_EXACT_BT;
     }
 }

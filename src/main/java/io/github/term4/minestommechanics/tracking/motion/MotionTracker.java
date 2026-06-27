@@ -547,7 +547,7 @@ public final class MotionTracker implements Tracker {
         return clamped ? sim.clamped[i] : sim.raw[i];
     }
 
-    // --- entity push residual ---
+    // entity push residual
 
     /** Vanilla {@code bL()} list range: own bounding box grown {@code 0.2} per side (expand takes total size). */
     private static final double PUSH_GROW = 0.4;
@@ -607,7 +607,7 @@ public final class MotionTracker implements Tracker {
         return v == null ? Vec.ZERO : v;
     }
 
-    // --- water flow residual ---
+    // water flow residual
 
     /**
      * Ticks the water/lava flow residual: add-then-bleed (vanilla adds the current in {@code K()} BEFORE the travel

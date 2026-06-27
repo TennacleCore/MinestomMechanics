@@ -62,6 +62,12 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
      */
     public final FieldValue<KnockbackContext, Boolean> quantizeVelocity;
     /**
+     * Per-axis cap (b/t) for the quantized 1.8 wire velocity (see {@link io.github.term4.minestommechanics.tracking.motion.LegacyVelocity}).
+     * Only applies while {@link #quantizeVelocity} is on; unset = {@link io.github.term4.minestommechanics.tracking.motion.LegacyVelocity#DEFAULT_CAP}
+     * (vanilla 1.8's {@code +-3.9}). The 1.8 wire saturates near {@code +-4.0} b/t.
+     */
+    public final FieldValue<KnockbackContext, Double> velocityCap;
+    /**
      * Whether an airborne victim gets vertical knockback. {@code true} (1.8): always lifts. {@code false} (26.1): an
      * off-ground victim keeps its {@code motY} (the anti-juggle rule), gated on the reconstructed onGround; horizontal is unaffected.
      */
@@ -98,6 +104,7 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
         frictionModeV = b.frictionModeV;
         velocity = b.velocity;
         quantizeVelocity = b.quantizeVelocity;
+        velocityCap = b.velocityCap;
         airborneVertical = b.airborneVertical;
         customComponents = b.customComponents;
     }
@@ -129,6 +136,7 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
                 .frictionModeV(merge(frictionModeV, base.frictionModeV))
                 .velocity(merge(velocity, base.velocity))
                 .quantizeVelocity(merge(quantizeVelocity, base.quantizeVelocity))
+                .velocityCap(merge(velocityCap, base.velocityCap))
                 .airborneVertical(merge(airborneVertical, base.airborneVertical))
                 .customComponents(customComponents != null ? customComponents : base.customComponents)
                 .build();
@@ -171,6 +179,7 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
         private FieldValue<KnockbackContext, FrictionMode> frictionModeV;
         private FieldValue<KnockbackContext, VelocityRule> velocity;
         private FieldValue<KnockbackContext, Boolean> quantizeVelocity;
+        private FieldValue<KnockbackContext, Double> velocityCap;
         private FieldValue<KnockbackContext, Boolean> airborneVertical;
         private List<KnockbackComponent> customComponents;
 
@@ -201,6 +210,7 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
             frictionModeV = c.frictionModeV;
             velocity = c.velocity;
             quantizeVelocity = c.quantizeVelocity;
+            velocityCap = c.velocityCap;
             airborneVertical = c.airborneVertical;
             customComponents = c.customComponents;
         }
@@ -279,6 +289,9 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
         public Builder quantizeVelocity(Boolean v) { quantizeVelocity = FieldValue.constant(v); return this; }
         public Builder quantizeVelocity(Function<KnockbackContext, Boolean> fn) { quantizeVelocity = FieldValue.of(fn); return this; }
         public Builder quantizeVelocity(Boolean fallback, Function<KnockbackContext, Boolean> fn) { quantizeVelocity = FieldValue.ofWithFallback(fallback, fn); return this; }
+        public Builder velocityCap(Double v) { velocityCap = FieldValue.constant(v); return this; }
+        public Builder velocityCap(Function<KnockbackContext, Double> fn) { velocityCap = FieldValue.of(fn); return this; }
+        public Builder velocityCap(Double fallback, Function<KnockbackContext, Double> fn) { velocityCap = FieldValue.ofWithFallback(fallback, fn); return this; }
         /** Whether an airborne victim gets vertical KB: {@code true} = vanilla 1.8 (always), {@code false} = 26.1 (only when grounded). See {@link KnockbackConfig#airborneVertical}. */
         public Builder airborneVertical(Boolean v) { airborneVertical = FieldValue.constant(v); return this; }
         public Builder airborneVertical(Function<KnockbackContext, Boolean> fn) { airborneVertical = FieldValue.of(fn); return this; }
@@ -313,6 +326,7 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
         Builder frictionModeV(FieldValue<KnockbackContext, FrictionMode> v) { frictionModeV = v; return this; }
         Builder velocity(FieldValue<KnockbackContext, VelocityRule> v) { velocity = v; return this; }
         Builder quantizeVelocity(FieldValue<KnockbackContext, Boolean> v) { quantizeVelocity = v; return this; }
+        Builder velocityCap(FieldValue<KnockbackContext, Double> v) { velocityCap = v; return this; }
         Builder airborneVertical(FieldValue<KnockbackContext, Boolean> v) { airborneVertical = v; return this; }
         Builder customComponents(List<KnockbackComponent> v) { customComponents = v; return this; }
 

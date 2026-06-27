@@ -35,13 +35,9 @@ public final class Projectiles {
     }
 
     /**
-     * The generic vanilla 1.8 throwable baseline every type inherits unless it overrides a knob: zero render box
-     * (block collision is a point raytrace), aerodynamics (gravity {@code 0.03}, drag {@code 0.99}), speed {@code 1.5},
-     * spread {@code 0.0075}, no shooter-momentum inheritance, spawn {@code 0.1} below the eye + {@code 0.16} lateral,
-     * 5-tick shooter immunity then normal self-hits (the pearl overrides with {@code selfHit(PASS_THROUGH)}), 20-tick
-     * sync, {@link Knockback#projectile() vanilla knockback} from the thrower, and 0 damage routed through {@link ProjectileDamage}
-     * (hurt flash + invul gate; a 0-damage hit still lands). Re-base per-type via
-     * {@code ProjectileTypeConfig.builder(Projectiles.defaults())...}.
+     * The generic vanilla 1.8 throwable baseline every type inherits unless it overrides a knob (zero render box,
+     * aerodynamics, speed, spread, no shooter-momentum, spawn offsets, 5-tick shooter immunity, 20-tick sync, vanilla
+     * thrower knockback, 0 damage through {@link ProjectileDamage}; values + rationale inline below). Re-base per-type via {@code ProjectileTypeConfig.builder(Projectiles.defaults())...}.
      */
     public static ProjectileTypeConfig defaults() {
         return ProjectileTypeConfig.builder()
@@ -77,12 +73,10 @@ public final class Projectiles {
     }
 
     /**
-     * Vanilla 1.8 arrow overrides (on {@link #defaults()}): faster + heavier than a throwable (speed {@code 3.0}, gravity
-     * {@code 0.05}), velocity-based damage ({@code damage = 2.0} per-speed multiplier), and it sticks in blocks instead of
-     * breaking ({@code removeOnBlockHit = false}). Knockback stays shooter-relative (inherited, not overridden to {@code
-     * PROJECTILE}): a plain arrow knocks the victim away from the shooter, not along the arrow's flight. Punch rides as the
-     * extra-knockback level, scaling {@link Knockback#melee()}'s {@code extra}* knobs in that same shooter-relative
-     * direction. Damage routes through {@link ProjectileDamage} for now (a dedicated {@code minecraft:arrow} type is the follow-up).
+     * Vanilla 1.8 arrow overrides (on {@link #defaults()}): faster + heavier (speed {@code 3.0}, gravity {@code 0.05}),
+     * velocity-based damage ({@code damage = 2.0} per-speed multiplier), sticks in blocks ({@code removeOnBlockHit = false}).
+     * Knockback stays shooter-relative (inherited, not {@code PROJECTILE}): a plain arrow knocks the victim away from the
+     * shooter, not along flight; Punch rides as the extra-knockback level in that same direction. Damage routes through {@link ProjectileDamage} (a dedicated {@code minecraft:arrow} type is the follow-up).
      */
     public static ProjectileTypeConfig arrow() {
         return ProjectileTypeConfig.builder(Arrow.KEY)

@@ -16,9 +16,9 @@ import java.util.function.BiConsumer;
 
 /**
  * The inbound plugin-message hub: a single {@link PlayerPluginMessageEvent} listener that handles the ViaVersion
- * proxy-details channel (protocol detection, delegated to {@link ClientVersion}) and routes other channels to
- * registered mod handlers (Animatium today; Lunar/Apollo, Badlion, Combatify later). Per-player client info (the raw
- * proxy-details JSON + the lazily parsed protocol) is stored as a transient tag, so it dies with the player object.
+ * proxy-details channel (protocol detection, delegated to {@link ClientVersion}) and routes other channels to registered
+ * mod handlers (Animatium today). Per-player client info (raw proxy-details JSON + lazily parsed protocol) lives in a
+ * transient tag, so it dies with the player object.
  */
 public final class ClientInfoTracker implements Tracker {
 
@@ -97,7 +97,7 @@ public final class ClientInfoTracker implements Tracker {
         return parsed;
     }
 
-    /** A unified, extensible per-player {@link ClientProfile} view (protocol / Animatium / end-user store). Also reachable via {@code mm.client(player)}. */
+    /** A per-player {@link ClientProfile} view; also reachable via {@code mm.client(player)}. */
     public ClientProfile of(Player player) {
         return new ClientProfile(player, this);
     }

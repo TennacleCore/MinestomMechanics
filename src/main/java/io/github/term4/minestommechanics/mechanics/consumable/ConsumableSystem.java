@@ -13,11 +13,12 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.PlayerHand;
-import net.minestom.server.event.Event;
+import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.item.PlayerCancelItemUseEvent;
 import net.minestom.server.event.item.PlayerFinishItemUseEvent;
 import net.minestom.server.event.player.PlayerUseItemEvent;
+import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
@@ -27,26 +28,21 @@ import org.jetbrains.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Consumable items (food / drink) eaten over time. Mirrors the other type-registry systems (projectiles / damage):
- * registers on {@code mm}, owns an {@code EventNode}, resolves per-scope config through
- * {@code MechanicsProfiles.consumablesFor}, and holds a {@link ConsumableRegistry}. The use lifecycle maps onto
- * Minestom's seams - {@link PlayerUseItemEvent} (start) -&gt; {@link PlayerFinishItemUseEvent} (completed) /
- * {@link PlayerCancelItemUseEvent} (released early) - plus a per-tick "during" pass off {@link TickSystem}. Each phase
- * resolves the effective {@link ConsumableTypeConfig} via {@link ConsumableConfigResolver}, so the behavior/duration are
- * the scope's (a preset supplies the version-specific effects). Minestom fires the finish but neither applies effects
- * nor consumes the item, so that payload is ours.
+ * Consumable items (food / drink) eaten over time. Mirrors the other type-registry systems (projectiles / damage). The
+ * use lifecycle maps onto Minestom's seams - {@link PlayerUseItemEvent} (start) -&gt; {@link PlayerFinishItemUseEvent}
+ * (completed) / {@link PlayerCancelItemUseEvent} (released early) - plus a per-tick "during" pass off {@link TickSystem}.
+ * Each phase resolves the scope's {@link ConsumableTypeConfig}. Minestom fires the finish but applies no effects and doesn't consume the item, so that payload is ours.
  *
- * <p><b>Protocol fix.</b> Minestom derives the use duration from the modern {@code consumable} item component, which a
- * 1.8/Via client never carries - so the duration comes back {@code 0} and the finish never fires. We instead set it from
- * the resolved {@link ResolvedConsumable#consumeTicks()} in the start handler ({@link PlayerUseItemEvent#setItemUseTime}),
- * making completion server-authoritative and independent of the client version / item components.
+ * <p><b>Protocol fix.</b> Minestom derives the use duration from the modern {@code consumable} component, which a 1.8/Via
+ * client never carries - so it comes back {@code 0} and the finish never fires. We set it from the resolved
+ * {@link ResolvedConsumable#consumeTicks()} in the start handler, making completion server-authoritative and version-independent.
  */
 public final class ConsumableSystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
     private final Services services;
     private final ConsumableConfig config; // install config (the resolution fallback)
-    private final EventNode<@NotNull Event> node;
+    private final EventNode<@NotNull PlayerEvent> node;
     private final ConsumableRegistry registry = new ConsumableRegistry();
     /** The "during" tick is installed once for the JVM ({@link TickSystem} has no removal); it reads the live system each tick. */
     private static final AtomicBoolean TICK_HOOK = new AtomicBoolean();
@@ -55,14 +51,14 @@ public final class ConsumableSystem implements MechanicsModule {
         this.mm = mm;
         this.services = mm.services();
         this.config = config;
-        this.node = EventNode.all("mm:consumable");
+        this.node = EventNode.type("mm:consumable", EventFilter.PLAYER);
         node.addListener(PlayerUseItemEvent.class, this::onUse);
         node.addListener(PlayerFinishItemUseEvent.class, this::onFinish);
         node.addListener(PlayerCancelItemUseEvent.class, this::onCancel);
     }
 
-    /** This system's listener node ({@code mm:consumable}); everything the system hooks lives under it. */
-    public EventNode<@NotNull Event> node() { return node; }
+    /** This system's listener node ({@code mm:consumable}). */
+    public EventNode<@NotNull PlayerEvent> node() { return node; }
     public ConsumableConfig config() { return config; }
     public ConsumableRegistry registry() { return registry; }
 
@@ -102,9 +98,8 @@ public final class ConsumableSystem implements MechanicsModule {
         r.resolved.behavior().onFinish(r.ctx);
         if (p.getGameMode() == GameMode.CREATIVE) return;
         // Consume one: the client already predicted the decrement, so changing the stack confirms it (Minestom refreshes
-        // the slot back only when the item is unchanged). The remainder (potion -> glass bottle, stew -> bowl) is the
-        // type's explicit one, else the item's USE_REMAINDER component; it replaces the stack on the last one, else is
-        // added alongside the decremented stack - vanilla behavior. No remainder + last one -> the slot clears to AIR.
+        // the slot only when the item is unchanged). Remainder (potion -> bottle, stew -> bowl) = the type's explicit one,
+        // else the item's USE_REMAINDER: replaces the stack on the last item, else added alongside the decremented stack (vanilla).
         Material remMat = r.ctx.consumable().remainder();
         ItemStack remainder = remMat != null ? ItemStack.of(remMat) : item.get(DataComponents.USE_REMAINDER);
         int left = item.amount() - 1;

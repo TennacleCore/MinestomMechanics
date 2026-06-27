@@ -4,11 +4,11 @@ import net.minestom.server.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A detected hit. Attacks are melee by definition (attack packet, or a future swing-raycast hit) - the
- * processing ruleset stamps that onto the damage/knockback snapshots it produces.
+ * A detected hit. Attacks are melee by definition - the processing ruleset stamps that onto the
+ * damage/knockback snapshots it produces.
  *
  * @param attacker the entity initiating the attack
- * @param target   the target entity of the attack (nullable for raytraced swing misses)
+ * @param target   the target entity of the attack, or {@code null} if none
  * @param config   the attack config, or {@code null} to resolve the scope chain (profile -> install config)
  */
 public record AttackSnapshot(Entity attacker, @Nullable Entity target, @Nullable AttackConfig config) {

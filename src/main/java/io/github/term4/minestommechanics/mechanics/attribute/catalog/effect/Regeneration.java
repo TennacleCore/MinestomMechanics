@@ -19,7 +19,7 @@ public final class Regeneration {
     private Regeneration() {}
 
     private static final Behavior HEAL = new Behavior() {
-        @Override public int tickInterval(int level) { return Math.max(1, 50 >> (level - 1)); } // 50 >> amplifier, min 1 (amp>=6 -> every tick)
+        @Override public int tickInterval(int level) { return Math.max(1, 50 >> (level - 1)); }
 
         @Override public void onTick(Entity entity, int level) {
             if (!(entity instanceof LivingEntity living)) return;

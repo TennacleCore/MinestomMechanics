@@ -13,10 +13,9 @@ import java.util.function.Function;
 
 /**
  * Immutable consumable config: a generic {@link #defaults} base plus per-consumable {@link ConsumableTypeConfig}
- * overrides keyed by type key. Mirrors {@code ProjectileConfig}. Assigned per scope via the
- * {@link io.github.term4.minestommechanics.MechanicsProfile} {@code consumables} member, resolved player -&gt; instance
- * -&gt; global with the install config as the final fallback; installed by {@link ConsumableSystem}. Resolution layers
- * per-type override -&gt; {@link #defaults} -&gt; the registered type's {@code defaultConfig()} -&gt; hard fallbacks.
+ * overrides keyed by type key. Mirrors {@code ProjectileConfig}; assigned per scope via the
+ * {@link io.github.term4.minestommechanics.MechanicsProfile} {@code consumables} member. Resolution layers per-type
+ * override -&gt; {@link #defaults} -&gt; the registered type's {@code defaultConfig()} -&gt; hard fallbacks.
  *
  * <p>The consumable <em>definitions</em> (the {@link Consumable} types + their materials) live in the
  * {@link ConsumableRegistry}; this config only tunes them. A scope disables all consumables by setting

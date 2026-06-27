@@ -11,8 +11,7 @@ import java.util.List;
 /**
  * Depth Strider (enchant) - faster movement through water. An {@link ArmorSource} (worn-boots enchant), pushed onto the
  * wearer's {@code WATER_MOVEMENT_EFFICIENCY} while equipped: {@code +1/3 × level} {@code ADD_VALUE} (26's
- * {@code water_movement_efficiency} data effect; full effect at level 3). Identity across versions in intent; the wearer's
- * movement consumes the attribute (Minestom physics / the client), so no separate consuming calc is needed.
+ * {@code water_movement_efficiency} data effect; full at level 3). Consumed by the wearer's movement (Minestom physics / the client), so no separate calc.
  */
 public final class DepthStrider {
 

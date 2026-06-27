@@ -25,7 +25,6 @@ public final class SprintTracker implements Tracker {
 
     public SprintTracker() { }
 
-    /** Called when a player stops sprinting */
     public void markStopSprint(Player player) {
         player.setTag(LAST_SPRINT_STATE, new TickState(TickSystem.instanceTick(player), 0));
     }

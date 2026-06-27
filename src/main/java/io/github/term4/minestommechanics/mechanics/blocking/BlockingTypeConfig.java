@@ -10,11 +10,10 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Per-item blocking knobs, held in a {@link BlockingConfig} keyed by {@code Material}. Extends {@link Config}, so every
- * value is a {@link FieldValue} resolved against a {@link BlockingContext} (constant or per-hit). Unset fields fall back
- * through the resolver chain (per-material entry -&gt; {@link BlockingConfig#defaults()} -&gt; hard fallbacks). The
- * {@link #behavior} knob picks how blocking works (sword / shield / custom); the remaining knobs are the parameters those
- * behaviors read (the reduction curve, and the shield's arc / delay / bypasses).
+ * Per-item blocking knobs, held in a {@link BlockingConfig} keyed by {@code Material}: every value is a {@link FieldValue}
+ * resolved against a {@link BlockingContext} (constant or per-hit), unset fields falling back per-material entry -&gt;
+ * {@link BlockingConfig#defaults()} -&gt; hard fallbacks. The {@link #behavior} knob picks how blocking works (sword /
+ * shield / custom); the rest are its parameters (reduction curve, shield arc / delay / bypasses).
  */
 public final class BlockingTypeConfig extends Config<BlockingContext, BlockingTypeConfig> {
 

@@ -15,8 +15,7 @@ import java.util.List;
 /**
  * Smite (enchant) - a flat melee bonus <em>vs undead</em>, like {@link Sharpness} but victim-conditional. {@code 2.5 × level}
  * ({@code minecraft:damage} data effect / 1.8 {@code EnchantmentWeaponDamage}, identical), gated by the combat
- * {@link CombatFacts#TARGET target} being undead. Reads the target off the context - no attacker/victim plumbing in the
- * attribute layer; the melee path drops the fact in. An {@link ItemSource}: read from the weapon on demand.
+ * {@link CombatFacts#TARGET target} being undead. An {@link ItemSource}: read from the weapon on demand.
  */
 public final class Smite {
 

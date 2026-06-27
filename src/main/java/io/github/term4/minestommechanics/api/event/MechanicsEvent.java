@@ -5,11 +5,9 @@ import net.minestom.server.event.Event;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Shared base for the action-domain events (attack / damage / knockback). Each carries an immutable {@link #snapshot()}
- * (the original inputs) plus a mutable {@link #finalSnap()} used for processing, and the active {@link #services()} -
- * so every action event reads the same way. Domain config previews ({@code config()} / {@code resolvedConfig()}) and
- * the computed result live on the concrete subclasses; cancellable phases add cancellation via
- * {@link CancellableMechanicsEvent}.
+ * Shared base for the action-domain events (attack / damage / knockback): an immutable {@link #snapshot()} plus a
+ * mutable {@link #finalSnap()} for processing, and the active {@link #services()}. Config previews and computed results
+ * live on the subclasses; cancellable phases add cancellation via {@link CancellableMechanicsEvent}.
  *
  * @param <S> the domain snapshot type (e.g. {@code DamageSnapshot})
  */
@@ -27,10 +25,7 @@ public abstract class MechanicsEvent<S> implements Event {
     /** The original, immutable snapshot for this event. */
     public S snapshot() { return snapshot; }
 
-    /**
-     * The snapshot used for processing - the {@link #finalSnap(Object) override} when set, else the original.
-     * Set via {@code event.finalSnap(event.snapshot().toBuilder().target(x).build())}.
-     */
+    /** The snapshot used for processing - the {@link #finalSnap(Object) override} when set, else the original. */
     public S finalSnap() { return finalSnap != null ? finalSnap : snapshot; }
     public void finalSnap(S snap) { this.finalSnap = snap; }
 

@@ -43,6 +43,8 @@ public final class CompatState {
     private @NotNull Set<AnimatiumFeature> nativeFeatures = Set.of();
     /** Whether this player is an Animatium client (sent the {@code animatium:info} handshake). Gates the feature re-send on profile/instance changes, and distinguishes a feature-less Animatium client from a non-Animatium one (both have an empty {@link #nativeFeatures}). */
     private boolean animatiumClient = false;
+    /** Features the client's Animatium build advertised it can natively handle (its {@code ServerFeature} set, from the {@code animatium:info} capability bits); gates wire-format features on real decoder support. */
+    private @NotNull Set<AnimatiumFeature> supportedFeatures = Set.of();
 
     /** Poses rewritten to {@code STANDING} in {@code setPose}. */
     public void setDisabledPoses(@NotNull Set<EntityPose> poses) { this.disabledPoses = poses; }
@@ -85,11 +87,10 @@ public final class CompatState {
     public void setAttackCooldownRemoved(boolean v) { this.attackCooldownRemoved = v; }
 
     /**
-     * Sets all compat <em>policy</em> from {@code config} in a single pass - each field takes the config's value or its off
+     * Sets all compat <em>policy</em> from {@code config} in one pass - each field takes the config's value or its off
      * default, so assigning a different config is a clean mode SWITCH, never a sticky merge. {@code null} = all off (modern).
-     * Operational / identity state (Animatium native features, the client flag, sprint-strip, intercepted pose, attack-cooldown
-     * tracking) is left untouched; the {@code attackHitboxMargin} re-send and attack-cooldown attribute are the caller's
-     * ({@code PlayerConfigApplier}) job since they touch the player, not this state.
+     * Operational/identity state (native features, client flag, sprint-strip, intercepted pose, cooldown tracking) is left
+     * untouched; the {@code attackHitboxMargin} re-send + attack-cooldown attribute are the caller's job (they touch the player, not this state).
      */
     public void apply(@Nullable CompatConfig config) {
         disabledPoses        = config != null && config.disabledPoses != null ? config.disabledPoses : Set.of();
@@ -122,6 +123,11 @@ public final class CompatState {
     /** Whether this player is an Animatium client (handshake received); gates the feature re-send by {@code CompatAnimatium}. */
     public boolean isAnimatiumClient() { return animatiumClient; }
     public void setAnimatiumClient(boolean v) { this.animatiumClient = v; }
+
+    /** Records the features the client's Animatium build advertised it can natively handle (from the {@code animatium:info} capability bits). */
+    public void setSupportedFeatures(@NotNull Set<AnimatiumFeature> features) { this.supportedFeatures = features; }
+    /** Whether the client advertised native support for {@code feature} (decoder present) - required before sending a wire-format feature like {@link AnimatiumFeature#SHORTS_VELOCITY}. */
+    public boolean supports(@NotNull AnimatiumFeature feature) { return supportedFeatures.contains(feature); }
 
     /** Whether this player's client applies {@code feature} (or {@link AnimatiumFeature#ALL}) natively, so the matching server-side hack should be skipped for it. */
     public boolean handlesNatively(@NotNull AnimatiumFeature feature) {

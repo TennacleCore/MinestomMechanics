@@ -12,11 +12,10 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Dispatcher for self-driven environmental damage producers (cactus, burning). Installs one per-instance
- * {@link TickSystem} hook on first {@link #bind}, and each instance tick runs every registered
- * {@link EnvironmentalTickProducer} against each living, non-exempt entity in that instance - the shared guards every
- * producer used to repeat. Producers {@link #register}/{@link #unregister} as their damage types enable/disable; the hook
- * is installed once for the JVM ({@link TickSystem} has no removal) and goes inert when no producers remain.
+ * Dispatcher for self-driven environmental damage producers (cactus, burning): one per-instance {@link TickSystem} hook
+ * (installed on first {@link #bind}, once for the JVM since {@link TickSystem} has no removal) runs every registered
+ * {@link EnvironmentalTickProducer} against each living, non-exempt entity - the shared guards producers used to repeat.
+ * Producers {@link #register}/{@link #unregister} as their types enable/disable; inert when none remain.
  */
 public final class EnvironmentalDamageTicker {
 

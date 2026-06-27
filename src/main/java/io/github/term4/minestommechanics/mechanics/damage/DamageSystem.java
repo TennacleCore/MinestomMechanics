@@ -73,7 +73,7 @@ public final class DamageSystem implements MechanicsModule {
     /** Default invul ticks (vanilla 1.8) when nothing resolves; scaled to live TPS at the stamp site. */
     public static final int DEFAULT_INVUL_TICKS = 10;
 
-    // Auxiliary phases are fired only when a listener exists (the main DamageEvent always fires).
+    // Pre/Applied fire only when listened to; main always fires
     private static final ListenerHandle<PreDamageEvent> PRE_DAMAGE = EventDispatcher.getHandle(PreDamageEvent.class);
     private static final ListenerHandle<DamageAppliedEvent> DAMAGE_APPLIED = EventDispatcher.getHandle(DamageAppliedEvent.class);
 
@@ -151,13 +151,13 @@ public final class DamageSystem implements MechanicsModule {
     public DamageOutcome apply(DamageSnapshot snap) {
         if (!(snap.target() instanceof LivingEntity)) return DamageOutcome.BLOCKED;
 
-        // config chain: snapshot -> victim scope -> install. none = inert (no-op); an empty config processes at the vanilla floor
+        // config: snapshot -> victim scope -> install (none = inert, empty = vanilla floor)
         DamageConfig effective = snap.config() != null ? snap.config() : configFor(snap.target());
         if (effective == null) return DamageOutcome.BLOCKED;
 
         DamageSnapshot working = snap.config() != null ? snap : snap.withConfig(effective);
 
-        // Pre phase (lazy): cancel before any computation / i-frame cost, or redirect the inputs (type/source/target/config).
+        // Pre (lazy): cancel before any compute / i-frame cost, or redirect the inputs
         if (PRE_DAMAGE.hasListener()) {
             PreDamageEvent pre = new PreDamageEvent(working, services);
             EventDispatcher.call(pre);
@@ -170,7 +170,7 @@ public final class DamageSystem implements MechanicsModule {
 
         float amount = result.amount();
 
-        // Main phase: inspect / modify the computed amount before it is applied.
+        // inspect / modify the computed amount before applying
         DamageEvent event = new DamageEvent(working, amount, services);
         EventDispatcher.call(event);
         if (event.isCancelled()) return DamageOutcome.BLOCKED;
@@ -259,7 +259,7 @@ public final class DamageSystem implements MechanicsModule {
         return DamageOutcome.FRESH_DAMAGE;
     }
 
-    /** Applied phase (lazy): a hit landed - report the dealt amount + outcome to listeners (stats/logging/triggers). */
+    /** Applied (lazy): report the dealt amount + outcome. */
     private void fireDamageApplied(DamageSnapshot snap, float dealt, DamageOutcome outcome) {
         if (DAMAGE_APPLIED.hasListener()) EventDispatcher.call(new DamageAppliedEvent(snap, dealt, outcome, services));
     }
@@ -363,9 +363,8 @@ public final class DamageSystem implements MechanicsModule {
 
     private void applyDamage(LivingEntity living, DamageType type, DamageSnapshot snap, float amount, boolean silent) {
         // lethal hits fall through to living.damage() so Minestom handles death; non-lethal silent hits skip the hurt effect.
-        // TODO(death): promote the death/respawn path to a first-class API event (api.event) so consumers can hook/override it.
-        //  Transient state is now reset on death (resetCombatState: fire, air, stuck arrows, velocity; effects via
-        //  clearEffectsOnDeath; the i-frame window + fall distance on respawn) - what remains is the overridable event itself.
+        // TODO(death): promote the death/respawn path to a first-class API event (api.event) so consumers can hook/override it
+        //  (transient state is already reset on death; what remains is the overridable event itself).
         float newHealth = (float) Math.max(0, living.getHealth() - amount);
         if (silent && living instanceof Player p && newHealth > 0) {
             SilentDamage.setHealthWithoutHurtEffect(p, newHealth, mm.clientInfo());
@@ -402,7 +401,7 @@ public final class DamageSystem implements MechanicsModule {
     /** Registry of damage types and their handlers. */
     public DamageTypeRegistry registry() { return registry; }
 
-    /** This system's listener node ({@code mm:damage}); everything the system hooks lives under it. */
+    /** This system's listener node ({@code mm:damage}). */
     public EventNode<@NotNull Event> node() { return node; }
 
     /**

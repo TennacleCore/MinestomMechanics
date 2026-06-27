@@ -14,10 +14,8 @@ import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.instance.block.Block;
 
-// onTouch investigated, rejected: it fires on the block's collision shape (fits cactus's inset box; confirms fire/lava
-//  never fire it - fluids have no shape), but only for blocks carrying a BlockHandler - which would mean every cactus
-//  block in every world placed with one, something a library can't guarantee. The entity-side scan below is
-//  world-agnostic, so it stays. Revisit only if the lib owns block placement.
+// onTouch rejected: it fits cactus's inset shape, but only fires for blocks carrying a BlockHandler - which a library
+//  can't guarantee on every cactus in every world. The entity-side scan below is world-agnostic. Revisit only if the lib owns block placement.
 /**
  * Cactus contact damage ({@code minecraft:cactus}). Vanilla 1.8: 1.0 damage attempted every tick while overlapping a
  * cactus collision shape (inset 1/16, not the full cell); the invul window gates the cadence. Self-driven via

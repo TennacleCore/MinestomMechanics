@@ -16,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
  * @param type    the damage type (melee, fire tick, fall, custom, etc.)
  * @param source  the entity or object responsible for the damage (attacker, projectile, etc.), if any
  * @param point   a relevant position for the damage (source position), if any
- * @param item    the item involved (melee weapon, later a projectile's bow), if any
+ * @param item    the item involved (melee weapon), if any
  * @param detail  type-specific payload attached by the producer (e.g. the fall distance), if any
  * @param amount  optional amount override; {@code null} uses {@link DamageTypeConfig#baseAmount(io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext)}
  * @param config  optional per-snapshot config override
