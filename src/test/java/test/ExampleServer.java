@@ -34,7 +34,7 @@ import net.minestom.server.event.trait.PlayerEvent;
 import org.jetbrains.annotations.NotNull;
 import net.minestom.server.instance.InstanceContainer;
 import net.minestom.server.instance.InstanceManager;
-import net.minestom.server.instance.LightingChunk;
+import io.github.term4.minestommechanics.platform.fixes.world.FluidCountChunk;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
@@ -100,7 +100,7 @@ public class ExampleServer {
 
         // Generate the world & add lighting
         instanceContainer.setGenerator(unit -> unit.modifier().fillHeight(0, 40, Block.GRASS_BLOCK));
-        instanceContainer.setChunkSupplier(LightingChunk::new);
+        instanceContainer.setChunkSupplier(FluidCountChunk::new);
 
         // Test damage types
         instanceContainer.loadChunk(1, 0).thenRun(() -> {

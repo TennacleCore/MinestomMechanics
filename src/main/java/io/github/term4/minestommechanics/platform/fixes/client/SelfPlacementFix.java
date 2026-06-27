@@ -20,8 +20,7 @@ import net.minestom.server.network.packet.client.play.ClientPlayerBlockPlacement
  * <p>Only passable blocks are allowed into the body - ladders, vines, cobwebs, plants. Any block that blocks movement
  * (stairs, slabs, fences, full cubes) is refused: placing one into your own hitbox is self-suffocating and never a
  * legit clutch (so this is stricter than vanilla 1.8, which excludes the placer for everything - an anti-cheat guard).
- * Passability is {@link BlockContact#isPassable} (Minestom has no {@code blocksMotion} flag, so it's approximated); may
- * be slightly off for an edge-case block, so revisit if one is wrongly allowed or refused.
+ * Passability is {@link BlockContact#isPassable} (the inverse of {@code Block.blocksMotion()}).
  *
  * <p>It wraps {@link BlockPlacementFix#listener} (the local chunk-resend correction), so enabling it also installs that
  * fix. Once the chunk fix is upstream, delete {@code BlockPlacementFix} and point {@link #wrapped} at the upstream

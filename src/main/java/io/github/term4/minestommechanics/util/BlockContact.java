@@ -240,19 +240,8 @@ public final class BlockContact {
         return true;
     }
 
-    /**
-     * Whether an entity can occupy {@code block}'s space - it doesn't block movement (ladders, vines, cobwebs, plants).
-     * Approximates Minecraft's {@code blocksMotion} (which Minestom doesn't expose yet): a non-solid block, or a solid
-     * block with no collision shape - cobweb is {@code solid} yet has empty collision, so an {@code isSolid()} test alone
-     * would wrongly exclude it. Solid blocks with real collision (stairs, slabs, fences, full cubes) are not passable.
-     *
-     * <p>Once Minestom exposes {@code Block.blocksMotion()} (PR'd upstream), this can collapse to {@code !block.blocksMotion()}.
-     */
+    /** Whether an entity can occupy {@code block}'s space - the inverse of Minecraft's {@code blocksMotion} (ladders, vines, cobwebs, plants, carpets pass; full cubes, stairs, slabs, fences do not). */
     public static boolean isPassable(Block block) {
-        if (!block.isSolid()) return true;
-        Shape shape = block.registry().collisionShape();
-        if (shape == null) return true;
-        Point s = shape.relativeStart(), e = shape.relativeEnd();
-        return s.x() == e.x() && s.y() == e.y() && s.z() == e.z(); // empty collision shape = zero-volume bbox
+        return !block.blocksMotion();
     }
 }
