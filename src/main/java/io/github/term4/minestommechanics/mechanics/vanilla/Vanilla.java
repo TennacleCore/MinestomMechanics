@@ -23,6 +23,7 @@ public final class Vanilla {
                 .set(MechanicsKeys.ATTRIBUTES, Attributes.config())
                 .set(MechanicsKeys.CONSUMABLES, Consumables.config())
                 .set(MechanicsKeys.VELOCITY, Movement.velocity())
+                .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.ITEMS, Items.registry())
                 .build();
     }

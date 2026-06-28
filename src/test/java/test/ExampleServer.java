@@ -7,6 +7,7 @@ import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
@@ -93,10 +94,12 @@ public class ExampleServer {
         ConsumableSystem.install(mm); // the golden-apple types come from the profile's consumable config
         BlockingSystem.install(mm);
         FixesSystem.install(mm);      // the legacy-client fix set comes from the profile's fixes config
+        ExplosionSystem explosions = ExplosionSystem.install(mm); // explosion config comes from the profile (EXPLOSION key)
 
         // Create the instance (world)
         InstanceManager instanceManager = MinecraftServer.getInstanceManager();
         InstanceContainer instanceContainer = instanceManager.createInstanceContainer();
+        instanceContainer.setExplosionSupplier(explosions.supplier()); // route instance.explode(...) through the system
 
         // Generate the world & add lighting
         instanceContainer.setGenerator(unit -> unit.modifier().fillHeight(0, 40, Block.GRASS_BLOCK));
@@ -290,6 +293,20 @@ public class ExampleServer {
             p.sendMessage("[suffocate] stone placed in your head (survival = 1/tick suffocation)");
         });
         MinecraftServer.getCommandManager().register(suffocate);
+
+        // /explode [power]: explosion at your feet (no source, so you feel the falloff knockback + take the damage)
+        ExplosionSystem explosions = mm.module(ExplosionSystem.class);
+        Command explode = new Command("explode");
+        Argument<Integer> explodePower = ArgumentType.Integer("power");
+        explode.setDefaultExecutor((sender, ctx) -> {
+            if (sender instanceof Player p && p.getInstance() != null && explosions != null)
+                explosions.explode(p.getInstance(), p.getPosition(), 4.0f);
+        });
+        explode.addSyntax((sender, ctx) -> {
+            if (sender instanceof Player p && p.getInstance() != null && explosions != null)
+                explosions.explode(p.getInstance(), p.getPosition(), (float) (int) ctx.get(explodePower));
+        }, explodePower);
+        MinecraftServer.getCommandManager().register(explode);
 
         // /sword: gives a blockable diamond sword (right-click + hold to block; 1.8 = (1+f)*0.5 damage, pre-armor)
         Command sword = new Command("sword");

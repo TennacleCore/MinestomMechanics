@@ -61,8 +61,17 @@ public final class KnockbackSystem implements MechanicsModule {
     }
 
     public void apply(KnockbackSnapshot snap) {
-        // config: snapshot -> victim scope -> install (none = inert, empty = vanilla floor)
-        if (snap.config() == null && configFor(snap.target()) == null) return;
+        apply(snap, null);
+    }
+
+    /**
+     * Applies knockback plus an optional {@code impulse} stacked onto the computed velocity right before delivery -
+     * un-folded (past the friction term), so it adds on top rather than being halved. Explosions use it to put the
+     * falloff push on top of the base knockback; the impulse rides the same quantize + wire + applied event as the base.
+     */
+    public void apply(KnockbackSnapshot snap, @Nullable Vec impulse) {
+        // config: snapshot -> victim scope -> install (none = inert, empty = vanilla floor). An impulse is delivered regardless.
+        if (impulse == null && snap.config() == null && configFor(snap.target()) == null) return;
 
         // Pre (lazy): cancel or redirect before compute
         if (PRE_KNOCKBACK.hasListener()) {
@@ -97,6 +106,9 @@ public final class KnockbackSystem implements MechanicsModule {
                 velocity = new Vec(dir.x() * mag, velocity.y(), dir.z() * mag);
             }
         }
+
+        // explosion push (etc.): stacked on the base, un-folded
+        if (impulse != null) velocity = velocity != null ? velocity.add(impulse) : impulse;
 
         // broadcast only: not fed to the tracker, so it won't fold into the next hit
         if (velocity != null) {

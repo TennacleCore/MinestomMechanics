@@ -10,6 +10,7 @@ import io.github.term4.minestommechanics.mechanics.damage.types.burning.LavaDama
 import io.github.term4.minestommechanics.mechanics.damage.types.breathing.DrowningDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.breathing.SuffocationDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.cactus.CactusDamage;
+import io.github.term4.minestommechanics.mechanics.damage.types.explosion.ExplosionDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.fall.FallDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.generic.GenericDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
@@ -106,6 +107,7 @@ public final class DamageTypeRegistry {
         register(CactusDamage.INSTANCE);
         register(DrowningDamage.INSTANCE);
         register(SuffocationDamage.INSTANCE);
+        register(ExplosionDamage.INSTANCE);
         return this;
     }
 }

@@ -6,6 +6,7 @@ import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfig;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.durability.DurabilityConfig;
+import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
@@ -34,6 +35,7 @@ public final class MechanicsKeys {
     public static final ConfigKey<HungerConfig> HUNGER = ConfigKey.of("mm:hunger");
     public static final ConfigKey<ConsumableConfig> CONSUMABLES = ConfigKey.of("mm:consumables");
     public static final ConfigKey<BlockingConfig> BLOCKING = ConfigKey.of("mm:blocking");
+    public static final ConfigKey<ExplosionConfig> EXPLOSION = ConfigKey.of("mm:explosion");
     public static final ConfigKey<CompatConfig> COMPAT = ConfigKey.of("mm:compat");
     public static final ConfigKey<ItemRegistry> ITEMS = ConfigKey.of("mm:items");
 }

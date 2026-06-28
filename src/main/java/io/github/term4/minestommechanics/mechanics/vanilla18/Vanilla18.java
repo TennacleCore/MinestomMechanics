@@ -27,6 +27,7 @@ public final class Vanilla18 {
                 .set(MechanicsKeys.ATTRIBUTES, Attributes.config())
                 .set(MechanicsKeys.CONSUMABLES, Consumables.config())
                 .set(MechanicsKeys.BLOCKING, Blocking.config())
+                .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.ITEMS, Items.registry())
                 .build();
     }
