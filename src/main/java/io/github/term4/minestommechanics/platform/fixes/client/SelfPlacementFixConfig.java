@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.platform.fixes.client;
 
+import io.github.term4.minestommechanics.platform.fixes.FixToggle;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -14,7 +15,7 @@ import org.jetbrains.annotations.Nullable;
  * <p>It rides the same server-wide packet listener as the {@code blockPlacement} sync fix, so this is an install-level
  * toggle ({@code null} = off), not a per-scope one - and enabling it installs that listener (the chunk-resend fix) too.
  */
-public final class SelfPlacementFixConfig {
+public final class SelfPlacementFixConfig implements FixToggle {
 
     private final @Nullable Boolean enabled;
 

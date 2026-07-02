@@ -30,7 +30,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Fall damage ({@code minecraft:fall}). Vanilla 1.8: distance accumulates while descending, water/climbing zero it,
@@ -54,9 +53,8 @@ public final class FallDamage extends DamageType {
 
     private @Nullable EventNode<@NotNull Event> node;
     private @Nullable DamageSystem system;
-    /** The landing poll is registered on {@link TickSystem} once for the JVM (afterAdvance has no removal); {@link #polling} gates it. */
-    private static final AtomicBoolean POLL_HOOK = new AtomicBoolean();
-    private volatile boolean polling;
+    /** The landing-poll registration; cancelled on {@link #disable}. */
+    private @Nullable TickSystem.Registration pollHook;
 
     private FallDamage() {
         super(KEY, "Fall", VanillaTypes.FALL, FallDamageConfig.builder().build());
@@ -77,17 +75,15 @@ public final class FallDamage extends DamageType {
         n.addListener(EntityDeathEvent.class, e -> { if (e.getEntity() instanceof LivingEntity le) resetFallDistance(le); });
         system.node().addChild(n);
         node = n;
-        // fallback poll a tick behind onMove (catches status-only onGround landings, no PlayerMoveEvent), via the TickSystem
-        // like the other per-tick mechanics. Registered once for the JVM; `polling` makes disable() inert.
-        polling = true;
-        if (POLL_HOOK.compareAndSet(false, true)) TickSystem.register(TickPhase.DEFAULT, ctx -> INSTANCE.pollLandings(ctx.instance()));
+        // fallback poll a tick behind onMove: catches status-only onGround landings (no PlayerMoveEvent)
+        pollHook = TickSystem.register(TickPhase.DEFAULT, ctx -> pollLandings(ctx.instance()));
     }
 
     @Override
     public void disable() {
         if (system != null && node != null) system.node().removeChild(node);
         node = null;
-        polling = false;
+        if (pollHook != null) { pollHook.cancel(); pollHook = null; }
     }
 
     /** Clears an entity's accumulated fall distance ((re)spawn + explicit resets like the ender pearl; vanilla does NOT reset on a plain teleport). */
@@ -142,7 +138,6 @@ public final class FallDamage extends DamageType {
 
     /** Fallback landing poll for players (status-only onGround packets fire no move event); one instance per tick. */
     private void pollLandings(Instance instance) {
-        if (!polling) return;
         for (Player p : instance.getPlayers()) {
             if (!p.isOnGround()) continue;
             float dist = fallDistance(p);

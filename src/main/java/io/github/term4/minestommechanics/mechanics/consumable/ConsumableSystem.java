@@ -41,7 +41,7 @@ public final class ConsumableSystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
     private final Services services;
-    private final ConsumableConfig config; // install config (the resolution fallback)
+    private final ConsumableConfig config;
     private final EventNode<@NotNull PlayerEvent> node;
     private final ConsumableRegistry registry = new ConsumableRegistry();
     /** The "during" tick is installed once for the JVM ({@link TickSystem} has no removal); it reads the live system each tick. */
@@ -64,7 +64,7 @@ public final class ConsumableSystem implements MechanicsModule {
     /** Registers a consumable type (built-in or custom). */
     public ConsumableSystem register(Consumable consumable) { registry.register(consumable); return this; }
 
-    /** Effective consumable config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
+    /** Effective config for {@code subject}: the scoped profile, else the install config. */
     public ConsumableConfig configFor(@Nullable Entity subject) {
         ConsumableConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.CONSUMABLES);
         return scoped != null ? scoped : config;

@@ -92,7 +92,17 @@ public final class ProjectileSystem implements MechanicsModule {
         ProjectileTypeConfig effectiveConfig = ctx.typeConfig();
         ResolvedFlight flight = ProjectileConfigResolver.resolveFlight(effectiveConfig, ctx);
         if (!flight.enabled()) return null;
+        return launch(working, effectiveConfig, flight);
+    }
 
+    /** The launch-time flight values for {@code snap} under its effective config chain (what {@link #launch} will use); lets a launcher read a knob (e.g. the bow's {@code critChance}) without re-resolving by hand. */
+    public ResolvedFlight resolveFlight(ProjectileSnapshot snap) {
+        ProjectileSnapshot working = snap.config() != null ? snap : snap.withConfig(configFor(snap.shooter()));
+        ProjectileContext ctx = ProjectileContext.of(working, services);
+        return ProjectileConfigResolver.resolveFlight(ctx.typeConfig(), ctx);
+    }
+
+    private @Nullable ProjectileEntity launch(ProjectileSnapshot working, ProjectileTypeConfig effectiveConfig, ResolvedFlight flight) {
         Entity shooter = working.shooter();
         Instance instance = shooter.getInstance();
         if (instance == null) return null;
@@ -158,11 +168,10 @@ public final class ProjectileSystem implements MechanicsModule {
     private static Pos spawnPos(Entity shooter, ResolvedFlight cfg) {
         Pos eye = shooter.getPosition().add(0, shooter.getEyeHeight(), 0);
         Vec aim = eye.direction();
-        double yaw = Math.toRadians(eye.yaw());
+        Vec right = Directions.rightOf(eye.yaw());
         double side = cfg.spawnOffsetSideways();
-        double lx = -Math.cos(yaw) * side;
-        double lz = -Math.sin(yaw) * side;
-        return eye.add(aim.x() * cfg.spawnOffsetForward() + lx, cfg.spawnOffsetVertical(), aim.z() * cfg.spawnOffsetForward() + lz);
+        return eye.add(aim.x() * cfg.spawnOffsetForward() + right.x() * side, cfg.spawnOffsetVertical(),
+                aim.z() * cfg.spawnOffsetForward() + right.z() * side);
     }
 
     private Vec launchVelocity(Entity shooter, ResolvedFlight cfg, double power) {
@@ -195,10 +204,11 @@ public final class ProjectileSystem implements MechanicsModule {
     public boolean contains(Key key) { return types.containsKey(key); }
     public boolean isEnabled(Key key) { return enabled.contains(key); }
 
-    /** Enables a registered type (wires its launch trigger). Idempotent. */
+    /** Enables a registered type (wires its launch trigger). Idempotent; throws for an unregistered key (catches preset typos). */
     public void enable(Key key) {
         ProjectileType type = types.get(key);
-        if (type != null && enabled.add(key)) type.enable(this, mm);
+        if (type == null) throw new IllegalArgumentException("No projectile type registered for " + key.asString());
+        if (enabled.add(key)) type.enable(this, mm);
     }
 
     /** Disables an enabled type (tears down its trigger). Idempotent. */

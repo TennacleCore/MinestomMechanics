@@ -93,6 +93,7 @@ public final class ProjectileConfigResolver {
                 or(resolve(tc.stickPullback, ctx), 0.05), // vanilla 0.05 tip poke-out
                 or(resolve(tc.shakeTicks, ctx), 7), // vanilla arrow shake / pickup delay
                 or(resolve(tc.explosionPower, ctx), 1.0), // vanilla ghast fireball yield (Hypixel = 2.0); fireball-only
+                or(resolve(tc.critChance, ctx), 1.0), // full-draw crit chance (vanilla = always); bow-only
                 or(resolve(tc.behavior, ctx), ProjectileBehavior.NONE),
                 resolve(tc.pickupBox, ctx)); // nullable: the entity keeps its vanilla default if unset
     }
@@ -144,6 +145,7 @@ public final class ProjectileConfigResolver {
             double stickPullback,
             int shakeTicks,
             double explosionPower,
+            double critChance,
             ProjectileBehavior behavior,
             @Nullable ProjectileTypeConfig.PickupBox pickupBox
     ) {}

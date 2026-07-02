@@ -15,6 +15,7 @@ import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
+import io.github.term4.minestommechanics.util.Directions;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Point;
@@ -142,6 +143,7 @@ public final class ExplosionSystem implements MechanicsModule {
                     resolved.damageConstant(), resolved.floorDamage(), resolved.knockbackMultiplier(), 0.0);
             if (hit == null) continue;
             float damage = !living ? 0f : (resolved.flatDamage() != null ? resolved.flatDamage().floatValue() : hit.damage());
+            damage *= (float) resolved.damageScale(); // post-floor, so a scaled vanilla curve stays step-quantized (MineMen FBF)
             Vec push = kbTarget ? hit.knockback() : null; // a non-KB target (mob) still takes damage, no push
             targets.add(new ExplosionEvent.Target(entity, distance, exposure, push, damage));
         }
@@ -192,9 +194,10 @@ public final class ExplosionSystem implements MechanicsModule {
                     } else if (resolved.packetPush()) {
                         packetKnockback.put(player, push); // i-frame: rides the explosion packet, not a velocity packet
                     } else if (knockback != null && outcome != DamageSystem.DamageOutcome.BLOCKED) {
-                        // velocity-only (MineMen): sourceless fresh hit / i-frame overdamage = bare push; blocked = nothing
+                        // velocity-only (MineMen): sourceless fresh / i-frame overdamage = push ADDED to current motion
+                        // (vanilla g(); a direct hit's same-tick contact KB survives). Blocked = nothing.
                         Vec velocity = perSecond(push);
-                        sendKnockback.add(() -> knockback.deliver(player, velocity));
+                        sendKnockback.add(() -> knockback.deliver(player, player.getVelocity().add(velocity)));
                     }
                 }
             } else if (push != null && knockback != null) {
@@ -218,12 +221,10 @@ public final class ExplosionSystem implements MechanicsModule {
     private static Vec radialBase(Point position, Point center, double magnitude, double height,
                                   double horizontalScale, double downwardScale) {
         Point body = position.add(0, height, 0);
-        double dx = body.x() - center.x(), dy = body.y() - center.y(), dz = body.z() - center.z();
-        double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (len < 1.0e-7) return Vec.ZERO;
-        double ux = dx / len, uy = dy / len, uz = dz / len;
-        double horizontal = horizontalScale * magnitude, vertical = (uy >= 0 ? magnitude : downwardScale * magnitude);
-        return new Vec(horizontal * ux, vertical * uy, horizontal * uz);
+        Vec u = Directions.unit3D(body.x() - center.x(), body.y() - center.y(), body.z() - center.z(), 1.0e-7);
+        if (u == null) return Vec.ZERO;
+        double horizontal = horizontalScale * magnitude, vertical = (u.y() >= 0 ? magnitude : downwardScale * magnitude);
+        return new Vec(horizontal * u.x(), vertical * u.y(), horizontal * u.z());
     }
 
     private void applyDamage(@Nullable Entity source, Point center, List<ExplosionEvent.Target> targets, @Nullable Bypass bypass) {

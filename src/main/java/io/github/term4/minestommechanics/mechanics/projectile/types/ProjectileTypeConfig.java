@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.types;
 
-import io.github.term4.minestommechanics.config.Config;
+import io.github.term4.minestommechanics.config.TypeConfig;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
@@ -19,7 +19,7 @@ import java.util.function.Function;
  * {@link ProjectileConfig#defaults()} -&gt; the type's {@code defaultConfig()} -&gt; hard fallbacks. Launchers resolve it
  * once per launch and stamp the entity. Covers spawn/physics, hit knockback + damage, deflect, removal, behavior.
  */
-public final class ProjectileTypeConfig extends Config<ProjectileContext, ProjectileTypeConfig> {
+public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, ProjectileTypeConfig> {
 
     /**
      * Where a hit's knockback originates (orthogonal to the {@link KnockbackConfig}'s {@code yawWeight}):
@@ -73,9 +73,6 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         public static Deflect of(double multiplier) { return new Deflect(multiplier, 0.0, 0.0, 0.0); }
     }
 
-    /** Type identity (not a knob): the key this config is registered under. */
-    public final Key key;
-
     public final @Nullable FieldValue<ProjectileContext, Boolean> enabled;
     public final @Nullable FieldValue<ProjectileContext, BoundingBox> boundingBox;
     public final @Nullable FieldValue<ProjectileContext, Double> gravity;
@@ -113,6 +110,8 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
     public final @Nullable FieldValue<ProjectileContext, Integer> shakeTicks;
     /** Explosion power on detonation (fireball-only); vanilla ghast {@code 1.0}, Hypixel {@code 2.0}. */
     public final @Nullable FieldValue<ProjectileContext, Double> explosionPower;
+    /** Full-draw crit chance the bow rolls ({@code [0,1]}); vanilla {@code 1.0} = always. Arrow-launcher knob. */
+    public final @Nullable FieldValue<ProjectileContext, Double> critChance;
     /** Pluggable {@link ProjectileBehavior} layered over the built-in effects (no subclassing). Default {@link ProjectileBehavior#NONE}. */
     public final @Nullable FieldValue<ProjectileContext, ProjectileBehavior> behavior;
     public final @Nullable FieldValue<ProjectileContext, KnockbackConfig> knockback;
@@ -129,8 +128,7 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
     public final @Nullable FieldValue<ProjectileContext, PickupBox> pickupBox;
 
     ProjectileTypeConfig(Builder b) {
-        super(b.subConfig);
-        this.key = b.key;
+        super(b.key, b.subConfig);
         this.enabled = b.enabled;
         this.boundingBox = b.boundingBox;
         this.gravity = b.gravity;
@@ -154,6 +152,7 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         this.stickPullback = b.stickPullback;
         this.shakeTicks = b.shakeTicks;
         this.explosionPower = b.explosionPower;
+        this.critChance = b.critChance;
         this.behavior = b.behavior;
         this.knockback = b.knockback;
         this.knockbackSource = b.knockbackSource;
@@ -166,11 +165,9 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         this.pickupBox = b.pickupBox;
     }
 
-    public Key key() { return key; }
-
     /** Merges this config over {@code base}: this config's set fields win, unset fields fall back per resolution. */
     public ProjectileTypeConfig fromBase(ProjectileTypeConfig base) {
-        Builder b = new Builder(key != null ? key : base.key);
+        Builder b = new Builder(key() != null ? key() : base.key());
         b.subConfig = subConfig != null ? subConfig : base.subConfig;
         b.enabled = merge(enabled, base.enabled);
         b.boundingBox = merge(boundingBox, base.boundingBox);
@@ -195,6 +192,7 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         b.stickPullback = merge(stickPullback, base.stickPullback);
         b.shakeTicks = merge(shakeTicks, base.shakeTicks);
         b.explosionPower = merge(explosionPower, base.explosionPower);
+        b.critChance = merge(critChance, base.critChance);
         b.behavior = merge(behavior, base.behavior);
         b.knockback = merge(knockback, base.knockback);
         b.knockbackSource = merge(knockbackSource, base.knockbackSource);
@@ -246,6 +244,7 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         private FieldValue<ProjectileContext, Double> stickPullback;
         private FieldValue<ProjectileContext, Integer> shakeTicks;
         private FieldValue<ProjectileContext, Double> explosionPower;
+        private FieldValue<ProjectileContext, Double> critChance;
         private FieldValue<ProjectileContext, ProjectileBehavior> behavior;
         private FieldValue<ProjectileContext, KnockbackConfig> knockback;
         private FieldValue<ProjectileContext, KnockbackSource> knockbackSource;
@@ -260,7 +259,7 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         Builder(Key key) { this.key = key; }
 
         Builder(ProjectileTypeConfig c) {
-            key = c.key;
+            key = c.key();
             subConfig = c.subConfig;
             enabled = c.enabled;
             boundingBox = c.boundingBox;
@@ -285,6 +284,7 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
             stickPullback = c.stickPullback;
             shakeTicks = c.shakeTicks;
             explosionPower = c.explosionPower;
+            critChance = c.critChance;
             behavior = c.behavior;
             knockback = c.knockback;
             knockbackSource = c.knockbackSource;
@@ -300,15 +300,20 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         public Builder key(Key k) { this.key = k; return this; }
         public Builder enabled(Boolean v) { enabled = FieldValue.constant(v); return this; }
         public Builder enabled(Function<ProjectileContext, Boolean> fn) { enabled = FieldValue.of(fn); return this; }
+        public Builder enabled(Boolean fallback, Function<ProjectileContext, Boolean> fn) { enabled = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder boundingBox(BoundingBox v) { boundingBox = FieldValue.constant(v); return this; }
         public Builder boundingBox(double width, double height, double depth) { boundingBox = FieldValue.constant(new BoundingBox(width, height, depth)); return this; }
         public Builder boundingBox(Function<ProjectileContext, BoundingBox> fn) { boundingBox = FieldValue.of(fn); return this; }
+        public Builder boundingBox(BoundingBox fallback, Function<ProjectileContext, BoundingBox> fn) { boundingBox = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder gravity(Double v) { gravity = FieldValue.constant(v); return this; }
         public Builder gravity(Function<ProjectileContext, Double> fn) { gravity = FieldValue.of(fn); return this; }
+        public Builder gravity(Double fallback, Function<ProjectileContext, Double> fn) { gravity = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder horizontalDrag(Double v) { horizontalDrag = FieldValue.constant(v); return this; }
         public Builder horizontalDrag(Function<ProjectileContext, Double> fn) { horizontalDrag = FieldValue.of(fn); return this; }
+        public Builder horizontalDrag(Double fallback, Function<ProjectileContext, Double> fn) { horizontalDrag = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder verticalDrag(Double v) { verticalDrag = FieldValue.constant(v); return this; }
         public Builder verticalDrag(Function<ProjectileContext, Double> fn) { verticalDrag = FieldValue.of(fn); return this; }
+        public Builder verticalDrag(Double fallback, Function<ProjectileContext, Double> fn) { verticalDrag = FieldValue.ofWithFallback(fallback, fn); return this; }
         /** Sets all three spawn offsets at once: {@code forward} along the look, {@code vertical} from the eye, {@code sideways} perpendicular. */
         public Builder spawnOffset(double forward, double vertical, double sideways) {
             spawnOffsetForward = FieldValue.constant(forward);
@@ -318,58 +323,85 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         }
         public Builder spawnOffsetForward(Double v) { spawnOffsetForward = FieldValue.constant(v); return this; }
         public Builder spawnOffsetForward(Function<ProjectileContext, Double> fn) { spawnOffsetForward = FieldValue.of(fn); return this; }
+        public Builder spawnOffsetForward(Double fallback, Function<ProjectileContext, Double> fn) { spawnOffsetForward = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder spawnOffsetVertical(Double v) { spawnOffsetVertical = FieldValue.constant(v); return this; }
         public Builder spawnOffsetVertical(Function<ProjectileContext, Double> fn) { spawnOffsetVertical = FieldValue.of(fn); return this; }
+        public Builder spawnOffsetVertical(Double fallback, Function<ProjectileContext, Double> fn) { spawnOffsetVertical = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder spawnOffsetSideways(Double v) { spawnOffsetSideways = FieldValue.constant(v); return this; }
         public Builder spawnOffsetSideways(Function<ProjectileContext, Double> fn) { spawnOffsetSideways = FieldValue.of(fn); return this; }
+        public Builder spawnOffsetSideways(Double fallback, Function<ProjectileContext, Double> fn) { spawnOffsetSideways = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder speed(Double v) { speed = FieldValue.constant(v); return this; }
         public Builder speed(Function<ProjectileContext, Double> fn) { speed = FieldValue.of(fn); return this; }
+        public Builder speed(Double fallback, Function<ProjectileContext, Double> fn) { speed = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder spread(Double v) { spread = FieldValue.constant(v); return this; }
         public Builder spread(Function<ProjectileContext, Double> fn) { spread = FieldValue.of(fn); return this; }
+        public Builder spread(Double fallback, Function<ProjectileContext, Double> fn) { spread = FieldValue.ofWithFallback(fallback, fn); return this; }
         /** Sets both shooter-momentum scales at once (fraction of the shooter's client motion folded in: x/z, y). */
         public Builder momentum(double horizontal, double vertical) { momentumHorizontal = FieldValue.constant(horizontal); momentumVertical = FieldValue.constant(vertical); return this; }
         /** Horizontal shooter-momentum scale (fraction of the shooter's client {@code positionDelta} x/z; {@code 0} = none, {@code 1} = full). */
         public Builder momentumHorizontal(Double v) { momentumHorizontal = FieldValue.constant(v); return this; }
         public Builder momentumHorizontal(Function<ProjectileContext, Double> fn) { momentumHorizontal = FieldValue.of(fn); return this; }
+        public Builder momentumHorizontal(Double fallback, Function<ProjectileContext, Double> fn) { momentumHorizontal = FieldValue.ofWithFallback(fallback, fn); return this; }
         /** Vertical shooter-momentum scale (fraction of the client motion y; for 26.1's airborne-only, use a lambda). */
         public Builder momentumVertical(Double v) { momentumVertical = FieldValue.constant(v); return this; }
         public Builder momentumVertical(Function<ProjectileContext, Double> fn) { momentumVertical = FieldValue.of(fn); return this; }
+        public Builder momentumVertical(Double fallback, Function<ProjectileContext, Double> fn) { momentumVertical = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder shooterImmunityTicks(Integer v) { shooterImmunityTicks = FieldValue.constant(v); return this; }
         public Builder shooterImmunityTicks(Function<ProjectileContext, Integer> fn) { shooterImmunityTicks = FieldValue.of(fn); return this; }
+        public Builder shooterImmunityTicks(Integer fallback, Function<ProjectileContext, Integer> fn) { shooterImmunityTicks = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder entityHitGrow(Double v) { entityHitGrow = FieldValue.constant(v); return this; }
         public Builder entityHitGrow(Function<ProjectileContext, Double> fn) { entityHitGrow = FieldValue.of(fn); return this; }
+        public Builder entityHitGrow(Double fallback, Function<ProjectileContext, Double> fn) { entityHitGrow = FieldValue.ofWithFallback(fallback, fn); return this; }
         /** What the projectile does when it hits its own shooter ({@link HitResponse}, default {@code HIT}):
          *  {@code PASS_THROUGH} = the 1.8 ender pearl / Hypixel "self does nothing"; {@code DEFLECT} = bounce off. */
         public Builder selfHit(HitResponse v) { selfHit = FieldValue.constant(v); return this; }
         public Builder selfHit(Function<ProjectileContext, HitResponse> fn) { selfHit = FieldValue.of(fn); return this; }
+        public Builder selfHit(HitResponse fallback, Function<ProjectileContext, HitResponse> fn) { selfHit = FieldValue.ofWithFallback(fallback, fn); return this; }
         /** What the projectile does when it hits any other entity (default {@code HIT}): {@code DESTROY} = impact trigger only, no hit damage/KB. */
         public Builder entityHit(HitResponse v) { entityHit = FieldValue.constant(v); return this; }
         public Builder entityHit(Function<ProjectileContext, HitResponse> fn) { entityHit = FieldValue.of(fn); return this; }
+        public Builder entityHit(HitResponse fallback, Function<ProjectileContext, HitResponse> fn) { entityHit = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder syncInterval(Integer v) { syncInterval = FieldValue.constant(v); return this; }
         public Builder syncInterval(Function<ProjectileContext, Integer> fn) { syncInterval = FieldValue.of(fn); return this; }
+        public Builder syncInterval(Integer fallback, Function<ProjectileContext, Integer> fn) { syncInterval = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder velocitySyncInterval(Integer v) { velocitySyncInterval = FieldValue.constant(v); return this; }
         public Builder velocitySyncInterval(Function<ProjectileContext, Integer> fn) { velocitySyncInterval = FieldValue.of(fn); return this; }
+        public Builder velocitySyncInterval(Integer fallback, Function<ProjectileContext, Integer> fn) { velocitySyncInterval = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder physicsOrder(PhysicsOrder v) { physicsOrder = FieldValue.constant(v); return this; }
         public Builder physicsOrder(Function<ProjectileContext, PhysicsOrder> fn) { physicsOrder = FieldValue.of(fn); return this; }
+        public Builder physicsOrder(PhysicsOrder fallback, Function<ProjectileContext, PhysicsOrder> fn) { physicsOrder = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder leftOwnerImmunity(Boolean v) { leftOwnerImmunity = FieldValue.constant(v); return this; }
         public Builder leftOwnerImmunity(Function<ProjectileContext, Boolean> fn) { leftOwnerImmunity = FieldValue.of(fn); return this; }
+        public Builder leftOwnerImmunity(Boolean fallback, Function<ProjectileContext, Boolean> fn) { leftOwnerImmunity = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder stickPullback(Double v) { stickPullback = FieldValue.constant(v); return this; }
         public Builder stickPullback(Function<ProjectileContext, Double> fn) { stickPullback = FieldValue.of(fn); return this; }
+        public Builder stickPullback(Double fallback, Function<ProjectileContext, Double> fn) { stickPullback = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder shakeTicks(Integer v) { shakeTicks = FieldValue.constant(v); return this; }
         public Builder shakeTicks(Function<ProjectileContext, Integer> fn) { shakeTicks = FieldValue.of(fn); return this; }
+        public Builder shakeTicks(Integer fallback, Function<ProjectileContext, Integer> fn) { shakeTicks = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder explosionPower(Double v) { explosionPower = FieldValue.constant(v); return this; }
         public Builder explosionPower(Function<ProjectileContext, Double> fn) { explosionPower = FieldValue.of(fn); return this; }
+        public Builder explosionPower(Double fallback, Function<ProjectileContext, Double> fn) { explosionPower = FieldValue.ofWithFallback(fallback, fn); return this; }
+        /** Full-draw crit chance the bow rolls ({@code [0,1]}); vanilla {@code 1.0}. */
+        public Builder critChance(Double v) { critChance = FieldValue.constant(v); return this; }
+        public Builder critChance(Function<ProjectileContext, Double> fn) { critChance = FieldValue.of(fn); return this; }
+        public Builder critChance(Double fallback, Function<ProjectileContext, Double> fn) { critChance = FieldValue.ofWithFallback(fallback, fn); return this; }
         /** Pluggable {@link ProjectileBehavior} (onImpact/onStuck/onUnstuck/onTick) layered over the built-in effects. */
         public Builder behavior(ProjectileBehavior v) { behavior = FieldValue.constant(v); return this; }
         public Builder behavior(Function<ProjectileContext, ProjectileBehavior> fn) { behavior = FieldValue.of(fn); return this; }
+        public Builder behavior(ProjectileBehavior fallback, Function<ProjectileContext, ProjectileBehavior> fn) { behavior = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder knockback(KnockbackConfig v) { knockback = FieldValue.constant(v); return this; }
         public Builder knockback(Function<ProjectileContext, KnockbackConfig> fn) { knockback = FieldValue.of(fn); return this; }
+        public Builder knockback(KnockbackConfig fallback, Function<ProjectileContext, KnockbackConfig> fn) { knockback = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder knockbackSource(KnockbackSource v) { knockbackSource = FieldValue.constant(v); return this; }
         public Builder knockbackSource(Function<ProjectileContext, KnockbackSource> fn) { knockbackSource = FieldValue.of(fn); return this; }
+        public Builder knockbackSource(KnockbackSource fallback, Function<ProjectileContext, KnockbackSource> fn) { knockbackSource = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder damage(Double v) { damage = FieldValue.constant(v); return this; }
         public Builder damage(Function<ProjectileContext, Double> fn) { damage = FieldValue.of(fn); return this; }
+        public Builder damage(Double fallback, Function<ProjectileContext, Double> fn) { damage = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder damageType(DamageType v) { damageType = FieldValue.constant(v); return this; }
         public Builder damageType(Function<ProjectileContext, DamageType> fn) { damageType = FieldValue.of(fn); return this; }
+        public Builder damageType(DamageType fallback, Function<ProjectileContext, DamageType> fn) { damageType = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder removeOnEntityHit(Boolean v) { removeOnEntityHit = FieldValue.constant(v); return this; }
         public Builder removeOnBlockHit(Boolean v) { removeOnBlockHit = FieldValue.constant(v); return this; }
         /** Rejected-hit response, same for the invul window and an immune target; e.g. {@code invulnHit(DESTROY)} (throwable). */
@@ -378,14 +410,17 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         public Builder invulnHit(HitResponse invulWindow, HitResponse immune) { invulnHit = FieldValue.constant(new InvulnResponse(invulWindow, immune)); return this; }
         /** Per-launch lambda returning the {@link InvulnResponse} (build it with {@link InvulnResponse#of}). */
         public Builder invulnHit(Function<ProjectileContext, InvulnResponse> fn) { invulnHit = FieldValue.of(fn); return this; }
+        public Builder invulnHit(InvulnResponse fallback, Function<ProjectileContext, InvulnResponse> fn) { invulnHit = FieldValue.ofWithFallback(fallback, fn); return this; }
         /** A {@code DEFLECT} that just scales velocity by {@code multiplier} (negative reverses; vanilla 1.8 = {@code deflect(-0.1)}). */
         public Builder deflect(double multiplier) { deflect = FieldValue.constant(Deflect.of(multiplier)); return this; }
         /** A {@code DEFLECT} scaling velocity by {@code multiplier} + rotating the heading by {@code turn} +- a random {@code [min,max]} wobble (26.1 = {@code deflect(-0.5, 0, -10, 10)}). */
         public Builder deflect(double multiplier, double turn, double min, double max) { deflect = FieldValue.constant(new Deflect(multiplier, turn, min, max)); return this; }
         public Builder deflect(Function<ProjectileContext, Deflect> fn) { deflect = FieldValue.of(fn); return this; }
+        public Builder deflect(Deflect fallback, Function<ProjectileContext, Deflect> fn) { deflect = FieldValue.ofWithFallback(fallback, fn); return this; }
         /** Pickup geometry for a collectable projectile (arrows); default {@link PickupBox#VANILLA}. */
         public Builder pickupBox(PickupBox v) { pickupBox = FieldValue.constant(v); return this; }
         public Builder pickupBox(Function<ProjectileContext, PickupBox> fn) { pickupBox = FieldValue.of(fn); return this; }
+        public Builder pickupBox(PickupBox fallback, Function<ProjectileContext, PickupBox> fn) { pickupBox = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder subConfig(Function<ProjectileContext, ProjectileTypeConfig> fn) { subConfig = fn; return this; }
 
         public ProjectileTypeConfig build() { return new ProjectileTypeConfig(this); }

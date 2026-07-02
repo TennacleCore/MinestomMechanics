@@ -8,6 +8,7 @@ import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.api.event.AttackAppliedEvent;
 import io.github.term4.minestommechanics.api.event.PreAttackEvent;
+import net.kyori.adventure.key.Key;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
@@ -20,6 +21,9 @@ import org.jetbrains.annotations.NotNull;
  * damage/knockback systems gate themselves. Preset behaviors (e.g. Mmc18's hit queue) live in custom rulesets/detections.
  */
 public final class AttackSystem implements MechanicsModule {
+
+    /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
+    public static final Key KEY = Key.key("mm:attack");
 
     private final AttackConfig config;
     private final MechanicsProfiles profiles;

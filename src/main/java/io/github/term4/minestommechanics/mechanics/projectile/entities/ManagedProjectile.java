@@ -14,6 +14,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigRe
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedHit;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
+import io.github.term4.minestommechanics.util.Directions;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
@@ -193,9 +194,7 @@ public class ManagedProjectile extends ProjectileEntity {
         Vec v = velocity.mul(d.multiplier());
         double extra = d.turn() + (d.maxJitter() > d.minJitter()
                 ? ThreadLocalRandom.current().nextDouble(d.minJitter(), d.maxJitter()) : d.minJitter());
-        if (extra == 0) return v;
-        double rad = Math.toRadians(extra), cos = Math.cos(rad), sin = Math.sin(rad);
-        return new Vec(v.x() * cos - v.z() * sin, v.y(), v.x() * sin + v.z() * cos);
+        return extra == 0 ? v : Directions.rotateY(v, extra);
     }
 
     /** Hit-knockback snapshot for the {@link ProjectileTypeConfig.KnockbackSource}; {@link #punchLevel()} rides as the extra-KB level (vanilla's {@code i}, the melee Knockback-enchant channel), {@code 0} = inert. */

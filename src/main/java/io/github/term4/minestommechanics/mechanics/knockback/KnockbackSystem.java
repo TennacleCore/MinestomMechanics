@@ -112,12 +112,7 @@ public final class KnockbackSystem implements MechanicsModule {
         // broadcast only: not fed to the tracker, so it won't fold into the next hit
         if (velocity != null) {
             if (resolved == null) resolved = calc.resolveConfig(cfgSnap);
-            boolean quantize = !Boolean.FALSE.equals(resolved.quantizeVelocity());
-            double cap = resolved.velocityCap() != null ? resolved.velocityCap() : LegacyVelocity.DEFAULT_CAP;
-            Vec applied = quantize ? LegacyVelocity.snap(velocity, cap) : velocity;
-            // exact 1.8 wire for a knocked legacy client above the LP-exact band (via ViaBridge); else the normal LP broadcast
-            if (!(quantize && LegacyVelocityBridge.applyExact(target, velocity, applied, cap))) target.setVelocity(applied);
-            if (KNOCKBACK_APPLIED.hasListener()) EventDispatcher.call(new KnockbackAppliedEvent(finalSnap, applied, services));
+            broadcast(target, velocity, resolved, finalSnap);
         }
     }
 
@@ -127,13 +122,17 @@ public final class KnockbackSystem implements MechanicsModule {
      * {@code push + base} rather than folding the pre-hit velocity like the vanilla {@code a()} path.
      */
     public void deliver(@NotNull Entity target, @NotNull Vec velocity) {
-        var resolved = resolveConfig(new KnockbackSnapshot(target, false, null, null, null, null));
-        boolean quantize = !Boolean.FALSE.equals(resolved.quantizeVelocity());
-        double cap = resolved.velocityCap() != null ? resolved.velocityCap() : LegacyVelocity.DEFAULT_CAP;
+        KnockbackSnapshot snap = new KnockbackSnapshot(target, false, null, null, null, null);
+        broadcast(target, velocity, resolveConfig(snap), snap);
+    }
+
+    private void broadcast(Entity target, Vec velocity, KnockbackConfigResolver.ResolvedKnockbackConfig resolved, KnockbackSnapshot snap) {
+        boolean quantize = resolved.quantizeVelocity();
+        double cap = resolved.velocityCap();
         Vec applied = quantize ? LegacyVelocity.snap(velocity, cap) : velocity;
+        // exact 1.8 wire for a knocked legacy client above the LP-exact band (via ViaBridge); else the normal LP broadcast
         if (!(quantize && LegacyVelocityBridge.applyExact(target, velocity, applied, cap))) target.setVelocity(applied);
-        if (KNOCKBACK_APPLIED.hasListener())
-            EventDispatcher.call(new KnockbackAppliedEvent(new KnockbackSnapshot(target, false, null, null, null, null), applied, services));
+        if (KNOCKBACK_APPLIED.hasListener()) EventDispatcher.call(new KnockbackAppliedEvent(snap, applied, services));
     }
 
     public KnockbackConfig config() { return config; }

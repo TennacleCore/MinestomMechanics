@@ -46,7 +46,7 @@ public final class BlockingSystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
     private final Services services;
-    private final BlockingConfig config; // install config (the resolution fallback)
+    private final BlockingConfig config;
     private final EventNode<@NotNull PlayerEvent> node;
 
     public BlockingSystem(MinestomMechanics mm, BlockingConfig config) {
@@ -88,7 +88,7 @@ public final class BlockingSystem implements MechanicsModule {
     public EventNode<@NotNull PlayerEvent> node() { return node; }
     public BlockingConfig config() { return config; }
 
-    /** Effective blocking config for {@code subject} (the defender): the scoped profile, else the install config. */
+    /** Effective config for {@code subject} (the defender): the scoped profile, else the install config. */
     public BlockingConfig configFor(@Nullable Entity subject) {
         BlockingConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.BLOCKING);
         return scoped != null ? scoped : config;

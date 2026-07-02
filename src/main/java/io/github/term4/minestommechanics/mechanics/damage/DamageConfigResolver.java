@@ -45,8 +45,8 @@ public final class DamageConfigResolver {
             DamageTypeConfig tc = cfg != null ? cfg.typeConfig(snap.type().key()) : null;
             DamageTypeConfig base = tc != null ? tc : snap.type().defaultConfig();
             // overlay the subConfig over the selected type config
-            if (base.subConfig() != null) {
-                DamageTypeConfig overlay = base.subConfig().apply(this);
+            if (base.subConfig != null) {
+                DamageTypeConfig overlay = base.subConfig.apply(this);
                 if (overlay != null) base = overlay.fromBase(base);
             }
             return base;

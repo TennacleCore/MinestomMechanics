@@ -7,7 +7,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Shared base for the action-domain events (attack / damage / knockback): an immutable {@link #snapshot()} plus a
  * mutable {@link #finalSnap()} for processing, and the active {@link #services()}. Config previews and computed results
- * live on the subclasses; cancellable phases add cancellation via {@link CancellableMechanicsEvent}.
+ * live on the subclasses; cancellable phases add cancellation via {@link CancellableMechanicsEvent}. These three
+ * domains get Pre/main/Applied triads; projectiles/explosions fire single events (their damage + KB route through the triads).
  *
  * @param <S> the domain snapshot type (e.g. {@code DamageSnapshot})
  */

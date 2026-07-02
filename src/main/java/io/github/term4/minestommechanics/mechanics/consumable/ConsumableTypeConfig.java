@@ -104,14 +104,19 @@ public final class ConsumableTypeConfig extends Config<ConsumableContext, Consum
         public Builder subConfig(Function<ConsumableContext, ConsumableTypeConfig> fn) { subConfig = fn; return this; }
         public Builder enabled(Boolean v) { enabled = FieldValue.constant(v); return this; }
         public Builder enabled(Function<ConsumableContext, Boolean> fn) { enabled = FieldValue.of(fn); return this; }
+        public Builder enabled(Boolean fallback, Function<ConsumableContext, Boolean> fn) { enabled = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder consumeTicks(Integer v) { consumeTicks = FieldValue.constant(v); return this; }
         public Builder consumeTicks(Function<ConsumableContext, Integer> fn) { consumeTicks = FieldValue.of(fn); return this; }
+        public Builder consumeTicks(Integer fallback, Function<ConsumableContext, Integer> fn) { consumeTicks = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder animation(ItemAnimation v) { animation = FieldValue.constant(v); return this; }
         public Builder animation(Function<ConsumableContext, ItemAnimation> fn) { animation = FieldValue.of(fn); return this; }
+        public Builder animation(ItemAnimation fallback, Function<ConsumableContext, ItemAnimation> fn) { animation = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder behavior(ConsumableBehavior v) { behavior = FieldValue.constant(v); return this; }
         public Builder behavior(Function<ConsumableContext, ConsumableBehavior> fn) { behavior = FieldValue.of(fn); return this; }
+        public Builder behavior(ConsumableBehavior fallback, Function<ConsumableContext, ConsumableBehavior> fn) { behavior = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder particles(ParticleVisibility v) { particles = FieldValue.constant(v); return this; }
         public Builder particles(Function<ConsumableContext, ParticleVisibility> fn) { particles = FieldValue.of(fn); return this; }
+        public Builder particles(ParticleVisibility fallback, Function<ConsumableContext, ParticleVisibility> fn) { particles = FieldValue.ofWithFallback(fallback, fn); return this; }
 
         public ConsumableTypeConfig build() { return new ConsumableTypeConfig(this); }
     }

@@ -85,6 +85,7 @@ public final class MinestomMechanics {
 
     private MinestomMechanics() {}
 
+    /** The JVM-wide library instance - the blessed lookup for code that can't be handed {@link Services} (entity factories). */
     public static MinestomMechanics getInstance() { return INSTANCE; }
 
     /** Registers an installed system; later retrievable via {@link #module(Class)}. Called from each system's {@code install}. */

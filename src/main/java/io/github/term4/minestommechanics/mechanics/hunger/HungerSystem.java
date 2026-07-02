@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class HungerSystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
-    private final HungerConfig config; // install config (the resolution fallback)
+    private final HungerConfig config;
     private final EventNode<@NotNull Event> node;
     /** The per-instance hunger tick is installed once for the JVM ({@link TickSystem} has no removal); it reads the live system each tick. */
     private static final AtomicBoolean TICK_HOOK = new AtomicBoolean();
@@ -39,7 +39,7 @@ public final class HungerSystem implements MechanicsModule {
     public EventNode<@NotNull Event> node() { return node; }
     public HungerConfig config() { return config; }
 
-    /** Effective hunger config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
+    /** Effective config for {@code subject}: the scoped profile, else the install config. */
     public HungerConfig configFor(@Nullable Entity subject) {
         HungerConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.HUNGER);
         return scoped != null ? scoped : config;

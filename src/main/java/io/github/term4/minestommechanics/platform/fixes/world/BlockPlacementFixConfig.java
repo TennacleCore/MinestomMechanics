@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.platform.fixes.world;
 
+import io.github.term4.minestommechanics.platform.fixes.FixToggle;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -13,7 +14,7 @@ import org.jetbrains.annotations.Nullable;
  * <p>The override replaces a server-wide packet listener, so this is an install-level toggle ({@code null} = off), not
  * a per-scope one. Remove once the upstream Minestom fix is on the pinned dependency.
  */
-public final class BlockPlacementFixConfig {
+public final class BlockPlacementFixConfig implements FixToggle {
 
     private final @Nullable Boolean enabled;
 

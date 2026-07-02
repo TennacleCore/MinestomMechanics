@@ -81,8 +81,8 @@ public final class KnockbackCalculator {
                 ? extraKb.direction().mul(extraKb.h() * extraLevel, extraKb.v(), extraKb.h() * extraLevel)
                 : null;
 
-        double iFH = frictionCoeff(or(cfg.frictionH(), 0), cfg.frictionModeH());
-        double iFV = frictionCoeff(or(cfg.frictionV(), 0), cfg.frictionModeV());
+        double iFH = frictionCoeff(cfg.frictionH(), cfg.frictionModeH());
+        double iFV = frictionCoeff(cfg.frictionV(), cfg.frictionModeV());
         // resolved once, threaded onto the component ctx so components read the same velocity
         VelocityRule velRule = cfg.velocity();
         if (velRule == null) velRule = services.profiles().resolve(t, MechanicsKeys.VELOCITY);
@@ -110,7 +110,7 @@ public final class KnockbackCalculator {
         }
 
         // 26.1 onGround gate: an airborne victim keeps its own motY (no vertical lift); 1.8 always lifts. applied last
-        if (Boolean.FALSE.equals(cfg.airborneVertical()) && !MotionTracker.onGround(t)) {
+        if (!cfg.airborneVertical() && !MotionTracker.onGround(t)) {
             kbVec = new Vec(kbVec.x(), vel.y(), kbVec.z());
         }
 
@@ -127,7 +127,7 @@ public final class KnockbackCalculator {
         Entity a = snap.source();
         // sprint is server state (not on the snapshot); the leniency window scales to live TPS (identity at 20)
         if (snap.melee() && a != null) {
-            int sprBuf = TickScaler.duration(cfg.sprintBuffer() != null ? cfg.sprintBuffer() : 0, services.profiles().resolve(a, MechanicsKeys.TICK_SCALING), KnockbackSystem.KEY);
+            int sprBuf = TickScaler.duration(cfg.sprintBuffer(), services.profiles().resolve(a, MechanicsKeys.TICK_SCALING), KnockbackSystem.KEY);
             if (SprintTracker.wasRecentlySprinting(services.sprintTracker(), a, sprBuf)) level++;
         }
         return level;
@@ -155,11 +155,11 @@ public final class KnockbackCalculator {
     private record RawDirs(Vec posH, Vec posV, Vec yaw, Vec pitch) {}
 
     private DirAndStrength resolveDS(RawDirs raw, KnockbackConfigResolver.ResolvedKnockbackConfig cfg, boolean extra) {
-        double h = or(extra ? cfg.extraHorizontal() : cfg.horizontal(), 0);
-        double v = or(extra ? cfg.extraVertical() : cfg.vertical(), 0);
-        double yw = or(extra ? cfg.extraYawWeight() : cfg.yawWeight(), 0);
-        double pw = or(extra ? cfg.extraPitchWeight() : cfg.pitchWeight(), 0);
-        double hw = or(extra ? cfg.extraHeightDelta() : cfg.heightDelta(), 0);
+        double h = extra ? cfg.extraHorizontal() : cfg.horizontal();
+        double v = extra ? cfg.extraVertical() : cfg.vertical();
+        double yw = extra ? cfg.extraYawWeight() : cfg.yawWeight();
+        double pw = extra ? cfg.extraPitchWeight() : cfg.pitchWeight();
+        double hw = extra ? cfg.extraHeightDelta() : cfg.heightDelta();
 
         Vec dirH; Vec dirV; double magH = h; double magV = v;
 
@@ -248,8 +248,6 @@ public final class KnockbackCalculator {
 
         return new Vec(resX, resY, resZ);
     }
-
-    private static double or(Double v, double def) { return v != null ? v : def; }
 
     /** Friction term coefficient: {@code FACTOR} multiplies mot by the value directly; {@code DIVISOR} (default, incl. null) uses {@code 1/value}. */
     private static double frictionCoeff(double f, @Nullable KnockbackConfig.FrictionMode mode) {

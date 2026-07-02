@@ -35,12 +35,16 @@ public final class Explosion {
         return e instanceof Player p && p.isSneaking() ? eye - 0.08 - 1.0e-6 : eye;
     }
 
+    /** Measured FBF blast-damage scale: the vanilla FLOORED falloff × 0.05 (2026-07-01 leather captures, every clean row wire-exact). */
+    static final double FBF_DAMAGE_SCALE = 0.05;
+
     /**
-     * Fireball-Fight minigame variant: same KB as {@link #config()} but low FLAT damage instead of the vanilla falloff -
-     * in FBF you're knocked off, not blasted to death. {@code flatDamage(6.0)} is a ROUGH GUESS (leather-armor + regen data:
-     * clean drops ~4.32 = 6×0.72; power-4 reads were noisier) - recapture no-armor to nail it. Armor still applies (no bypass).
+     * Fireball-Fight minigame variant: same KB as {@link #config()}, blast damage = the vanilla floored curve ×
+     * {@link #FBF_DAMAGE_SCALE} (p2 point-blank raw 32 → 1.6, p4 raw 58 → 2.9; armor applies normally - all observed
+     * drops divisible by leather's 0.72). Direct hits deal the fireball's vanilla 6.0 CONTACT damage
+     * ({@code Projectiles}); the splash after it is overdamage-blocked.
      */
     public static ExplosionConfig fireballFight() {
-        return config().toBuilder().flatDamage(2.0).build();
+        return config().toBuilder().damageScale(FBF_DAMAGE_SCALE).build();
     }
 }

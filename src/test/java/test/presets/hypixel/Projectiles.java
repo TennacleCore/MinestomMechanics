@@ -21,6 +21,11 @@ public final class Projectiles {
 
     private Projectiles() {}
 
+    /** Measured BedWars launch speed (b/t); the 0.1/tick self-propulsion is the entity's. */
+    private static final double BW_LAUNCH = 1.0;
+    /** Measured BedWars fireball radius (vanilla ghast = 1). */
+    private static final double BW_POWER = 2.0;
+
     /** Hypixel-specific: on impact capture the center and detonate one tick later, so the direct projectile KB lands the tick
      *  before the blast. The lib {@link FireballEntity} detonates same-tick when it has no behavior; this one OWNS the timing. */
     private static final ProjectileBehavior BW_FIREBALL_DETONATION = new ProjectileBehavior() {
@@ -37,14 +42,14 @@ public final class Projectiles {
         ProjectileTypeConfig bwFireball = ProjectileTypeConfig.builder(Fireball.KEY)
                 .boundingBox(1, 1, 1) // vanilla EntityFireball.setSize(1,1): the box OTHERS hit to deflect it; its own detonation stays a point (FireballEntity.collisionBox)
                 .gravity(0.0).horizontalDrag(0.95).verticalDrag(0.95)
-                .speed(1.0)
+                .speed(BW_LAUNCH)
                 .spread(0.0)
                 .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0) // at the eye
                 .leftOwnerImmunity(true)
                 .syncInterval(10).velocitySyncInterval(1) // sparse teleports + per-tick velocity: 1.8 extrapolates smoothly between corrections (per-tick teleports snap/jitter on 1.8)
                 .removeOnEntityHit(true).removeOnBlockHit(true)
                 .damage(0.0)
-                .explosionPower(2.0) // measured Hypixel fireball radius (vanilla ghast = 1)
+                .explosionPower(BW_POWER)
                 .invulnHit(ProjectileTypeConfig.HitResponse.DESTROY)
                 .behavior(BW_FIREBALL_DETONATION) // Hypixel next-tick detonation (lib default is vanilla same-tick)
                 .build();

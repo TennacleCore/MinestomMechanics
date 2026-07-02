@@ -28,7 +28,7 @@ import org.jetbrains.annotations.Nullable;
 public final class FixesSystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
-    private final FixesConfig config; // install config (the resolution fallback)
+    private final FixesConfig config;
     private final EventNode<@NotNull Event> node;
     private final LegacyArrowVisibility legacyArrowVisibility;
 
@@ -44,7 +44,7 @@ public final class FixesSystem implements MechanicsModule {
     /** The 1.8 legacy arrow-visibility manager (runtime on/off + per-player team sync). */
     public LegacyArrowVisibility legacyArrowVisibility() { return legacyArrowVisibility; }
 
-    /** Effective fixes config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
+    /** Effective config for {@code subject}: the scoped profile, else the install config. */
     public FixesConfig configFor(@Nullable Entity subject) {
         FixesConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.FIXES);
         return scoped != null ? scoped : config;
@@ -88,23 +88,19 @@ public final class FixesSystem implements MechanicsModule {
         // compat (place a block into your own body). SelfPlacementFix wraps the corrected listener, so enabling it gives
         // the chunk fix too; otherwise install the listener bare. Temporary, until the upstream Minestom chunk fix is on
         // the pinned dependency (then SelfPlacementFix repoints at the upstream listener and BlockPlacementFix is gone).
-        boolean chunkSync = cfg.blockPlacement() != null && Boolean.TRUE.equals(cfg.blockPlacement().enabled());
-        boolean selfPlace = cfg.selfPlacement() != null && Boolean.TRUE.equals(cfg.selfPlacement().enabled());
-        if (selfPlace) SelfPlacementFix.install();
-        else if (chunkSync) BlockPlacementFix.install();
+        if (enabled(cfg.selfPlacement())) SelfPlacementFix.install();
+        else if (enabled(cfg.blockPlacement())) BlockPlacementFix.install();
         // Equipment-slot fix rides the OptimizedPlayer send-packet override (server-wide), so it reads the install config directly.
-        if (cfg.legacyEquipmentFix() != null && Boolean.TRUE.equals(cfg.legacyEquipmentFix().enabled())) {
-            LegacyEquipmentFix.install();
-        }
+        if (enabled(cfg.legacyEquipmentFix())) LegacyEquipmentFix.install();
         // View-distance clamp rides the OptimizedPlayer refresh-settings override (server-wide), so it reads the install config directly.
-        if (cfg.legacyViewDistanceFix() != null && Boolean.TRUE.equals(cfg.legacyViewDistanceFix().enabled())) {
-            LegacyViewDistanceFix.install();
-        }
+        if (enabled(cfg.legacyViewDistanceFix())) LegacyViewDistanceFix.install();
         // Tab-completion fix registers a PlayerPacketEvent listener on the fixes node (server-wide), so it reads the install config directly.
-        if (cfg.legacyTabCompleteFix() != null && Boolean.TRUE.equals(cfg.legacyTabCompleteFix().enabled())) {
-            LegacyTabCompleteFix.install(system.node);
-        }
+        if (enabled(cfg.legacyTabCompleteFix())) LegacyTabCompleteFix.install(system.node);
         mm.install(system.node);
         return system;
+    }
+
+    private static boolean enabled(@Nullable FixToggle cfg) {
+        return cfg != null && Boolean.TRUE.equals(cfg.enabled());
     }
 }

@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.util;
 
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
@@ -29,6 +30,25 @@ public final class Directions {
     /** Minecraft yaw (degrees) of a direction/velocity vector: {@code atan2(x, z)} (yaw 0 -&gt; +Z). */
     public static float yaw(Vec dir) {
         return (float) Math.toDegrees(Math.atan2(dir.x(), dir.z()));
+    }
+
+    /** Horizontal unit vector 90° clockwise of {@code yawDeg} (the shooter's right hand): {@code (-cos(yaw), 0, -sin(yaw))}. */
+    public static Vec rightOf(double yawDeg) {
+        double rad = Math.toRadians(yawDeg);
+        return new Vec(-Math.cos(rad), 0, -Math.sin(rad));
+    }
+
+    /** Rotates {@code v} around the Y axis by {@code degrees} (y untouched). */
+    public static Vec rotateY(Vec v, double degrees) {
+        double rad = Math.toRadians(degrees), cos = Math.cos(rad), sin = Math.sin(rad);
+        return new Vec(v.x() * cos - v.z() * sin, v.y(), v.x() * sin + v.z() * cos);
+    }
+
+    /** Unit vector of {@code (dx, dy, dz)}, or {@code null} when its length is under {@code epsilon}. */
+    public static @Nullable Vec unit3D(double dx, double dy, double dz, double epsilon) {
+        double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (len < epsilon) return null;
+        return new Vec(dx / len, dy / len, dz / len);
     }
 
     /** Minecraft pitch (degrees) of a direction/velocity vector: {@code atan2(y, horizontalLength)}

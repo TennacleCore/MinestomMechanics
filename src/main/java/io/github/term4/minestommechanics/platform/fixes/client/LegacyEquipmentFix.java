@@ -2,7 +2,7 @@ package io.github.term4.minestommechanics.platform.fixes.client;
 
 import net.minestom.server.entity.EquipmentSlot;
 import net.minestom.server.item.ItemStack;
-import net.minestom.server.network.packet.server.LazyPacket;
+import io.github.term4.minestommechanics.platform.PacketShapes;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.ServerPacket;
 import net.minestom.server.network.packet.server.play.EntityEquipmentPacket;
@@ -45,17 +45,7 @@ public final class LegacyEquipmentFix {
     /** Strips empty equipment slots from an {@code EntityEquipmentPacket}; otherwise returns {@code packet} unchanged. */
     public static SendablePacket rewrite(SendablePacket packet) {
         if (!enabled) return packet;
-        // Resolve only the state-independent shapes that can carry equipment: a bare packet (self/viewer refresh) or a
-        // LazyPacket (new-viewer path, LivingEntity#updateNewViewer). NEVER route through extractServerPacket here: its
-        // CachedPacket branch forces that packet's single, stateless FramedPacket cache, framing the buffer with whatever
-        // state we pass. Since this runs on every outgoing packet - including during a modern client's CONFIGURATION join -
-        // a hardcoded PLAY would poison the cache with a PLAY-framed buffer that is then reused for the real config send,
-        // corrupting the stream. Equipment is never sent as a CachedPacket, so skipping it loses no coverage.
-        final ServerPacket serverPacket = switch (packet) {
-            case ServerPacket sp -> sp;
-            case LazyPacket lazy -> lazy.packet();
-            default -> null;
-        };
+        final ServerPacket serverPacket = PacketShapes.unwrapStateless(packet);
         if (!(serverPacket instanceof EntityEquipmentPacket equipment)) return packet;
 
         final Map<EquipmentSlot, ItemStack> kept = new EnumMap<>(EquipmentSlot.class);

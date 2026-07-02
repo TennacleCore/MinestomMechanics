@@ -314,10 +314,10 @@ public final class AttributeSystem implements MechanicsModule {
         return this;
     }
 
-    /** Effective config for {@code entity}: the scoped profile's attribute config merged over the install config. */
+    /** Effective config for {@code entity}: the scoped profile, else the install config. */
     public AttributeConfig configFor(@Nullable Entity entity) {
         AttributeConfig scoped = mm.profiles().resolve(entity, MechanicsKeys.ATTRIBUTES);
-        return scoped != null ? scoped.fromBase(config) : config;
+        return scoped != null ? scoped : config;
     }
 
     /** Query context for {@code entity} + the in-context {@code item} (scope-resolved config). */
@@ -351,8 +351,15 @@ public final class AttributeSystem implements MechanicsModule {
         if (!bypass.effectStage() && !bypass.effect(RESISTANCE_KEY)) {
             int level = context(victim, null).effectLevel(RESISTANCE_KEY);
             if (level > 0) {
-                int reduced = 25 - 5 * level;
-                damage = reduced <= 0 ? 0f : damage * reduced / 25f;
+                Double perLevel = cfg.resistancePerLevel;
+                if (perLevel == null) {
+                    // vanilla integer curve, kept exact (identical 1.8-26)
+                    int reduced = 25 - 5 * level;
+                    damage = reduced <= 0 ? 0f : damage * reduced / 25f;
+                } else {
+                    double frac = 1.0 - perLevel * level;
+                    damage = frac <= 0 ? 0f : (float) (damage * frac);
+                }
                 if (damage <= 0) return damage;
             }
         }
@@ -362,6 +369,15 @@ public final class AttributeSystem implements MechanicsModule {
             damage = protection.damageAfterProtection(victim, req.categories(), damage, req.random(), bypass);
         }
         return damage;
+    }
+
+    /**
+     * The victim's knockback resistance: source-contributed modifiers folded onto Minestom's attribute value. The caller
+     * owns what to do with it (LEGACY rolls to negate, 1:1 with vanilla; MODERN scales).
+     */
+    public double knockbackResistance(LivingEntity living) {
+        double base = living.getAttributeValue(net.minestom.server.entity.attribute.Attribute.KNOCKBACK_RESISTANCE);
+        return context(living, null).value(Attribute.KNOCKBACK_RESISTANCE, base);
     }
 
     /**

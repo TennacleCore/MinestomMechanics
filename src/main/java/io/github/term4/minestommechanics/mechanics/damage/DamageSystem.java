@@ -315,14 +315,10 @@ public final class DamageSystem implements MechanicsModule {
     private void applyHurtKnockback(LivingEntity living, @Nullable KnockbackConfig cfg) {
         KnockbackSystem kb = services.knockback();
         if (kb == null) return;
-        // KB-resistance read through the attribute system, so source-contributed resistance folds onto Minestom's value.
         // LEGACY rolls to negate (1:1 with vanilla); MODERN's ×(1-resistance) scale folds in with the KB stage list later.
-        double resistance = living.getAttributeValue(Attribute.KNOCKBACK_RESISTANCE);
         AttributeSystem attrs = services.attributes();
-        if (attrs != null) {
-            resistance = attrs.context(living, null)
-                    .value(io.github.term4.minestommechanics.mechanics.attribute.Attribute.KNOCKBACK_RESISTANCE, resistance);
-        }
+        double resistance = attrs != null ? attrs.knockbackResistance(living)
+                : living.getAttributeValue(Attribute.KNOCKBACK_RESISTANCE);
         if (ThreadLocalRandom.current().nextDouble() < resistance) return;
         kb.apply(new KnockbackSnapshot(living, false, null,
                 living.getPosition(), living.getPosition().direction(),

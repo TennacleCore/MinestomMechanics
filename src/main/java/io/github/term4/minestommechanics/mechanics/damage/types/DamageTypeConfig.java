@@ -1,6 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.damage.types;
 
 import io.github.term4.minestommechanics.config.FieldValue;
+import io.github.term4.minestommechanics.config.TypeConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import net.kyori.adventure.key.Key;
@@ -13,9 +14,8 @@ import java.util.function.Function;
  * to the global {@link DamageConfig} ({@code typeConfigs}); a type without an entry uses its {@link DamageType#defaultConfig()}.
  * Every value is a {@link FieldValue} (constant or context-aware), resolving to {@code null} to inherit the global config.
  */
-public class DamageTypeConfig {
+public class DamageTypeConfig extends TypeConfig<DamageContext, DamageTypeConfig> {
 
-    private final Key key;
     private final @Nullable FieldValue<DamageContext, Boolean> enabled;
     private final @Nullable FieldValue<DamageContext, Double> baseAmount;
     private final @Nullable FieldValue<DamageContext, Integer> invulTicks;
@@ -30,10 +30,9 @@ public class DamageTypeConfig {
     private final @Nullable FieldValue<DamageContext, Boolean> bypassEnchants;
     private final @Nullable FieldValue<DamageContext, Boolean> bypassAll;
     private final @Nullable FieldValue<DamageContext, Boolean> ownsVelocityBroadcast;
-    private final @Nullable Function<DamageContext, DamageTypeConfig> subConfig;
 
     protected DamageTypeConfig(Builder b) {
-        this.key = b.key;
+        super(b.key, b.subConfig);
         this.enabled = b.enabled;
         this.baseAmount = b.baseAmount;
         this.invulTicks = b.invulTicks;
@@ -48,11 +47,7 @@ public class DamageTypeConfig {
         this.bypassEnchants = b.bypassEnchants;
         this.bypassAll = b.bypassAll;
         this.ownsVelocityBroadcast = b.ownsVelocityBroadcast;
-        this.subConfig = b.subConfig;
     }
-
-    /** Identity of the type this config applies to. */
-    public Key key() { return key; }
 
     /** Whether this type applies in the resolved scope (default {@code true}); resolved per victim through the config chain. */
     public boolean enabled(DamageContext ctx) {
@@ -123,44 +118,29 @@ public class DamageTypeConfig {
     /** Whether this type's knockback owns the hurt-velocity broadcast, so {@code DamageSystem} won't also send the generic one. {@code null} = the built-in default (melee + thrown). */
     public @Nullable Boolean ownsVelocityBroadcast(DamageContext ctx) { return resolve(ownsVelocityBroadcast, ctx); }
 
-    /** Context-aware overlay applied over this type config before resolution, or {@code null} if none. */
-    public @Nullable Function<DamageContext, DamageTypeConfig> subConfig() { return subConfig; }
-
     /**
      * Merges this type config over {@code base}: this config's set fields win, unset fields fall back
      * to {@code base} per resolution. Subclasses override to also merge their type-specific fields.
      */
     public DamageTypeConfig fromBase(DamageTypeConfig base) {
         Builder b = new Builder();
-        b.key = key != null ? key : base.key;
-        b.enabled = mergeFv(enabled, base.enabled);
-        b.baseAmount = mergeFv(baseAmount, base.baseAmount);
-        b.invulTicks = mergeFv(invulTicks, base.invulTicks);
-        b.overdamage = mergeFv(overdamage, base.overdamage);
-        b.silent = mergeFv(silent, base.silent);
-        b.overdamageSilent = mergeFv(overdamageSilent, base.overdamageSilent);
-        b.triggersInvul = mergeFv(triggersInvul, base.triggersInvul);
-        b.bypassInvul = mergeFv(bypassInvul, base.bypassInvul);
-        b.bypassImmune = mergeFv(bypassImmune, base.bypassImmune);
-        b.bypassArmor = mergeFv(bypassArmor, base.bypassArmor);
-        b.bypassEffects = mergeFv(bypassEffects, base.bypassEffects);
-        b.bypassEnchants = mergeFv(bypassEnchants, base.bypassEnchants);
-        b.bypassAll = mergeFv(bypassAll, base.bypassAll);
-        b.ownsVelocityBroadcast = mergeFv(ownsVelocityBroadcast, base.ownsVelocityBroadcast);
+        b.key = key() != null ? key() : base.key();
+        b.enabled = merge(enabled, base.enabled);
+        b.baseAmount = merge(baseAmount, base.baseAmount);
+        b.invulTicks = merge(invulTicks, base.invulTicks);
+        b.overdamage = merge(overdamage, base.overdamage);
+        b.silent = merge(silent, base.silent);
+        b.overdamageSilent = merge(overdamageSilent, base.overdamageSilent);
+        b.triggersInvul = merge(triggersInvul, base.triggersInvul);
+        b.bypassInvul = merge(bypassInvul, base.bypassInvul);
+        b.bypassImmune = merge(bypassImmune, base.bypassImmune);
+        b.bypassArmor = merge(bypassArmor, base.bypassArmor);
+        b.bypassEffects = merge(bypassEffects, base.bypassEffects);
+        b.bypassEnchants = merge(bypassEnchants, base.bypassEnchants);
+        b.bypassAll = merge(bypassAll, base.bypassAll);
+        b.ownsVelocityBroadcast = merge(ownsVelocityBroadcast, base.ownsVelocityBroadcast);
         b.subConfig = subConfig != null ? subConfig : base.subConfig;
         return b.build();
-    }
-
-    protected static <T> @Nullable T resolve(@Nullable FieldValue<DamageContext, T> fv, DamageContext ctx) {
-        return fv != null ? fv.resolve(ctx) : null;
-    }
-
-    /** Layers {@code a} over {@code b}: {@code a} wins, falling back to {@code b} per resolution. */
-    protected static <T> @Nullable FieldValue<DamageContext, T> mergeFv(@Nullable FieldValue<DamageContext, T> a,
-                                                                        @Nullable FieldValue<DamageContext, T> b) {
-        if (b == null) return a;
-        if (a == null) return b;
-        return a.or(b);
     }
 
     /** A builder for the base config; a key is required since configs are keyed by type. */
@@ -189,7 +169,7 @@ public class DamageTypeConfig {
 
         /** Copies every common field (and subConfig/key) from {@code src} into this builder. */
         public Builder copyFrom(DamageTypeConfig src) {
-            this.key = src.key;
+            this.key = src.key();
             this.enabled = src.enabled;
             this.baseAmount = src.baseAmount;
             this.invulTicks = src.invulTicks;

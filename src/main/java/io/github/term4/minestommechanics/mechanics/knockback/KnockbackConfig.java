@@ -13,7 +13,13 @@ import java.util.function.Function;
 /** Immutable knockback config. Use {@link #builder()}, {@link #toBuilder()}. */
 public final class KnockbackConfig extends Config<KnockbackContext, KnockbackConfig> {
 
-    public enum DirectionMode { SCALAR, VECTOR_ADDITION }
+    /** How the position-based and look-based direction inputs combine. */
+    public enum DirectionMode {
+        /** Weighted blend of the unit directions, re-normalized; the strength stays the configured magnitude. */
+        SCALAR,
+        /** Weighted vector sum; the resulting length IS the strength (vanilla 1.8 base+extra addition). */
+        VECTOR_ADDITION
+    }
     /** How a friction value is applied to the reconstructed victim velocity in the friction term. */
     public enum FrictionMode {
         /** {@code mot / value} - the value is a divisor (default; vanilla-style). */
@@ -29,24 +35,43 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
         }
     }
 
+    /** Recent-sprint window (ticks) for the melee sprint {@code +1} extra level; {@code 0} = live sprint state only. */
     public final FieldValue<KnockbackContext, Integer> sprintBuffer;
+    /** Base horizontal strength (b/t); vanilla 1.8 hurt-KB {@code 0.4}. */
     public final FieldValue<KnockbackContext, Double> horizontal;
+    /** Base vertical strength (b/t); vanilla 1.8 {@code 0.4}. */
     public final FieldValue<KnockbackContext, Double> vertical;
+    /** Extra (sprint/enchant) horizontal strength per level; vanilla 1.8 {@code 0.5}. */
     public final FieldValue<KnockbackContext, Double> extraHorizontal;
+    /** Extra vertical strength (level-independent); vanilla 1.8 {@code 0.1}. */
     public final FieldValue<KnockbackContext, Double> extraVertical;
+    /** Clamp on the folded base horizontal magnitude; {@code null} = none. */
     public final FieldValue<KnockbackContext, Bounds> horizontalBounds;
+    /** Clamp on the folded base vertical; vanilla 1.8 caps at {@code 0.4f}. */
     public final FieldValue<KnockbackContext, Bounds> verticalBounds;
+    /** Clamp applied after the extra is added (horizontal magnitude); {@code null} = none. */
     public final FieldValue<KnockbackContext, Bounds> extraHorizontalBounds;
+    /** Clamp applied after the extra is added (vertical); {@code null} = none. */
     public final FieldValue<KnockbackContext, Bounds> extraVerticalBounds;
+    /** Horizontal direction weight: {@code 0} = away from the attacker (position), {@code 1} = along the attacker's look. */
     public final FieldValue<KnockbackContext, Double> yawWeight;
+    /** {@link #yawWeight} for the extra component; vanilla 1.8 extra is pure look ({@code 1.0}). */
     public final FieldValue<KnockbackContext, Double> extraYawWeight;
+    /** Vertical direction weight from the attacker's pitch; vanilla {@code 0} (vertical is a flat add). */
     public final FieldValue<KnockbackContext, Double> pitchWeight;
+    /** {@link #pitchWeight} for the extra component. */
     public final FieldValue<KnockbackContext, Double> extraPitchWeight;
+    /** Vertical direction weight from the attacker-victim height difference; vanilla {@code 0}. */
     public final FieldValue<KnockbackContext, Double> heightDelta;
+    /** {@link #heightDelta} for the extra component. */
     public final FieldValue<KnockbackContext, Double> extraHeightDelta;
+    /** How the horizontal direction inputs combine; vanilla 1.8 = {@link DirectionMode#VECTOR_ADDITION}. */
     public final FieldValue<KnockbackContext, DirectionMode> horizontalCombine;
+    /** How the vertical direction inputs combine; vanilla 1.8 = {@link DirectionMode#SCALAR}. */
     public final FieldValue<KnockbackContext, DirectionMode> verticalCombine;
+    /** Horizontal friction term on the victim's reconstructed velocity (per {@link #frictionModeH}); vanilla 1.8 halves ({@code DIVISOR 2}). */
     public final FieldValue<KnockbackContext, Double> frictionH;
+    /** Vertical friction term (per {@link #frictionModeV}); vanilla 1.8 halves ({@code DIVISOR 2}). */
     public final FieldValue<KnockbackContext, Double> frictionV;
     public final FieldValue<KnockbackContext, FrictionMode> frictionModeH;
     public final FieldValue<KnockbackContext, FrictionMode> frictionModeV;

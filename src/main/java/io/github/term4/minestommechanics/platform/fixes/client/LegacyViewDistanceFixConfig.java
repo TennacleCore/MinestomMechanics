@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.platform.fixes.client;
 
+import io.github.term4.minestommechanics.platform.fixes.FixToggle;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -13,7 +14,7 @@ import org.jetbrains.annotations.Nullable;
  * client already within the instance's view distance. Temporary workaround; removable once the upstream Minestom fix
  * (branch {@code fix/refresh-settings-view-distance}) is on the pinned dependency.
  */
-public final class LegacyViewDistanceFixConfig {
+public final class LegacyViewDistanceFixConfig implements FixToggle {
 
     private final @Nullable Boolean enabled;
 

@@ -92,10 +92,10 @@ public final class FallDamageConfig extends DamageTypeConfig {
         Builder b = new Builder();
         b.common.copyFrom(mergedCommon);
         if (base instanceof FallDamageConfig f) {
-            b.formula = mergeFv(this.formula, f.formula);
-            b.threshold = mergeFv(this.threshold, f.threshold);
-            b.damageModifier = mergeFv(this.damageModifier, f.damageModifier);
-            b.fallDamageMultiplier = mergeFv(this.fallDamageMultiplier, f.fallDamageMultiplier);
+            b.formula = merge(this.formula, f.formula);
+            b.threshold = merge(this.threshold, f.threshold);
+            b.damageModifier = merge(this.damageModifier, f.damageModifier);
+            b.fallDamageMultiplier = merge(this.fallDamageMultiplier, f.fallDamageMultiplier);
         } else {
             b.formula = this.formula;
             b.threshold = this.threshold;

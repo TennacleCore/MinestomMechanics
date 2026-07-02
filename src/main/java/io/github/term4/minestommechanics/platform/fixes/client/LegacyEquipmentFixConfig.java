@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.platform.fixes.client;
 
+import io.github.term4.minestommechanics.platform.fixes.FixToggle;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -12,7 +13,7 @@ import org.jetbrains.annotations.Nullable;
  * modern ones, since dropping empty slots is vanilla parity. Temporary workaround; removable once the upstream
  * {@code getEquipmentsPacket} fix (branch {@code fix/skip-empty-equipment-slots}) is on the pinned dependency.
  */
-public final class LegacyEquipmentFixConfig {
+public final class LegacyEquipmentFixConfig implements FixToggle {
 
     private final @Nullable Boolean enabled;
 

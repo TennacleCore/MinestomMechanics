@@ -50,7 +50,7 @@ public final class MeleeDamageConfig extends DamageTypeConfig {
         Builder b = new Builder();
         b.common.copyFrom(mergedCommon);
         FieldValue<DamageContext, Double> baseCrit = base instanceof MeleeDamageConfig p ? p.critMultiplier : null;
-        b.critMultiplier = mergeFv(this.critMultiplier, baseCrit);
+        b.critMultiplier = merge(this.critMultiplier, baseCrit);
         return b.build();
     }
 

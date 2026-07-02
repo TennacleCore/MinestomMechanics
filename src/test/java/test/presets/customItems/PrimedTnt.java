@@ -1,4 +1,4 @@
-package test;
+package test.presets.customItems;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;

@@ -52,6 +52,7 @@ import net.minestom.server.potion.Potion;
 import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.timer.TaskSchedule;
 import test.presets.hypixel.Hypixel;
+import test.presets.customItems.PrimedTnt;
 import test.presets.mmc18.Mmc18;
 
 public class ExampleServer {

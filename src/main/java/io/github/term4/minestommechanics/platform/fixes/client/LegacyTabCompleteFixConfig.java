@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.platform.fixes.client;
 
+import io.github.term4.minestommechanics.platform.fixes.FixToggle;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -11,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
  * <p>Registers a server-wide {@code PlayerPacketEvent} listener, so it's an install-level toggle ({@code null} = off),
  * not a per-scope one. Harmless for modern clients, which never request command-name completion.
  */
-public final class LegacyTabCompleteFixConfig {
+public final class LegacyTabCompleteFixConfig implements FixToggle {
 
     private final @Nullable Boolean enabled;
 

@@ -38,8 +38,8 @@ public final class BreathingConfig extends DamageTypeConfig {
         Builder b = new Builder();
         b.common.copyFrom(mergedCommon);
         if (base instanceof BreathingConfig f) {
-            b.maxAir = mergeFv(this.maxAir, f.maxAir);
-            b.airRefill = mergeFv(this.airRefill, f.airRefill);
+            b.maxAir = merge(this.maxAir, f.maxAir);
+            b.airRefill = merge(this.airRefill, f.airRefill);
         } else {
             b.maxAir = this.maxAir;
             b.airRefill = this.airRefill;

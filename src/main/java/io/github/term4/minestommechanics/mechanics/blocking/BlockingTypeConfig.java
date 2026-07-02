@@ -87,18 +87,25 @@ public final class BlockingTypeConfig extends Config<BlockingContext, BlockingTy
         public Builder subConfig(Function<BlockingContext, BlockingTypeConfig> fn) { subConfig = fn; return this; }
         public Builder enabled(Boolean v) { enabled = FieldValue.constant(v); return this; }
         public Builder enabled(Function<BlockingContext, Boolean> fn) { enabled = FieldValue.of(fn); return this; }
+        public Builder enabled(Boolean fallback, Function<BlockingContext, Boolean> fn) { enabled = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder behavior(BlockingBehavior v) { behavior = FieldValue.constant(v); return this; }
         public Builder behavior(Function<BlockingContext, BlockingBehavior> fn) { behavior = FieldValue.of(fn); return this; }
+        public Builder behavior(BlockingBehavior fallback, Function<BlockingContext, BlockingBehavior> fn) { behavior = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder reductionBase(Double v) { reductionBase = FieldValue.constant(v); return this; }
         public Builder reductionBase(Function<BlockingContext, Double> fn) { reductionBase = FieldValue.of(fn); return this; }
+        public Builder reductionBase(Double fallback, Function<BlockingContext, Double> fn) { reductionBase = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder reductionFactor(Double v) { reductionFactor = FieldValue.constant(v); return this; }
         public Builder reductionFactor(Function<BlockingContext, Double> fn) { reductionFactor = FieldValue.of(fn); return this; }
+        public Builder reductionFactor(Double fallback, Function<BlockingContext, Double> fn) { reductionFactor = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder blockDelayTicks(Integer v) { blockDelayTicks = FieldValue.constant(v); return this; }
         public Builder blockDelayTicks(Function<BlockingContext, Integer> fn) { blockDelayTicks = FieldValue.of(fn); return this; }
+        public Builder blockDelayTicks(Integer fallback, Function<BlockingContext, Integer> fn) { blockDelayTicks = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder blockingAngle(Double v) { blockingAngle = FieldValue.constant(v); return this; }
         public Builder blockingAngle(Function<BlockingContext, Double> fn) { blockingAngle = FieldValue.of(fn); return this; }
+        public Builder blockingAngle(Double fallback, Function<BlockingContext, Double> fn) { blockingAngle = FieldValue.ofWithFallback(fallback, fn); return this; }
         public Builder bypassedTypes(Set<Key> v) { bypassedTypes = FieldValue.constant(v); return this; }
         public Builder bypassedTypes(Function<BlockingContext, Set<Key>> fn) { bypassedTypes = FieldValue.of(fn); return this; }
+        public Builder bypassedTypes(Set<Key> fallback, Function<BlockingContext, Set<Key>> fn) { bypassedTypes = FieldValue.ofWithFallback(fallback, fn); return this; }
 
         public BlockingTypeConfig build() { return new BlockingTypeConfig(this); }
     }

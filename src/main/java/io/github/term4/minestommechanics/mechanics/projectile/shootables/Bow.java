@@ -26,7 +26,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * are distinct - the arrow type stays pure identity, the bow lives here. Pass {@code new Bow()} to {@link ProjectileSystem#install}.
  *
  * <p>Vanilla 1.8: draw power {@code (s^2 + 2s)/3} capped at 1, {@code < 0.1} fires nothing, full draw is critical
- * (chance configurable via {@link #fullPowerCritChance}); consumes one arrow (unless creative); the arrow launches at
+ * (chance = the arrow type's {@code critChance} knob); consumes one arrow (unless creative); the arrow launches at
  * speed {@code power * speed}.
  * TODO: offhand arrow selection; gate drawing (not just release) on ammo.
  */
@@ -36,17 +36,12 @@ public final class Bow implements Shootable {
     private static final float MIN_POWER = 0.1f;
 
     private final ProjectileType arrowType;
-    /** Probability a full-draw arrow is critical (vanilla: always, so {@code 1.0}); {@code 0.0} = never. */
-    private float fullPowerCritChance = 1.0f;
 
     /** A bow that fires the built-in {@link Arrow}. */
     public Bow() { this(Arrow.INSTANCE); }
 
     /** A bow that fires a custom arrow type (its entity must be an {@link ArrowEntity} for crit/pickup wiring). */
     public Bow(ProjectileType arrowType) { this.arrowType = arrowType; }
-
-    /** Sets the chance a full-draw arrow crits ({@code [0,1]}; default {@code 1.0} = vanilla always-crit). Returns this. */
-    public Bow fullPowerCritChance(float chance) { this.fullPowerCritChance = chance; return this; }
 
     @Override
     public void install(@NotNull EventNode<@NotNull Event> node, @NotNull ProjectileSystem system) {
@@ -65,9 +60,10 @@ public final class Bow implements Shootable {
         // Infinity keeps only PLAIN arrows (vanilla); tipped/spectral are always consumed.
         boolean keepArrow = creative || (Enchants.level(e.getItemStack(), Infinity.KEY) > 0 && arrowItem.material() == Material.ARROW);
         if (!keepArrow && slot >= 0) p.getInventory().setItemStack(slot, arrowItem.withAmount(arrowItem.amount() - 1));
-        ProjectileEntity proj = system.launch(ProjectileSnapshot.of(p, arrowType).withPower(power).withItem(e.getItemStack()));
+        ProjectileSnapshot snap = ProjectileSnapshot.of(p, arrowType).withPower(power).withItem(e.getItemStack());
+        ProjectileEntity proj = system.launch(snap);
         if (proj instanceof ArrowEntity arrow) {
-            arrow.setCritical(power >= 1f && rollFullPowerCrit());
+            arrow.setCritical(power >= 1f && rollCrit(system.resolveFlight(snap).critChance()));
             // A consumed (survival) shot -> ALLOWED (collector keeps the arrow); a kept shot (creative / Infinity) -> CREATIVE_ONLY (no pickup).
             arrow.setPickup(keepArrow ? ArrowEntity.Pickup.CREATIVE_ONLY : ArrowEntity.Pickup.ALLOWED);
             TippedArrows.apply(arrow, arrowItem);
@@ -75,9 +71,9 @@ public final class Bow implements Shootable {
     }
 
     /** Rolls the full-draw crit chance: always at {@code >= 1}, never at {@code <= 0}, else a per-shot roll. */
-    private boolean rollFullPowerCrit() {
-        if (fullPowerCritChance >= 1f) return true;
-        return fullPowerCritChance > 0f && ThreadLocalRandom.current().nextFloat() < fullPowerCritChance;
+    private static boolean rollCrit(double chance) {
+        if (chance >= 1.0) return true;
+        return chance > 0.0 && ThreadLocalRandom.current().nextDouble() < chance;
     }
 
     /** Vanilla bow power curve: {@code (f*f + 2f)/3} capped at 1, where {@code f} is the draw in real seconds (draw ticks / server TPS, not a hardcoded 20) so charge is TPS-invariant. */

@@ -3,6 +3,7 @@ package io.github.term4.minestommechanics.mechanics.knockback;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.config.FieldValue;
+import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.motion.VelocityContext;
@@ -34,10 +35,13 @@ public final class KnockbackConfigResolver {
         public boolean victimOnGround() {
             return MotionTracker.onGround(snap.target());
         }
+        /** Whether the attacker sprinted within the config's {@code sprintBuffer} window - the same definition the pipeline's extra-level gate uses. */
         public boolean sprint() {
             var a = snap.source();
-            return a instanceof Player p && services.sprintTracker() != null
-                && SprintTracker.wasRecentlySprinting(services.sprintTracker(), p, 0);
+            if (!(a instanceof Player p) || services.sprintTracker() == null) return false;
+            KnockbackConfig cfg = snap.config();
+            Integer buf = cfg != null && cfg.sprintBuffer != null ? cfg.sprintBuffer.resolve(this) : null;
+            return SprintTracker.wasRecentlySprinting(services.sprintTracker(), p, buf != null ? buf : 0);
         }
         /**
          * The effective victim-velocity rule: the rule {@link #withVelocity threaded} by the calculator when present,
@@ -69,31 +73,31 @@ public final class KnockbackConfigResolver {
         }
         // no knockback-level invul window (gating is the attack processor's job)
         return new ResolvedKnockbackConfig(
-                resolve(cfg.sprintBuffer, ctx),
-                resolve(cfg.horizontal, ctx),
-                resolve(cfg.vertical, ctx),
-                resolve(cfg.extraHorizontal, ctx),
-                resolve(cfg.extraVertical, ctx),
+                or(resolve(cfg.sprintBuffer, ctx), 0),
+                or(resolve(cfg.horizontal, ctx), 0.0),
+                or(resolve(cfg.vertical, ctx), 0.0),
+                or(resolve(cfg.extraHorizontal, ctx), 0.0),
+                or(resolve(cfg.extraVertical, ctx), 0.0),
                 resolve(cfg.horizontalBounds, ctx),
                 resolve(cfg.verticalBounds, ctx),
                 resolve(cfg.extraHorizontalBounds, ctx),
                 resolve(cfg.extraVerticalBounds, ctx),
-                resolve(cfg.yawWeight, ctx),
-                resolve(cfg.extraYawWeight, ctx),
-                resolve(cfg.pitchWeight, ctx),
-                resolve(cfg.extraPitchWeight, ctx),
-                resolve(cfg.heightDelta, ctx),
-                resolve(cfg.extraHeightDelta, ctx),
-                resolve(cfg.horizontalCombine, ctx),
-                resolve(cfg.verticalCombine, ctx),
-                resolve(cfg.frictionH, ctx),
-                resolve(cfg.frictionV, ctx),
-                resolve(cfg.frictionModeH, ctx),
-                resolve(cfg.frictionModeV, ctx),
+                or(resolve(cfg.yawWeight, ctx), 0.0),
+                or(resolve(cfg.extraYawWeight, ctx), 0.0),
+                or(resolve(cfg.pitchWeight, ctx), 0.0),
+                or(resolve(cfg.extraPitchWeight, ctx), 0.0),
+                or(resolve(cfg.heightDelta, ctx), 0.0),
+                or(resolve(cfg.extraHeightDelta, ctx), 0.0),
+                or(resolve(cfg.horizontalCombine, ctx), KnockbackConfig.DirectionMode.SCALAR),
+                or(resolve(cfg.verticalCombine, ctx), KnockbackConfig.DirectionMode.SCALAR),
+                or(resolve(cfg.frictionH, ctx), 0.0), // 0 = no fold of the victim's velocity
+                or(resolve(cfg.frictionV, ctx), 0.0),
+                or(resolve(cfg.frictionModeH, ctx), KnockbackConfig.FrictionMode.DIVISOR),
+                or(resolve(cfg.frictionModeV, ctx), KnockbackConfig.FrictionMode.DIVISOR),
                 resolve(cfg.velocity, ctx),
-                resolve(cfg.quantizeVelocity, ctx),
-                resolve(cfg.velocityCap, ctx),
-                resolve(cfg.airborneVertical, ctx),
+                or(resolve(cfg.quantizeVelocity, ctx), Boolean.TRUE),
+                or(resolve(cfg.velocityCap, ctx), LegacyVelocity.DEFAULT_CAP), // vanilla 1.8 wire ±3.9
+                or(resolve(cfg.airborneVertical, ctx), Boolean.TRUE), // 1.8 always lifts
                 cfg.customComponents
         );
     }
@@ -102,33 +106,37 @@ public final class KnockbackConfigResolver {
         return fv != null ? fv.resolve(ctx) : null;
     }
 
-    /** Resolved config with plain values. Used by KnockbackCalculator. */
+    private static <T> T or(@Nullable T v, T def) {
+        return v != null ? v : def;
+    }
+
+    /** Resolved plain values, defaults coalesced here; {@code null} only where unset is semantic (bounds = no clamp, velocity = the victim's scope chain). */
     public record ResolvedKnockbackConfig(
-            @Nullable Integer sprintBuffer,
-            @Nullable Double horizontal,
-            @Nullable Double vertical,
-            @Nullable Double extraHorizontal,
-            @Nullable Double extraVertical,
+            int sprintBuffer,
+            double horizontal,
+            double vertical,
+            double extraHorizontal,
+            double extraVertical,
             @Nullable KnockbackConfig.Bounds horizontalBounds,
             @Nullable KnockbackConfig.Bounds verticalBounds,
             @Nullable KnockbackConfig.Bounds extraHorizontalBounds,
             @Nullable KnockbackConfig.Bounds extraVerticalBounds,
-            @Nullable Double yawWeight,
-            @Nullable Double extraYawWeight,
-            @Nullable Double pitchWeight,
-            @Nullable Double extraPitchWeight,
-            @Nullable Double heightDelta,
-            @Nullable Double extraHeightDelta,
-            @Nullable KnockbackConfig.DirectionMode horizontalCombine,
-            @Nullable KnockbackConfig.DirectionMode verticalCombine,
-            @Nullable Double frictionH,
-            @Nullable Double frictionV,
-            @Nullable KnockbackConfig.FrictionMode frictionModeH,
-            @Nullable KnockbackConfig.FrictionMode frictionModeV,
+            double yawWeight,
+            double extraYawWeight,
+            double pitchWeight,
+            double extraPitchWeight,
+            double heightDelta,
+            double extraHeightDelta,
+            KnockbackConfig.DirectionMode horizontalCombine,
+            KnockbackConfig.DirectionMode verticalCombine,
+            double frictionH,
+            double frictionV,
+            KnockbackConfig.FrictionMode frictionModeH,
+            KnockbackConfig.FrictionMode frictionModeV,
             @Nullable VelocityRule velocity,
-            @Nullable Boolean quantizeVelocity,
-            @Nullable Double velocityCap,
-            @Nullable Boolean airborneVertical,
+            boolean quantizeVelocity,
+            double velocityCap,
+            boolean airborneVertical,
             @Nullable List<KnockbackComponent> customComponents
     ) {}
 }

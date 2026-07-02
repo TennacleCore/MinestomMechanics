@@ -41,6 +41,9 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
     /** The EPF/Protection defense stage (formula + enabled); {@code null} = no enchant protection. Set by the preset (LEGACY/MODERN). */
     @Nullable public final ProtectionConfig protection;
 
+    /** Resistance-stage reduction per effect level; {@code null} = the vanilla 20% ({@code 25 − 5·level} integer curve, identical across versions). */
+    @Nullable public final Double resistancePerLevel;
+
     /**
      * Whether legacy "attribute swapping" is permitted (a held-item PvP tech). {@code true}: held modifiers ride the
      * per-tick reconcile (vanilla {@code detectEquipmentUpdates} timing), so a hotbar swap lags a tick - the exploitable
@@ -56,6 +59,7 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
         this.tunings = b.tunings != null ? Map.copyOf(b.tunings) : Map.of();
         this.armor = b.armor;
         this.protection = b.protection;
+        this.resistancePerLevel = b.resistancePerLevel;
         this.attributeSwapping = b.attributeSwapping;
     }
 
@@ -79,6 +83,7 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
                 .tunings(merged)
                 .armor(armor != null ? (base.armor != null ? armor.fromBase(base.armor) : armor) : base.armor)
                 .protection(protection != null ? (base.protection != null ? protection.fromBase(base.protection) : protection) : base.protection)
+                .resistancePerLevel(resistancePerLevel != null ? resistancePerLevel : base.resistancePerLevel)
                 .attributeSwapping(attributeSwapping != null ? attributeSwapping : base.attributeSwapping)
                 .build();
     }
@@ -94,6 +99,7 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
         private Map<Key, Tuning> tunings;
         private ArmorConfig armor;
         private ProtectionConfig protection;
+        private Double resistancePerLevel;
         private Boolean attributeSwapping;
 
         Builder() {}
@@ -105,6 +111,7 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
             tunings = c.tunings.isEmpty() ? null : new HashMap<>(c.tunings);
             armor = c.armor;
             protection = c.protection;
+            resistancePerLevel = c.resistancePerLevel;
             attributeSwapping = c.attributeSwapping;
         }
 
@@ -145,6 +152,9 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
 
         /** The EPF/Protection defense stage (formula + enabled). */
         public Builder protection(ProtectionConfig v) { protection = v; return this; }
+
+        /** Resistance-stage reduction per effect level ({@code null} = the vanilla 20% integer curve). */
+        public Builder resistancePerLevel(Double v) { resistancePerLevel = v; return this; }
 
         /** Whether to permit attribute swapping ({@code true} = the held-swap lag window stays open; {@code false}/unset = patched). See {@link AttributeConfig#attributeSwapping}. */
         public Builder attributeSwapping(Boolean v) { attributeSwapping = v; return this; }

@@ -68,12 +68,12 @@ public final class BurningConfig extends DamageTypeConfig {
         Builder b = new Builder();
         b.common.copyFrom(mergedCommon);
         if (base instanceof BurningConfig f) {
-            b.igniteTicks = mergeFv(this.igniteTicks, f.igniteTicks);
-            b.igniteWarmupTicks = mergeFv(this.igniteWarmupTicks, f.igniteWarmupTicks);
-            b.igniteWarmupInvulMult = mergeFv(this.igniteWarmupInvulMult, f.igniteWarmupInvulMult);
-            b.contactIntervalTicks = mergeFv(this.contactIntervalTicks, f.contactIntervalTicks);
-            b.intervalTicks = mergeFv(this.intervalTicks, f.intervalTicks);
-            b.skipBurnWhileInLava = mergeFv(this.skipBurnWhileInLava, f.skipBurnWhileInLava);
+            b.igniteTicks = merge(this.igniteTicks, f.igniteTicks);
+            b.igniteWarmupTicks = merge(this.igniteWarmupTicks, f.igniteWarmupTicks);
+            b.igniteWarmupInvulMult = merge(this.igniteWarmupInvulMult, f.igniteWarmupInvulMult);
+            b.contactIntervalTicks = merge(this.contactIntervalTicks, f.contactIntervalTicks);
+            b.intervalTicks = merge(this.intervalTicks, f.intervalTicks);
+            b.skipBurnWhileInLava = merge(this.skipBurnWhileInLava, f.skipBurnWhileInLava);
         } else {
             b.igniteTicks = this.igniteTicks;
             b.igniteWarmupTicks = this.igniteWarmupTicks;

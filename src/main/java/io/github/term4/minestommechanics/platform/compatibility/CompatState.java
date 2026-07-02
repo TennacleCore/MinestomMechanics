@@ -4,7 +4,7 @@ import net.minestom.server.component.DataComponents;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.component.AttackRange;
-import net.minestom.server.network.packet.server.LazyPacket;
+import io.github.term4.minestommechanics.platform.PacketShapes;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.ServerPacket;
 import net.minestom.server.network.packet.server.play.SetPlayerInventorySlotPacket;
@@ -173,16 +173,7 @@ public final class CompatState {
      */
     public @NotNull SendablePacket stampAttackRange(@NotNull SendablePacket packet) {
         if (attackHitboxMargin == null || handlesNatively(AnimatiumFeature.PICK_INFLATION)) return packet;
-        // Resolve only the state-independent shapes (the inventory packets we stamp are always sent bare; LazyPacket is the
-        // generic wrapper). NEVER use extractServerPacket here: its CachedPacket branch forces that packet's single,
-        // stateless FramedPacket cache for the state we pass, and stamping runs on every outgoing packet - so a hardcoded
-        // PLAY would poison a CachedPacket's cache during a modern client's CONFIGURATION join and corrupt the real config
-        // send. None of the stamped packets are ever CachedPackets, so skipping that shape loses no coverage.
-        ServerPacket sp = switch (packet) {
-            case ServerPacket s -> s;
-            case LazyPacket lazy -> lazy.packet();
-            default -> null;
-        };
+        ServerPacket sp = PacketShapes.unwrapStateless(packet);
         return switch (sp) {
             case SetSlotPacket p -> new SetSlotPacket(p.windowId(), p.stateId(), p.slot(), withAttackRange(p.itemStack()));
             case SetPlayerInventorySlotPacket p -> new SetPlayerInventorySlotPacket(p.slot(), withAttackRange(p.itemStack()));

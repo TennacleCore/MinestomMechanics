@@ -71,14 +71,20 @@ public final class TickSystem {
         return entity == null ? 0L : instanceTick(entity.getInstance());
     }
 
+    /** A registered {@link Tickable}'s handle; {@link #cancel()} removes it (safe mid-dispatch - the phase lists are copy-on-write). */
+    public record Registration(Tickable tickable) {
+        public void cancel() { BY_PHASE.get(tickable.phase()).remove(tickable); }
+    }
+
     /** Installs a {@link Tickable}; it ticks from the next instance tick on. */
-    public static void register(Tickable tickable) {
+    public static Registration register(Tickable tickable) {
         BY_PHASE.get(tickable.phase()).add(tickable);
+        return new Registration(tickable);
     }
 
     /** Installs a lambda in {@code phase} at every-tick cadence. */
-    public static void register(TickPhase phase, Consumer<TickContext> fn) {
-        register(new Tickable() {
+    public static Registration register(TickPhase phase, Consumer<TickContext> fn) {
+        return register(new Tickable() {
             @Override public void tick(TickContext ctx) { fn.accept(ctx); }
             @Override public TickPhase phase() { return phase; }
         });
