@@ -5,16 +5,12 @@ import net.minestom.server.coordinate.Vec;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * Pure per-entity explosion math (shared 1.8/26.1; constants differ: 1.8 = damageConstant 8.0 floored, 26.1 = 7.0).
- * {@code exposure} = the seen-percent raycast, {@code knockbackReduction} = the Blast-Protection / KB-resistance cut (0 = none).
- * Returns the falloff push + the base damage amount.
- */
+/** Pure per-entity explosion math (1.8/26.1 differ only in {@code damageConstant}: 8.0 floored vs 7.0). Returns the falloff push + damage. */
 public final class ExplosionCalculator {
 
     private ExplosionCalculator() {}
 
-    /** {@code knockback} is {@code null} when the entity sits exactly on the center (no direction). */
+    /** {@code knockback} = the falloff push (straight up at point-blank); {@code null} only outside the radius. */
     public record Hit(@Nullable Vec knockback, float damage) {}
 
     /** Vanilla effect on one entity, or {@code null} if outside the {@code 2·power} radius. */
@@ -23,7 +19,7 @@ public final class ExplosionCalculator {
                                         double knockbackMultiplier, double knockbackReduction) {
         final double doubleRadius = power * 2.0;
         if (doubleRadius <= 0.0) return null;
-        final double dist = distance / doubleRadius;
+        final double dist = normalizedDistance(distance, doubleRadius);
         if (dist > 1.0) return null;
 
         final double impact = (1.0 - dist) * exposure;
@@ -34,8 +30,22 @@ public final class ExplosionCalculator {
         final double dy = eyeOrigin.y() - center.y();
         final double dz = eyeOrigin.z() - center.z();
         final double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        final Vec knockback = len < 1.0e-7 ? null
-                : new Vec(dx / len, dy / len, dz / len).mul(impact * knockbackMultiplier * (1.0 - knockbackReduction));
+        // point-blank (eye AT center = no direction): push straight UP, not nowhere (Hypixel; vanilla skips)
+        final Vec dir = len < 1.0e-7 ? new Vec(0, 1, 0) : new Vec(dx / len, dy / len, dz / len);
+        final Vec knockback = dir.mul(impact * knockbackMultiplier * (1.0 - knockbackReduction));
         return new Hit(knockback, damage);
+    }
+
+    /** The falloff impact {@code (1 − dist/2power)·exposure} (0 outside the radius): the KB magnitude, and what Hypixel gates on. */
+    public static double impact(double distance, float power, float exposure) {
+        final double doubleRadius = power * 2.0;
+        if (doubleRadius <= 0.0) return 0.0;
+        final double dist = normalizedDistance(distance, doubleRadius);
+        return dist > 1.0 ? 0.0 : (1.0 - dist) * exposure;
+    }
+
+    // micro-block rounding: world-absolute coords leave sub-ULP noise at high |Y| that flips on-grid KB by a wire unit between heights (1.8 is height-independent)
+    private static double normalizedDistance(double distance, double doubleRadius) {
+        return Math.rint(distance * 1.0e6) / 1.0e6 / doubleRadius;
     }
 }

@@ -52,7 +52,9 @@ class ExplosionTest extends HeadlessServerTest {
         node.addListener(ExplosionEvent.class, e -> captured.addAll(e.targets()));
         MinecraftServer.getGlobalEventHandler().addChild(node);
         try {
-            new ExplosionSystem(mm, Explosion.config()).explode(instance, center, 4.0f);
+            // zombies stand in for players; explosion push is Players-only by default, so opt them in as KB targets
+            var config = Explosion.config().toBuilder().knockbackTargets(e -> true).build();
+            new ExplosionSystem(mm, config).explode(instance, center, 4.0f);
         } finally {
             MinecraftServer.getGlobalEventHandler().removeChild(node);
         }

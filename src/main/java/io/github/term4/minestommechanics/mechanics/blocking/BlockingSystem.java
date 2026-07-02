@@ -85,7 +85,6 @@ public final class BlockingSystem implements MechanicsModule {
         return !Boolean.FALSE.equals(item.getTag(BLOCKABLE)) && cfg != null && cfg.blocks(item.material());
     }
 
-    /** This system's listener node ({@code mm:blocking}). */
     public EventNode<@NotNull PlayerEvent> node() { return node; }
     public BlockingConfig config() { return config; }
 
@@ -132,7 +131,6 @@ public final class BlockingSystem implements MechanicsModule {
         return install(mm, BlockingConfig.builder().build());
     }
 
-    /** Installs the blocking system: registers on {@code mm} and installs the node. */
     public static BlockingSystem install(MinestomMechanics mm, BlockingConfig cfg) {
         BlockingSystem system = new BlockingSystem(mm, cfg);
         mm.register(system);

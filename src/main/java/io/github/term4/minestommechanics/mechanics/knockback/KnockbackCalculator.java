@@ -83,8 +83,7 @@ public final class KnockbackCalculator {
 
         double iFH = frictionCoeff(or(cfg.frictionH(), 0), cfg.frictionModeH());
         double iFV = frictionCoeff(or(cfg.frictionV(), 0), cfg.frictionModeV());
-        // velocity rule resolved once (config override -> victim scope -> DEFAULT); threaded onto the component ctx so a
-        // custom component reads the same velocity
+        // resolved once, threaded onto the component ctx so components read the same velocity
         VelocityRule velRule = cfg.velocity();
         if (velRule == null) velRule = services.profiles().resolve(t, MechanicsKeys.VELOCITY);
         if (velRule == null) velRule = VelocityRule.DEFAULT;
@@ -102,7 +101,6 @@ public final class KnockbackCalculator {
             if (cfg.extraVerticalBounds() != null) kbVec = applyVerticalBounds(kbVec, cfg.extraVerticalBounds());
         }
 
-        // custom components, on a ctx carrying the resolved velocity rule (so they read the same victim velocity)
         if (cfg.customComponents() != null) {
             KnockbackConfigResolver.KnockbackContext compCtx = ctx.withVelocity(velRule);
             for (KnockbackComponent comp : cfg.customComponents()) {
@@ -152,10 +150,8 @@ public final class KnockbackCalculator {
         } return null;
     }
 
-    /** Direction + horizontal/vertical strengths */
     private record DirAndStrength(Vec direction, double h, double v) {}
 
-    /** Raw position and yaw/pitch directions */
     private record RawDirs(Vec posH, Vec posV, Vec yaw, Vec pitch) {}
 
     private DirAndStrength resolveDS(RawDirs raw, KnockbackConfigResolver.ResolvedKnockbackConfig cfg, boolean extra) {

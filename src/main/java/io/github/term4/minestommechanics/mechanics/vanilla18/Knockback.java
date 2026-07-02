@@ -36,7 +36,6 @@ public final class Knockback {
                 .frictionV(2.0)
                 .frictionModeH(KnockbackConfig.FrictionMode.DIVISOR)
                 .frictionModeV(KnockbackConfig.FrictionMode.DIVISOR)
-                // velocity deliberately unset: the friction fold uses the scoped rule (MechanicsProfile.velocity).
                 .quantizeVelocity(true)
                 .build();
     }

@@ -12,12 +12,14 @@ import io.github.term4.minestommechanics.util.tick.TickSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import net.kyori.adventure.key.Key;
+import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.event.entity.EntityDeathEvent;
 import net.minestom.server.event.entity.EntityTickEvent;
 import net.minestom.server.event.player.PlayerMoveEvent;
 import net.minestom.server.event.player.PlayerSpawnEvent;
@@ -70,6 +72,9 @@ public final class FallDamage extends DamageType {
         n.addListener(PlayerMoveEvent.class, this::onMove);
         n.addListener(EntityTickEvent.class, this::onTick);
         n.addListener(PlayerSpawnEvent.class, e -> resetFallDistance(e.getPlayer()));
+        // reset on death too: Minestom reuses the Player across respawn (vanilla makes a fresh entity), so a fall in progress
+        // at death would otherwise carry its distance to the respawn and land as phantom fall damage.
+        n.addListener(EntityDeathEvent.class, e -> { if (e.getEntity() instanceof LivingEntity le) resetFallDistance(le); });
         system.node().addChild(n);
         node = n;
         // fallback poll a tick behind onMove (catches status-only onGround landings, no PlayerMoveEvent), via the TickSystem
@@ -101,19 +106,25 @@ public final class FallDamage extends DamageType {
     private void onMove(PlayerMoveEvent e) {
         Player p = e.getPlayer();
         Pos newPos = e.getNewPosition();
-        PrevMove prev = p.getTag(PREV);
-        p.setTag(PREV, new PrevMove(newPos.y(), e.isOnGround()));
 
+        // exempt (dead/creative/spectator/flying): drop the distance AND the prev-baseline. Clearing prev is what stops the
+        // quick-respawn phantom damage - a dead player's death-fall position would otherwise be the baseline for the first
+        // live move after respawn, giving a huge dy. Set prev only for a non-exempt player.
         if (DamageProducers.exempt(p)) {
             p.removeTag(FALL_DISTANCE);
+            p.removeTag(PREV);
             return;
         }
+        PrevMove prev = p.getTag(PREV);
+        p.setTag(PREV, new PrevMove(newPos.y(), e.isOnGround()));
         if (prev == null) return; // need a baseline first
         // Land on the CLIENT's onGround flag (vanilla-faithful: Entity.checkFallDamage lands on the authoritative onGround,
         // which for a player is the move packet's flag). NOT MotionTracker.simCollided - the server collision sim
         // false-positives mid-fall (it trips a tick early during fast falls), firing fall damage above the real ground; the
         // status-only-landing fallback (pollLandings) also rides the client flag, so nothing is missed.
-        accumulate(p, newPos.y() - prev.y(), e.isOnGround());
+        // newPos, not getPosition(): the player's position isn't committed until after this event, so the landing-block
+        // (slime) check must use the move's destination - at high fall speed getPosition() is many blocks up.
+        accumulate(p, newPos, newPos.y() - prev.y(), e.isOnGround());
     }
 
     /** Non-player living entities: server-side per-tick deltas. */
@@ -126,7 +137,7 @@ public final class FallDamage extends DamageType {
         PrevMove prev = living.getTag(PREV);
         living.setTag(PREV, new PrevMove(y, onGround));
         if (prev == null) return;
-        accumulate(living, y - prev.y(), onGround);
+        accumulate(living, living.getPosition(), y - prev.y(), onGround);
     }
 
     /** Fallback landing poll for players (status-only onGround packets fire no move event); one instance per tick. */
@@ -136,13 +147,13 @@ public final class FallDamage extends DamageType {
             if (!p.isOnGround()) continue;
             float dist = fallDistance(p);
             if (dist <= 0) continue;
-            if (!DamageProducers.exempt(p)) land(p, dist);
+            if (!DamageProducers.exempt(p)) land(p, p.getPosition(), dist);
             p.removeTag(FALL_DISTANCE);
         }
     }
 
-    /** One observation step: apply the environment rules (water/climbing zero, lava halves), then land or accumulate. */
-    private void accumulate(LivingEntity living, double dy, boolean onGround) {
+    /** One observation step: apply the environment rules (water/climbing zero, lava halves), then land or accumulate. {@code pos} is the landing position (the move destination for players). */
+    private void accumulate(LivingEntity living, Point pos, double dy, boolean onGround) {
         float dist = fallDistance(living);
 
         // only consulted mid-fall
@@ -163,7 +174,7 @@ public final class FallDamage extends DamageType {
         }
 
         if (onGround) {
-            if (dist > 0) land(living, dist);
+            if (dist > 0) land(living, pos, dist);
             living.removeTag(FALL_DISTANCE);
         } else if (dy < 0) {
             living.setTag(FALL_DISTANCE, dist + (float) -dy);
@@ -177,11 +188,22 @@ public final class FallDamage extends DamageType {
         return feet != null && (feet.compare(Block.LADDER) || feet.compare(Block.VINE));
     }
 
+    /** Slime bounce negates fall damage unless the entity is sneaking - the damage half of the 1.8 {@code BlockSlime} bounce
+     *  ({@link io.github.term4.minestommechanics.tracking.motion.MotionTracker} does the velocity half); the block is under the landing feet. */
+    private static boolean bounceNegatesFall(LivingEntity living, Point pos) {
+        if (living instanceof Player p && p.isSneaking()) return false;
+        Instance inst = living.getInstance();
+        if (inst == null) return false;
+        Block below = inst.getBlock(pos.sub(0, 0.5000001, 0), Block.Getter.Condition.TYPE);
+        return below != null && below.compare(Block.SLIME_BLOCK);
+    }
+
 
     /** Emits the landing's damage snapshot with the fall distance as the {@code detail} payload. */
-    private void land(LivingEntity living, float distance) {
+    private void land(LivingEntity living, Point pos, float distance) {
         DamageSystem sys = this.system;
         if (sys == null) return;
+        if (bounceNegatesFall(living, pos)) return;
         DamageSnapshot snap = DamageSnapshot.of(living, this).withDetail(FallDetail.of(distance));
         DamageContext ctx = sys.contextFor(snap);
         if (!ctx.typeConfig().enabled(ctx)) return;

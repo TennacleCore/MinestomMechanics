@@ -18,9 +18,7 @@ public final class ExplosionDamage extends DamageType {
     public static final ExplosionDamage INSTANCE = new ExplosionDamage();
 
     private ExplosionDamage() {
-        // ownsVelocityBroadcast: the ExplosionSystem owns the KB delivery, so DamageSystem must not also broadcast
-        super(KEY, "Explosion", VanillaTypes.EXPLOSION,
-                DamageTypeConfig.builder(KEY).baseAmount(0.0).ownsVelocityBroadcast(true).build());
+        super(KEY, "Explosion", VanillaTypes.EXPLOSION, DamageTypeConfig.builder(KEY).baseAmount(0.0).build());
     }
 
     @Override public Set<ProtectionCategory> protectionCategories() { return Set.of(ProtectionCategory.EXPLOSION); }

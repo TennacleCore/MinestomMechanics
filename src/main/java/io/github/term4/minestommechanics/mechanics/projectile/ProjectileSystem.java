@@ -8,11 +8,13 @@ import io.github.term4.minestommechanics.api.event.ProjectileLaunchEvent;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedFlight;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.arrow.ArrowEntity;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.shootables.Shootable;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Arrow;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Egg;
+import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Pearl;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileType;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
@@ -32,6 +34,7 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.event.entity.EntityAttackEvent;
 import net.minestom.server.instance.Instance;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -63,6 +66,10 @@ public final class ProjectileSystem implements MechanicsModule {
         this.config = config;
         this.services = mm.services();
         this.node = EventNode.all("mm:projectile");
+        // melee/left-click deflection: attacking a deflectable projectile (a fireball) redirects it along the attacker's look
+        node.addListener(EntityAttackEvent.class, e -> {
+            if (e.getTarget() instanceof ProjectileEntity target) target.deflectBy(e.getEntity());
+        });
     }
 
     public ProjectileConfig config() { return config; }
@@ -93,21 +100,23 @@ public final class ProjectileSystem implements MechanicsModule {
         Pos spawnPos = working.spawnPos() != null ? working.spawnPos() : spawnPos(shooter, flight);
         Vec velocity = working.velocity() != null ? working.velocity() : launchVelocity(shooter, flight, working.power());
 
-        // build + configure the entity (hit knobs resolve at impact), then fire the launch event
         ProjectileEntity entity = working.type().createEntity(shooter, working, effectiveConfig);
         stampFlight(entity, flight, working);
 
         ProjectileLaunchEvent event = new ProjectileLaunchEvent(working, entity, flight, spawnPos, velocity);
         EventDispatcher.call(event);
-        if (event.isCancelled()) return null; // entity discarded - never spawned
-        // Per-launch behavior override (the event-driven seam for custom items), else keep the config/snapshot one.
+        if (event.isCancelled()) return null;
         if (event.behavior() != null && entity instanceof ManagedProjectile mp) mp.setBehavior(event.behavior());
 
-        // 1.8 lockstep: the client predicts the flight from the spawn packet (position truncated to 1/32), so spawn the server entity on that grid
+        // 1.8 lockstep ONLY for client-PREDICTED projectiles (no per-tick velocity sync): spawn on the wire 1/32 grid so the
+        // client's predicted flight matches the server. Server-authoritative ones (fireball: velocitySyncInterval>0, synced
+        // every tick) keep FULL precision - else the 1/32 truncation offsets a straight-down explosion from the thrower's
+        // actual x/z, leaking horizontal knockback at non-integer coordinates (the explosion is then off-grid from you).
         Vec spawnVel = event.velocity();
-        Pos spawnAt = quantizeToWireGrid(event.spawnPos()).withView(Directions.yaw(spawnVel), Directions.pitch(spawnVel));
+        Pos spawnAt = event.spawnPos().withView(Directions.yaw(spawnVel), Directions.pitch(spawnVel));
+        if (flight.velocitySyncInterval() <= 0) spawnAt = quantizeToWireGrid(spawnAt);
         entity.setVelocityBt(spawnVel);
-        entity.setSpawnPosition(spawnAt); // recorded for getSpawnPosition() (trajectory / origin queries)
+        entity.setSpawnPosition(spawnAt);
         entity.setInstance(instance, spawnAt);
         return entity;
     }
@@ -121,24 +130,26 @@ public final class ProjectileSystem implements MechanicsModule {
     private static void stampFlight(ProjectileEntity entity, ResolvedFlight flight, ProjectileSnapshot snap) {
         entity.setBoundingBox(flight.boundingBox().width(), flight.boundingBox().height(), flight.boundingBox().depth());
         entity.setAerodynamics(new Aerodynamics(flight.gravity(), flight.verticalDrag(), flight.horizontalDrag()));
-        // tick cadences/windows scaled to live TPS (identity at 20): sync teleport/velocity rate + the shooter-immunity window
         entity.setSynchronizationTicks(TickScaler.duration(flight.syncInterval(), KEY));
         entity.setVelocitySyncInterval(TickScaler.duration(flight.velocitySyncInterval(), KEY));
+        // Minestom seeds nextSynchronizationTick from the DEFAULT interval (20) and setSynchronizationTicks doesn't reset it,
+        // so a denser cadence stays silent until tick 20 (the fireball froze for ~1s, then snapped downrange). Kick the first
+        // sync now for per-tick-velocity projectiles so the client sees them move from spawn (vanilla/Hypixel parity).
+        if (flight.velocitySyncInterval() > 0) entity.synchronizeNextTick();
         entity.setShooterImmunityTicks(TickScaler.duration(flight.shooterImmunityTicks(), KEY));
         entity.setEntityHitGrow(flight.entityHitGrow());
         entity.setPhysicsOrder(flight.physicsOrder());
         entity.setLeftOwnerImmunity(flight.leftOwnerImmunity());
         entity.setStickPullback(flight.stickPullback());
-        // Pluggable per-projectile behavior: the per-launch snapshot override wins, else the resolved config knob.
         if (entity instanceof ManagedProjectile mp) {
             mp.setBehavior(snap.behavior() != null ? snap.behavior() : flight.behavior());
         }
-        // Arrow-specific knobs: pickup geometry + shake/pickup delay (the entity keeps its vanilla default if unset).
         if (entity instanceof ArrowEntity arrow) {
             arrow.setShakeTicks(flight.shakeTicks());
             if (flight.pickupBox() != null) arrow.setPickupBox(flight.pickupBox());
         }
-        // Power/Punch/Flame captured generically off the launching item - any projectile, so a preset may put them on non-arrows.
+        if (entity instanceof FireballEntity fireball) fireball.setExplosionPower((float) flight.explosionPower());
+        // read off the launch item for ANY projectile - a preset may put Power/Punch/Flame on non-bows
         entity.setProjectileEnchants(Enchants.level(snap.item(), Power.KEY), Enchants.level(snap.item(), Punch.KEY), Enchants.level(snap.item(), Flame.KEY));
     }
 
@@ -202,6 +213,7 @@ public final class ProjectileSystem implements MechanicsModule {
         register(Egg.INSTANCE);
         register(Pearl.INSTANCE);
         register(Arrow.INSTANCE);
+        register(Fireball.INSTANCE);
         return this;
     }
 

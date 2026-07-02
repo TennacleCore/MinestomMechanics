@@ -41,7 +41,6 @@ public final class Attack {
     /** Handles legacy (pre-1.9) combat attacks (damage, knockback, sprint reset). */
     private record LegacyAttack(Services services) implements AttackEvent.AttackRule {
         @Override public void processAttack(AttackEvent event) {
-            // 1. Damage
             DamageSystem.DamageOutcome result = DamageSystem.DamageOutcome.FRESH_DAMAGE; // no damage system -> nothing absorbs the hit
             DamageSystem dmg = services.damage();
             if (dmg != null && event.target() != null) {
@@ -49,16 +48,14 @@ public final class Attack {
                         event.attacker(), event.target(), event.critical(), event.item(), services);
                 result = dmg.apply(snap);
             }
-            // 2. Knockback - the Knockback enchant feeds the extra-knockback level (read off the weapon actually used,
-            //    frozen for buffered hits; +1 for a sprint hit is added in the calculator).
+            // Knockback enchant feeds the extra-knockback level (the weapon actually used, frozen for buffered hits; +1 for a sprint hit added in the calculator)
             KnockbackSystem kb = services.knockback();
             if (result == DamageSystem.DamageOutcome.FRESH_DAMAGE && kb != null) {
                 int extra = Enchants.level(event.item(), Knockback.KEY);
                 var kbSnap = new KnockbackSnapshot(event.target(), true, event.attacker(), null, null, null, extra);
                 kb.apply(kbSnap);
             }
-            // 3. Attacker self-effects on a landed sprint/enchant hit: scale the attacker's own horizontal velocity
-            //    by fullHitScale (vanilla 0.6, velocity-only) and clear sprint. A non-sprinting hit does neither.
+            // attacker self-effects on a landed sprint/enchant hit: scale own horizontal velocity by fullHitScale (vanilla 0.6) + clear sprint; a non-sprinting hit does neither
             if (result.landed() && event.attacker() instanceof LivingEntity le) {
                 double scale = event.resolvedConfig().fullHitScale();
                 if (scale != 1.0 && sprintingForKb(le)) MotionTracker.scaleHorizontalResidual(le, scale);

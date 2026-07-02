@@ -5,6 +5,7 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
+import io.github.term4.minestommechanics.util.BlockContact;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
@@ -157,7 +158,10 @@ public final class CompatMovement {
             } catch (Exception ignored) {
                 continue; // unloaded chunk -> no collision
             }
-            if (block == null || block.id() == Block.SCAFFOLDING.id()) continue; // scaffolding has a dynamic shape; Minestom skips it
+            // passable (non-blocksMotion) blocks - ladder/vine/plant/carpet/... - are meant to be occupied, never obstacles
+            // (same test as the self-placement fix); vanilla ladders carry a wall-side slab, which was setting climb moves back.
+            // scaffolding's dynamic shape Minestom doesn't model, so skip it too.
+            if (block == null || BlockContact.isPassable(block) || block.id() == Block.SCAFFOLDING.id()) continue;
             var shape = block.registry().collisionShape();
             if (!shape.intersectBox(to.sub(bp.blockX(), bp.blockY(), bp.blockZ()), box)) continue;  // not colliding at the destination
             if (shape.intersectBox(from.sub(bp.blockX(), bp.blockY(), bp.blockZ()), box)) continue;  // already inside at the source -> not new (allow sliding out)

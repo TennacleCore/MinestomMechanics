@@ -9,8 +9,11 @@ public final class DamageProducers {
 
     private DamageProducers() {}
 
-    /** Creative, spectator, and flying players do not take environmental damage (vanilla). */
+    /** The dead, creative, spectator, and flying take no environmental damage (vanilla). Dead is key for fall: a player who
+     *  dies mid-fall keeps sending move packets on the death screen, so without this they accumulate fall distance that a
+     *  quick respawn then lands as phantom damage. */
     public static boolean exempt(LivingEntity living) {
+        if (living.isDead()) return true;
         if (!(living instanceof Player p)) return false;
         GameMode gm = p.getGameMode();
         return p.isFlying() || gm == GameMode.CREATIVE || gm == GameMode.SPECTATOR;

@@ -65,8 +65,6 @@ public class OptimizedPlayer extends Player {
     /**
      * Marks whether the packet currently being processed originates from client input. Set by {@code MetaFix}
      * around the client-input listeners; while {@code true}, self-bound echoes are filtered.
-     *
-     * @param value true when processing a client input packet
      */
     public void setProcessingClientInput(boolean value) {
         this.processingClientInput = value;

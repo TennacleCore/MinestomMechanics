@@ -85,7 +85,6 @@ public class ArrowEntity extends ManagedProjectile {
     /** Sets who may collect this arrow (the bow passes {@link Pickup#ALLOWED} survival / {@link Pickup#CREATIVE_ONLY} creative). */
     public void setPickup(Pickup pickup) { this.pickup = pickup; }
 
-    /** Stamps the pickup geometry (launcher applies the resolved config); recomputes the derived scan radius. */
     public void setPickupBox(ProjectileTypeConfig.PickupBox box) {
         this.pickupInflateH = box.inflateH();
         this.pickupInflateV = box.inflateV();
@@ -105,14 +104,13 @@ public class ArrowEntity extends ManagedProjectile {
     protected float hitDamage(ResolvedHit hit, @NotNull Entity target) {
         // vanilla: ceil(speed * (damage + Power bonus)), +rand(i/2+2) on crit
         double damage = hit.damage();
-        if (powerLevel() > 0) damage += powerLevel() * 0.5 + 0.5; // Power: +0.5×level + 0.5 to the per-velocity damage
+        if (powerLevel() > 0) damage += powerLevel() * 0.5 + 0.5;
         int dmg = (int) Math.ceil(velocityBt.length() * damage);
         if (dmg < 0) dmg = 0;
         if (critical) dmg += ThreadLocalRandom.current().nextInt(dmg / 2 + 2);
         return dmg;
     }
 
-    /** Sets the pickup-cooldown (shake) ticks applied when the arrow sticks (launcher applies the resolved config). */
     public void setShakeTicks(int ticks) { this.shakeTicks = ticks; }
 
     /** On a living hit: adds one "stuck arrow" (vanilla cosmetic arrows in the body; see {@link StuckArrows}), ignites with Flame, and applies any tipped-arrow effects. Block hits are ignored. */
@@ -125,7 +123,6 @@ public class ArrowEntity extends ManagedProjectile {
         applyOnHitEffects(le);
     }
 
-    /** Stamps the captured tipped-arrow payload (launcher applies it off the launch item's {@code potion_contents}). */
     public void setOnHitEffects(List<CustomPotionEffect> effects, float durationScale) {
         this.onHitEffects = effects;
         this.potionDurationScale = durationScale;
@@ -159,8 +156,8 @@ public class ArrowEntity extends ManagedProjectile {
 
     @Override
     protected void updateProjectile(long time) {
-        super.updateProjectile(time); // fires the pluggable behavior's onTick
-        if (deflectVisible && !isStuck()) spawnDeflectTrail(); // crit trail along the bounce (stops once it sticks)
+        super.updateProjectile(time);
+        if (deflectVisible && !isStuck()) spawnDeflectTrail();
         if (!isStuck()) return;
         if (shake > 0) { shake--; return; } // vanilla pickup delay: no collecting while the arrow is still shaking
         if (pickup == Pickup.DISALLOWED) return;

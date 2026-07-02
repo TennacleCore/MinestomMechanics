@@ -57,7 +57,6 @@ public final class ConsumableSystem implements MechanicsModule {
         node.addListener(PlayerCancelItemUseEvent.class, this::onCancel);
     }
 
-    /** This system's listener node ({@code mm:consumable}). */
     public EventNode<@NotNull PlayerEvent> node() { return node; }
     public ConsumableConfig config() { return config; }
     public ConsumableRegistry registry() { return registry; }

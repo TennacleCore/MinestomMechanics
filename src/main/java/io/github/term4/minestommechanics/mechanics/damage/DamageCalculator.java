@@ -31,6 +31,5 @@ public final class DamageCalculator {
         return new DamageResult(cfg.baseAmount());
     }
 
-    /** Result of a damage computation. */
     public record DamageResult(float amount) {}
 }

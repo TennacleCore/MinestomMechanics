@@ -6,6 +6,7 @@ import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableSystem;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.durability.DurabilitySystem;
+import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
 import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
@@ -24,6 +25,7 @@ public record Services(MinestomMechanics mm) {
     public @Nullable KnockbackSystem knockback() { return mm.module(KnockbackSystem.class); }
     public @Nullable DamageSystem damage() { return mm.module(DamageSystem.class); }
     public @Nullable ProjectileSystem projectiles() { return mm.module(ProjectileSystem.class); }
+    public @Nullable ExplosionSystem explosion() { return mm.module(ExplosionSystem.class); }
     public @Nullable FixesSystem fixes() { return mm.module(FixesSystem.class); }
     public @Nullable AttributeSystem attributes() { return mm.module(AttributeSystem.class); }
     public @Nullable DurabilitySystem durability() { return mm.module(DurabilitySystem.class); }

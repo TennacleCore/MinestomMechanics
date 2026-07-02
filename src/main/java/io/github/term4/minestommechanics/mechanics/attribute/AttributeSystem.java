@@ -115,7 +115,7 @@ public final class AttributeSystem implements MechanicsModule {
     /**
      * A hotbar-slot switch changes the held item without an equip event. With attribute swapping disabled (default) the held
      * push is forced immediately off the new slot, closing the swap window; when permitted it's left to {@link #tickEquipment}
-     * so the held attributes lag a tick. See {@link AttributeConfig#attributeSwapping} and memory equip-attribute-tick-timing.
+     * so the held attributes lag a tick (see {@link AttributeConfig#attributeSwapping}).
      */
     private void onHeldSlotChange(PlayerChangeHeldSlotEvent e) {
         if (!configFor(e.getPlayer()).attributeSwapping()) syncHeld(e.getPlayer(), e.getItemInNewSlot());

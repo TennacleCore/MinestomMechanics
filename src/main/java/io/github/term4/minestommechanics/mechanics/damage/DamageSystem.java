@@ -21,6 +21,7 @@ import io.github.term4.minestommechanics.mechanics.damage.silent.SilentDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.breathing.DrowningDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
+import io.github.term4.minestommechanics.mechanics.damage.types.explosion.ExplosionDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
@@ -157,7 +158,6 @@ public final class DamageSystem implements MechanicsModule {
 
         DamageSnapshot working = snap.config() != null ? snap : snap.withConfig(effective);
 
-        // Pre (lazy): cancel before any compute / i-frame cost, or redirect the inputs
         if (PRE_DAMAGE.hasListener()) {
             PreDamageEvent pre = new PreDamageEvent(working, services);
             EventDispatcher.call(pre);
@@ -170,7 +170,6 @@ public final class DamageSystem implements MechanicsModule {
 
         float amount = result.amount();
 
-        // inspect / modify the computed amount before applying
         DamageEvent event = new DamageEvent(working, amount, services);
         EventDispatcher.call(event);
         if (event.isCancelled()) return DamageOutcome.BLOCKED;
@@ -184,11 +183,9 @@ public final class DamageSystem implements MechanicsModule {
         // per-scope kill switch; read off the final snap so a listener can swap in an enabled config
         if (!typeCfg.enabled(typeCtx)) return DamageOutcome.BLOCKED;
         amount = event.amount();
-        // two independent bypasses: bypassImmune = creative/spectator immunity, bypassInvul = the i-frame window
         boolean bypassImmune = event.bypassImmune() || typeCfg.bypassImmune(typeCtx);
         boolean bypassInvul = event.bypassInvul() || typeCfg.bypassInvul(typeCtx);
 
-        // creative/spectator take no damage. IMMUNE (not BLOCKED) lets a projectile distinguish this from the i-frame window
         if (!bypassImmune && living instanceof Player gmPlayer
                 && (gmPlayer.getGameMode() == GameMode.CREATIVE || gmPlayer.getGameMode() == GameMode.SPECTATOR)) {
             return DamageOutcome.IMMUNE;
@@ -205,43 +202,41 @@ public final class DamageSystem implements MechanicsModule {
         ResolvedDamageConfig resolved = calc.resolveConfig(
                 finalSnap.config() != null ? finalSnap : finalSnap.withConfig(configFor(finalSnap.target())));
 
-        // per-type override, else the global value
         boolean overdamage = Boolean.TRUE.equals(pick(typeCfg.overdamage(typeCtx), resolved.enableOverdamage()));
         boolean generalSilent = Boolean.TRUE.equals(pick(typeCfg.silent(typeCtx), resolved.silent()));
 
-        if (event.invulnerable() && !bypassInvul) {
-            // overdamage replacement
-            if (!overdamage) return DamageOutcome.BLOCKED;
-            float applied = amount > event.stored() ? amount - event.stored() : 0f;
-            applied = applyComponents(typeCtx, event, applied, true);
-            if (applied > 0) {
-                // overdamage silent override, else the general flag
-                Boolean odSilent = pick(typeCfg.overdamageSilent(typeCtx), resolved.overdamageSilent());
-                boolean replacementSilent = odSilent != null ? odSilent : generalSilent;
-                living.setTag(LAST_DAMAGE, Math.max(event.stored(), amount));
-                applyDamage(living, type, finalSnap, applied, replacementSilent);
-                fireDamageApplied(finalSnap, applied, DamageOutcome.OVERDAMAGE);
-                return DamageOutcome.OVERDAMAGE;
-            }
-            return DamageOutcome.BLOCKED;
-        }
+        // In an active i-frame window this is a replacement (overdamage) hit, else fresh. Mitigation (components + blocking +
+        // armor/resistance/EPF) applies to the FULL amount FIRST either way - vanilla mitigates, THEN takes the overdamage
+        // remainder, so a replacement isn't "true damage" (a fall landing mid-i-frame still gets resistance / Feather Falling).
+        boolean replacement = event.invulnerable() && !bypassInvul;
+        if (replacement && !overdamage) return DamageOutcome.BLOCKED;
 
-        amount = applyComponents(typeCtx, event, amount, false);
-        // Blocking (sword/shield): vanilla reduces a blocked hit before armor (1.8 EntityHuman.damageEntity, pre-armor).
-        // The BlockingSystem owns the decision entirely (is the player blocking, the behavior, what's blockable - the 1.8
-        // sword reads the type's bypassArmor itself). No blocking system installed = no reduction.
+        amount = applyComponents(typeCtx, event, amount, replacement);
+        // Blocking (sword/shield): vanilla reduces a blocked hit BEFORE armor (1.8 EntityHuman.damageEntity). The
+        // BlockingSystem owns the decision entirely (is the player blocking, the behavior, what's blockable).
         BlockingSystem blocking = services.blocking();
         if (blocking != null) amount = blocking.reduce(living, typeCtx, amount);
         amount = applyMitigation(living, type, typeCfg, typeCtx, amount);
-        // a 0-damage hit still lands when its type triggers invul (snowball/egg); only negative or non-invul 0 is dropped
         boolean triggersInvul = typeCfg.triggersInvul(typeCtx);
+
+        if (replacement) {
+            // overdamage: only the mitigated amount above the window's stored highwater lands
+            float applied = amount > event.stored() ? amount - event.stored() : 0f;
+            if (applied <= 0) return DamageOutcome.BLOCKED;
+            Boolean odSilent = pick(typeCfg.overdamageSilent(typeCtx), resolved.overdamageSilent());
+            boolean replacementSilent = odSilent != null ? odSilent : generalSilent;
+            living.setTag(LAST_DAMAGE, Math.max(event.stored(), amount));
+            applyDamage(living, type, finalSnap, applied, replacementSilent);
+            fireDamageApplied(finalSnap, applied, DamageOutcome.OVERDAMAGE);
+            return DamageOutcome.OVERDAMAGE;
+        }
+
+        // fresh hit: a 0-damage hit still lands when its type triggers invul (snowball/egg); only negative or non-invul 0 is dropped
         if (amount < 0 || (amount == 0f && !triggersInvul)) return DamageOutcome.BLOCKED;
 
         storeOpeningItem(living, finalSnap.item());
         living.setTag(LAST_DAMAGE, amount);
         applyDamage(living, type, finalSnap, amount, generalSilent);
-        // every fresh hit except drowning broadcasts velocity; melee/projectiles own theirs via the KnockbackSystem.
-        // the per-type ownsVelocityBroadcast knob wins when set, else the built-in default
         Boolean ownsFlag = typeCfg.ownsVelocityBroadcast(typeCtx);
         boolean ownsVelocity = ownsFlag != null ? ownsFlag : knockbackOwnsVelocity(type);
         if (Boolean.TRUE.equals(resolved.syncHurtVelocity())
@@ -276,9 +271,9 @@ public final class DamageSystem implements MechanicsModule {
         attrs.dispatchWeaponOnHit(attacker, victim, weapon);
     }
 
-    /** Built-in default for the per-type {@code ownsVelocityBroadcast} knob: melee + thrown own the velocity broadcast, so the generic hurt velocity isn't also sent. */
+    /** Built-in default for the per-type {@code ownsVelocityBroadcast} knob: melee, thrown, and explosion own the velocity broadcast (the {@code ExplosionSystem} delivers its own KB), so the generic hurt velocity isn't also sent. */
     private static boolean knockbackOwnsVelocity(DamageType type) {
-        return MeleeDamage.KEY.equals(type.key()) || ProjectileDamage.KEY.equals(type.key());
+        return MeleeDamage.KEY.equals(type.key()) || ProjectileDamage.KEY.equals(type.key()) || ExplosionDamage.KEY.equals(type.key());
     }
 
     /** Per-type override when non-null, else the global config value (which may itself be null). */
@@ -337,7 +332,7 @@ public final class DamageSystem implements MechanicsModule {
     private float applyComponents(DamageContext ctx, DamageEvent event, float amount, boolean overdamage) {
         DamageConfig cfg = event.config();
         if (cfg == null) cfg = configFor(event.target());
-        if (cfg == null) return amount; // inert: no config -> no custom components
+        if (cfg == null) return amount;
         if (cfg.subConfig != null) {
             DamageConfig sub = cfg.subConfig.apply(ctx);
             if (sub != null) cfg = sub.fromBase(cfg);
@@ -365,10 +360,16 @@ public final class DamageSystem implements MechanicsModule {
         // lethal hits fall through to living.damage() so Minestom handles death; non-lethal silent hits skip the hurt effect.
         // TODO(death): promote the death/respawn path to a first-class API event (api.event) so consumers can hook/override it
         //  (transient state is already reset on death; what remains is the overridable event itself).
-        float newHealth = (float) Math.max(0, living.getHealth() - amount);
-        if (silent && living instanceof Player p && newHealth > 0) {
-            SilentDamage.setHealthWithoutHurtEffect(p, newHealth, mm.clientInfo());
-            return;
+        if (silent && living instanceof Player p) {
+            // absorption absorbs first (Minestom's damage() does this; the silent path sets health directly, so replicate it)
+            float absorb = p.getAdditionalHearts();
+            float absorbed = Math.min(absorb, amount);
+            float newHealth = p.getHealth() - (amount - absorbed);
+            if (newHealth > 0) {
+                if (absorbed > 0) p.setAdditionalHearts(absorb - absorbed);
+                SilentDamage.setHealthWithoutHurtEffect(p, newHealth, mm.clientInfo());
+                return;
+            }
         }
         Entity source = snap.source();
         Damage damage = new Damage(type.minecraftType(), source, source, snap.point(), amount);
@@ -401,7 +402,6 @@ public final class DamageSystem implements MechanicsModule {
     /** Registry of damage types and their handlers. */
     public DamageTypeRegistry registry() { return registry; }
 
-    /** This system's listener node ({@code mm:damage}). */
     public EventNode<@NotNull Event> node() { return node; }
 
     /**
@@ -458,6 +458,11 @@ public final class DamageSystem implements MechanicsModule {
         if (!(e instanceof LivingEntity le)) return false;
         TickState s = getDamageInvul(le);
         return s != null && s.isActive(TickSystem.instanceTick(le));
+    }
+
+    /** Fundamental immunity - creative/spectator, which take no damage AND no knockback (vanilla {@code abilities.isInvulnerable}). Distinct from the i-frame window {@link #isInvulnerableToDamage}. */
+    public static boolean isImmune(Entity e) {
+        return e instanceof Player p && (p.getGameMode() == GameMode.CREATIVE || p.getGameMode() == GameMode.SPECTATOR);
     }
 
     /** Ticks left in the target's damage-invulnerability window ({@code 0} if none). */

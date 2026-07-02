@@ -92,6 +92,7 @@ public final class ProjectileConfigResolver {
                 or(resolve(tc.leftOwnerImmunity, ctx), Boolean.FALSE), // 26.1 = true (immune until it leaves the shooter box)
                 or(resolve(tc.stickPullback, ctx), 0.05), // vanilla 0.05 tip poke-out
                 or(resolve(tc.shakeTicks, ctx), 7), // vanilla arrow shake / pickup delay
+                or(resolve(tc.explosionPower, ctx), 1.0), // vanilla ghast fireball yield (Hypixel = 2.0); fireball-only
                 or(resolve(tc.behavior, ctx), ProjectileBehavior.NONE),
                 resolve(tc.pickupBox, ctx)); // nullable: the entity keeps its vanilla default if unset
     }
@@ -100,6 +101,7 @@ public final class ProjectileConfigResolver {
     public static ResolvedHit resolveHit(ProjectileTypeConfig tc, ProjectileContext ctx) {
         return new ResolvedHit(
                 or(resolve(tc.selfHit, ctx), ProjectileTypeConfig.HitResponse.HIT),
+                or(resolve(tc.entityHit, ctx), ProjectileTypeConfig.HitResponse.HIT),
                 resolve(tc.knockback, ctx),
                 or(resolve(tc.knockbackSource, ctx), ProjectileTypeConfig.KnockbackSource.PROJECTILE),
                 or(resolve(tc.damage, ctx), 0.0),
@@ -141,6 +143,7 @@ public final class ProjectileConfigResolver {
             boolean leftOwnerImmunity,
             double stickPullback,
             int shakeTicks,
+            double explosionPower,
             ProjectileBehavior behavior,
             @Nullable ProjectileTypeConfig.PickupBox pickupBox
     ) {}
@@ -148,6 +151,7 @@ public final class ProjectileConfigResolver {
     /** Hit values resolved at impact ({@code knockback}/{@code damageType} nullable). */
     public record ResolvedHit(
             ProjectileTypeConfig.HitResponse selfHit,
+            ProjectileTypeConfig.HitResponse entityHit,
             @Nullable KnockbackConfig knockback,
             ProjectileTypeConfig.KnockbackSource knockbackSource,
             double damage,

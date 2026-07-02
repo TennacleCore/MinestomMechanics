@@ -6,6 +6,7 @@ import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.collision.CollisionUtils;
+import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.collision.EntityCollisionResult;
 import net.minestom.server.collision.PhysicsResult;
 import net.minestom.server.collision.ShapeImpl;
@@ -28,6 +29,7 @@ import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.play.EntityTeleportPacket;
 import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
 import net.minestom.server.network.packet.server.play.SpawnEntityPacket;
+import net.minestom.server.tag.Tag;
 import net.minestom.server.utils.chunk.ChunkCache;
 import net.minestom.server.utils.chunk.ChunkUtils;
 import org.jetbrains.annotations.NotNull;
@@ -47,6 +49,9 @@ public abstract class ProjectileEntity extends Entity {
 
     /** Default entity-hit margin: grow the zero-size projectile box {@code 0.3} each side (vanilla grows the target instead). */
     public static final double DEFAULT_ENTITY_HIT_GROW = 0.3;
+
+    /** Marks a non-living, non-projectile entity as a projectile-collision target (vanilla {@code ad()}, which Minestom lacks): primed TNT, boats. A {@link ProjectileEntity} opts in via {@link #collidableTarget()}. */
+    public static final Tag<Boolean> PROJECTILE_COLLIDABLE = Tag.Boolean("mm:projectile-collidable");
 
     /** Margin the shooter's box is grown by for the {@link #leftOwnerImmunity} "left its owner" check (vanilla {@code inflate(1.0)}). */
     private static final double LEFT_OWNER_INFLATE = 1.0;
@@ -74,6 +79,8 @@ public abstract class ProjectileEntity extends Entity {
     protected double stickPullback = 0.05;
     /** Velocity in blocks/tick (library convention; {@code super.velocity} mirrors b/s). */
     protected Vec velocityBt = Vec.ZERO;
+    /** Constant per-tick acceleration added before drag (vanilla fireball {@code mot += dir; mot *= drag}); ZERO for ballistic projectiles. */
+    protected Vec acceleration = Vec.ZERO;
     /** Shooter position + view at launch, for knockback origin (vanilla uses the shooter, not the projectile). */
     protected Pos shooterOriginPos;
     protected @Nullable Entity shooter;
@@ -114,16 +121,11 @@ public abstract class ProjectileEntity extends Entity {
         super(entityType);
         this.shooter = shooter;
         this.shooterOriginPos = shooter != null ? shooter.getPosition() : Pos.ZERO;
-        this.collidesWithEntities = false;
         this.preventBlockPlacement = false;
         if (getEntityMeta() instanceof ProjectileMeta meta) meta.setShooter(shooter);
         // zero-size box: collision points resolve exactly on block boundaries (any size overshoots the inGround check)
         setBoundingBox(0, 0, 0);
     }
-
-    // =========================================================================
-    // Hooks for subclasses / launchers
-    // =========================================================================
 
     /** Called when the projectile hits an entity. Return {@code true} to remove the projectile. */
     protected boolean onHit(@NotNull Entity entity) { return false; }
@@ -139,13 +141,35 @@ public abstract class ProjectileEntity extends Entity {
 
     /** Whether this projectile can hit {@code entity} (shooter immunity is handled separately). */
     protected boolean canHit(@NotNull Entity entity) {
-        if (!(entity instanceof LivingEntity living) || living.isDead()) return false;
-        return !(entity instanceof Player p) || p.getGameMode() != GameMode.SPECTATOR;
+        // vanilla ad(): a live non-spectator target, or a solid entity opting in via the tag (primed TNT); arrows/pearls/items pass through.
+        // A collidable projectile (fireball) is a strike target only for a NON-collidable one (arrow/pearl) - two fireballs pass through each other (Hypixel).
+        if (entity instanceof ProjectileEntity pe) return pe.collidableTarget() && !collidableTarget();
+        if (entity instanceof LivingEntity living)
+            return !living.isDead() && (!(entity instanceof Player p) || p.getGameMode() != GameMode.SPECTATOR);
+        return Boolean.TRUE.equals(entity.getTag(PROJECTILE_COLLIDABLE));
     }
 
-    // =========================================================================
-    // Public API
-    // =========================================================================
+    /** Whether other projectiles/attacks can hit this one (vanilla {@code ad()}/canBeCollidedWith). Default {@code false}; a fireball overrides it (collidable + deflectable). */
+    protected boolean collidableTarget() { return false; }
+
+    // vanilla ad(): only a collidable projectile (a fireball) is a strike target for others' collision sweeps; the rest pass through.
+    // Overridden (like Minestom's own preventBlockPlacement()) instead of poking the field, so it can't desync from collidableTarget().
+    @Override
+    public boolean hasEntityCollision() { return collidableTarget(); }
+
+    /** The box for THIS projectile's OWN collision (block + entity sweep); defaults to the entity box. A fireball overrides it to a
+     *  POINT so it detonates raytrace-like, while {@link #getBoundingBox()} (its real 1x1 box) is what OTHERS hit to deflect it (vanilla decouples the two). */
+    protected BoundingBox collisionBox() { return getBoundingBox(); }
+
+    /** Deflects this projectile off {@code deflector} (redirect along its look + reassign ownership); default no-op. Returns whether it deflected. */
+    public boolean deflectBy(@Nullable Entity deflector) { return false; }
+
+    /** Reassigns the owner/shooter (a deflected fireball's new owner is the deflector) + re-arms leave-owner immunity against it. */
+    protected void reassignShooter(@Nullable Entity newShooter) {
+        this.shooter = newShooter;
+        if (getEntityMeta() instanceof ProjectileMeta meta) meta.setShooter(newShooter);
+        this.leftOwner = false;
+    }
 
     public @Nullable Entity getShooter() { return shooter; }
 
@@ -158,7 +182,6 @@ public abstract class ProjectileEntity extends Entity {
 
     /** Where the projectile entered the world (its wire-grid spawn position), or {@code null} before launch. */
     public @Nullable Pos getSpawnPosition() { return spawnPosition; }
-    /** Records the spawn position (launcher applies it). */
     public void setSpawnPosition(@NotNull Pos pos) { this.spawnPosition = pos; }
 
     /** The exact point on the block face this projectile stuck to (arrows), or {@code null} if not stuck. */
@@ -176,31 +199,24 @@ public abstract class ProjectileEntity extends Entity {
         return pos != null && instance != null ? instance.getBlock(pos) : null;
     }
 
-    /** Sets how many ticks the shooter is immune to this projectile (launcher applies the resolved config). */
     public void setShooterImmunityTicks(int ticks) { this.shooterImmunityTicks = ticks; }
 
-    /** Sets the entity-hit margin grown onto the target on each side (launcher applies the resolved config). */
     public void setEntityHitGrow(double grow) { this.entityHitGrow = grow; }
 
-    /** Sets the in-flight velocity broadcast interval ({@code <= 0} = never; the launcher applies the resolved config). */
     public void setVelocitySyncInterval(int interval) { this.velocitySyncInterval = interval; }
 
-    /** Sets when drag + gravity apply relative to the move (launcher applies the resolved config). */
     public void setPhysicsOrder(@NotNull ProjectileTypeConfig.PhysicsOrder order) { this.physicsOrder = order; }
 
-    /** Sets the 26.1 leave-owner shooter-immunity model (launcher applies the resolved config). */
     public void setLeftOwnerImmunity(boolean v) { this.leftOwnerImmunity = v; }
 
-    /** Sets the stuck-tip pull-back distance (launcher applies the resolved config). */
     public void setStickPullback(double v) { this.stickPullback = v; }
 
-    /** The Power enchant level captured at launch (arrow damage bonus); 0 if none. */
+    /** Constant per-tick acceleration (b/t) folded in before drag - the fireball's self-propulsion. */
+    public void setAcceleration(@NotNull Vec a) { this.acceleration = a; }
+
     public int powerLevel() { return powerLevel; }
-    /** The Punch enchant level captured at launch (extra hit knockback); 0 if none. */
     public int punchLevel() { return punchLevel; }
-    /** The Flame enchant level captured at launch (ignite the struck entity); 0 if none. */
     public int flameLevel() { return flameLevel; }
-    /** Stamps the projectile's captured Power/Punch/Flame levels (launcher applies them off the launch item's enchants). */
     public void setProjectileEnchants(int power, int punch, int flame) { this.powerLevel = power; this.punchLevel = punch; this.flameLevel = flame; }
 
     /** Re-arms shooter immunity for another {@link #shooterImmunityTicks} (vanilla {@code as = 0} after a deflect, so
@@ -229,10 +245,6 @@ public abstract class ProjectileEntity extends Entity {
         this.velocity = velocity;
         if (!isStuck()) sendVelocityToViewers(TickScaler.toClientVelocity(velocityBt));
     }
-
-    // =========================================================================
-    // Tick: vanilla-style periodic re-sync while stuck
-    // =========================================================================
 
     @Override
     public void tick(long time) {
@@ -274,9 +286,13 @@ public abstract class ProjectileEntity extends Entity {
         // --- Block physics (swept) ---
         ChunkCache blockGetter = new ChunkCache(instance, currentChunk, Block.AIR);
         PhysicsResult physics = CollisionUtils.handlePhysics(
-                blockGetter, getBoundingBox(), position, velocityBt, previousPhysicsResult, true);
+                blockGetter, collisionBox(), position, velocityBt, previousPhysicsResult, true);
         this.previousPhysicsResult = physics;
-        Pos newPosition = CollisionUtils.applyWorldBorder(instance.getWorldBorder(), position, physics.newPosition());
+        // Minestom caps even a non-colliding swept move at (1 - EPSILON)*v, so a free-flying projectile drifts ~1e-6/tick
+        // short. The explosion CENTER is this entity's detonation pos, which must match a native 1.8 server bit-for-bit
+        // (a 1e-6-high detonation shifts the knockback by a wire unit) - so restore the full move when nothing was hit.
+        Pos resolved = physics.hasCollision() ? physics.newPosition() : position.add(velocityBt);
+        Pos newPosition = CollisionUtils.applyWorldBorder(instance.getWorldBorder(), position, resolved);
 
         // --- Entity collision (swept alongside the block physics) ---
         // grow the zero-size projectile box by entityHitGrow and sweep along velocity (the Minkowski dual of vanilla growing the target).
@@ -285,15 +301,20 @@ public abstract class ProjectileEntity extends Entity {
         boolean shooterImmune = (leftOwnerImmunity ? (shooter != null && !leftOwner)
                 : getAliveTicks() < shooterImmunityTicks) || getAliveTicks() < shooterImmuneUntilAlive;
         Collection<EntityCollisionResult> hits = CollisionUtils.checkEntityCollisions(
-                instance, boundingBox.growSymmetrically(entityHitGrow, entityHitGrow, entityHitGrow), position, velocityBt, 3,
+                instance, collisionBox().growSymmetrically(entityHitGrow, entityHitGrow, entityHitGrow), position, velocityBt, 3,
                 e -> e != this && !(shooterImmune && e == shooter) && canHit(e), physics);
         if (!hits.isEmpty()) {
             EntityCollisionResult hit = hits.iterator().next();
             var event = new ProjectileCollideWithEntityEvent(this, hit.collisionPoint().asPos(), hit.entity());
             EventDispatcher.call(event);
-            if (!event.isCancelled() && onHit(hit.entity())) {
-                pendingRemove = true; // removed in tick() after touchTick (see field doc)
-                return;
+            if (!event.isCancelled()) {
+                // a deflectable target (fireball) redirects along our shooter's look (vanilla EntityFireball.damageEntity), and the hitter
+                // is then CONSUMED even if its own hit would bounce (vanilla: the arrow die()s on a returned-true damageEntity; the pearl teleports + die()s)
+                boolean deflected = hit.entity() instanceof ProjectileEntity target && target.deflectBy(getShooter());
+                if (onHit(hit.entity()) || deflected) {
+                    pendingRemove = true; // removed in tick() after touchTick (see field doc)
+                    return;
+                }
             }
             // deflect (velocity reversed, not removed): stop the forward move at the hit point so it doesn't overshoot before bouncing
             if (deflectedThisTick) {
@@ -355,6 +376,7 @@ public abstract class ProjectileEntity extends Entity {
         double hDrag = TickScaler.dragPerTick(aero.horizontalAirResistance());
         double vDrag = TickScaler.dragPerTick(aero.verticalAirResistance());
         velocityBt = velocityBt
+                .add(acceleration) // self-propulsion folded in before drag (vanilla fireball); ZERO otherwise
                 .mul(hDrag, vDrag, hDrag)
                 .sub(0, hasNoGravity() ? 0 : TickScaler.gravityPerTick(aero.gravity()), 0);
         this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
@@ -440,10 +462,6 @@ public abstract class ProjectileEntity extends Entity {
         // a relogged 1.8 client may briefly "freeze then fall" (it holds inGround until its block-changed check); matches vanilla, so accepted
     }
 
-    // =========================================================================
-    // Wire sync
-    // =========================================================================
-
     /** Velocity for the wire, re-rated to the client's b/t (TPS scaling; identity at 20); ZERO while stuck so no broadcast nudges a 1.8 client off the stuck position. */
     @Override
     protected Vec getVelocityForPacket() {
@@ -459,10 +477,14 @@ public abstract class ProjectileEntity extends Entity {
             this.lastSyncedPosition = getPosition();
             return;
         }
+        if (pendingRemove) return; // hit this tick and about to be removed: no final position/velocity broadcast
         // throttle to syncInterval (a per-tick teleport shakes both clients - it fights their interpolation/prediction)
         if (flightSyncCounter++ % Math.max(1L, getSynchronizationTicks()) != 0) return;
         Pos pos = getPosition();
-        sendPacketToViewersAndSelf(new EntityTeleportPacket(getEntityId(), pos, getVelocityForPacket(), 0, onGround));
+        // position-only when velocity is synced per-tick (below): the modern teleport's velocity makes Via re-emit a
+        // DUPLICATE entity_velocity to 1.8 clients (vanilla's 0x18 teleport carries none). Arrows keep it - their only hint.
+        Vec teleVel = velocitySyncInterval > 0 ? Vec.ZERO : getVelocityForPacket();
+        sendPacketToViewersAndSelf(new EntityTeleportPacket(getEntityId(), pos, teleVel, 0, onGround));
         this.lastSyncedPosition = pos;
     }
 
@@ -494,6 +516,7 @@ public abstract class ProjectileEntity extends Entity {
     @Override
     public void sendPacketToViewers(@NotNull SendablePacket packet) {
         if (packet instanceof EntityVelocityPacket && !allowVelocityPacket) {
+            if (pendingRemove) return;             // being removed this tick: no final velocity broadcast
             if (velocitySyncInterval <= 0) return; // vanilla arrow: no per-tick velocity, client predicts from spawn
             if (autoVelocityCounter++ % velocitySyncInterval != 0) return; // else every velocitySyncInterval ticks
         }

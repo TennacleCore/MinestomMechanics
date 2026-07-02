@@ -8,8 +8,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A knockback instance to apply.
  *
- * @param target         the entity being knocked back
- * @param melee          whether this is a melee hit - gates melee-only logic (sprint "extra" KB, melee components)
+ * @param melee          gates melee-only logic (sprint "extra" KB, melee components)
  * @param source         the entity dealing the knockback, or {@code null} (direction from origin/direction)
  * @param origin         explicit knockback origin, or {@code null}
  * @param direction      explicit knockback direction override, or {@code null}

@@ -12,9 +12,7 @@ import org.jetbrains.annotations.Nullable;
  * Immutable input describing a single instance of damage to apply. Mirrors the knockback
  * snapshot inputs but for damage.
  *
- * @param target  the entity taking damage
- * @param type    the damage type (melee, fire tick, fall, custom, etc.)
- * @param source  the entity or object responsible for the damage (attacker, projectile, etc.), if any
+ * @param source  the entity responsible (attacker, projectile), if any
  * @param point   a relevant position for the damage (source position), if any
  * @param item    the item involved (melee weapon), if any
  * @param detail  type-specific payload attached by the producer (e.g. the fall distance), if any

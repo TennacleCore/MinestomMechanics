@@ -57,11 +57,11 @@ public final class Bow implements Shootable {
         if (e.getItemStack().material() != Material.BOW) return;
         Player p = e.getPlayer();
         float power = drawPower(e.getUseDuration());
-        if (power < MIN_POWER) return; // too short a draw - no shot
+        if (power < MIN_POWER) return;
         boolean creative = p.getGameMode() == GameMode.CREATIVE;
-        int slot = firstArrowSlot(p);           // first plain/tipped/spectral arrow in the quiver
-        if (slot < 0 && !creative) return;      // survival/Infinity still need an arrow
-        ItemStack arrowItem = slot >= 0 ? p.getInventory().getItemStack(slot) : ItemStack.AIR; // the (tipped?) ammo
+        int slot = firstArrowSlot(p);
+        if (slot < 0 && !creative) return; // survival/Infinity still need an arrow
+        ItemStack arrowItem = slot >= 0 ? p.getInventory().getItemStack(slot) : ItemStack.AIR;
         // Infinity keeps only PLAIN arrows (vanilla); tipped/spectral are always consumed.
         boolean keepArrow = creative || (Enchants.level(e.getItemStack(), Infinity.KEY) > 0 && arrowItem.material() == Material.ARROW);
         if (!keepArrow && slot >= 0) p.getInventory().setItemStack(slot, arrowItem.withAmount(arrowItem.amount() - 1));
@@ -70,7 +70,7 @@ public final class Bow implements Shootable {
             arrow.setCritical(power >= 1f && rollFullPowerCrit());
             // A consumed (survival) shot -> ALLOWED (collector keeps the arrow); a kept shot (creative / Infinity) -> CREATIVE_ONLY (no pickup).
             arrow.setPickup(keepArrow ? ArrowEntity.Pickup.CREATIVE_ONLY : ArrowEntity.Pickup.ALLOWED);
-            TippedArrows.apply(arrow, arrowItem); // stamp the ammo's potion payload (no-op for a plain arrow)
+            TippedArrows.apply(arrow, arrowItem);
         }
     }
 

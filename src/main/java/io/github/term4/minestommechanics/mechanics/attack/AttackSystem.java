@@ -49,7 +49,6 @@ public final class AttackSystem implements MechanicsModule {
      * -> ruleset. Public so custom hit detection submits hits exactly like the built-in packet detection.
      */
     public void apply(AttackSnapshot snap) {
-        // Pre (lazy): cancel or redirect the raw hit, before any config/ruleset
         if (PRE_ATTACK.hasListener()) {
             PreAttackEvent pre = new PreAttackEvent(snap, services);
             EventDispatcher.call(pre);
@@ -75,7 +74,6 @@ public final class AttackSystem implements MechanicsModule {
                 : api.resolvedConfig().ruleset().create(services);
         proc.processAttack(api);
 
-        // Applied (lazy): report the processed attack
         if (ATTACK_APPLIED.hasListener()) EventDispatcher.call(new AttackAppliedEvent(api.finalSnap(), services));
     }
 

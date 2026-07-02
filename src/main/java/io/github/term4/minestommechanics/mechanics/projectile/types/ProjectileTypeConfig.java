@@ -98,6 +98,8 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
     public final @Nullable FieldValue<ProjectileContext, Double> entityHitGrow;
     /** What the projectile does when it hits its own shooter ({@link HitResponse}; default {@code HIT} = vanilla). */
     public final @Nullable FieldValue<ProjectileContext, HitResponse> selfHit;
+    /** What the projectile does when it hits any other entity (default {@code HIT}); {@code DESTROY} = a pure impact trigger, no hit damage/KB (MineMen fireball). */
+    public final @Nullable FieldValue<ProjectileContext, HitResponse> entityHit;
     public final @Nullable FieldValue<ProjectileContext, Integer> syncInterval;
     /** In-flight velocity broadcast interval (ticks): {@code <= 0} = never (vanilla arrow, the edge-slide fix), {@code N} = every N ticks. */
     public final @Nullable FieldValue<ProjectileContext, Integer> velocitySyncInterval;
@@ -109,6 +111,8 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
     public final @Nullable FieldValue<ProjectileContext, Double> stickPullback;
     /** Pickup cooldown (ticks) after a collectable projectile sticks (vanilla arrow {@code shake} = {@code 7}); arrow-only. */
     public final @Nullable FieldValue<ProjectileContext, Integer> shakeTicks;
+    /** Explosion power on detonation (fireball-only); vanilla ghast {@code 1.0}, Hypixel {@code 2.0}. */
+    public final @Nullable FieldValue<ProjectileContext, Double> explosionPower;
     /** Pluggable {@link ProjectileBehavior} layered over the built-in effects (no subclassing). Default {@link ProjectileBehavior#NONE}. */
     public final @Nullable FieldValue<ProjectileContext, ProjectileBehavior> behavior;
     public final @Nullable FieldValue<ProjectileContext, KnockbackConfig> knockback;
@@ -142,12 +146,14 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         this.shooterImmunityTicks = b.shooterImmunityTicks;
         this.entityHitGrow = b.entityHitGrow;
         this.selfHit = b.selfHit;
+        this.entityHit = b.entityHit;
         this.syncInterval = b.syncInterval;
         this.velocitySyncInterval = b.velocitySyncInterval;
         this.physicsOrder = b.physicsOrder;
         this.leftOwnerImmunity = b.leftOwnerImmunity;
         this.stickPullback = b.stickPullback;
         this.shakeTicks = b.shakeTicks;
+        this.explosionPower = b.explosionPower;
         this.behavior = b.behavior;
         this.knockback = b.knockback;
         this.knockbackSource = b.knockbackSource;
@@ -181,12 +187,14 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         b.shooterImmunityTicks = merge(shooterImmunityTicks, base.shooterImmunityTicks);
         b.entityHitGrow = merge(entityHitGrow, base.entityHitGrow);
         b.selfHit = merge(selfHit, base.selfHit);
+        b.entityHit = merge(entityHit, base.entityHit);
         b.syncInterval = merge(syncInterval, base.syncInterval);
         b.velocitySyncInterval = merge(velocitySyncInterval, base.velocitySyncInterval);
         b.physicsOrder = merge(physicsOrder, base.physicsOrder);
         b.leftOwnerImmunity = merge(leftOwnerImmunity, base.leftOwnerImmunity);
         b.stickPullback = merge(stickPullback, base.stickPullback);
         b.shakeTicks = merge(shakeTicks, base.shakeTicks);
+        b.explosionPower = merge(explosionPower, base.explosionPower);
         b.behavior = merge(behavior, base.behavior);
         b.knockback = merge(knockback, base.knockback);
         b.knockbackSource = merge(knockbackSource, base.knockbackSource);
@@ -230,12 +238,14 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         private FieldValue<ProjectileContext, Integer> shooterImmunityTicks;
         private FieldValue<ProjectileContext, Double> entityHitGrow;
         private FieldValue<ProjectileContext, HitResponse> selfHit;
+        private FieldValue<ProjectileContext, HitResponse> entityHit;
         private FieldValue<ProjectileContext, Integer> syncInterval;
         private FieldValue<ProjectileContext, Integer> velocitySyncInterval;
         private FieldValue<ProjectileContext, PhysicsOrder> physicsOrder;
         private FieldValue<ProjectileContext, Boolean> leftOwnerImmunity;
         private FieldValue<ProjectileContext, Double> stickPullback;
         private FieldValue<ProjectileContext, Integer> shakeTicks;
+        private FieldValue<ProjectileContext, Double> explosionPower;
         private FieldValue<ProjectileContext, ProjectileBehavior> behavior;
         private FieldValue<ProjectileContext, KnockbackConfig> knockback;
         private FieldValue<ProjectileContext, KnockbackSource> knockbackSource;
@@ -267,12 +277,14 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
             shooterImmunityTicks = c.shooterImmunityTicks;
             entityHitGrow = c.entityHitGrow;
             selfHit = c.selfHit;
+            entityHit = c.entityHit;
             syncInterval = c.syncInterval;
             velocitySyncInterval = c.velocitySyncInterval;
             physicsOrder = c.physicsOrder;
             leftOwnerImmunity = c.leftOwnerImmunity;
             stickPullback = c.stickPullback;
             shakeTicks = c.shakeTicks;
+            explosionPower = c.explosionPower;
             behavior = c.behavior;
             knockback = c.knockback;
             knockbackSource = c.knockbackSource;
@@ -304,13 +316,10 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
             spawnOffsetSideways = FieldValue.constant(sideways);
             return this;
         }
-        /** Forward spawn offset along the shooter's look direction (blocks). */
         public Builder spawnOffsetForward(Double v) { spawnOffsetForward = FieldValue.constant(v); return this; }
         public Builder spawnOffsetForward(Function<ProjectileContext, Double> fn) { spawnOffsetForward = FieldValue.of(fn); return this; }
-        /** Vertical spawn offset from the shooter's eye height (blocks). */
         public Builder spawnOffsetVertical(Double v) { spawnOffsetVertical = FieldValue.constant(v); return this; }
         public Builder spawnOffsetVertical(Function<ProjectileContext, Double> fn) { spawnOffsetVertical = FieldValue.of(fn); return this; }
-        /** Sideways spawn offset perpendicular to the look (vanilla 1.8 throwing-hand shift {@code 0.16}; 26.1: 0). */
         public Builder spawnOffsetSideways(Double v) { spawnOffsetSideways = FieldValue.constant(v); return this; }
         public Builder spawnOffsetSideways(Function<ProjectileContext, Double> fn) { spawnOffsetSideways = FieldValue.of(fn); return this; }
         public Builder speed(Double v) { speed = FieldValue.constant(v); return this; }
@@ -327,31 +336,29 @@ public final class ProjectileTypeConfig extends Config<ProjectileContext, Projec
         public Builder momentumVertical(Function<ProjectileContext, Double> fn) { momentumVertical = FieldValue.of(fn); return this; }
         public Builder shooterImmunityTicks(Integer v) { shooterImmunityTicks = FieldValue.constant(v); return this; }
         public Builder shooterImmunityTicks(Function<ProjectileContext, Integer> fn) { shooterImmunityTicks = FieldValue.of(fn); return this; }
-        /** Entity-hit margin: grow the target's bbox by this on each side for the hit ray-test (vanilla 1.8 {@code 0.3}). */
         public Builder entityHitGrow(Double v) { entityHitGrow = FieldValue.constant(v); return this; }
         public Builder entityHitGrow(Function<ProjectileContext, Double> fn) { entityHitGrow = FieldValue.of(fn); return this; }
         /** What the projectile does when it hits its own shooter ({@link HitResponse}, default {@code HIT}):
          *  {@code PASS_THROUGH} = the 1.8 ender pearl / Hypixel "self does nothing"; {@code DEFLECT} = bounce off. */
         public Builder selfHit(HitResponse v) { selfHit = FieldValue.constant(v); return this; }
         public Builder selfHit(Function<ProjectileContext, HitResponse> fn) { selfHit = FieldValue.of(fn); return this; }
+        /** What the projectile does when it hits any other entity (default {@code HIT}): {@code DESTROY} = impact trigger only, no hit damage/KB. */
+        public Builder entityHit(HitResponse v) { entityHit = FieldValue.constant(v); return this; }
+        public Builder entityHit(Function<ProjectileContext, HitResponse> fn) { entityHit = FieldValue.of(fn); return this; }
         public Builder syncInterval(Integer v) { syncInterval = FieldValue.constant(v); return this; }
         public Builder syncInterval(Function<ProjectileContext, Integer> fn) { syncInterval = FieldValue.of(fn); return this; }
-        /** In-flight velocity broadcast interval (ticks): {@code <= 0} = never (vanilla arrow, the edge-slide fix),
-         *  {@code 1} = every tick, {@code N} = every N ticks. */
         public Builder velocitySyncInterval(Integer v) { velocitySyncInterval = FieldValue.constant(v); return this; }
         public Builder velocitySyncInterval(Function<ProjectileContext, Integer> fn) { velocitySyncInterval = FieldValue.of(fn); return this; }
-        /** When drag + gravity apply relative to the move ({@code DRAG_AFTER_MOVE} = 1.8, {@code DRAG_BEFORE_MOVE} = 26.1). */
         public Builder physicsOrder(PhysicsOrder v) { physicsOrder = FieldValue.constant(v); return this; }
         public Builder physicsOrder(Function<ProjectileContext, PhysicsOrder> fn) { physicsOrder = FieldValue.of(fn); return this; }
-        /** {@code true} = immune to the shooter until the projectile leaves its bbox (26.1); {@code false} = fixed-tick immunity (1.8). */
         public Builder leftOwnerImmunity(Boolean v) { leftOwnerImmunity = FieldValue.constant(v); return this; }
         public Builder leftOwnerImmunity(Function<ProjectileContext, Boolean> fn) { leftOwnerImmunity = FieldValue.of(fn); return this; }
-        /** Distance a stuck projectile is pulled back along its flight dir so the tip pokes out of the block face (vanilla {@code 0.05}). */
         public Builder stickPullback(Double v) { stickPullback = FieldValue.constant(v); return this; }
         public Builder stickPullback(Function<ProjectileContext, Double> fn) { stickPullback = FieldValue.of(fn); return this; }
-        /** Pickup cooldown (ticks) after a collectable projectile sticks (vanilla arrow {@code shake} = {@code 7}); arrow-only. */
         public Builder shakeTicks(Integer v) { shakeTicks = FieldValue.constant(v); return this; }
         public Builder shakeTicks(Function<ProjectileContext, Integer> fn) { shakeTicks = FieldValue.of(fn); return this; }
+        public Builder explosionPower(Double v) { explosionPower = FieldValue.constant(v); return this; }
+        public Builder explosionPower(Function<ProjectileContext, Double> fn) { explosionPower = FieldValue.of(fn); return this; }
         /** Pluggable {@link ProjectileBehavior} (onImpact/onStuck/onUnstuck/onTick) layered over the built-in effects. */
         public Builder behavior(ProjectileBehavior v) { behavior = FieldValue.constant(v); return this; }
         public Builder behavior(Function<ProjectileContext, ProjectileBehavior> fn) { behavior = FieldValue.of(fn); return this; }

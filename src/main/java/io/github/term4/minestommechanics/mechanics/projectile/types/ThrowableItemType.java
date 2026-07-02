@@ -7,9 +7,11 @@ import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
+import net.minestom.server.entity.PlayerHand;
 import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerUseItemEvent;
+import net.minestom.server.event.player.PlayerUseItemOnBlockEvent;
 import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
@@ -38,17 +40,20 @@ public abstract class ThrowableItemType extends ProjectileType {
     public void enable(ProjectileSystem system, MinestomMechanics mm) {
         this.system = system;
         EventNode<@NotNull PlayerEvent> n = EventNode.type("mm:" + key().value(), EventFilter.PLAYER);
-        n.addListener(PlayerUseItemEvent.class, e -> {
-            if (e.getItemStack().material() != material) return;
-            Player p = e.getPlayer();
-            system.launch(ProjectileSnapshot.of(p, this).withItem(e.getItemStack()));
-            if (p.getGameMode() != GameMode.CREATIVE) {
-                ItemStack held = e.getItemStack();
-                p.setItemInHand(e.getHand(), held.withAmount(held.amount() - 1));
-            }
-        });
+        n.addListener(PlayerUseItemEvent.class, e -> throwItem(e.getPlayer(), e.getHand(), e.getItemStack()));
+        // An item with a block action (fire charge - lights fire) makes the client send use_item_on_block, not use_item,
+        // when aimed at a block, so the throw must handle both. Snowball/egg/pearl have no block action and only ever fire use_item.
+        n.addListener(PlayerUseItemOnBlockEvent.class, e -> throwItem(e.getPlayer(), e.getHand(), e.getItemStack()));
         system.node().addChild(n);
         node = n;
+    }
+
+    private void throwItem(Player p, PlayerHand hand, ItemStack item) {
+        if (item.material() != material || system == null) return;
+        system.launch(ProjectileSnapshot.of(p, this).withItem(item));
+        if (p.getGameMode() != GameMode.CREATIVE) {
+            p.setItemInHand(hand, item.withAmount(item.amount() - 1));
+        }
     }
 
     @Override

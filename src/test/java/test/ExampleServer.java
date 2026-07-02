@@ -25,12 +25,14 @@ import net.minestom.server.MinecraftServer;
 import net.minestom.server.command.builder.Command;
 import net.minestom.server.command.builder.arguments.ArgumentType;
 import net.minestom.server.command.builder.arguments.Argument;
+import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.GlobalEventHandler;
 import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.AsyncPlayerConfigurationEvent;
+import net.minestom.server.event.player.PlayerBlockPlaceEvent;
 import net.minestom.server.event.trait.PlayerEvent;
 import org.jetbrains.annotations.NotNull;
 import net.minestom.server.instance.InstanceContainer;
@@ -49,12 +51,11 @@ import net.minestom.server.potion.CustomPotionEffect;
 import net.minestom.server.potion.Potion;
 import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.timer.TaskSchedule;
+import test.presets.hypixel.Hypixel;
 import test.presets.mmc18.Mmc18;
 
 public class ExampleServer {
     static void main() {
-        // Could wrap these in compatibility methods (mm.legacyProperties(mode: 1.7, 1.8, etc)
-
         // Enable faster socket writes
         System.setProperty("minestom.new-socket-write-lock", "true");
 
@@ -67,21 +68,16 @@ public class ExampleServer {
         // Set server TPS (default is 20, library should work with any TPS tested up to 1000)
         System.setProperty("minestom.tps", "20");
 
-        // Initialize the server
         MinecraftServer server = MinecraftServer.init(new Auth.Bungee()); // bungee auth allows 1.7 clients to join (velocity works for all later versions, and a proxy is not required)
 
-        // Get mm instance
         MinestomMechanics mm = MinestomMechanics.getInstance();
-
-        // Enable ViaVersion proxy details
         mm.viaProxyDetails = true;
         mm.init();
 
-        // Everything the server runs lives on one profile: the mmc18 mechanics, the (placeholder) projectiles, the
-        // general 1.8 compat layer, and the legacy-client fixes. Each system below just enables itself and reads its
-        // config from here, so swapping the profile swaps the whole setup.
+        // Everything the server runs lives on one profile: the mmc18 mechanics, the general 1.8 compat layer, and the
+        // legacy-client fixes. Each system below just enables itself and reads its config from here, so swapping the
+        // profile swaps the whole setup.
         mm.profiles().setGlobal(Mmc18.profile().toBuilder()
-                .set(MechanicsKeys.PROJECTILES, Mmc18.projectiles())
                 .set(MechanicsKeys.COMPAT, Compat18.config())
                 .set(MechanicsKeys.FIXES, Fixes18.config())
                 .build());
@@ -96,7 +92,6 @@ public class ExampleServer {
         FixesSystem.install(mm);      // the legacy-client fix set comes from the profile's fixes config
         ExplosionSystem explosions = ExplosionSystem.install(mm); // explosion config comes from the profile (EXPLOSION key)
 
-        // Create the instance (world)
         InstanceManager instanceManager = MinecraftServer.getInstanceManager();
         InstanceContainer instanceContainer = instanceManager.createInstanceContainer();
         instanceContainer.setExplosionSupplier(explosions.supplier()); // route instance.explode(...) through the system
@@ -131,8 +126,22 @@ public class ExampleServer {
                     + "EAST/+X red src(2,4) | WEST/-X blue src(8,7) | SOUTH/+Z yellow src(12,4) | NORTH/-Z green src(14,10)");
         });
 
-        // Add an event handler to handle player spawning
         GlobalEventHandler globalEventHandler = MinecraftServer.getGlobalEventHandler();
+
+        // TNT test item: placing TNT spawns a primed-TNT entity (falls + fuses + detonates power 4) instead of a block
+        globalEventHandler.addListener(PlayerBlockPlaceEvent.class, event -> {
+            if (!event.getBlock().compare(Block.TNT)) return;
+            event.setCancelled(true);
+            Player p = event.getPlayer();
+            if (p.getInstance() == null || explosions == null) return;
+            Point at = event.getBlockPosition();
+            PrimedTnt.spawn(explosions, p.getInstance(), new Pos(at.blockX() + 0.5, at.blockY(), at.blockZ() + 0.5));
+            if (p.getGameMode() != GameMode.CREATIVE) { // cancelling the place keeps the item, so consume one like vanilla TNT
+                ItemStack held = p.getItemInHand(event.getHand());
+                p.setItemInHand(event.getHand(), held.withAmount(held.amount() - 1));
+            }
+        });
+
         globalEventHandler.addListener(AsyncPlayerConfigurationEvent.class, event -> {
             final Player player = event.getPlayer();
             event.setSpawningInstance(instanceContainer);
@@ -159,12 +168,12 @@ public class ExampleServer {
                 }, TaskSchedule.tick(20));
             }
 
-            //player.setGameMode(GameMode.CREATIVE);
-
             player.getInventory().addItemStack(ItemStack.of(Material.RED_WOOL, 1000));
             player.getInventory().addItemStack(ItemStack.of(Material.LADDER, 64));
             player.getInventory().addItemStack(ItemStack.of(Material.DIAMOND_SWORD, 1));
             player.getInventory().addItemStack(ItemStack.of(Material.SNOWBALL, 64));
+            player.getInventory().addItemStack(ItemStack.of(Material.FIRE_CHARGE, 64)); // right-click to throw a fireball
+            player.getInventory().addItemStack(ItemStack.of(Material.TNT, 64)); // place to spawn a primed TNT (power 4, ~50t fuse)
             player.getInventory().addItemStack(ItemStack.of(Material.EGG, 16));
             player.getInventory().addItemStack(ItemStack.of(Material.ENDER_PEARL, 16));
             player.getInventory().addItemStack(ItemStack.of(Material.BOW, 1));
@@ -307,6 +316,25 @@ public class ExampleServer {
                 explosions.explode(p.getInstance(), p.getPosition(), (float) (int) ctx.get(explodePower));
         }, explodePower);
         MinecraftServer.getCommandManager().register(explode);
+
+        // /explodeat <dx> <dy> <dz> [power]: detonate at your feet + offset (power 2 = fireball), to DECOUPLE detonation
+        // height from distance for the head-gate model test - e.g. /explodeat 0 2 0 (straight up: high det.y, short dist)
+        // vs /explodeat 3 1 0 (far + chest height: low det.y, long dist). Watch the [head-gate] debug line + whether you move.
+        Command explodeAt = new Command("explodeat");
+        Argument<Double> exAtX = ArgumentType.Double("dx");
+        Argument<Double> exAtY = ArgumentType.Double("dy");
+        Argument<Double> exAtZ = ArgumentType.Double("dz");
+        Argument<Double> exAtPower = ArgumentType.Double("power");
+        explodeAt.setDefaultExecutor((sender, ctx) -> sender.sendMessage("usage: /explodeat <dx> <dy> <dz> [power]  (power default 2 = fireball)"));
+        explodeAt.addSyntax((sender, ctx) -> {
+            if (sender instanceof Player p && p.getInstance() != null && explosions != null)
+                explosions.explode(p.getInstance(), p.getPosition().add(ctx.get(exAtX), ctx.get(exAtY), ctx.get(exAtZ)), 2.0f);
+        }, exAtX, exAtY, exAtZ);
+        explodeAt.addSyntax((sender, ctx) -> {
+            if (sender instanceof Player p && p.getInstance() != null && explosions != null)
+                explosions.explode(p.getInstance(), p.getPosition().add(ctx.get(exAtX), ctx.get(exAtY), ctx.get(exAtZ)), ctx.get(exAtPower).floatValue());
+        }, exAtX, exAtY, exAtZ, exAtPower);
+        MinecraftServer.getCommandManager().register(explodeAt);
 
         // /sword: gives a blockable diamond sword (right-click + hold to block; 1.8 = (1+f)*0.5 damage, pre-armor)
         Command sword = new Command("sword");

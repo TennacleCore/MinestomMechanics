@@ -73,7 +73,6 @@ public final class KnockbackSystem implements MechanicsModule {
         // config: snapshot -> victim scope -> install (none = inert, empty = vanilla floor). An impulse is delivered regardless.
         if (impulse == null && snap.config() == null && configFor(snap.target()) == null) return;
 
-        // Pre (lazy): cancel or redirect before compute
         if (PRE_KNOCKBACK.hasListener()) {
             PreKnockbackEvent pre = new PreKnockbackEvent(snap, services);
             EventDispatcher.call(pre);
@@ -118,14 +117,27 @@ public final class KnockbackSystem implements MechanicsModule {
             Vec applied = quantize ? LegacyVelocity.snap(velocity, cap) : velocity;
             // exact 1.8 wire for a knocked legacy client above the LP-exact band (via ViaBridge); else the normal LP broadcast
             if (!(quantize && LegacyVelocityBridge.applyExact(target, velocity, applied, cap))) target.setVelocity(applied);
-            // Applied (lazy)
             if (KNOCKBACK_APPLIED.hasListener()) EventDispatcher.call(new KnockbackAppliedEvent(finalSnap, applied, services));
         }
     }
 
+    /**
+     * Puts a pre-computed velocity straight on the wire (quantize + the 1.8-exact ViaBridge) with NO calculation or
+     * velocity fold - the explosion uses it for the radial (Hypixel) knockback, which SETS the victim's velocity to
+     * {@code push + base} rather than folding the pre-hit velocity like the vanilla {@code a()} path.
+     */
+    public void deliver(@NotNull Entity target, @NotNull Vec velocity) {
+        var resolved = resolveConfig(new KnockbackSnapshot(target, false, null, null, null, null));
+        boolean quantize = !Boolean.FALSE.equals(resolved.quantizeVelocity());
+        double cap = resolved.velocityCap() != null ? resolved.velocityCap() : LegacyVelocity.DEFAULT_CAP;
+        Vec applied = quantize ? LegacyVelocity.snap(velocity, cap) : velocity;
+        if (!(quantize && LegacyVelocityBridge.applyExact(target, velocity, applied, cap))) target.setVelocity(applied);
+        if (KNOCKBACK_APPLIED.hasListener())
+            EventDispatcher.call(new KnockbackAppliedEvent(new KnockbackSnapshot(target, false, null, null, null, null), applied, services));
+    }
+
     public KnockbackConfig config() { return config; }
 
-    /** This system's listener node ({@code mm:knockback}). Empty today - future hooks mount here. */
     public EventNode<@NotNull Event> node() { return node; }
 
     /** Installs inert (no install-level config): an {@link #apply} with no scoped or snapshot config applies nothing. Pass an empty config to apply at the vanilla floor. */

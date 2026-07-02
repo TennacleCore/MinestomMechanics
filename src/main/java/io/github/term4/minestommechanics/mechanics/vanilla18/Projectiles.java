@@ -34,29 +34,20 @@ public final class Projectiles {
                 .build();
     }
 
-    /**
-     * The generic vanilla 1.8 throwable baseline every type inherits unless it overrides a knob (zero render box,
-     * aerodynamics, speed, spread, no shooter-momentum, spawn offsets, 5-tick shooter immunity, 20-tick sync, vanilla
-     * thrower knockback, 0 damage through {@link ProjectileDamage}; values + rationale inline below). Re-base per-type via {@code ProjectileTypeConfig.builder(Projectiles.defaults())...}.
-     */
+    /** The generic vanilla 1.8 throwable baseline every type inherits unless it overrides a knob (values + rationale inline). Re-base per-type via {@code ProjectileTypeConfig.builder(Projectiles.defaults())...}. */
     public static ProjectileTypeConfig defaults() {
         return ProjectileTypeConfig.builder()
                 .boundingBox(0, 0, 0)
                 .gravity(0.03).horizontalDrag(0.99).verticalDrag(0.99)
                 .speed(1.5).spread(0.0075) // momentumHorizontal/Vertical default 0 (1.8 folds no shooter momentum)
                 .spawnOffsetVertical(-0.1).spawnOffsetSideways(0.16)
-                // 5-tick collision grace, then self-hits land (vanilla has no self-immunity). The pearl overrides with PASS_THROUGH.
                 .shooterImmunityTicks(5)
-                // entity-hit margin: grow the target bbox 0.3 per side and ray-test the path; too tight = arrows the 1.8 client predicts as hits fly past.
                 .entityHitGrow(0.3)
                 .syncInterval(20)
-                // knockback pushes from the thrower (not the projectile); melee=false so no sprint extra applies.
                 .knockback(Knockback.projectile())
                 .knockbackSource(ProjectileTypeConfig.KnockbackSource.SHOOTER)
-                // 0 damage, but routed through the damage system so the hurt flash + invul gate fire.
                 .damage(0.0).damageType(ProjectileDamage.INSTANCE)
                 .removeOnEntityHit(true).removeOnBlockHit(true)
-                // throwables destroy (break + effect) on any rejected hit; the arrow overrides to DEFLECT/PASS_THROUGH.
                 .invulnHit(ProjectileTypeConfig.HitResponse.DESTROY)
                 .build();
     }

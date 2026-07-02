@@ -36,7 +36,6 @@ public final class HungerSystem implements MechanicsModule {
         this.node = EventNode.all("mm:hunger");
     }
 
-    /** This system's listener node ({@code mm:hunger}). */
     public EventNode<@NotNull Event> node() { return node; }
     public HungerConfig config() { return config; }
 
@@ -73,7 +72,6 @@ public final class HungerSystem implements MechanicsModule {
         return install(mm, HungerConfig.builder().build());
     }
 
-    /** Installs the hunger system: registers on {@code mm}, installs the event node, and hooks the shared tick loop once. */
     public static HungerSystem install(MinestomMechanics mm, HungerConfig cfg) {
         HungerSystem system = new HungerSystem(mm, cfg);
         mm.register(system);

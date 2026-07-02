@@ -43,8 +43,20 @@ public final class Knockback {
                 .build();
     }
 
+    /**
+     * The hurt-KB an explosion folds before its radial push: the melee profile ({@code B} horizontal, same vertical),
+     * direction purely positional away from the damager entity (the fireball/TNT at detonation). The melee-gated
+     * components self-disable on the non-melee snapshot.
+     */
+    public static KnockbackConfig explosionHurt() {
+        return KnockbackConfig.builder(melee())
+                .yawWeight(0.0)
+                .addCustomComponent(Knockback::pointBlankFallback)
+                .build();
+    }
+
     // horizontal strength
-    private static final double HORIZONTAL_BASE = 0.5274;
+    static final double HORIZONTAL_BASE = 0.5274;
     private static final double SPRINT_BONUS = 0.3271;
     private static final double ENCHANT_PER_LEVEL = 0.37979;
 
@@ -78,10 +90,12 @@ public final class Knockback {
         if (!recentlySprinting(ctx, attacker) || !clientRecentlySprinting(ctx, target)) return null;
         Vec victimFacing = Directions.fromYaw(target.getPosition().yaw());
         Vec attackerFacing = Directions.fromYaw(attacker.getPosition().yaw());
-        double proj = victimFacing.x() * attackerFacing.x() + victimFacing.z() * attackerFacing.z();   // cos(victim yaw - attacker yaw)
-        // push-direction variant (needs the reconstructed victim velocity):
-        // Vec vel = ctx.victimVelocity();
-        // double proj = vel.x() * kb.x() + vel.z() * kb.z();
+        double proj = victimFacing.x() * attackerFacing.x() + victimFacing.z() * attackerFacing.z();   // cos(victim yaw - attacker yaw)\
+        /*
+        push-direction variant (needs the reconstructed victim velocity):
+        Vec vel = ctx.victimVelocity();
+        double proj = vel.x() * kb.x() + vel.z() * kb.z();
+         */
         if (proj == 0) return null;
         double a = proj > 0 ? 1.0 - AXIAL : 1.0 + AXIAL;
         return new Vec(kb.x() * a, kb.y(), kb.z() * a);
@@ -119,6 +133,26 @@ public final class Knockback {
     private static boolean recentlySprinting(KnockbackContext ctx, Entity e) {
         return SprintTracker.wasRecentlySprinting(ctx.services().sprintTracker(),
                 e, TickScaler.duration(SPRINT_BUFFER, KnockbackSystem.KEY));
+    }
+
+    // point-blank fallback (explosion only)
+    private static final Vec POINT_BLANK_DIAGONAL = new Vec(-1, 0, -1).normalize();
+
+    /**
+     * MineMen's degenerate-direction fallback: damager horizontally on top of the victim (every self-fireball; vanilla's
+     * {@code d0*d0+d1*d1 < 1e-4} threshold) -> a fixed world diagonal at full {@code B}, replacing vanilla's random pick.
+     * Verified yaw/position-independent, always (-2983,-2983) shorts.
+     */
+    @Nullable
+    private static Vec pointBlankFallback(KnockbackContext ctx, Vec kb) {
+        var snap = ctx.snap();
+        Entity source = snap.source();
+        Entity target = snap.target();
+        if (source == null || target == null) return null;
+        double dx = target.getPosition().x() - source.getPosition().x();
+        double dz = target.getPosition().z() - source.getPosition().z();
+        if (dx * dx + dz * dz >= 1.0e-4) return null;
+        return new Vec(POINT_BLANK_DIAGONAL.x() * HORIZONTAL_BASE, kb.y(), POINT_BLANK_DIAGONAL.z() * HORIZONTAL_BASE);
     }
 
     /** Victim's CLIENT-side sprint buffer (what the client reports, even if the server disagrees) - the victim gate for axial. */

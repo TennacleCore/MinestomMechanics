@@ -46,8 +46,10 @@ public class ManagedProjectile extends ProjectileEntity {
         this.effectiveConfig = effectiveConfig;
     }
 
-    /** Sets the pluggable {@link ProjectileBehavior} (the launcher applies the resolved config / snapshot override). */
     public void setBehavior(@Nullable ProjectileBehavior behavior) { this.behavior = behavior != null ? behavior : ProjectileBehavior.NONE; }
+
+    /** Whether a non-default behavior is attached; a fireball reads this so a bare one detonates itself while one carrying a behavior lets that behavior own the detonation timing. */
+    protected boolean hasBehavior() { return behavior != ProjectileBehavior.NONE; }
 
     /** Resolves the hit knobs at impact: {@code target} is the struck entity, or {@code null} for a block hit. */
     private ResolvedHit resolveHit(@Nullable Entity target) {
@@ -64,9 +66,9 @@ public class ManagedProjectile extends ProjectileEntity {
         EventDispatcher.call(ev);
         if (ev.isCancelled()) return false;
 
-        // pre-damage outcome: a forced response wins, else the self-hit knob when target == shooter, else a normal HIT
+        // pre-damage outcome: a forced response wins, else the self-hit / entity-hit knob
         ProjectileTypeConfig.HitResponse pre = ev.response() != null ? ev.response()
-                : (target == shooter ? hit.selfHit() : ProjectileTypeConfig.HitResponse.HIT);
+                : (target == shooter ? hit.selfHit() : hit.entityHit());
         switch (pre) {
             case HIT -> { /* normal hit below */ }
             case PASS_THROUGH -> { passThrough(hit, target); return false; }
@@ -142,10 +144,7 @@ public class ManagedProjectile extends ProjectileEntity {
         return ev.removeOnHit(); // block hit -> removeOnBlockHit (override ?? resolved)
     }
 
-    /**
-     * Type-specific impact effect, fired once a hit lands (entity or block) after the damage/knockback pipeline and
-     * before removal. {@code hitEntity} = the struck entity, or {@code null} for a block hit. Override for egg/pearl. Default no-op.
-     */
+    /** Impact effect once a hit lands (entity or block), after damage/knockback and before removal. {@code hitEntity} = the struck entity, or {@code null} for a block hit. Override for egg/pearl. */
     protected void onImpact(@Nullable Entity hitEntity) {}
 
     /** Fires the type's {@link #onImpact} effect, then the pluggable {@link ProjectileBehavior#onImpact}. */
@@ -199,10 +198,7 @@ public class ManagedProjectile extends ProjectileEntity {
         return new Vec(v.x() * cos - v.z() * sin, v.y(), v.x() * sin + v.z() * cos);
     }
 
-    /**
-     * Hit knockback snapshot for the {@link ProjectileTypeConfig.KnockbackSource} + config. The captured {@link #punchLevel()}
-     * rides as the extra-knockback level (vanilla's {@code i}), scaling the config's {@code extra}* knobs (the same channel as the melee Knockback enchant); {@code 0} leaves the extra term inert.
-     */
+    /** Hit-knockback snapshot for the {@link ProjectileTypeConfig.KnockbackSource}; {@link #punchLevel()} rides as the extra-KB level (vanilla's {@code i}, the melee Knockback-enchant channel), {@code 0} = inert. */
     private KnockbackSnapshot buildKnockback(@NotNull Entity target, ProjectileTypeConfig.KnockbackSource source, KnockbackConfig kb) {
         if (shooter != null && source == ProjectileTypeConfig.KnockbackSource.SHOOTER) {
             // shooter source (like melee): the calculator reads the shooter's position + look (yawWeight picks aim vs direction)

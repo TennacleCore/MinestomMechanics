@@ -28,10 +28,11 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Main initialization class for the library: server-level options (trackers, metaFix), the node tree
+ * ({@code mm:root} -&gt; trackers / systems / api-events), the system registry, and scoped config profiles.
+ */
 public final class MinestomMechanics {
-
-    // Main initialization class for the library: server-level options (trackers, metaFix), the node tree
-    // (mm:root -> trackers / systems / api-events), the system registry, and scoped config profiles.
 
     private static final Logger LOG = LoggerFactory.getLogger(MinestomMechanics.class);
     private static final MinestomMechanics INSTANCE = new MinestomMechanics();
@@ -63,8 +64,6 @@ public final class MinestomMechanics {
      * provider; extend {@code OptimizedPlayer} there to keep PlayerConfig support. Default: true
      */
     public boolean installPlayerProvider = true;
-
-    // might add an option for packet validation when not using a proxy? probably better to use a separate library for that though
 
     // Node tree: mm:root -> api-events / trackers / system nodes. trackersNode is built in init().
     private final EventNode<@NotNull Event> root = EventNode.all("mm:root");

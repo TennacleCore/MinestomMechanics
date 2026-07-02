@@ -5,9 +5,9 @@ import io.github.term4.minestommechanics.MechanicsProfile;
 
 /**
  * Vanilla 1.8 preset - the composed, pure-mechanics {@link MechanicsProfile}. The individual 1.8 configs live in the
- * {@code mechanics.vanilla18} subpackage ({@link Attack}, {@link Damage}, {@link Knockback}, {@link Projectiles},
- * {@link Attributes}, {@link Consumables}, {@link Blocking}, {@link Movement}, {@link Player}, and {@code Items}), which are also the
- * canonical defaults the systems fall back to. Assign with {@code mm.profiles().setGlobal(Vanilla18.profile())}.
+ * {@code mechanics.vanilla18} subpackage ({@link Attack}, {@link Damage}, {@link Knockback}, {@link Explosion},
+ * {@link Projectiles}, {@link Attributes}, {@link Consumables}, {@link Blocking}, {@link Movement}, {@link Player}, and
+ * {@code Items}), which are also the canonical defaults the systems fall back to. Assign with {@code mm.profiles().setGlobal(Vanilla18.profile())}.
  *
  * <p>Carries mechanics only - no compat or fixes (those install separately). Includes the item registry ({@link Items}).
  */
