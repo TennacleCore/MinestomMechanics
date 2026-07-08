@@ -49,6 +49,8 @@ repositories {
 }
 
 dependencies {
+    compileOnly(project(":codegen"))
+    annotationProcessor(project(":codegen"))
     val minestomVersion = "2026.06.20-26.1.2"
     val slf4jVersion = "2.0.18"
     val junitVersion = "6.0.3"

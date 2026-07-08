@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.breathing;
 
+import io.github.term4.minestommechanics.codegen.GenerateBuilder;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
@@ -13,13 +14,14 @@ import java.util.function.Function;
  * {@link DamageTypeConfig} tunables. The drowning/respiration/water-breathing logic is identical across 1.8 and 26; the
  * <em>only</em> difference is {@link AirRefill}. Suffocation uses a plain {@code DamageTypeConfig} (just {@code baseAmount}).
  */
+@GenerateBuilder
 public final class BreathingConfig extends DamageTypeConfig {
 
     /** How air recovers when the entity can breathe: {@link #LEGACY} (1.8: snap to max, out of water only) or {@link #MODERN} (26: {@code +4}/tick, in water too while breathing). */
     public enum AirRefill { LEGACY, MODERN }
 
-    private final @Nullable FieldValue<DamageContext, Integer> maxAir;
-    private final @Nullable FieldValue<DamageContext, AirRefill> airRefill;
+    public final @Nullable FieldValue<DamageContext, Integer> maxAir;
+    public final @Nullable FieldValue<DamageContext, AirRefill> airRefill;
 
     private BreathingConfig(Builder b) {
         super(b.common);
@@ -37,22 +39,17 @@ public final class BreathingConfig extends DamageTypeConfig {
         DamageTypeConfig mergedCommon = super.fromBase(base);
         Builder b = new Builder();
         b.common.copyFrom(mergedCommon);
-        if (base instanceof BreathingConfig f) {
-            b.maxAir = merge(this.maxAir, f.maxAir);
-            b.airRefill = merge(this.airRefill, f.airRefill);
-        } else {
-            b.maxAir = this.maxAir;
-            b.airRefill = this.airRefill;
-        }
+        if (base instanceof BreathingConfig f) b.mergeKnobs(this, f);
+        else b.copyKnobs(this);
         return b.build();
     }
 
     public static Builder builder() { return new Builder(); }
 
-    public static final class Builder {
+    public static final class Builder extends BreathingConfigBuilderBase<Builder> {
+
+        @Override protected Builder self() { return this; }
         private final DamageTypeConfig.Builder common = new DamageTypeConfig.Builder();
-        private FieldValue<DamageContext, Integer> maxAir;
-        private FieldValue<DamageContext, AirRefill> airRefill;
 
         public Builder key(Key key) { common.key(key); return this; }
         public Builder enabled(Boolean v) { common.enabled(v); return this; }
@@ -61,10 +58,6 @@ public final class BreathingConfig extends DamageTypeConfig {
         public Builder baseAmount(Function<DamageContext, Double> fn) { common.baseAmount(fn); return this; }
         public Builder invulTicks(Integer v) { common.invulTicks(v); return this; }
         public Builder bypassArmor(Boolean v) { common.bypassArmor(v); return this; }
-        public Builder maxAir(Integer v) { maxAir = FieldValue.constant(v); return this; }
-        public Builder maxAir(Function<DamageContext, Integer> fn) { maxAir = FieldValue.of(fn); return this; }
-        public Builder airRefill(AirRefill v) { airRefill = FieldValue.constant(v); return this; }
-        public Builder airRefill(Function<DamageContext, AirRefill> fn) { airRefill = FieldValue.of(fn); return this; }
 
         public BreathingConfig build() { return new BreathingConfig(this); }
     }

@@ -1,17 +1,12 @@
 package io.github.term4.minestommechanics.mechanics.attribute.defense;
 
+import io.github.term4.minestommechanics.item.Enchants;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.ProtectionEnchant;
-import net.kyori.adventure.key.Key;
-import net.minestom.server.component.DataComponents;
 import net.minestom.server.entity.EquipmentSlot;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.item.ItemStack;
-import net.minestom.server.item.component.EnchantmentList;
-import net.minestom.server.item.enchant.Enchantment;
-import net.minestom.server.registry.RegistryKey;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -71,7 +66,7 @@ public final class ProtectionConfig {
             ItemStack piece = victim.getEquipment(slot);
             for (ProtectionEnchant p : ProtectionEnchant.values()) {
                 if (!p.applies(categories) || bypass.enchant(p.key())) continue;
-                raw += p.legacyPerPiece(enchantLevel(piece, p.key()));
+                raw += p.legacyPerPiece(Enchants.level(piece, p.key()));
             }
         }
         if (raw <= 0) return damage;
@@ -85,7 +80,7 @@ public final class ProtectionConfig {
             ItemStack piece = victim.getEquipment(slot);
             for (ProtectionEnchant p : ProtectionEnchant.values()) {
                 if (!p.applies(categories) || bypass.enchant(p.key())) continue;
-                epf += p.modernPerPiece(enchantLevel(piece, p.key()));
+                epf += p.modernPerPiece(Enchants.level(piece, p.key()));
             }
         }
         return applyModern(damage, epf);
@@ -106,17 +101,6 @@ public final class ProtectionConfig {
     public static float applyModern(float damage, float epfSum) {
         float real = Math.max(0.0F, Math.min(20.0F, epfSum));
         return damage * (1.0F - real / 25.0F);
-    }
-
-    /** Level of {@code key} on {@code stack} (0 if none / air / unenchanted). */
-    public static int enchantLevel(@Nullable ItemStack stack, Key key) {
-        if (stack == null || stack.isAir()) return 0;
-        EnchantmentList list = stack.get(DataComponents.ENCHANTMENTS);
-        if (list == null) return 0;
-        for (Map.Entry<RegistryKey<Enchantment>, Integer> e : list.enchantments().entrySet()) {
-            if (e.getKey().key().equals(key)) return e.getValue();
-        }
-        return 0;
     }
 
     /** Merges this over {@code base}: set fields win. */

@@ -4,6 +4,7 @@ import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.mechanics.death.DeathConfig;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
 import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
@@ -31,6 +32,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.entities.arrow.Stu
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.util.tick.TickState;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
@@ -45,7 +47,9 @@ import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.ListenerHandle;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.entity.EntityDeathEvent;
+import net.minestom.server.event.player.PlayerRespawnEvent;
 import net.minestom.server.event.player.PlayerSpawnEvent;
+import net.minestom.server.timer.TaskSchedule;
 import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -68,11 +72,15 @@ public final class DamageSystem implements MechanicsModule {
     private static final Tag<TickState> INVUL_DAMAGE = Tag.Transient("mm:invul-damage");
     /** Amount of the hit that opened the current invulnerability window (for overdamage replacement). */
     private static final Tag<Float> LAST_DAMAGE = Tag.Transient("mm:last-damage");
+    private static final Tag<DamageType> LAST_DAMAGE_TYPE = Tag.Transient("mm:last-damage-type");
     /** Melee weapon that opened the current invulnerability window ({@code null} = fist / non-melee). */
     private static final Tag<ItemStack> OPENING_ITEM = Tag.Transient("mm:opening-hit-item");
 
     /** Default invul ticks (vanilla 1.8) when nothing resolves; scaled to live TPS at the stamp site. */
     public static final int DEFAULT_INVUL_TICKS = 10;
+
+    /** Fallback death-animation length when a scoped {@link DeathConfig#deathAnimationTicks} is unset (vanilla {@code deathTime} 20). */
+    private static final int DEATH_ANIMATION_TICKS = 20;
 
     // Pre/Applied fire only when listened to; main always fires
     private static final ListenerHandle<PreDamageEvent> PRE_DAMAGE = EventDispatcher.getHandle(PreDamageEvent.class);
@@ -90,18 +98,34 @@ public final class DamageSystem implements MechanicsModule {
         this.node = EventNode.all("mm:damage");
         this.config = config;
         this.services = mm.services();
-        this.calc = new DamageCalculator(this.services, io.github.term4.minestommechanics.mechanics.vanilla18.Damage.config());
+        this.calc = new DamageCalculator(this.services, Vanilla18.damage());
         this.registry = new DamageTypeRegistry(this, mm).registerVanillaDefaults();
         // i-frame window stamps use the victim's per-instance clock; drop the window state on (re)spawn (the TickState
         // future-guard covers most cross-instance carries, but a long-lived target instance could coincide with one).
         this.node.addListener(PlayerSpawnEvent.class, e -> clearDamageWindow(e.getPlayer()));
-        // Death handling lives here (the damage system owns the death/respawn path - see the applyDamage TODO). Vanilla
-        // clears active effects + transient combat state on death; Minestom's kill() does not, so it would leak across
-        // respawn (the Player object persists). clearEffects() fires the remove events the AttributeSystem reacts to.
+        // Death handling lives here (the damage system owns the death/respawn path). Vanilla clears active effects +
+        // transient combat state on death; Minestom's kill() does not, so it would leak across respawn (the Player object
+        // persists). clearEffects() fires the remove events the AttributeSystem reacts to. Behavior is the victim's scoped
+        // DeathConfig; an unset knob defaults to vanilla (on / 20-tick animation).
         this.node.addListener(EntityDeathEvent.class, e -> {
             if (!(e.getEntity() instanceof LivingEntity dead)) return;
-            if (mm.clearEffectsOnDeath) dead.clearEffects();
-            if (mm.resetCombatStateOnDeath) resetCombatState(dead);
+            DeathConfig death = mm.profiles().resolve(dead, MechanicsKeys.DEATH);
+            if (deathFlag(death != null ? death.clearEffects() : null)) dead.clearEffects();
+            if (deathFlag(death != null ? death.resetCombatState() : null)) resetCombatState(dead);
+            // Minestom keeps the health-0 entity in the world (viewers see a lingering body; 1.8/Via replays the death
+            // smoke on chunk reload) - hide it from viewers, but only AFTER the death animation plays (immediate removal
+            // yanks the entity mid-animation = instant disappear). Guarded so a fast respawn doesn't hide the live player.
+            if (deathFlag(death != null ? death.hideCorpse() : null) && dead instanceof Player p) {
+                Integer knob = death != null ? death.deathAnimationTicks() : null;
+                int ticks = knob != null ? knob : DEATH_ANIMATION_TICKS;
+                p.scheduler().buildTask(() -> { if (p.isDead()) p.setAutoViewable(false); })
+                        .delay(TaskSchedule.tick(TickScaler.duration(ticks, KEY))).schedule();
+            }
+        });
+        // re-show the respawned player NEXT tick (after the respawn teleport, else viewers re-see them at the death spot)
+        this.node.addListener(PlayerRespawnEvent.class, e -> {
+            DeathConfig death = mm.profiles().resolve(e.getPlayer(), MechanicsKeys.DEATH);
+            if (deathFlag(death != null ? death.hideCorpse() : null)) e.getPlayer().scheduleNextTick(p -> p.setAutoViewable(true));
         });
     }
 
@@ -186,10 +210,7 @@ public final class DamageSystem implements MechanicsModule {
         boolean bypassImmune = event.bypassImmune() || typeCfg.bypassImmune(typeCtx);
         boolean bypassInvul = event.bypassInvul() || typeCfg.bypassInvul(typeCtx);
 
-        if (!bypassImmune && living instanceof Player gmPlayer
-                && (gmPlayer.getGameMode() == GameMode.CREATIVE || gmPlayer.getGameMode() == GameMode.SPECTATOR)) {
-            return DamageOutcome.IMMUNE;
-        }
+        if (!bypassImmune && isImmune(living)) return DamageOutcome.IMMUNE;
 
         // Fire Resistance: total immunity to fire-source damage. Vanilla blocks it at the hit entry (1.8 damageEntity /
         // 26 hurtServer return false) - before i-frames and mitigation, so it consumes no invul window and never flashes.
@@ -226,6 +247,7 @@ public final class DamageSystem implements MechanicsModule {
             Boolean odSilent = pick(typeCfg.overdamageSilent(typeCtx), resolved.overdamageSilent());
             boolean replacementSilent = odSilent != null ? odSilent : generalSilent;
             living.setTag(LAST_DAMAGE, Math.max(event.stored(), amount));
+            living.setTag(LAST_DAMAGE_TYPE, type);
             applyDamage(living, type, finalSnap, applied, replacementSilent);
             fireDamageApplied(finalSnap, applied, DamageOutcome.OVERDAMAGE);
             return DamageOutcome.OVERDAMAGE;
@@ -236,6 +258,7 @@ public final class DamageSystem implements MechanicsModule {
 
         storeOpeningItem(living, finalSnap.item());
         living.setTag(LAST_DAMAGE, amount);
+        living.setTag(LAST_DAMAGE_TYPE, type);
         applyDamage(living, type, finalSnap, amount, generalSilent);
         Boolean ownsFlag = typeCfg.ownsVelocityBroadcast(typeCtx);
         boolean ownsVelocity = ownsFlag != null ? ownsFlag : knockbackOwnsVelocity(type);
@@ -280,6 +303,9 @@ public final class DamageSystem implements MechanicsModule {
     private static <T> @Nullable T pick(@Nullable T typeValue, @Nullable T globalValue) {
         return typeValue != null ? typeValue : globalValue;
     }
+
+    /** A nullable {@link DeathConfig} toggle: unset (or true) is on; only an explicit {@code false} disables. */
+    private static boolean deathFlag(@Nullable Boolean v) { return !Boolean.FALSE.equals(v); }
 
     /** Vanilla {@code damageEntity}: drowning is the one source that never triggers {@code ac()}. */
     private static final Key DROWN_KEY = Key.key("minecraft:drown");
@@ -353,9 +379,8 @@ public final class DamageSystem implements MechanicsModule {
     }
 
     private void applyDamage(LivingEntity living, DamageType type, DamageSnapshot snap, float amount, boolean silent) {
-        // lethal hits fall through to living.damage() so Minestom handles death; non-lethal silent hits skip the hurt effect.
-        // TODO(death): promote the death/respawn path to a first-class API event (api.event) so consumers can hook/override it
-        //  (transient state is already reset on death; what remains is the overridable event itself).
+        // lethal hits fall through to living.damage() so Minestom handles death (its EntityDeathEvent/PlayerDeathEvent);
+        // non-lethal silent hits skip the hurt effect.
         if (silent && living instanceof Player p) {
             // absorption absorbs first (Minestom's damage() does this; the silent path sets health directly, so replicate it)
             float absorb = p.getAdditionalHearts();
@@ -442,6 +467,11 @@ public final class DamageSystem implements MechanicsModule {
         return v != null ? v : 0f;
     }
 
+    /** Type of the target's most recent LANDED damage (fresh or overdamage - a replacement overwrites it), or {@code null}. */
+    public static @Nullable DamageType lastDamageType(LivingEntity le) {
+        return le.getTag(LAST_DAMAGE_TYPE);
+    }
+
     /** Opens (or re-opens) the target's damage-invulnerability window (i-frames) for {@code duration} ticks. */
     public static void setDamageInvulnerable(Entity e, int duration) {
         if (!(e instanceof LivingEntity le) || duration <= 0) return;
@@ -467,17 +497,18 @@ public final class DamageSystem implements MechanicsModule {
         return s != null ? s.remainingTicks(TickSystem.instanceTick(le)) : 0;
     }
 
-    /** Clears the i-frame window state (the window, its overdamage highwater, and its opening item) as one unit. */
+    /** Clears the i-frame window state (the window, its overdamage highwater, its type, and its opening item) as one unit. */
     public static void clearDamageWindow(LivingEntity le) {
         le.removeTag(INVUL_DAMAGE);
         le.removeTag(LAST_DAMAGE);
+        le.removeTag(LAST_DAMAGE_TYPE);
         le.removeTag(OPENING_ITEM);
     }
 
     /**
      * Resets the transient combat/visual state vanilla starts fresh after death (it carries to respawn - the Player
-     * object persists): fire, drowning air, stuck arrows, and residual velocity. Gated by {@code resetCombatStateOnDeath};
-     * effects are gated separately ({@code clearEffectsOnDeath}); the i-frame window + fall distance reset on (re)spawn.
+     * object persists): fire, drowning air, stuck arrows, and residual velocity. Gated by {@link DeathConfig#resetCombatState};
+     * effects are gated separately ({@link DeathConfig#clearEffects}); the i-frame window + fall distance reset on (re)spawn.
      */
     private static void resetCombatState(LivingEntity entity) {
         entity.setFireTicks(0);

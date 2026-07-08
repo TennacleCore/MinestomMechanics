@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.fall;
 
+import io.github.term4.minestommechanics.codegen.GenerateBuilder;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
@@ -11,6 +12,7 @@ import java.util.function.Function;
  * Config for {@link FallDamage}. Formula knobs are first-class fields; vanilla values are wired in {@code Vanilla18}/{@code Vanilla}.
  * Override {@code baseAmount} with a lambda for fully custom behavior.
  */
+@GenerateBuilder
 public final class FallDamageConfig extends DamageTypeConfig {
 
     /** Which vanilla fall-damage formula to apply when {@code baseAmount} is not explicitly set. */
@@ -23,10 +25,10 @@ public final class FallDamageConfig extends DamageTypeConfig {
 
     private static final double MODERN_EPSILON = 1.0E-6;
 
-    private final @Nullable FieldValue<DamageContext, Formula> formula;
-    private final @Nullable FieldValue<DamageContext, Double> threshold;
-    private final @Nullable FieldValue<DamageContext, Double> damageModifier;
-    private final @Nullable FieldValue<DamageContext, Double> fallDamageMultiplier;
+    public final @Nullable FieldValue<DamageContext, Formula> formula;
+    public final @Nullable FieldValue<DamageContext, Double> threshold;
+    public final @Nullable FieldValue<DamageContext, Double> damageModifier;
+    public final @Nullable FieldValue<DamageContext, Double> fallDamageMultiplier;
 
     private FallDamageConfig(Builder b) {
         super(b.common);
@@ -91,28 +93,17 @@ public final class FallDamageConfig extends DamageTypeConfig {
         DamageTypeConfig mergedCommon = super.fromBase(base);
         Builder b = new Builder();
         b.common.copyFrom(mergedCommon);
-        if (base instanceof FallDamageConfig f) {
-            b.formula = merge(this.formula, f.formula);
-            b.threshold = merge(this.threshold, f.threshold);
-            b.damageModifier = merge(this.damageModifier, f.damageModifier);
-            b.fallDamageMultiplier = merge(this.fallDamageMultiplier, f.fallDamageMultiplier);
-        } else {
-            b.formula = this.formula;
-            b.threshold = this.threshold;
-            b.damageModifier = this.damageModifier;
-            b.fallDamageMultiplier = this.fallDamageMultiplier;
-        }
+        if (base instanceof FallDamageConfig f) b.mergeKnobs(this, f);
+        else b.copyKnobs(this);
         return b.build();
     }
 
     public static Builder builder() { return new Builder(); }
 
-    public static final class Builder {
+    public static final class Builder extends FallDamageConfigBuilderBase<Builder> {
+
+        @Override protected Builder self() { return this; }
         private final DamageTypeConfig.Builder common = new DamageTypeConfig.Builder().key(FallDamage.KEY);
-        private FieldValue<DamageContext, Formula> formula = FieldValue.constant(Formula.LEGACY_CEIL);
-        private FieldValue<DamageContext, Double> threshold = FieldValue.constant(3.0);
-        private FieldValue<DamageContext, Double> damageModifier = FieldValue.constant(1.0);
-        private FieldValue<DamageContext, Double> fallDamageMultiplier = FieldValue.constant(1.0);
 
         public Builder enabled(Boolean v) { common.enabled(v); return this; }
         public Builder enabled(Function<DamageContext, Boolean> fn) { common.enabled(fn); return this; }
@@ -149,14 +140,6 @@ public final class FallDamageConfig extends DamageTypeConfig {
         public Builder ownsVelocityBroadcast(Function<DamageContext, Boolean> fn) { common.ownsVelocityBroadcast(fn); return this; }
         public Builder subConfig(Function<DamageContext, DamageTypeConfig> fn) { common.subConfig(fn); return this; }
 
-        public Builder formula(Formula v) { formula = FieldValue.constant(v); return this; }
-        public Builder formula(Function<DamageContext, Formula> fn) { formula = FieldValue.of(fn); return this; }
-        public Builder threshold(Double v) { threshold = FieldValue.constant(v); return this; }
-        public Builder threshold(Function<DamageContext, Double> fn) { threshold = FieldValue.of(fn); return this; }
-        public Builder damageModifier(Double v) { damageModifier = FieldValue.constant(v); return this; }
-        public Builder damageModifier(Function<DamageContext, Double> fn) { damageModifier = FieldValue.of(fn); return this; }
-        public Builder fallDamageMultiplier(Double v) { fallDamageMultiplier = FieldValue.constant(v); return this; }
-        public Builder fallDamageMultiplier(Function<DamageContext, Double> fn) { fallDamageMultiplier = FieldValue.of(fn); return this; }
 
         public FallDamageConfig build() { return new FallDamageConfig(this); }
     }

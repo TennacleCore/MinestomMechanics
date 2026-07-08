@@ -13,8 +13,10 @@ import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerUseItemEvent;
 import net.minestom.server.event.player.PlayerUseItemOnBlockEvent;
 import net.minestom.server.event.trait.PlayerEvent;
+import net.minestom.server.instance.Instance;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
+import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -24,32 +26,47 @@ import org.jetbrains.annotations.Nullable;
  */
 public abstract class ThrowableItemType extends ProjectileType {
 
+    /** World age of the player's last throw: a block-aimed click can reach the server as TWO packets (see {@link #enable}),
+     *  and a block-action item still sees both when its client-side use FAILS (the 1.8 adventure edge). One throw per tick. */
+    private static final Tag<Long> LAST_THROW_AGE = Tag.Transient("mm:last-throw-age");
+
     private final Material material;
+    private final boolean blockAction;
     private @Nullable EventNode<@NotNull PlayerEvent> node;
     private @Nullable ProjectileSystem system;
 
     protected ThrowableItemType(Key key, String name, EntityType entityType, Material material) {
-        super(key, name, entityType);
-        this.material = material;
+        this(key, name, entityType, material, false);
     }
 
-    /** The item that throws this projectile. */
-    public Material material() { return material; }
+    /** {@code blockAction}: the item has a client-side block use (fire charge - lights fire), so a block-aimed click
+     *  consumes it and sends ONLY use_item_on_block; that event must throw too. */
+    protected ThrowableItemType(Key key, String name, EntityType entityType, Material material, boolean blockAction) {
+        super(key, name, entityType);
+        this.material = material;
+        this.blockAction = blockAction;
+    }
 
     @Override
     public void enable(ProjectileSystem system, MinestomMechanics mm) {
         this.system = system;
         EventNode<@NotNull PlayerEvent> n = EventNode.type("mm:" + key().value(), EventFilter.PLAYER);
+        // use_item ONLY for a plain throwable: aimed at a block in reach, the client sends use_item_on_block FOLLOWED
+        // by use_item (its useOn passes client-side), and vanilla throws from the latter alone - handling both threw twice
         n.addListener(PlayerUseItemEvent.class, e -> throwItem(e.getPlayer(), e.getHand(), e.getItemStack()));
-        // An item with a block action (fire charge - lights fire) makes the client send use_item_on_block, not use_item,
-        // when aimed at a block, so the throw must handle both. Snowball/egg/pearl have no block action and only ever fire use_item.
-        n.addListener(PlayerUseItemOnBlockEvent.class, e -> throwItem(e.getPlayer(), e.getHand(), e.getItemStack()));
+        // a block action (fire charge) consumes the click client-side: use_item_on_block is then the only signal
+        if (blockAction) n.addListener(PlayerUseItemOnBlockEvent.class, e -> throwItem(e.getPlayer(), e.getHand(), e.getItemStack()));
         system.node().addChild(n);
         node = n;
     }
 
     private void throwItem(Player p, PlayerHand hand, ItemStack item) {
         if (item.material() != material || system == null) return;
+        Instance instance = p.getInstance();
+        long age = instance != null ? instance.getWorldAge() : 0;
+        Long last = p.getTag(LAST_THROW_AGE);
+        if (last != null && last == age) return; // the same click's second packet
+        p.setTag(LAST_THROW_AGE, age);
         system.launch(ProjectileSnapshot.of(p, this).withItem(item));
         if (p.getGameMode() != GameMode.CREATIVE) {
             p.setItemInHand(hand, item.withAmount(item.amount() - 1));

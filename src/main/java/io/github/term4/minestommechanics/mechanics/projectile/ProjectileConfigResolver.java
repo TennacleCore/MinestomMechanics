@@ -83,6 +83,7 @@ public final class ProjectileConfigResolver {
                 or(resolve(tc.speed, ctx), 1.5),
                 or(resolve(tc.launchPitchOffset, ctx), 0.0), // vanilla splash potion / XP bottle = -20
                 or(resolve(tc.spread, ctx), 0.0),
+                or(resolve(tc.wireMotYFloor, ctx), 0.0), // MineMen throwables: every broadcast vy snaps to |vy| >= 0.05
                 or(resolve(tc.momentumHorizontal, ctx), 0.0), // vanilla 1.8 adds no shooter momentum (26.1 = 1.0)
                 or(resolve(tc.momentumVertical, ctx), 0.0),
                 or(resolve(tc.shooterImmunityTicks, ctx), 5),
@@ -91,6 +92,8 @@ public final class ProjectileConfigResolver {
                 or(resolve(tc.syncInterval, ctx), 20),
                 or(resolve(tc.velocitySyncInterval, ctx), 0), // 0 = no per-tick velocity (vanilla arrow); the edge-slide fix
                 or(resolve(tc.physicsOrder, ctx), ProjectileTypeConfig.PhysicsOrder.DRAG_AFTER_MOVE), // 26.1 = DRAG_BEFORE_MOVE
+                or(resolve(tc.wireGrid, ctx), ProjectileTypeConfig.WireGrid.LEGACY_1_8), // which client's decoded wire silent flight snaps to
+                resolve(tc.wireLockstep, ctx), // nullable: unset = lockstep only when there is no per-tick velocity sync
                 or(resolve(tc.leftOwnerImmunity, ctx), Boolean.FALSE), // 26.1 = true (immune until it leaves the shooter box)
                 or(resolve(tc.stickPullback, ctx), 0.05), // vanilla 0.05 tip poke-out
                 or(resolve(tc.shakeTicks, ctx), 7), // vanilla arrow shake / pickup delay
@@ -137,6 +140,7 @@ public final class ProjectileConfigResolver {
             double speed,
             double launchPitchOffset,
             double spread,
+            double wireMotYFloor,
             double momentumHorizontal,
             double momentumVertical,
             int shooterImmunityTicks,
@@ -145,6 +149,8 @@ public final class ProjectileConfigResolver {
             int syncInterval,
             int velocitySyncInterval,
             ProjectileTypeConfig.PhysicsOrder physicsOrder,
+            ProjectileTypeConfig.WireGrid wireGrid,
+            @Nullable Boolean wireLockstep,
             boolean leftOwnerImmunity,
             double stickPullback,
             int shakeTicks,

@@ -3,7 +3,9 @@ package test.presets;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
 import test.presets.mmc18.Attack;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import net.minestom.server.coordinate.Pos;
@@ -23,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Contract + regression for the mmc18 1-tick hit queue against the damage-invulnerability window. Combat reads the
@@ -70,6 +73,30 @@ class Mmc18HitQueueTest extends HeadlessServerTest {
         assertEquals(10, DamageSystem.remainingDamageInvul(victim));
     }
 
+    /** Regression: a window re-armed between queue and flush (fall damage on landing, fire) must not hold the
+     *  queued hit past its ORIGINAL deadline - that deferred KB for whole extra windows. */
+    @Test
+    void rearmedWindowDoesNotHoldQueuedHit() throws Exception {
+        LivingEntity attacker = zombie(new Pos(0, 64, 604));
+        LivingEntity victim = zombie(new Pos(0, 64, 605));
+        attacker.setItemInMainHand(ItemStack.of(Material.DIAMOND_SWORD));
+        victim.setHealth(20f);
+
+        AttackEvent.AttackRule rule = Attack.ruleset().create(services);
+
+        setCombatTick(0);
+        rule.processAttack(attack(attacker, victim, false)); // fresh hit: window 0..10
+        setCombatTick(9);
+        rule.processAttack(attack(attacker, victim, false)); // queued, deadline 10
+        assertFalse(pendingHits().isEmpty());
+
+        DamageSystem.setDamageInvulnerable(victim, 10); // the landing's fall damage re-arms a fresh window
+
+        setCombatTick(10);
+        rule.processAttack(attack(attacker, victim, false)); // drain path
+        assertEquals(0, pendingHits().size(), "the original-window deadline releases the hit despite the re-arm");
+    }
+
     /** Regression for the phase bug: under per-tick spam, fresh hits are gated to exactly 10 combat ticks apart. */
     @Test
     void freshHitsAreExactly10CombatTicksApart_underSpam() {
@@ -93,6 +120,57 @@ class Mmc18HitQueueTest extends HeadlessServerTest {
             assertEquals(10L, freshTicks.get(i) - freshTicks.get(i - 1),
                     "consecutive fresh hits must be exactly 10 combat ticks apart, got " + freshTicks);
         }
+    }
+
+    /** Measured (sprintgate duo 2026-07-07): a queued hit flushes sprint-stripped iff the victim's MOST RECENT
+     *  landed damage is a projectile; any other landed damage (overdamage included) overrides the condition. */
+    @Test
+    void queuedHitStripsSprintOnlyAfterAProjectile() throws Exception {
+        LivingEntity attacker = zombie(new Pos(0, 64, 606));
+        LivingEntity victim = zombie(new Pos(0, 64, 607));
+        attacker.setItemInMainHand(ItemStack.of(Material.DIAMOND_SWORD));
+        victim.setHealth(20f);
+        AttackEvent.AttackRule rule = Attack.ruleset().create(services);
+
+        setCombatTick(0);
+        services.damage().apply(DamageSnapshot.of(victim, ProjectileDamage.INSTANCE).withAmount(0f)); // the 0-dmg snowball
+        assertEquals(10, DamageSystem.remainingDamageInvul(victim), "0-damage projectile opens the window");
+        assertTrue(DamageSystem.lastDamageType(victim) instanceof ProjectileDamage, "projectile recorded as the most recent damage");
+
+        setCombatTick(5); // an overdamage replacement mid-window overrides the strip condition
+        rule.processAttack(attack(attacker, victim, true)); // crit > snowball's 0 -> lands as overdamage
+        assertFalse(DamageSystem.lastDamageType(victim) instanceof ProjectileDamage, "overdamage overrides: a queued hit keeps sprint");
+
+        setCombatTick(9); // last tick: still queues as usual; the flush reads the (now non-projectile) strip condition
+        rule.processAttack(attack(attacker, victim, false));
+        assertFalse(pendingHits().isEmpty(), "in-window hit queues");
+
+        pendingHits().clear();
+        victim.remove();
+        attacker.remove();
+    }
+
+    /** Vanilla parity (EntityLiving.damageEntity + EntityHuman.attack, source-verified): an overdamage hit deals the
+     *  difference AND consumes the attacker's sprint - the next fresh hit is non-sprint until a w-tap. */
+    @Test
+    void overdamageHitLandsThroughTheQueueAndConsumesSprint() {
+        LivingEntity attacker = zombie(new Pos(0, 64, 608));
+        LivingEntity victim = zombie(new Pos(0, 64, 609));
+        attacker.setItemInMainHand(ItemStack.of(Material.DIAMOND_SWORD));
+        victim.setHealth(20f);
+        AttackEvent.AttackRule rule = Attack.ruleset().create(services);
+
+        setCombatTick(0);
+        rule.processAttack(attack(attacker, victim, false)); // fresh hit opens the window
+        float afterFirst = (float) victim.getHealth();
+
+        attacker.setSprinting(true);
+        setCombatTick(5); // mid-window, outside the queue buffer: falls through to vanilla overdamage
+        rule.processAttack(attack(attacker, victim, true)); // crit = higher damage -> the difference lands
+        assertTrue(victim.getHealth() < afterFirst, "overdamage (crit > fresh) deals the difference mid-window");
+        assertFalse(attacker.isSprinting(), "a landed overdamage hit consumes sprint (vanilla setSprinting(false))");
+        victim.remove();
+        attacker.remove();
     }
 
     private static AttackEvent attack(LivingEntity attacker, LivingEntity victim, boolean critical) {

@@ -5,6 +5,7 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -19,7 +20,7 @@ public final class Damage {
 
     /** mmc18 DamageConfig: vanilla 1.8 with overdamage applied silently and no generic-hit knockback broadcast. */
     public static DamageConfig config() {
-        return DamageConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla18.Damage.config())
+        return DamageConfig.builder(Vanilla18.damage())
                 .overdamageSilent(true)
                 // mmc18 deals no knockback on generic damage ticks: the hurt broadcast is off entirely
                 // (the only way to switch off an inherited hurtKnockback - merge semantics can't null it).

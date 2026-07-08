@@ -96,6 +96,12 @@ public interface VelocityRule {
         return c != null && c.flowLava();
     }
 
+    /** Whether the motY sim advances only on client move packets (MineMen) vs every tick; {@code false} when the rule carries no config. See {@link VelocityConfig#motYOnMovePacket}. */
+    static boolean motYOnMovePacketEnabled(@Nullable VelocityRule rule) {
+        VelocityConfig c = configOf(rule);
+        return c != null && c.motYOnMovePacket();
+    }
+
     /** Reconstructed arc with per-context knobs (e.g. a ping-scaled {@code groundTicks}); use over a config lambda when only arc knobs vary. */
     static VelocityRule simulated(Function<VelocityContext, VelocityConfig> cfg) {
         return ctx -> arc(ctx, cfg.apply(ctx));
@@ -139,6 +145,8 @@ public interface VelocityRule {
             Vec flow = MotionTracker.flowPush(ctx.entity());
             out = out.add(flow.x(), flow.y(), flow.z());
         }
+        // wall-pinned mot reads 0 on the blocked axis (vanilla move() zeroing, measured)
+        out = MotionTracker.zeroBlockedAxes(ctx.entity(), out);
         return clamp(out, cfg.clampX(), cfg.clampY(), cfg.clampZ());
     }
 

@@ -39,6 +39,7 @@ import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.component.EnchantmentList;
 import net.minestom.server.item.enchant.Enchantment;
 import net.minestom.server.potion.Potion;
+import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.potion.TimedPotion;
 import net.minestom.server.tag.Tag;
 import io.github.term4.minestommechanics.item.Enchants;
@@ -62,10 +63,9 @@ public final class AttributeSystem implements MechanicsModule {
     /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
     public static final Key KEY = Key.key("mm:attribute");
 
-    private static final Key RESISTANCE_KEY = Key.key("minecraft:resistance");
-    private static final Key FIRE_RESISTANCE_KEY = Key.key("minecraft:fire_resistance");
+    static final Key RESISTANCE_KEY = Key.key("minecraft:resistance");
     /** The armor attribute's key - the armor stage's identity for targeted {@link Bypass#attribute} bypass. */
-    private static final Key ARMOR_ATTRIBUTE_KEY = Key.key("minecraft:armor");
+    static final Key ARMOR_ATTRIBUTE_KEY = Key.key("minecraft:armor");
 
     private final MinestomMechanics mm;
     private final SourceRegistry registry = new SourceRegistry();
@@ -339,36 +339,14 @@ public final class AttributeSystem implements MechanicsModule {
      */
     public float mitigate(LivingEntity victim, float damage, MitigationRequest req) {
         if (damage <= 0) return damage;
-        Bypass bypass = req.bypass();
         AttributeConfig cfg = configFor(victim);
+        return MitigationPipeline.run(cfg.mitigationStages,
+                new MitigationPipeline.State(this, victim, req, cfg, damage));
+    }
 
-        ArmorConfig armor = cfg.armor;
-        if (!bypass.armorStage() && !bypass.attribute(ARMOR_ATTRIBUTE_KEY) && armor != null && armor.enabled()) {
-            damage = armor.damageAfterArmor(victim, damage);
-            if (damage <= 0) return damage;
-        }
-
-        if (!bypass.effectStage() && !bypass.effect(RESISTANCE_KEY)) {
-            int level = context(victim, null).effectLevel(RESISTANCE_KEY);
-            if (level > 0) {
-                Double perLevel = cfg.resistancePerLevel;
-                if (perLevel == null) {
-                    // vanilla integer curve, kept exact (identical 1.8-26)
-                    int reduced = 25 - 5 * level;
-                    damage = reduced <= 0 ? 0f : damage * reduced / 25f;
-                } else {
-                    double frac = 1.0 - perLevel * level;
-                    damage = frac <= 0 ? 0f : (float) (damage * frac);
-                }
-                if (damage <= 0) return damage;
-            }
-        }
-
-        ProtectionConfig protection = cfg.protection;
-        if (!bypass.enchantStage() && protection != null && protection.enabled()) {
-            damage = protection.damageAfterProtection(victim, req.categories(), damage, req.random(), bypass);
-        }
-        return damage;
+    /** Effect level of {@code key} on {@code victim} (the conditional-fact context read); {@code 0} = absent. */
+    int effectLevel(LivingEntity victim, Key key) {
+        return context(victim, null).effectLevel(key);
     }
 
     /**
@@ -385,10 +363,7 @@ public final class AttributeSystem implements MechanicsModule {
      * by {@code DamageSystem} at hit entry (blocked outright, like vanilla's {@code return false}), not a mitigation-stage reduction.
      */
     public boolean fireResistant(LivingEntity living) {
-        for (TimedPotion tp : living.getActiveEffects()) {
-            if (tp.potion().effect().key().equals(FIRE_RESISTANCE_KEY)) return true;
-        }
-        return false;
+        return living.hasEffect(PotionEffect.FIRE_RESISTANCE);
     }
 
     /**

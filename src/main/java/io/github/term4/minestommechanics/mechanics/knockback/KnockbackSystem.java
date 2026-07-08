@@ -11,7 +11,9 @@ import io.github.term4.minestommechanics.api.event.KnockbackAppliedEvent;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
 import io.github.term4.minestommechanics.platform.compatibility.LegacyVelocityBridge;
 import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
+import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import net.kyori.adventure.key.Key;
+import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.event.Event;
@@ -109,7 +111,6 @@ public final class KnockbackSystem implements MechanicsModule {
         // explosion push (etc.): stacked on the base, un-folded
         if (impulse != null) velocity = velocity != null ? velocity.add(impulse) : impulse;
 
-        // broadcast only: not fed to the tracker, so it won't fold into the next hit
         if (velocity != null) {
             if (resolved == null) resolved = calc.resolveConfig(cfgSnap);
             broadcast(target, velocity, resolved, finalSnap);
@@ -130,6 +131,8 @@ public final class KnockbackSystem implements MechanicsModule {
         boolean quantize = resolved.quantizeVelocity();
         double cap = resolved.velocityCap();
         Vec applied = quantize ? LegacyVelocity.snap(velocity, cap) : velocity;
+        // non-melee stays in server mot and folds into later hits; melee restores (measured, see foldDelivered)
+        if (!snap.melee()) MotionTracker.foldDelivered(target, velocity.div(ServerFlag.SERVER_TICKS_PER_SECOND));
         // exact 1.8 wire for a knocked legacy client above the LP-exact band (via ViaBridge); else the normal LP broadcast
         if (!(quantize && LegacyVelocityBridge.applyExact(target, velocity, applied, cap))) target.setVelocity(applied);
         if (KNOCKBACK_APPLIED.hasListener()) EventDispatcher.call(new KnockbackAppliedEvent(snap, applied, services));

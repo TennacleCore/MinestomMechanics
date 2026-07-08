@@ -5,24 +5,11 @@ import net.minestom.server.network.player.ClientSettings;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * View-distance clamp: caps a client's reported view distance to the instance's before Minestom processes a settings
- * change, so {@code Player#refreshSettings} never over-sends chunks.
- *
- * <p><b>Why:</b> Minestom's {@code refreshSettings} loads/unloads chunks on a view-distance change using the RAW client
- * view distance, while spawn and movement use the effective range ({@code min(viewDistance, instanceViewDistance) + 1}).
- * A client requesting more than the instance's view distance is then sent chunks beyond the cap that the movement/unload
- * path never manages - they stay loaded for the whole session and render as a broken "invisibility band" far from spawn
- * on legacy clients (placed blocks, entities and even the player itself go invisible there). It also double-sends the
- * boundary ring. Clamping the reported view distance to the instance's keeps the change within the managed range.
- *
- * <p>Applied to ALL clients and deliberately NOT gated on protocol version: resolving a client's protocol races the
- * join, and the clamp is a no-op for any client already within the cap (which includes modern clients, clamped to the
- * server view distance on join). Hooked from
- * {@link io.github.term4.minestommechanics.platform.player.OptimizedPlayer#refreshSettings}.
- *
- * <p><b>Temporary:</b> this is the server-side workaround. The proper fix patches Minestom's {@code refreshSettings} to
- * use the effective bounds (upstream branch {@code fix/refresh-settings-view-distance}); once that is merged and on the
- * pinned Minestom dependency, this fix can be removed.
+ * Caps a client's reported view distance to the instance's before {@code refreshSettings} processes it. Minestom
+ * loads/unloads on the RAW view distance while spawn/movement use the effective range, so chunks past the cap are
+ * sent once and never managed - the legacy-client "invisibility band" far from spawn (+ a double-sent boundary
+ * ring). Applied to ALL clients: protocol resolution races the join, and the clamp is a no-op within the cap.
+ * Temporary: upstream fix on branch {@code fix/refresh-settings-view-distance}; remove once on the pinned Minestom.
  */
 public final class LegacyViewDistanceFix {
 

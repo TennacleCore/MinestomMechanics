@@ -23,6 +23,8 @@ import org.jetbrains.annotations.Nullable;
  * @param flowLava        whether MODERN flow also pushes in lava (26 yes; Hypixel no). No effect on LEGACY.
  * @param climbModel      which {@link ClimbModel} the climb handling uses (1.8 vs 26.1).
  * @param modernBlockPhysics 26-only block velocity (sweet-berry/powder-snow stuck + bed bounce); default off (1.8).
+ * @param motYOnMovePacket advance the motY sim only on ticks with a client move packet (MineMen: a lag-frozen
+ *                         victim's motY holds until its next move); default off = every tick (vanilla/Hypixel).
  */
 public record VelocityConfig(
         double seed,
@@ -40,7 +42,8 @@ public record VelocityConfig(
         FluidFlow.Model flowModel,
         boolean flowLava,
         ClimbModel climbModel,
-        boolean modernBlockPhysics
+        boolean modernBlockPhysics,
+        boolean motYOnMovePacket
 ) {
 
     /** Vanilla gravity (b/t^2): the {@code motY -= 0.08} step. */
@@ -80,6 +83,7 @@ public record VelocityConfig(
         private boolean flowLava = true;    // MODERN only; Hypixel sets false
         private ClimbModel climbModel = ClimbModel.LEGACY; // Vanilla(26) sets MODERN
         private boolean modernBlockPhysics = false; // Vanilla(26) sets true
+        private boolean motYOnMovePacket = false;   // mmc18 sets true
 
         Builder() {}
 
@@ -100,6 +104,7 @@ public record VelocityConfig(
             flowLava = c.flowLava;
             climbModel = c.climbModel;
             modernBlockPhysics = c.modernBlockPhysics;
+            motYOnMovePacket = c.motYOnMovePacket;
         }
 
         public Builder seed(double v) { seed = v; return this; }
@@ -127,12 +132,14 @@ public record VelocityConfig(
         public Builder climbModel(ClimbModel v) { climbModel = v; return this; }
         /** Enable/disable the 26-only block velocity behaviors (sweet-berry/powder-snow stuck + bed bounce). See {@link VelocityConfig#modernBlockPhysics}. */
         public Builder modernBlockPhysics(boolean v) { modernBlockPhysics = v; return this; }
+        /** Advance the motY sim only on ticks with a client move packet (MineMen) vs every tick. See {@link VelocityConfig#motYOnMovePacket}. */
+        public Builder motYOnMovePacket(boolean v) { motYOnMovePacket = v; return this; }
 
         // the attacker self-slowdown lives on AttackConfig.fullHitScale (an attack-time mutation), not here
 
         public VelocityConfig build() {
             return new VelocityConfig(seed, launchOffset,
-                    clampX, clampY, clampZ, groundTicks, maxAirTicks, entityPush, fluidPhysics, climbPhysics, webPhysics, flowPush, flowModel, flowLava, climbModel, modernBlockPhysics);
+                    clampX, clampY, clampZ, groundTicks, maxAirTicks, entityPush, fluidPhysics, climbPhysics, webPhysics, flowPush, flowModel, flowLava, climbModel, modernBlockPhysics, motYOnMovePacket);
         }
     }
 }

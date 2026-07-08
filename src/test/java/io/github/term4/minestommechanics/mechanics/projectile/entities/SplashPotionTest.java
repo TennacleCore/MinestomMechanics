@@ -159,6 +159,47 @@ class SplashPotionTest extends HeadlessServerTest {
     }
 
     @Test
+    void modernSplashScalesByBoxDistance() {
+        Pos at = BASE.add(96, 0, 96);
+        // gap = 2.125 - 0.3 (zombie half-width) - 0.125 (potion half-width) = 1.7; intensity 1 - 1.7/4 = 0.575
+        // (the 1.8 center-distance model would give 0.46875 -> 1688)
+        LivingEntity target = zombie(at.add(2.125, 0, 0));
+        ItemStack item = ItemStack.of(Material.SPLASH_POTION)
+                .with(DataComponents.POTION_CONTENTS, new PotionContents(PotionType.SWIFTNESS));
+        var snap = ProjectileSnapshot.of(looseZombie(), SplashPotion.INSTANCE).withItem(item);
+        var potion = (SplashPotionEntity) SplashPotion.INSTANCE.createEntity(snap.shooter(), snap,
+                ProjectileTypeConfig.builder().modernSplash(true).build());
+        potion.setInstance(instance, at).join();
+        potion.onImpact(null);
+        assertEquals(2070, effect(target, PotionEffect.SPEED).orElseThrow().potion().duration()); // (int)(0.575 * 3600 + 0.5)
+        target.remove();
+        potion.remove();
+    }
+
+    @Test
+    void modernInstantSplashUses2007ForModernViewers() {
+        Pos at = BASE.add(96, 0, 0);
+        var mm = io.github.term4.minestommechanics.MinestomMechanics.getInstance();
+        var modernViewer = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance, at.add(-3, 0, 0), "ModernV2007");
+        mm.clientInfo().setProxyDetails(modernViewer.player, "{\"version\": 774}");
+
+        ItemStack item = ItemStack.of(Material.SPLASH_POTION)
+                .with(DataComponents.POTION_CONTENTS, new PotionContents(PotionType.HARMING));
+        var snap = ProjectileSnapshot.of(looseZombie(), SplashPotion.INSTANCE).withItem(item);
+        var potion = (SplashPotionEntity) SplashPotion.INSTANCE.createEntity(snap.shooter(), snap,
+                ProjectileTypeConfig.builder().modernSplash(true).build());
+        potion.setInstance(instance, at).join();
+        potion.addViewer(modernViewer.player);
+        modernViewer.sent.clear();
+        potion.onImpact(null);
+
+        var event = modernViewer.sent(net.minestom.server.network.packet.server.play.WorldEventPacket.class).getFirst();
+        assertEquals(2007, event.effectId(), "instant potion splash is 2007 in the 26.1 model");
+        modernViewer.player.remove();
+        potion.remove();
+    }
+
+    @Test
     void vanillaHeadingKeepsHorizontalFromUnOffsetPitch() {
         // yaw 0, pitch 0, offset -20: horizontal stays full (cos 0 = 1), vertical = -sin(-20°); then normalized
         Vec v = Directions.headingWithPitchOffset(0, 0, -20);

@@ -11,26 +11,12 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * Equipment-slot fix: strips empty (AIR) slots from outgoing {@code EntityEquipmentPacket}s, matching vanilla (which only sends
- * slots that actually hold an item - {@code ServerEntity} skips empty ones).
- *
- * <p><b>Why:</b> Minestom's {@code getEquipmentsPacket} sends every {@code EquipmentSlot} including {@code BODY} as AIR for a
- * player. ViaBackwards ({@code v1_20_5to1_20_3}) remaps the BODY slot (6) onto the CHESTPLATE slot (4) - correct for horse/wolf
- * body armor on old clients - so the player's stray {@code BODY=AIR} becomes a second chestplate-slot entry that's empty. The
- * client applies the two slot-4 entries in order (last wins); Minestom's {@code Map.copyOf} randomises that order per JVM run, so
- * the real chestplate intermittently gets overwritten by the AIR and renders invisible. Dropping the empty slots removes the stray
- * BODY entry, so nothing collides.
- *
- * <p>Applied to ALL clients (not gated on {@code isLegacy}): dropping empty slots is what vanilla does, so it's harmless for a
- * modern client, and gating on the legacy check leaked through the join window (the equipment of existing players is sent to a
- * just-joined viewer before its protocol is resolved). A single-slot AIR update (clearing a slot) is left untouched. Hooked from
- * both {@link io.github.term4.minestommechanics.platform.player.OptimizedPlayer#sendPacket} (per-viewer / new-viewer sends) and
- * {@code OptimizedPlayer#sendPacketToViewers} (the grouped bulk resend on respawn/teleport, before it becomes a CachedPacket the
- * per-viewer hook can't unwrap).
- *
- * <p><b>Temporary:</b> this is the server-side workaround. The proper fix patches Minestom's {@code getEquipmentsPacket} to
- * skip empty slots like vanilla (upstream branch {@code fix/skip-empty-equipment-slots}); once that is merged and on the
- * pinned Minestom dependency, this fix can be removed.
+ * Strips empty (AIR) slots from outgoing {@code EntityEquipmentPacket}s (vanilla parity - {@code ServerEntity} skips
+ * them). Minestom sends every slot incl. {@code BODY=AIR}; ViaBackwards remaps BODY onto the chestplate slot, and
+ * {@code Map.copyOf} order decides which entry wins - the real chestplate intermittently renders invisible on legacy
+ * clients. Applied to ALL clients: it's what vanilla does, and a legacy gate leaked through the join window (existing
+ * players' equipment is sent before the viewer's protocol resolves). A single-slot AIR update (clearing) is untouched.
+ * Temporary: upstream fix on branch {@code fix/skip-empty-equipment-slots}; remove once on the pinned Minestom.
  */
 public final class LegacyEquipmentFix {
 

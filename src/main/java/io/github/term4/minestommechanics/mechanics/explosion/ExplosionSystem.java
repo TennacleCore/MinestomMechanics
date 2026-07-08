@@ -15,6 +15,8 @@ import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
+import io.github.term4.minestommechanics.tracking.motion.VelocityContext;
+import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import io.github.term4.minestommechanics.util.Directions;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.ServerFlag;
@@ -124,7 +126,7 @@ public final class ExplosionSystem implements MechanicsModule {
         List<ExplosionEvent.Target> targets = new ArrayList<>();
         double doubleRadius = power * 2.0;
         if (doubleRadius <= 0.0) return targets;
-        for (Entity entity : instance.getNearbyEntities(center, doubleRadius + 1.0)) {
+        for (Entity entity : instance.getNearbyEntities(center, doubleRadius + 1.0)) { // coarse query; the distance gate below is authoritative
             boolean living = entity instanceof LivingEntity;
             boolean kbTarget = isKnockbackTarget(entity, resolved); // players + non-living physics entities by default
             if (!living && !kbTarget) continue;
@@ -137,7 +139,11 @@ public final class ExplosionSystem implements MechanicsModule {
                     : resolved.pushEye() != null ? resolved.pushEye().apply(entity)
                     : entity.getEntityType().registry().eyeHeight();
             Point eyeOrigin = entity.getPosition().add(0, headHeight, 0);
-            float exposure = resolved.exposure() ? ExplosionExposure.seenPercent(instance, center, entity) : 1.0f;
+            float exposure = switch (resolved.exposure()) {
+                case NONE -> 1.0f;
+                case MODERN -> ExplosionExposure.seenPercent(instance, center, entity);
+                case LEGACY_1_8 -> ExplosionExposure.seenPercent18(instance, center, entity);
+            };
             // knockback reduction (Blast Protection / KB resistance): TODO via the attribute layer
             ExplosionCalculator.Hit hit = ExplosionCalculator.compute(center, power, eyeOrigin, distance, exposure,
                     resolved.damageConstant(), resolved.floorDamage(), resolved.knockbackMultiplier(), 0.0);
@@ -194,10 +200,9 @@ public final class ExplosionSystem implements MechanicsModule {
                     } else if (resolved.packetPush()) {
                         packetKnockback.put(player, push); // i-frame: rides the explosion packet, not a velocity packet
                     } else if (knockback != null && outcome != DamageSystem.DamageOutcome.BLOCKED) {
-                        // velocity-only (MineMen): sourceless fresh / i-frame overdamage = push ADDED to current motion
-                        // (vanilla g(); a direct hit's same-tick contact KB survives). Blocked = nothing.
-                        Vec velocity = perSecond(push);
-                        sendKnockback.add(() -> knockback.deliver(player, player.getVelocity().add(velocity)));
+                        // velocity-only (MineMen): sourceless fresh / i-frame overdamage = push ADDED to the tracked
+                        // motion (vanilla g(); a same-tick contact KB is in the tracker via foldDelivered). Blocked = nothing.
+                        sendKnockback.add(() -> knockback.deliver(player, perSecond(trackedMotion(player).add(push))));
                     }
                 }
             } else if (push != null && knockback != null) {
@@ -215,6 +220,12 @@ public final class ExplosionSystem implements MechanicsModule {
     /** Explosion model vectors are blocks/tick (vanilla); the {@link KnockbackSystem} wire boundary takes blocks/second. */
     private static Vec perSecond(Vec perTick) {
         return perTick.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
+    }
+
+    /** The victim's server-tracked motion (b/t): players via the profile's {@link VelocityRule} (MotionTracker), non-players their own velocity. */
+    private Vec trackedMotion(Entity entity) {
+        VelocityRule rule = services.profiles().resolve(entity, MechanicsKeys.VELOCITY);
+        return (rule != null ? rule : VelocityRule.DEFAULT).estimate(VelocityContext.of(entity, services.sprintTracker()));
     }
 
     /** Radial base toward {@code height} above {@code position} (the entity's feet), ×{@code magnitude}: 1 up, {@code horizontalScale} sideways, {@code downwardScale} down. */

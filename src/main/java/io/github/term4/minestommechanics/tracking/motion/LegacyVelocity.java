@@ -50,6 +50,12 @@ public final class LegacyVelocity {
         return (short) (int) (bt * WIRE_SCALE);   // vanilla truncates, not rounds
     }
 
+    /** One axis (b/t) snapped onto the 1.8 wire grid: cap, truncate to a short, decode. */
+    public static double snapAxisBt(double bt, double capBt) {
+        double capped = Math.max(-capBt, Math.min(capBt, bt));
+        return (short) (int) (capped * WIRE_SCALE) / WIRE_SCALE;
+    }
+
     /** Whether any axis exceeds the LP-exact band (|v| &gt; 2 b/t), where {@link #snap} drifts through Via - the gate for the exact ViaBridge path. */
     public static boolean exceedsLpExactBand(Vec perSecond) {
         double tps = ServerFlag.SERVER_TICKS_PER_SECOND;

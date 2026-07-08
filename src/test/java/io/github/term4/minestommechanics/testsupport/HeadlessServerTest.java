@@ -13,11 +13,13 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.Pos;
+import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.instance.InstanceContainer;
 import net.minestom.server.instance.block.Block;
+import net.minestom.server.network.NetworkBuffer;
 import org.junit.jupiter.api.BeforeAll;
 
 /**
@@ -65,5 +67,23 @@ public abstract class HeadlessServerTest {
     /** A zombie not bound to any instance: {@link Entity#getPosition()} is the origin, tracked velocity zero. */
     protected static LivingEntity looseZombie() {
         return new LivingEntity(EntityType.ZOMBIE);
+    }
+
+    /** Waits (max 2s) for an entity's async {@code setInstance} to land - the launch join for projectile tests. */
+    protected static void awaitSpawn(Entity e) {
+        long deadline = System.currentTimeMillis() + 2000;
+        while (e.getInstance() == null && System.currentTimeMillis() < deadline) Thread.onSpinWait();
+        if (e.getInstance() == null) throw new AssertionError("launch setInstance did not complete");
+    }
+
+    /** The client's decode of an LP-encoded velocity (the modern wire grid). */
+    protected static Vec lpRoundTrip(Vec v) {
+        byte[] wire = NetworkBuffer.makeArray(NetworkBuffer.LP_VECTOR3, v);
+        return NetworkBuffer.wrap(wire, 0, wire.length).read(NetworkBuffer.LP_VECTOR3);
+    }
+
+    /** Vanilla/Via truncate to shorts; the 1.8 client reads {@code short / 8000.0}. */
+    protected static double legacyShortAxis(double bt) {
+        return (short) (int) (bt * 8000.0) / 8000.0;
     }
 }

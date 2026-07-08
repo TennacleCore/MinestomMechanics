@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
+import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.PotionColors;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.VanillaPotions;
 import io.github.term4.minestommechanics.mechanics.damage.types.magic.HealOrHarm;
@@ -8,6 +9,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.coordinate.Point;
+import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.entity.LivingEntity;
@@ -19,6 +21,7 @@ import net.minestom.server.item.component.PotionContents;
 import net.minestom.server.network.packet.server.play.WorldEventPacket;
 import net.minestom.server.potion.CustomPotionEffect;
 import net.minestom.server.potion.Potion;
+import net.minestom.server.potion.PotionEffect;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,21 +29,25 @@ import java.util.List;
 
 /**
  * Splash potion projectile: on impact it applies the item's effect payload to every living entity in the vanilla
- * splash volume, scaled by distance (1.8 {@code EntityPotion.a()}, identical shape in 26): candidates from the impact
- * box grown {@code (4, 2, 4)}, gated on center distance² {@code < 16}, intensity {@code 1 - sqrt(d)/4} (a directly-hit
- * entity gets {@code 1.0} - the 1.8 model; 26 uses box distance instead). Timed effects last
+ * splash volume, scaled by distance. Two vanilla models via {@code modernSplash}: 1.8 (default,
+ * {@code EntityPotion.a()}) gates on center distance² {@code < 16} with a directly-hit entity at intensity
+ * {@code 1.0}; 26.1 ({@code ThrownSplashPotion.onHitAsPotion}) measures box-to-box distance instead (no direct-hit
+ * case - a touched target's gap is 0). Intensity {@code 1 - sqrt(d)/4}; timed effects last
  * {@code (int)(intensity * duration * durationScale + 0.5)} and only apply above 20 ticks; instant ones route through
- * {@link HealOrHarm}. The glass break + particle cloud is level event 2002, per-viewer (see
- * {@link #broadcastSplashEvent}); 26's separate 2007-for-instant variant is skipped - 1.8 has only 2002.
+ * {@link HealOrHarm}. The glass break + particle cloud is level event 2002 (26.1: 2007 for instant potions),
+ * per-viewer (see {@link #broadcastSplashEvent}).
  */
 public class SplashPotionEntity extends ManagedProjectile {
 
     private static final double SPLASH_RANGE_SQ = 16.0;
     private static final int MIN_EFFECT_TICKS = 20;
     private static final int SPLASH_LEVEL_EVENT = 2002;
+    private static final int SPLASH_LEVEL_EVENT_INSTANT = 2007;
 
     /** Whether MODERN viewers get the 1.8 particle palette ({@code legacyPotionColors}); resolved at launch. */
     private final boolean legacyPalette;
+    /** 26.1 impact semantics ({@code modernSplash}); resolved at launch. */
+    private final boolean modernModel;
 
     public SplashPotionEntity(@Nullable Entity shooter, @NotNull EntityType entityType,
                               ProjectileSnapshot snap, ProjectileTypeConfig effectiveConfig) {
@@ -48,9 +55,9 @@ public class SplashPotionEntity extends ManagedProjectile {
         ItemStack item = snap.item();
         // the client renders the liquid color from the meta item
         if (item != null) ((SplashPotionMeta) getEntityMeta()).setItem(item);
-        Boolean legacy = effectiveConfig.legacyPotionColors != null
-                ? effectiveConfig.legacyPotionColors.resolve(ProjectileConfigResolver.ProjectileContext.of(snap, services())) : null;
-        this.legacyPalette = Boolean.TRUE.equals(legacy);
+        var ctx = ProjectileConfigResolver.ProjectileContext.of(snap, services());
+        this.legacyPalette = FieldValue.resolve(effectiveConfig.legacyPotionColors, ctx, Boolean.FALSE);
+        this.modernModel = FieldValue.resolve(effectiveConfig.modernSplash, ctx, Boolean.FALSE);
     }
 
     @Override
@@ -62,7 +69,9 @@ public class SplashPotionEntity extends ManagedProjectile {
         Point at = getPosition();
         if (!payload.isEmpty()) {
             Float scale = item.get(DataComponents.POTION_DURATION_SCALE);
-            splash(instance, at, hitEntity, payload, scale != null ? scale : 1.0f);
+            float durationScale = scale != null ? scale : 1.0f;
+            if (modernModel) splashModern(instance, at, payload, durationScale);
+            else splash(instance, at, hitEntity, payload, durationScale);
         }
         broadcastSplashEvent(item, payload, at);
     }
@@ -79,12 +88,23 @@ public class SplashPotionEntity extends ManagedProjectile {
         PotionContents contents = item.get(DataComponents.POTION_CONTENTS);
         int color = legacyPalette ? PotionColors.legacyColor(contents, payload) : PotionColors.color(contents, payload);
         int legacyValue = VanillaPotions.legacySplashValue(contents != null ? contents.potion() : null);
+        int event = modernModel && hasInstantPotion(contents) ? SPLASH_LEVEL_EVENT_INSTANT : SPLASH_LEVEL_EVENT;
         var mm = io.github.term4.minestommechanics.MinestomMechanics.getInstance();
         var clientInfo = mm.isInitialized() ? mm.clientInfo() : null;
         for (Player viewer : getViewers()) {
             boolean legacy = clientInfo != null && clientInfo.isLegacy(viewer);
-            viewer.sendPacket(new WorldEventPacket(SPLASH_LEVEL_EVENT, at, legacy ? legacyValue : color, false));
+            viewer.sendPacket(legacy ? new WorldEventPacket(SPLASH_LEVEL_EVENT, at, legacyValue, false)
+                    : new WorldEventPacket(event, at, color, false));
         }
+    }
+
+    /** 26.1 {@code Potion.hasInstantEffects} on the registry potion - custom effects don't flip the event. */
+    private static boolean hasInstantPotion(@Nullable PotionContents contents) {
+        if (contents == null || contents.potion() == null) return false;
+        for (CustomPotionEffect e : VanillaPotions.effects(contents.potion())) {
+            if (e.id() == PotionEffect.INSTANT_HEALTH || e.id() == PotionEffect.INSTANT_DAMAGE) return true;
+        }
+        return false;
     }
 
     private void splash(Instance instance, Point at, @Nullable Entity hitEntity,
@@ -96,12 +116,45 @@ public class SplashPotionEntity extends ManagedProjectile {
             double distSq = living.getPosition().distanceSquared(at);
             if (distSq >= SPLASH_RANGE_SQ && living != hitEntity) continue;
             double intensity = living == hitEntity ? 1.0 : 1.0 - Math.sqrt(distSq) / 4.0;
-            for (CustomPotionEffect e : payload) {
-                if (HealOrHarm.apply(services(), living, getShooter(), at, e, intensity)) continue;
-                int duration = (int) (intensity * e.duration() * durationScale + 0.5);
-                if (duration > MIN_EFFECT_TICKS) {
-                    VanillaPotions.addEffect(living, new Potion(e.id(), e.amplifier(), duration, potionFlags(e)));
-                }
+            applyPayload(living, at, payload, intensity, durationScale);
+        }
+    }
+
+    /** 26.1: the potion's REAL box at the impact point (the physics box is a point) vs the target grown by the ramped
+     *  hit margin ({@code ProjectileUtil.computeMargin}). */
+    private void splashModern(Instance instance, Point at, List<CustomPotionEffect> payload, float durationScale) {
+        double halfWidth = getEntityType().width() / 2.0, height = getEntityType().height();
+        double margin = Math.max(0.0, Math.min(0.3, (getAliveTicks() - 2) / 20.0));
+        for (Entity entity : instance.getNearbyEntities(at, 8.0)) {
+            if (!(entity instanceof LivingEntity living) || living.isDead()) continue; // isAffectedByPotions
+            Pos ep = living.getPosition();
+            var bb = living.getBoundingBox();
+            double ey0 = ep.y() + bb.relativeStart().y(), ey1 = ep.y() + bb.relativeEnd().y();
+            // candidates come from the potion box grown (4, 2, 4), un-margined; y is the only axis it gates beyond the distance check
+            if (ey0 > at.y() + height + 2.0 || ey1 < at.y() - 2.0) continue;
+            double gx = axisGap(ep.x() + bb.relativeStart().x() - margin, ep.x() + bb.relativeEnd().x() + margin,
+                    at.x() - halfWidth, at.x() + halfWidth);
+            double gy = axisGap(ey0 - margin, ey1 + margin, at.y(), at.y() + height);
+            double gz = axisGap(ep.z() + bb.relativeStart().z() - margin, ep.z() + bb.relativeEnd().z() + margin,
+                    at.z() - halfWidth, at.z() + halfWidth);
+            double distSq = gx * gx + gy * gy + gz * gz;
+            if (distSq >= SPLASH_RANGE_SQ) continue;
+            applyPayload(living, at, payload, 1.0 - Math.sqrt(distSq) / 4.0, durationScale);
+        }
+    }
+
+    /** Interval separation, {@code 0} when overlapping - one axis of the 26.1 AABB distance. */
+    private static double axisGap(double minA, double maxA, double minB, double maxB) {
+        return Math.max(0.0, Math.max(minB - maxA, minA - maxB));
+    }
+
+    private void applyPayload(LivingEntity living, Point at, List<CustomPotionEffect> payload,
+                              double intensity, float durationScale) {
+        for (CustomPotionEffect e : payload) {
+            if (HealOrHarm.apply(services(), living, getShooter(), at, e, intensity)) continue;
+            int duration = (int) (intensity * e.duration() * durationScale + 0.5);
+            if (duration > MIN_EFFECT_TICKS) {
+                VanillaPotions.addEffect(living, new Potion(e.id(), e.amplifier(), duration, potionFlags(e)));
             }
         }
     }

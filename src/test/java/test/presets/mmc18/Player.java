@@ -1,6 +1,7 @@
 package test.presets.mmc18;
 
 import io.github.term4.minestommechanics.platform.player.PlayerConfig;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 
 /** mmc18 player platform config: the vanilla 1.8 base with a 1-tick position broadcast. */
 public final class Player {
@@ -9,7 +10,7 @@ public final class Player {
 
     /** PlayerConfig: the vanilla 1.8 base with a 1-tick position broadcast. */
     public static PlayerConfig config() {
-        return PlayerConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla18.Player.config())
+        return PlayerConfig.builder(Vanilla18.player())
                 .positionBroadcastInterval(1)
                 .build();
     }

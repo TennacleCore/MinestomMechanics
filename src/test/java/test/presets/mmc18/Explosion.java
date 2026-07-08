@@ -1,6 +1,7 @@
 package test.presets.mmc18;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 
@@ -18,7 +19,7 @@ public final class Explosion {
     static final double KB_SCALE = 1.3167;
 
     public static ExplosionConfig config() {
-        return ExplosionConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla18.Explosion.config())
+        return ExplosionConfig.builder(Vanilla18.explosion())
                 .knockbackMultiplier(KB_SCALE)
                 .damageKnockback(Knockback.explosionHurt())
                 .packetPush(false)

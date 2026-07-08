@@ -5,6 +5,7 @@ import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfig;
 import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfig;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
+import io.github.term4.minestommechanics.mechanics.death.DeathConfig;
 import io.github.term4.minestommechanics.mechanics.durability.DurabilityConfig;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
@@ -24,6 +25,7 @@ public final class MechanicsKeys {
 
     public static final ConfigKey<AttackConfig> ATTACK = ConfigKey.of("mm:attack");
     public static final ConfigKey<DamageConfig> DAMAGE = ConfigKey.of("mm:damage");
+    public static final ConfigKey<DeathConfig> DEATH = ConfigKey.of("mm:death");
     public static final ConfigKey<KnockbackConfig> KNOCKBACK = ConfigKey.of("mm:knockback");
     public static final ConfigKey<PlayerConfig> PLAYER = ConfigKey.of("mm:player");
     public static final ConfigKey<VelocityRule> VELOCITY = ConfigKey.of("mm:velocity");
@@ -35,6 +37,8 @@ public final class MechanicsKeys {
     public static final ConfigKey<HungerConfig> HUNGER = ConfigKey.of("mm:hunger");
     public static final ConfigKey<ConsumableConfig> CONSUMABLES = ConfigKey.of("mm:consumables");
     public static final ConfigKey<BlockingConfig> BLOCKING = ConfigKey.of("mm:blocking");
+    /** Environment physics for dropped items ({@code vri.DroppedItemEntity.Model}): 1.8 sink vs 26.1 float. */
+    public static final ConfigKey<io.github.term4.minestommechanics.vri.DroppedItemEntity.Model> ITEM_PHYSICS = ConfigKey.of("mm:item-physics");
     public static final ConfigKey<ExplosionConfig> EXPLOSION = ConfigKey.of("mm:explosion");
     public static final ConfigKey<CompatConfig> COMPAT = ConfigKey.of("mm:compat");
     public static final ConfigKey<ItemRegistry> ITEMS = ConfigKey.of("mm:items");

@@ -1,20 +1,10 @@
 package io.github.term4.minestommechanics.platform.compatibility;
 
 /**
- * A 1.8-behaviour feature an Animatium client can apply <em>natively</em> (client-side), mirroring Animatium's
- * {@code ServerFeature} enum - the {@link #bit} is the bit index in the {@code animatium:set_server_features} {@link
- * java.util.BitSet} payload (the wire contract; keep in sync with Animatium). The server sets a player's features and the
- * client clears+applies them, so for those features we can skip our server-side hacks (see {@link CompatAnimatium}).
- *
- * <p>{@link #ALL} (bit 0) enables every feature at once. The mapped subset we drive from {@link CompatConfig}:
- * {@link #PICK_INFLATION} (1.8 attack box) = our {@code attackHitboxMargin}; {@link #OLD_SNEAK_HEIGHT} (1.8 sneak eye)
- * = our {@code legacyHitbox}; {@link #FIX_SPRINT_ITEM_USE}/{@link #FIX_SPRINT_SNEAKING} (no sprint while using/sneaking)
- * = our {@code restrictSprintUse}/{@code restrictSprintSneak}; {@link #DISABLE_SWIM_POSE}/{@link #DISABLE_CRAWL_POSE}/
- * {@link #DISABLE_ELYTRA_POSE} (force {@code STANDING} client-side) = our {@code disabledPoses}. The rest are listed for
- * completeness so a server can request them explicitly via {@code CompatConfig.animatiumFeatures}.
- *
- * <p>Bits {@code 0..9} are stock Animatium; {@code 10..12} require the forked pose-disable feature. Sending an unknown bit
- * to a stock client is harmless - its reader skips ids it doesn't recognise.
+ * A 1.8-behaviour feature an Animatium client applies natively; {@link #bit} = the bit index in the
+ * {@code animatium:set_server_features} BitSet payload (wire contract - keep in sync with the mod). For features a
+ * client applies, the matching server-side hack is skipped ({@link CompatAnimatium} maps them from {@link CompatConfig}).
+ * Bits 0..9 are stock Animatium, 10+ need the fork; an unknown bit is harmless to a stock client (its reader skips it).
  */
 public enum AnimatiumFeature {
     ALL(0),

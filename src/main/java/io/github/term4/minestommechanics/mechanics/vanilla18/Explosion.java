@@ -1,6 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.vanilla18;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
+import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
 
 /** Vanilla 1.8 explosion config (damageConstant 8.0, floored; vs modern 7.0/unfloored). Consumed by {@link Vanilla18} and as the {@code ExplosionSystem} fallback. */
 public final class Explosion {
@@ -14,7 +15,7 @@ public final class Explosion {
                 .damageConstant(8.0)
                 .floorDamage(true)
                 .knockbackMultiplier(1.0)
-                .exposure(true)
+                .exposure(ExplosionExposure.Rays.LEGACY_1_8) // 1.8 rayTraceBlocks, not the modern clip - block-edge shadows differ
                 .build();
     }
 }

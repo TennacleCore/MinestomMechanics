@@ -48,7 +48,7 @@ public final class ReachLog {
         BoundingBox bb = target.getBoundingBox();
         double[][] boxes = {aabb(bb, target.getPosition(), pad), aabb(bb, target.getPreviousPosition(), pad)};
         double optimal = minOptimal(attacker.getPosition(), boxes, eyes);
-        if (optimal > maxReach) e.setCancelled(true); // optimal is a rotation-independent lower bound; past maxReach the hit is geometrically impossible
+        if (optimal > maxReach) e.setCancelled(true);
     }
 
     /** Minimum nearest-point distance from the eye to any candidate target box, over the eye-height candidates (a lower bound on reach). */

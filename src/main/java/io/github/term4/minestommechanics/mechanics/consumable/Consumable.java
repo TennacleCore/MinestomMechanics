@@ -2,7 +2,6 @@ package io.github.term4.minestommechanics.mechanics.consumable;
 
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableTypeConfig.ParticleVisibility;
 import net.kyori.adventure.key.Key;
-import net.minestom.server.item.ItemAnimation;
 import net.minestom.server.item.Material;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,7 +35,7 @@ public final class Consumable {
     public Key key() { return key; }
     /** The materials whose use triggers this consumable. */
     public Set<Material> materials() { return materials; }
-    /** The type's baseline config (consume ticks / animation / behavior); the resolver layers scope overrides over it. */
+    /** The type's baseline config (consume ticks / behavior); the resolver layers scope overrides over it. */
     public ConsumableTypeConfig defaultConfig() { return defaultConfig; }
     /** The item left after consuming one (potion -&gt; glass bottle), or {@code null} to fall back to the item's {@code use_remainder} (then nothing). */
     public @Nullable Material remainder() { return remainder; }
@@ -48,7 +47,6 @@ public final class Consumable {
         private final List<Material> materials;
         private ConsumableTypeConfig defaultConfig;
         private Integer consumeTicks;
-        private ItemAnimation animation;
         private ConsumableBehavior behavior;
         private ParticleVisibility particles;
         private Material remainder;
@@ -61,17 +59,15 @@ public final class Consumable {
         /** Sets the whole baseline config directly (keyed by this consumable's key). Mutually exclusive with the knob setters. */
         public Builder defaultConfig(ConsumableTypeConfig cfg) { this.defaultConfig = cfg; return this; }
         public Builder consumeTicks(int v) { this.consumeTicks = v; return this; }
-        public Builder animation(ItemAnimation v) { this.animation = v; return this; }
         public Builder behavior(ConsumableBehavior v) { this.behavior = v; return this; }
         public Builder particles(ParticleVisibility v) { this.particles = v; return this; }
         /** The item left after consuming one (e.g. {@code GLASS_BOTTLE} for a potion); overrides the item's {@code use_remainder}. */
         public Builder remainder(Material v) { this.remainder = v; return this; }
 
         public Consumable build() {
-            if (defaultConfig == null && (consumeTicks != null || animation != null || behavior != null || particles != null)) {
+            if (defaultConfig == null && (consumeTicks != null || behavior != null || particles != null)) {
                 ConsumableTypeConfig.Builder b = ConsumableTypeConfig.builder(key);
                 if (consumeTicks != null) b.consumeTicks(consumeTicks);
-                if (animation != null) b.animation(animation);
                 if (behavior != null) b.behavior(behavior);
                 if (particles != null) b.particles(particles);
                 defaultConfig = b.build();

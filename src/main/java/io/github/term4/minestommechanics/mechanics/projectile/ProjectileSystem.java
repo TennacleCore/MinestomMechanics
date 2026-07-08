@@ -15,11 +15,13 @@ import io.github.term4.minestommechanics.mechanics.projectile.shootables.Shootab
 import io.github.term4.minestommechanics.mechanics.projectile.types.Arrow;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Egg;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
+import io.github.term4.minestommechanics.mechanics.projectile.types.FishingBobber;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Pearl;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileType;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Snowball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.SplashPotion;
+import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Flame;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Power;
@@ -37,6 +39,7 @@ import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.entity.EntityAttackEvent;
 import net.minestom.server.instance.Instance;
+import net.minestom.server.network.NetworkBuffer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -119,13 +122,17 @@ public final class ProjectileSystem implements MechanicsModule {
         if (event.isCancelled()) return null;
         if (event.behavior() != null && entity instanceof ManagedProjectile mp) mp.setBehavior(event.behavior());
 
-        // 1.8 lockstep ONLY for client-PREDICTED projectiles (no per-tick velocity sync): spawn on the wire 1/32 grid so the
-        // client's predicted flight matches the server. Server-authoritative ones (fireball: velocitySyncInterval>0, synced
-        // every tick) keep FULL precision - else the 1/32 truncation offsets a straight-down explosion from the thrower's
-        // actual x/z, leaking horizontal knockback at non-integer coordinates (the explosion is then off-grid from you).
+        // Wire lockstep: snap the spawn state onto what the predicting client decodes (per WireGrid). Server-
+        // authoritative projectiles (fireball) keep FULL precision - the 1/32 truncation would offset a straight-down
+        // explosion from the thrower's x/z, leaking horizontal knockback.
         Vec spawnVel = event.velocity();
         Pos spawnAt = event.spawnPos().withView(Directions.yaw(spawnVel), Directions.pitch(spawnVel));
-        if (flight.velocitySyncInterval() <= 0) spawnAt = quantizeToWireGrid(spawnAt);
+        boolean lockstep = flight.wireLockstep() != null ? flight.wireLockstep() : flight.velocitySyncInterval() <= 0;
+        if (lockstep) {
+            boolean legacy = flight.wireGrid() == ProjectileTypeConfig.WireGrid.LEGACY_1_8;
+            if (legacy) spawnAt = quantizeToWireGrid(spawnAt);
+            spawnVel = quantizeToWireVelocity(spawnVel, legacy);
+        }
         entity.setVelocityBt(spawnVel);
         entity.setSpawnPosition(spawnAt);
         entity.setInstance(instance, spawnAt);
@@ -137,10 +144,31 @@ public final class ProjectileSystem implements MechanicsModule {
         return new Pos((int) (p.x() * 32.0) / 32.0, (int) (p.y() * 32.0) / 32.0, (int) (p.z() * 32.0) / 32.0, p.yaw(), p.pitch());
     }
 
+    /**
+     * Snaps a spawn velocity (client b/t) onto what the predicting client decodes: the spawn packet's LP encoding, plus
+     * the Via re-encode to 1.8 shorts for a legacy client. Neither encode is invertible on its grid, so iterate to a
+     * fixed point - re-encoding the sim value must reproduce it, or the sim runs a wire unit off the client's.
+     */
+    private static Vec quantizeToWireVelocity(Vec bt, boolean legacyShorts) {
+        Vec v = bt;
+        // the LP grid step is ~0.49 short steps, so the short truncation can cascade down ~11 consecutive wire units
+        for (int i = 0; i < 32; i++) {
+            byte[] wire = NetworkBuffer.makeArray(NetworkBuffer.LP_VECTOR3, v);
+            Vec decoded = NetworkBuffer.wrap(wire, 0, wire.length).read(NetworkBuffer.LP_VECTOR3);
+            if (legacyShorts) decoded = new Vec(
+                    LegacyVelocity.snapAxisBt(decoded.x(), LegacyVelocity.DEFAULT_CAP),
+                    LegacyVelocity.snapAxisBt(decoded.y(), LegacyVelocity.DEFAULT_CAP),
+                    LegacyVelocity.snapAxisBt(decoded.z(), LegacyVelocity.DEFAULT_CAP));
+            if (decoded.equals(v)) return v;
+            v = decoded;
+        }
+        return v;
+    }
+
     /** Stamps the resolved flight config onto a freshly created entity (physics, sync, immunity, behavior, pickup). */
     private static void stampFlight(ProjectileEntity entity, ResolvedFlight flight, ProjectileSnapshot snap) {
         entity.setBoundingBox(flight.boundingBox().width(), flight.boundingBox().height(), flight.boundingBox().depth());
-        entity.setAerodynamics(new Aerodynamics(flight.gravity(), flight.verticalDrag(), flight.horizontalDrag()));
+        entity.setAerodynamics(new Aerodynamics(flight.gravity(), flight.horizontalDrag(), flight.verticalDrag()));
         entity.setBroadcastMovement(flight.broadcastMovement());
         entity.setSynchronizationTicks(TickScaler.duration(flight.syncInterval(), KEY));
         entity.setVelocitySyncInterval(TickScaler.duration(flight.velocitySyncInterval(), KEY));
@@ -153,6 +181,7 @@ public final class ProjectileSystem implements MechanicsModule {
         entity.setPhysicsOrder(flight.physicsOrder());
         entity.setLeftOwnerImmunity(flight.leftOwnerImmunity());
         entity.setStickPullback(flight.stickPullback());
+        entity.setWireMotYFloor(flight.wireMotYFloor());
         if (entity instanceof ManagedProjectile mp) {
             mp.setBehavior(snap.behavior() != null ? snap.behavior() : flight.behavior());
         }
@@ -230,6 +259,7 @@ public final class ProjectileSystem implements MechanicsModule {
         register(Arrow.INSTANCE);
         register(Fireball.INSTANCE);
         register(SplashPotion.INSTANCE);
+        register(FishingBobber.INSTANCE);
         return this;
     }
 

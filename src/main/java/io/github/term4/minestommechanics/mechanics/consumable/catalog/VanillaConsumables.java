@@ -8,7 +8,6 @@ import io.github.term4.minestommechanics.mechanics.damage.types.magic.HealOrHarm
 import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.Player;
-import net.minestom.server.item.ItemAnimation;
 import net.minestom.server.item.Material;
 import net.minestom.server.potion.CustomPotionEffect;
 import net.minestom.server.potion.Potion;
@@ -35,14 +34,12 @@ public final class VanillaConsumables {
     /** Milk bucket ({@code minecraft:milk_bucket}): drinking clears all effects (version-invariant, so the behavior is on the type). */
     public static final Consumable MILK_BUCKET = Consumable
             .builder(Key.key("minecraft:milk_bucket"), Material.MILK_BUCKET)
-            .animation(ItemAnimation.DRINK)
             .behavior(clearEffects())
             .build();
 
     /** Drinkable potion ({@code minecraft:potion}): applies the item's {@code potion_contents} effects (the same payload tipped arrows resolve), leaving a glass bottle. */
     public static final Consumable POTION = Consumable
             .builder(Key.key("minecraft:potion"), Material.POTION)
-            .animation(ItemAnimation.DRINK)
             .behavior(drinkPotion())
             .remainder(Material.GLASS_BOTTLE)
             .build();

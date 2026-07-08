@@ -72,7 +72,7 @@ class PotionLifecycleTest extends HeadlessServerTest {
 
     @Test
     void deathClearsEffectsAndTheirModifiers() {
-        // Minestom's kill() leaves effects intact; mm.clearEffectsOnDeath clears them (vanilla behavior) so nothing leaks.
+        // Minestom's kill() leaves effects intact; the death path clears them (DeathConfig.clearEffects, default on) so nothing leaks.
         LivingEntity e = zombie(new Pos(0, 64, 66));
         double base = e.getAttributeValue(Attribute.MOVEMENT_SPEED);
         PotionEffect speed = PotionEffect.fromKey(Speed.KEY);

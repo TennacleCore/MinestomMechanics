@@ -45,7 +45,7 @@ public final class ExplosionConfigResolver {
                 or(cfg != null ? resolve(cfg.baseHeight, ctx) : null, 1.0),
                 or(cfg != null ? resolve(cfg.baseHorizontalScale, ctx) : null, 1.0),
                 or(cfg != null ? resolve(cfg.baseDownwardScale, ctx) : null, 1.0),
-                !Boolean.FALSE.equals(cfg != null ? resolve(cfg.exposure, ctx) : null),
+                or(cfg != null ? resolve(cfg.exposure, ctx) : null, ExplosionExposure.Rays.MODERN),
                 cfg != null ? resolve(cfg.knockbackImpactFloor, ctx) : null,
                 Boolean.TRUE.equals(cfg != null ? resolve(cfg.fire, ctx) : null),
                 Boolean.TRUE.equals(cfg != null ? resolve(cfg.affectsSource, ctx) : null),
@@ -55,6 +55,10 @@ public final class ExplosionConfigResolver {
 
     private static <T> @Nullable T resolve(@Nullable FieldValue<ExplosionContext, T> fv, ExplosionContext ctx) {
         return fv != null ? fv.resolve(ctx) : null;
+    }
+
+    private static <T> T or(@Nullable T v, T fallback) {
+        return v != null ? v : fallback;
     }
 
     private static double or(@Nullable Double v, double fallback) {
@@ -76,7 +80,7 @@ public final class ExplosionConfigResolver {
             double baseHeight,
             double baseHorizontalScale,
             double baseDownwardScale,
-            boolean exposure,
+            ExplosionExposure.Rays exposure,
             @Nullable Double knockbackImpactFloor,
             boolean fire,
             boolean affectsSource,

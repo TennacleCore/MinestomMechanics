@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types;
 
+import io.github.term4.minestommechanics.codegen.GenerateBuilder;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.config.TypeConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
@@ -14,22 +15,23 @@ import java.util.function.Function;
  * to the global {@link DamageConfig} ({@code typeConfigs}); a type without an entry uses its {@link DamageType#defaultConfig()}.
  * Every value is a {@link FieldValue} (constant or context-aware), resolving to {@code null} to inherit the global config.
  */
+@GenerateBuilder
 public class DamageTypeConfig extends TypeConfig<DamageContext, DamageTypeConfig> {
 
-    private final @Nullable FieldValue<DamageContext, Boolean> enabled;
-    private final @Nullable FieldValue<DamageContext, Double> baseAmount;
-    private final @Nullable FieldValue<DamageContext, Integer> invulTicks;
-    private final @Nullable FieldValue<DamageContext, Boolean> overdamage;
-    private final @Nullable FieldValue<DamageContext, Boolean> silent;
-    private final @Nullable FieldValue<DamageContext, Boolean> overdamageSilent;
-    private final @Nullable FieldValue<DamageContext, Boolean> triggersInvul;
-    private final @Nullable FieldValue<DamageContext, Boolean> bypassInvul;
-    private final @Nullable FieldValue<DamageContext, Boolean> bypassImmune;
-    private final @Nullable FieldValue<DamageContext, Boolean> bypassArmor;
-    private final @Nullable FieldValue<DamageContext, Boolean> bypassEffects;
-    private final @Nullable FieldValue<DamageContext, Boolean> bypassEnchants;
-    private final @Nullable FieldValue<DamageContext, Boolean> bypassAll;
-    private final @Nullable FieldValue<DamageContext, Boolean> ownsVelocityBroadcast;
+    public final @Nullable FieldValue<DamageContext, Boolean> enabled;
+    public final @Nullable FieldValue<DamageContext, Double> baseAmount;
+    public final @Nullable FieldValue<DamageContext, Integer> invulTicks;
+    public final @Nullable FieldValue<DamageContext, Boolean> overdamage;
+    public final @Nullable FieldValue<DamageContext, Boolean> silent;
+    public final @Nullable FieldValue<DamageContext, Boolean> overdamageSilent;
+    public final @Nullable FieldValue<DamageContext, Boolean> triggersInvul;
+    public final @Nullable FieldValue<DamageContext, Boolean> bypassInvul;
+    public final @Nullable FieldValue<DamageContext, Boolean> bypassImmune;
+    public final @Nullable FieldValue<DamageContext, Boolean> bypassArmor;
+    public final @Nullable FieldValue<DamageContext, Boolean> bypassEffects;
+    public final @Nullable FieldValue<DamageContext, Boolean> bypassEnchants;
+    public final @Nullable FieldValue<DamageContext, Boolean> bypassAll;
+    public final @Nullable FieldValue<DamageContext, Boolean> ownsVelocityBroadcast;
 
     protected DamageTypeConfig(Builder b) {
         super(b.key, b.subConfig);
@@ -124,21 +126,8 @@ public class DamageTypeConfig extends TypeConfig<DamageContext, DamageTypeConfig
      */
     public DamageTypeConfig fromBase(DamageTypeConfig base) {
         Builder b = new Builder();
+        b.mergeKnobs(this, base);
         b.key = key() != null ? key() : base.key();
-        b.enabled = merge(enabled, base.enabled);
-        b.baseAmount = merge(baseAmount, base.baseAmount);
-        b.invulTicks = merge(invulTicks, base.invulTicks);
-        b.overdamage = merge(overdamage, base.overdamage);
-        b.silent = merge(silent, base.silent);
-        b.overdamageSilent = merge(overdamageSilent, base.overdamageSilent);
-        b.triggersInvul = merge(triggersInvul, base.triggersInvul);
-        b.bypassInvul = merge(bypassInvul, base.bypassInvul);
-        b.bypassImmune = merge(bypassImmune, base.bypassImmune);
-        b.bypassArmor = merge(bypassArmor, base.bypassArmor);
-        b.bypassEffects = merge(bypassEffects, base.bypassEffects);
-        b.bypassEnchants = merge(bypassEnchants, base.bypassEnchants);
-        b.bypassAll = merge(bypassAll, base.bypassAll);
-        b.ownsVelocityBroadcast = merge(ownsVelocityBroadcast, base.ownsVelocityBroadcast);
         b.subConfig = subConfig != null ? subConfig : base.subConfig;
         return b.build();
     }
@@ -147,96 +136,21 @@ public class DamageTypeConfig extends TypeConfig<DamageContext, DamageTypeConfig
     public static Builder builder(Key key) { return new Builder().key(key); }
 
     /** Plain builder for the common knobs. Subclass builders compose one of these and delegate to it. */
-    public static class Builder {
+    public static class Builder extends DamageTypeConfigBuilderBase<Builder> {
+
+        @Override protected Builder self() { return this; }
         private Key key;
-        private FieldValue<DamageContext, Boolean> enabled;
-        private FieldValue<DamageContext, Double> baseAmount;
-        private FieldValue<DamageContext, Integer> invulTicks;
-        private FieldValue<DamageContext, Boolean> overdamage;
-        private FieldValue<DamageContext, Boolean> silent;
-        private FieldValue<DamageContext, Boolean> overdamageSilent;
-        private FieldValue<DamageContext, Boolean> triggersInvul;
-        private FieldValue<DamageContext, Boolean> bypassInvul;
-        private FieldValue<DamageContext, Boolean> bypassImmune;
-        private FieldValue<DamageContext, Boolean> bypassArmor;
-        private FieldValue<DamageContext, Boolean> bypassEffects;
-        private FieldValue<DamageContext, Boolean> bypassEnchants;
-        private FieldValue<DamageContext, Boolean> bypassAll;
-        private FieldValue<DamageContext, Boolean> ownsVelocityBroadcast;
         private Function<DamageContext, DamageTypeConfig> subConfig;
 
         public Builder key(Key key) { this.key = key; return this; }
 
         /** Copies every common field (and subConfig/key) from {@code src} into this builder. */
         public Builder copyFrom(DamageTypeConfig src) {
+            copyKnobs(src);
             this.key = src.key();
-            this.enabled = src.enabled;
-            this.baseAmount = src.baseAmount;
-            this.invulTicks = src.invulTicks;
-            this.overdamage = src.overdamage;
-            this.silent = src.silent;
-            this.overdamageSilent = src.overdamageSilent;
-            this.triggersInvul = src.triggersInvul;
-            this.bypassInvul = src.bypassInvul;
-            this.bypassImmune = src.bypassImmune;
-            this.bypassArmor = src.bypassArmor;
-            this.bypassEffects = src.bypassEffects;
-            this.bypassEnchants = src.bypassEnchants;
-            this.bypassAll = src.bypassAll;
-            this.ownsVelocityBroadcast = src.ownsVelocityBroadcast;
             this.subConfig = src.subConfig;
             return this;
         }
-
-        public Builder enabled(Boolean v) { enabled = FieldValue.constant(v); return this; }
-        public Builder enabled(Function<DamageContext, Boolean> fn) { enabled = FieldValue.of(fn); return this; }
-        public Builder enabled(Boolean fallback, Function<DamageContext, Boolean> fn) { enabled = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder baseAmount(Double v) { baseAmount = FieldValue.constant(v); return this; }
-        public Builder baseAmount(Function<DamageContext, Double> fn) { baseAmount = FieldValue.of(fn); return this; }
-        public Builder baseAmount(Double fallback, Function<DamageContext, Double> fn) { baseAmount = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder invulTicks(Integer v) { invulTicks = FieldValue.constant(v); return this; }
-        public Builder invulTicks(Function<DamageContext, Integer> fn) { invulTicks = FieldValue.of(fn); return this; }
-        public Builder invulTicks(Integer fallback, Function<DamageContext, Integer> fn) { invulTicks = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder overdamage(Boolean v) { overdamage = FieldValue.constant(v); return this; }
-        public Builder overdamage(Function<DamageContext, Boolean> fn) { overdamage = FieldValue.of(fn); return this; }
-        public Builder overdamage(Boolean fallback, Function<DamageContext, Boolean> fn) { overdamage = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder silent(Boolean v) { silent = FieldValue.constant(v); return this; }
-        public Builder silent(Function<DamageContext, Boolean> fn) { silent = FieldValue.of(fn); return this; }
-        public Builder silent(Boolean fallback, Function<DamageContext, Boolean> fn) { silent = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder overdamageSilent(Boolean v) { overdamageSilent = FieldValue.constant(v); return this; }
-        public Builder overdamageSilent(Function<DamageContext, Boolean> fn) { overdamageSilent = FieldValue.of(fn); return this; }
-        public Builder overdamageSilent(Boolean fallback, Function<DamageContext, Boolean> fn) { overdamageSilent = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder triggersInvul(Boolean v) { triggersInvul = FieldValue.constant(v); return this; }
-        public Builder triggersInvul(Function<DamageContext, Boolean> fn) { triggersInvul = FieldValue.of(fn); return this; }
-
-        /** Ignore the target's i-frame window. */
-        public Builder bypassInvul(Boolean v) { bypassInvul = FieldValue.constant(v); return this; }
-        public Builder bypassInvul(Function<DamageContext, Boolean> fn) { bypassInvul = FieldValue.of(fn); return this; }
-        /** Ignore fundamental immunity (creative/spectator); e.g. void / admin kill. */
-        public Builder bypassImmune(Boolean v) { bypassImmune = FieldValue.constant(v); return this; }
-        public Builder bypassImmune(Function<DamageContext, Boolean> fn) { bypassImmune = FieldValue.of(fn); return this; }
-        /** Skip the armor stage (vanilla {@code ignoresArmor}: fall/drown/starve/suffocation/fire-tick/void/magic/wither). */
-        public Builder bypassArmor(Boolean v) { bypassArmor = FieldValue.constant(v); return this; }
-        public Builder bypassArmor(Function<DamageContext, Boolean> fn) { bypassArmor = FieldValue.of(fn); return this; }
-        /** Skip the resistance (effect) mitigation stage ("true damage" toward potion resistance). */
-        public Builder bypassEffects(Boolean v) { bypassEffects = FieldValue.constant(v); return this; }
-        public Builder bypassEffects(Function<DamageContext, Boolean> fn) { bypassEffects = FieldValue.of(fn); return this; }
-        /** Skip the EPF/Protection (enchant) mitigation stage ("true damage" toward armor enchants). */
-        public Builder bypassEnchants(Boolean v) { bypassEnchants = FieldValue.constant(v); return this; }
-        public Builder bypassEnchants(Function<DamageContext, Boolean> fn) { bypassEnchants = FieldValue.of(fn); return this; }
-        /** Skip every mitigation stage (armor + resistance + EPF) - the blanket bypass (e.g. void). */
-        public Builder bypassAll(Boolean v) { bypassAll = FieldValue.constant(v); return this; }
-        public Builder bypassAll(Function<DamageContext, Boolean> fn) { bypassAll = FieldValue.of(fn); return this; }
-
-        /** This type's knockback owns the hurt-velocity broadcast (default: melee + thrown). */
-        public Builder ownsVelocityBroadcast(Boolean v) { ownsVelocityBroadcast = FieldValue.constant(v); return this; }
-        public Builder ownsVelocityBroadcast(Function<DamageContext, Boolean> fn) { ownsVelocityBroadcast = FieldValue.of(fn); return this; }
 
         public Builder subConfig(Function<DamageContext, DamageTypeConfig> fn) { subConfig = fn; return this; }
 

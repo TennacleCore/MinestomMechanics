@@ -1,6 +1,7 @@
 package io.github.term4.minestommechanics;
 
 import io.github.term4.minestommechanics.platform.compatibility.CompatAnimatium;
+import io.github.term4.minestommechanics.platform.compatibility.CompatCreativeGuard;
 import io.github.term4.minestommechanics.platform.compatibility.CompatMovement;
 import io.github.term4.minestommechanics.platform.compatibility.CompatOffhand;
 import io.github.term4.minestommechanics.platform.compatibility.CompatPlacement;
@@ -45,17 +46,6 @@ public final class MinestomMechanics {
     public boolean installSprintTracker = true;
     /** Tracks per-entity air-time, launch state, and position-delta motion (drives knockback velocity). Default: true */
     public boolean installMotionTracker = true;
-    /**
-     * Clears active potion effects (and their pushed attribute modifiers) on death - Minestom's {@code kill()} doesn't,
-     * so without it effects/modifiers leak across respawn (vanilla clears them). Disable only for keep-effects servers. Default: true
-     */
-    public boolean clearEffectsOnDeath = true;
-    /**
-     * Resets transient combat/visual state on death (vanilla parity): fire ticks, drowning air, stuck arrows, residual
-     * velocity. The i-frame window + fall distance reset on (re)spawn regardless; effects are gated by
-     * {@link #clearEffectsOnDeath}. Disable for keep-state servers. Default: true
-     */
-    public boolean resetCombatStateOnDeath = true;
     /** Removes the pose-change stutter (sneak/sprint/…) 1.9+ clients show under high ping. Requires {@link #installPlayerProvider}. */
     public boolean metaFix = true;
     /**
@@ -124,6 +114,8 @@ public final class MinestomMechanics {
             CompatOffhand.install(this);
             // compat block-placement reach (inert unless CompatConfig.blockPlaceReach)
             CompatPlacement.install(this);
+            // seal the attack_range stamp: strip it from a stamped client's creative-echoed items (never becomes server state)
+            CompatCreativeGuard.install(this);
         }
         // global scaling drives physics + static-context durations; refresh on any profile change
         profiles.onChange(() -> {

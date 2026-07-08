@@ -9,7 +9,7 @@ import org.jetbrains.annotations.Nullable;
  * tab-completion (which Minestom otherwise ignores) so legacy clients can complete command names. See
  * {@link LegacyTabCompleteFix}.
  *
- * <p>Registers a server-wide {@code PlayerPacketEvent} listener, so it's an install-level toggle ({@code null} = off),
+ * <p>Replaces the tab-complete packet listener server-wide, so it's an install-level toggle ({@code null} = off),
  * not a per-scope one. Harmless for modern clients, which never request command-name completion.
  */
 public final class LegacyTabCompleteFixConfig implements FixToggle {

@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
+import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.util.Directions;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
@@ -67,10 +68,10 @@ public abstract class ProjectileEntity extends Entity {
     protected double entityHitGrow = DEFAULT_ENTITY_HIT_GROW;
     /** In-flight velocity broadcast interval: {@code <= 0} = never (vanilla arrow, the edge-slide fix), {@code N} = every N ticks. Gates {@link #sendPacketToViewers}. */
     protected int velocitySyncInterval;
-    /** Vanilla-style flight: per-tick movement packets to viewers (the 1.8/26 tracker shape); {@code false} = silent, clients predict from the spawn velocity. */
+    /** Per-tick movement packets to viewers; {@code false} = silent between position syncs, clients predict from the spawn velocity. */
     protected boolean broadcastMovement;
-    /** Counts the automatic per-tick velocity packets, for the {@link #velocitySyncInterval} throttle. */
-    private long autoVelocityCounter;
+    /** Automatic velocity-packet counter for the {@link #velocitySyncInterval} throttle; seeded at 1 - vanilla's first correction comes a full interval after spawn. */
+    private long autoVelocityCounter = 1;
     /** Drag+gravity order relative to the per-tick move: 1.8 {@code DRAG_AFTER_MOVE} (default), 26.1 {@code DRAG_BEFORE_MOVE}. */
     protected ProjectileTypeConfig.PhysicsOrder physicsOrder = ProjectileTypeConfig.PhysicsOrder.DRAG_AFTER_MOVE;
     /** 26.1 shooter-immunity model: when {@code true}, the shooter is immune until the projectile leaves its box. */
@@ -79,6 +80,8 @@ public abstract class ProjectileEntity extends Entity {
     private boolean leftOwner;
     /** Pull-back distance (blocks) along the flight dir on stick so the tip pokes out of the block face (vanilla 0.05). */
     protected double stickPullback = 0.05;
+    /** Wire-only |motY| floor on every broadcast velocity ({@code 0} = off); the sim is untouched. MineMen throwables 0.05. */
+    private double wireMotYFloor;
     /** Velocity in blocks/tick (library convention; {@code super.velocity} mirrors b/s). */
     protected Vec velocityBt = Vec.ZERO;
     /** Constant per-tick acceleration added before drag (vanilla fireball {@code mot += dir; mot *= drag}); ZERO for ballistic projectiles. */
@@ -99,8 +102,8 @@ public abstract class ProjectileEntity extends Entity {
     private @Nullable Pos stuckPlacement;
     /** Counts ticks since sticking; drives the periodic stuck re-sync (vanilla parity - see {@link #tick}). */
     private long stuckSyncCounter;
-    /** Throttles the in-flight teleport to {@code syncInterval} (the vanilla cadence; a per-tick teleport shakes the client). See {@link #synchronizePosition}. */
-    private long flightSyncCounter;
+    /** Throttles the in-flight teleport to {@code syncInterval} (a per-tick teleport shakes the client); seeded at 1 like {@link #autoVelocityCounter}. */
+    private long flightSyncCounter = 1;
 
     private @Nullable PhysicsResult previousPhysicsResult;
     private float prevYaw, prevPitch;
@@ -215,6 +218,8 @@ public abstract class ProjectileEntity extends Entity {
 
     public void setStickPullback(double v) { this.stickPullback = v; }
 
+    public void setWireMotYFloor(double v) { this.wireMotYFloor = v; }
+
     /** Constant per-tick acceleration (b/t) folded in before drag - the fireball's self-propulsion. */
     public void setAcceleration(@NotNull Vec a) { this.acceleration = a; }
 
@@ -247,7 +252,7 @@ public abstract class ProjectileEntity extends Entity {
     public void setVelocity(@NotNull Vec velocity) {
         this.velocityBt = velocity.div(ServerFlag.SERVER_TICKS_PER_SECOND);
         this.velocity = velocity;
-        if (!isStuck()) sendVelocityToViewers(TickScaler.toClientVelocity(velocityBt));
+        if (!isStuck()) sendVelocityToViewers(getVelocityForPacket());
     }
 
     @Override
@@ -369,7 +374,13 @@ public abstract class ProjectileEntity extends Entity {
         // projectile float in front of the block face. On the stick tick, use the 0.05-pulled-back stuckPlacement.
         Pos place = justBecameStuck && stuckPlacement != null ? stuckPlacement : newPosition;
         refreshPosition(place.withView(yaw, pitch), false, broadcastMovement);
-        if (justBecameStuck) this.lastSyncedPosition = getPosition();
+        // frozen stick only: resyncStuck owns the broadcast. A live halt keeps lastSynced so the send threshold accumulates.
+        if (justBecameStuck && isStuck()) this.lastSyncedPosition = getPosition();
+
+        // 1.8 tracker m=0 pass: one velocity after the first physics tick
+        if (gravityTickCount == 1 && velocitySyncInterval > 0 && !isStuck()) {
+            sendVelocityToViewers(getVelocityForPacket());
+        }
     }
 
     /** One tick of air resistance + gravity on {@link #velocityBt} (live {@link Aerodynamics}), mirrored to
@@ -379,10 +390,11 @@ public abstract class ProjectileEntity extends Entity {
         // TPS scaling (velocityBt is blocks/tick): drag^(clientTps/serverTps), gravity × (clientTps/serverTps)². Identity at 20.
         double hDrag = TickScaler.dragPerTick(aero.horizontalAirResistance());
         double vDrag = TickScaler.dragPerTick(aero.verticalAirResistance());
-        velocityBt = velocityBt
-                .add(acceleration) // self-propulsion folded in before drag (vanilla fireball); ZERO otherwise
-                .mul(hDrag, vDrag, hDrag)
-                .sub(0, hasNoGravity() ? 0 : TickScaler.gravityPerTick(aero.gravity()), 0);
+        double gravity = hasNoGravity() ? 0 : TickScaler.gravityPerTick(aero.gravity());
+        Vec accel = acceleration.mul(TickScaler.gravityPerTick(1.0)); // a per-tick thrust scales like gravity
+        velocityBt = physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_BEFORE_MOVE
+                ? velocityBt.add(accel).sub(0, gravity, 0).mul(hDrag, vDrag, hDrag)
+                : velocityBt.add(accel).mul(hDrag, vDrag, hDrag).sub(0, gravity, 0);
         this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
     }
 
@@ -435,16 +447,27 @@ public abstract class ProjectileEntity extends Entity {
             return;
         }
 
+        Vec flightDir = velocityBt.lengthSquared() > 1e-8 ? velocityBt.normalize() : normal;
+        this.stuckPlacement = stickPlacement(resolvedPosition, flightDir);
+        this.justBecameStuck = true; // skips this tick's drag/gravity + places at stuckPlacement (vanilla skips the move)
+        if (!freezeOnStick()) return; // live halt: velocity kept, keeps ticking - the subclass owns the contact response
+
         // enter the stuck state; resyncStuck() in tick() drives the re-sync (reset the counter so the first fires next tick)
         this.collisionDirection = normal;
         this.stuckCollisionPoint = hitPoint;
-        // pull back along the flight dir so the tip pokes ~stickPullback out of the block face (velocityBt is still the flight value)
-        Vec flightDir = velocityBt.lengthSquared() > 1e-8 ? velocityBt.normalize() : normal;
-        this.stuckPlacement = resolvedPosition.sub(flightDir.mul(stickPullback));
         this.stuckSyncCounter = 0;
-        this.justBecameStuck = true;
         setNoGravity(true);
         setVelocityBt(Vec.ZERO);
+    }
+
+    /** Block-contact response: {@code true} (default) = the frozen stuck state (arrow). {@code false} = halt in place
+     *  this tick but stay live with velocity kept - the 1.8 bobber's contact, which damp-settles instead of freezing. */
+    protected boolean freezeOnStick() { return true; }
+
+    /** Where the projectile rests on stick: the physics-resolved position pulled back {@link #stickPullback} along
+     *  flight so the tip pokes out of the block face (vanilla arrow). The bobber overrides it - 1.8 freezes it pre-move. */
+    protected Pos stickPlacement(Pos resolvedPosition, Vec flightDir) {
+        return resolvedPosition.sub(flightDir.mul(stickPullback));
     }
 
     private boolean shouldUnstuck() {
@@ -469,8 +492,22 @@ public abstract class ProjectileEntity extends Entity {
     /** Velocity for the wire, re-rated to the client's b/t (TPS scaling; identity at 20); ZERO while stuck so no broadcast nudges a 1.8 client off the stuck position. */
     @Override
     protected Vec getVelocityForPacket() {
-        return isStuck() ? Vec.ZERO : TickScaler.toClientVelocity(velocityBt);
+        if (isStuck()) return Vec.ZERO;
+        Vec v = TickScaler.toClientVelocity(velocityBt);
+        // sign-preserving, exactly 0 clamps up; the sim flies the true arc
+        if (wireMotYFloor > 0 && Math.abs(v.y()) < wireMotYFloor && !v.isZero()) {
+            v = v.withY(v.y() < 0 ? -wireMotYFloor : wireMotYFloor);
+        }
+        return v;
     }
+
+    /** Vanilla tracker send gate (EntityTrackerEntry): position updates go out only when moved this far (4/32) since
+     *  the last sent one - a settling/rested projectile otherwise yanks the predicting client with no-op corrections. */
+    private static final double SYNC_SEND_THRESHOLD = 4 / 32.0;
+    /** Vanilla {@code m % 60} keepalive: a position update at least this often even below the threshold. */
+    private static final int SYNC_KEEPALIVE_TICKS = 60;
+    /** Alive-tick of the last sent position sync (keepalive base). */
+    private long lastSyncSendTick;
 
     // absolute-teleport position sync (Minestom's relative-move is invisible to 1.8 via Via): a sparse absolute teleport
     // every updateInterval, client predicts the arc between.
@@ -482,13 +519,20 @@ public abstract class ProjectileEntity extends Entity {
             return;
         }
         if (pendingRemove) return; // hit this tick and about to be removed: no final position/velocity broadcast
+        if (getSynchronizationTicks() <= 0) return; // silent wire (syncInterval 0): spawn-predicted, event-driven broadcasts only
         // throttle to syncInterval (a per-tick teleport shakes both clients - it fights their interpolation/prediction)
         if (flightSyncCounter++ % Math.max(1L, getSynchronizationTicks()) != 0) return;
         Pos pos = getPosition();
-        // position-only when velocity is synced per-tick (below): the modern teleport's velocity makes Via re-emit a
-        // DUPLICATE entity_velocity to 1.8 clients (vanilla's 0x18 teleport carries none). Arrows keep it - their only hint.
-        Vec teleVel = velocitySyncInterval > 0 ? Vec.ZERO : getVelocityForPacket();
-        sendPacketToViewersAndSelf(new EntityTeleportPacket(getEntityId(), pos, teleVel, 0, onGround));
+        if (Math.abs(pos.x() - lastSyncedPosition.x()) < SYNC_SEND_THRESHOLD
+                && Math.abs(pos.y() - lastSyncedPosition.y()) < SYNC_SEND_THRESHOLD
+                && Math.abs(pos.z() - lastSyncedPosition.z()) < SYNC_SEND_THRESHOLD
+                && getAliveTicks() - lastSyncSendTick < TickScaler.duration(SYNC_KEEPALIVE_TICKS, ProjectileSystem.KEY)) return;
+        lastSyncSendTick = getAliveTicks();
+        // Via re-emits the teleport's velocity as a 1.8 entity_velocity: live value = vanilla's correction pair,
+        // ZERO reaches 1.8 as a spurious 0,0,0. A denser velocity stream (fireball) keeps it out - Via would duplicate.
+        boolean carriesVelocity = velocitySyncInterval <= 0 || velocitySyncInterval >= getSynchronizationTicks();
+        sendPacketToViewersAndSelf(new EntityTeleportPacket(getEntityId(), pos, carriesVelocity ? getVelocityForPacket() : Vec.ZERO, 0, onGround));
+        if (carriesVelocity && velocitySyncInterval > 0) velocityCarried = true; // eat the same-tick standalone
         this.lastSyncedPosition = pos;
     }
 
@@ -502,6 +546,9 @@ public abstract class ProjectileEntity extends Entity {
 
     /** True only around deliberate velocity broadcasts, so {@link #sendPacketToViewers} lets them through. */
     private boolean allowVelocityPacket;
+
+    /** The sync teleport carried the live velocity this tick; the standalone that follows would be Via-duplicated. */
+    private boolean velocityCarried;
 
     /** Sends a velocity packet to viewers, bypassing the per-tick suppression below. */
     private void sendVelocityToViewers(@NotNull Vec velocity) {
@@ -523,6 +570,8 @@ public abstract class ProjectileEntity extends Entity {
             if (pendingRemove) return;             // being removed this tick: no final velocity broadcast
             if (velocitySyncInterval <= 0) return; // vanilla arrow: no per-tick velocity, client predicts from spawn
             if (autoVelocityCounter++ % velocitySyncInterval != 0) return; // else every velocitySyncInterval ticks
+            // after the counter: the eaten send still consumes its slot
+            if (velocityCarried) { velocityCarried = false; return; }
         }
         super.sendPacketToViewers(packet);
     }
@@ -535,6 +584,7 @@ public abstract class ProjectileEntity extends Entity {
         Pos pos = getPosition();
         player.sendPacket(new SpawnEntityPacket(getEntityId(), getUuid(), getEntityType(), pos, pos.yaw(), data, getVelocityForPacket()));
         player.sendPacket(getMetadataPacket());
+        // no spawn velocity dup: the Via chain already re-emits it as the 1.8 S12
     }
 
 }

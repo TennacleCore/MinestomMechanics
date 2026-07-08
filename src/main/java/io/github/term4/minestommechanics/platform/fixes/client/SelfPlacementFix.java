@@ -9,22 +9,11 @@ import net.minestom.server.item.Material;
 import net.minestom.server.network.packet.client.play.ClientPlayerBlockPlacementPacket;
 
 /**
- * The 1.8 self-placement compat fix's install hook (mirrors {@link MetaFix}): wraps the block-placement listener so a
- * player is excluded from the placement collision check while processing their own placement. Vanilla 1.8 excludes the
- * placing entity, so a 1.8 client can place a block into its own body (e.g. extend the ladder it is climbing); modern
- * vanilla - and stock Minestom's {@code canPlaceBlockAt} - does not, so the placement is rejected server-side though it
- * placed locally, and the block desyncs. The exclusion is delivered via {@link OptimizedPlayer#preventBlockPlacement()}
- * ({@code canPlaceBlockAt} skips an entity returning false), armed here per-placement - only the placer, only during
- * their own placement. Config: {@link SelfPlacementFixConfig}.
- *
- * <p>Only passable blocks are allowed into the body - ladders, vines, cobwebs, plants. Any block that blocks movement
- * (stairs, slabs, fences, full cubes) is refused: placing one into your own hitbox is self-suffocating and never a
- * legit clutch (so this is stricter than vanilla 1.8, which excludes the placer for everything - an anti-cheat guard).
- * Passability is {@link BlockContact#isPassable} (the inverse of {@code Block.blocksMotion()}).
- *
- * <p>It wraps {@link BlockPlacementFix#listener} (the local chunk-resend correction), so enabling it also installs that
- * fix. Once the chunk fix is upstream, delete {@code BlockPlacementFix} and point {@link #wrapped} at the upstream
- * {@code BlockPlacementListener.listener}; this class and the OptimizedPlayer override stay.
+ * 1.8 self-placement: vanilla 1.8 excludes the placer from the placement collision check (place a ladder into your own
+ * body); Minestom doesn't, so the block desyncs. Arms {@link OptimizedPlayer#setSelfPlacing} per-placement - only the
+ * placer, only during their own placement, and only for PASSABLE blocks (a motion-blocking block into your own hitbox
+ * is never a legit clutch - stricter than 1.8, an anti-cheat guard). Wraps {@link BlockPlacementFix#listener}; once
+ * that chunk fix is upstream, point {@link #wrapped} at the stock listener - this class stays.
  */
 public final class SelfPlacementFix {
 

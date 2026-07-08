@@ -108,6 +108,6 @@ public final class Damage {
     }
 
     private static MeleeDamageConfig playerAttackDamage() {
-        return MeleeDamageConfig.builder().build();
+        return MeleeDamageConfig.builder().critMultiplier(1.5).build(); // vanilla crit x1.5 (both versions)
     }
 }

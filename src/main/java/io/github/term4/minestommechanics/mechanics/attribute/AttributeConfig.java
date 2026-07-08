@@ -1,4 +1,5 @@
 package io.github.term4.minestommechanics.mechanics.attribute;
+import io.github.term4.minestommechanics.codegen.GenerateBuilder;
 import io.github.term4.minestommechanics.mechanics.attribute.source.Source;
 
 import io.github.term4.minestommechanics.config.Config;
@@ -20,6 +21,7 @@ import java.util.function.Function;
  * A {@link Config} resolvable per scope (player → instance → global). Version = which source variants you register
  * ({@code Strength.LEGACY} vs {@code MODERN}); per-scope {@link Builder#disable}/{@link Builder#scale}/{@link Builder#tune} without a new source. Use {@link #builder()}.
  */
+@GenerateBuilder
 public final class AttributeConfig extends Config<AttributeContext, AttributeConfig> {
 
     /** A per-source transform on its resolved modifiers (disable / scale / arbitrary), applied in the source's scope. */
@@ -44,6 +46,9 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
     /** Resistance-stage reduction per effect level; {@code null} = the vanilla 20% ({@code 25 − 5·level} integer curve, identical across versions). */
     @Nullable public final Double resistancePerLevel;
 
+    /** The mitigation stage list ({@link MitigationPipeline#vanilla()} to seed edits); {@code null} = vanilla order (armor, resistance, protection). */
+    @Nullable public final List<MitigationPipeline.Stage> mitigationStages;
+
     /**
      * Whether legacy "attribute swapping" is permitted (a held-item PvP tech). {@code true}: held modifiers ride the
      * per-tick reconcile (vanilla {@code detectEquipmentUpdates} timing), so a hotbar swap lags a tick - the exploitable
@@ -60,6 +65,7 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
         this.armor = b.armor;
         this.protection = b.protection;
         this.resistancePerLevel = b.resistancePerLevel;
+        this.mitigationStages = b.mitigationStages;
         this.attributeSwapping = b.attributeSwapping;
     }
 
@@ -76,14 +82,16 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
     public AttributeConfig fromBase(AttributeConfig base) {
         Map<Key, Tuning> merged = new HashMap<>(base.tunings);
         merged.putAll(tunings);
-        return new Builder()
+        Builder b = new Builder();
+        b.mergeKnobs(this, base);
+        return b
                 .subConfig(subConfig != null ? subConfig : base.subConfig)
-                .enabled(merge(enabled, base.enabled))
                 .sources(!sources.isEmpty() ? sources : base.sources)
                 .tunings(merged)
                 .armor(armor != null ? (base.armor != null ? armor.fromBase(base.armor) : armor) : base.armor)
                 .protection(protection != null ? (base.protection != null ? protection.fromBase(base.protection) : protection) : base.protection)
                 .resistancePerLevel(resistancePerLevel != null ? resistancePerLevel : base.resistancePerLevel)
+                .mitigationStages(mitigationStages != null ? mitigationStages : base.mitigationStages)
                 .attributeSwapping(attributeSwapping != null ? attributeSwapping : base.attributeSwapping)
                 .build();
     }
@@ -92,33 +100,33 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
 
     public static Builder builder() { return new Builder(); }
 
-    public static final class Builder {
+    public static final class Builder extends AttributeConfigBuilderBase<Builder> {
+
+        @Override protected Builder self() { return this; }
         private Function<AttributeContext, AttributeConfig> subConfig;
-        private FieldValue<AttributeContext, Boolean> enabled;
         private List<Source> sources;
         private Map<Key, Tuning> tunings;
         private ArmorConfig armor;
         private ProtectionConfig protection;
         private Double resistancePerLevel;
+        private List<MitigationPipeline.Stage> mitigationStages;
         private Boolean attributeSwapping;
 
         Builder() {}
 
         Builder(AttributeConfig c) {
+            super(c);
             subConfig = c.subConfig;
-            enabled = c.enabled;
             sources = c.sources.isEmpty() ? null : new ArrayList<>(c.sources);
             tunings = c.tunings.isEmpty() ? null : new HashMap<>(c.tunings);
             armor = c.armor;
             protection = c.protection;
             resistancePerLevel = c.resistancePerLevel;
+            mitigationStages = c.mitigationStages;
             attributeSwapping = c.attributeSwapping;
         }
 
         public Builder subConfig(Function<AttributeContext, AttributeConfig> fn) { subConfig = fn; return this; }
-        public Builder enabled(Boolean v) { enabled = FieldValue.constant(v); return this; }
-        public Builder enabled(Function<AttributeContext, Boolean> fn) { enabled = FieldValue.of(fn); return this; }
-        public Builder enabled(Boolean fallback, Function<AttributeContext, Boolean> fn) { enabled = FieldValue.ofWithFallback(fallback, fn); return this; }
 
         /** Adds sources to the catalog (copying first, so a shared list isn't mutated). */
         public Builder sources(Source... add) {
@@ -155,11 +163,12 @@ public final class AttributeConfig extends Config<AttributeContext, AttributeCon
 
         /** Resistance-stage reduction per effect level ({@code null} = the vanilla 20% integer curve). */
         public Builder resistancePerLevel(Double v) { resistancePerLevel = v; return this; }
+        /** Replaces the mitigation stage list (order included); seed from {@link MitigationPipeline#vanilla()}. */
+        public Builder mitigationStages(List<MitigationPipeline.Stage> v) { mitigationStages = v; return this; }
 
         /** Whether to permit attribute swapping ({@code true} = the held-swap lag window stays open; {@code false}/unset = patched). See {@link AttributeConfig#attributeSwapping}. */
         public Builder attributeSwapping(Boolean v) { attributeSwapping = v; return this; }
 
-        Builder enabled(FieldValue<AttributeContext, Boolean> v) { enabled = v; return this; }
         Builder sources(List<Source> v) { sources = v; return this; }
         Builder tunings(Map<Key, Tuning> v) { tunings = v; return this; }
 

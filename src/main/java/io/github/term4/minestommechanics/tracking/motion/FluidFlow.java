@@ -115,13 +115,20 @@ public final class FluidFlow {
      */
     private static Vec legacyFlow(Instance inst, Point pos, BoundingBox box, Block fluid) {
         // Vanilla water push box
-        double ax = pos.x() + box.minX() + INSET;
-        double ay = pos.y() + box.minY() + Y_SHRINK + INSET;
-        double az = pos.z() + box.minZ() + INSET;
-        double dx = pos.x() + box.maxX() - INSET;
-        double dy = pos.y() + box.maxY() - Y_SHRINK - INSET;
-        double dz = pos.z() + box.maxZ() - INSET;
+        return legacyScan(inst,
+                pos.x() + box.minX() + INSET, pos.y() + box.minY() + Y_SHRINK + INSET, pos.z() + box.minZ() + INSET,
+                pos.x() + box.maxX() - INSET, pos.y() + box.maxY() - Y_SHRINK - INSET, pos.z() + box.maxZ() - INSET,
+                fluid);
+    }
 
+    /** 1.8 item water current: {@code EntityItem} scans the RAW box (the player Y-inset would invert a 0.25-tall box and scan nothing). Unit direction or ZERO. */
+    public static Vec itemLegacyFlow(Instance inst, Point pos, BoundingBox box) {
+        return legacyScan(inst,
+                pos.x() + box.minX(), pos.y() + box.minY(), pos.z() + box.minZ(),
+                pos.x() + box.maxX(), pos.y() + box.maxY(), pos.z() + box.maxZ(), Block.WATER);
+    }
+
+    private static Vec legacyScan(Instance inst, double ax, double ay, double az, double dx, double dy, double dz, Block fluid) {
         int xi = floor(ax), xj = floor(dx + 1.0);
         int yi = floor(ay), yj = floor(dy + 1.0);
         int zi = floor(az), zj = floor(dz + 1.0);
@@ -191,6 +198,58 @@ public final class FluidFlow {
             impulse = impulse.normalize().mul(MODERN_MIN_IMPULSE);
         }
         return impulse;
+    }
+
+    /**
+     * 26.1 fluid pass for a non-player ({@code EntityFluidInteraction.update}): {@code height} = max fluid top above
+     * the box bottom (gates {@code isInFluid > 0} / item float {@code > 0.1}) plus the accumulated current -
+     * normalized by {@link ItemSample#current}, not player-averaged.
+     */
+    public static ItemSample itemModernSample(Instance inst, Point pos, BoundingBox box, Block fluid) {
+        // vanilla scans bb.deflate(0.001) but measures height from the raw bb bottom
+        double minX = pos.x() + box.minX() + INSET, maxX = pos.x() + box.maxX() - INSET;
+        double minY = pos.y() + box.minY() + INSET, maxY = pos.y() + box.maxY() - INSET;
+        double minZ = pos.z() + box.minZ() + INSET, maxZ = pos.z() + box.maxZ() - INSET;
+        int x0 = floor(minX), x1 = (int) Math.ceil(maxX) - 1;
+        int y0 = floor(minY), y1 = (int) Math.ceil(maxY) - 1;
+        int z0 = floor(minZ), z1 = (int) Math.ceil(maxZ) - 1;
+        double feetY = pos.y() + box.minY();
+
+        double height = 0;
+        double sx = 0, sy = 0, sz = 0;
+        int count = 0;
+        for (int x = x0; x <= x1; x++)
+            for (int y = y0; y <= y1; y++)
+                for (int z = z0; z <= z1; z++) {
+                    int lvl = rawLevel(inst, x, y, z, fluid);
+                    if (lvl < 0) continue;
+                    // same fluid above -> the cell is brim-full (FlowingFluid.getHeight)
+                    double top = y + (rawLevel(inst, x, y + 1, z, fluid) >= 0 ? 1.0 : fluidHeight(lvl));
+                    if (top < minY) continue;
+                    height = Math.max(top - feetY, height);
+                    Vec slope = slopeAt(inst, x, y, z, fluid);
+                    double s = height < MODERN_SHALLOW ? height : 1.0; // vanilla scales by the RUNNING max
+                    sx += slope.x() * s;
+                    sy += slope.y() * s;
+                    sz += slope.z() * s;
+                    count++;
+                }
+        return count == 0 ? ItemSample.EMPTY : new ItemSample(height, new Vec(sx, sy, sz), count);
+    }
+
+    /** One fluid's {@link #itemModernSample} result: {@code height} above the box bottom + the raw current sum. */
+    public record ItemSample(double height, Vec flowSum, int cells) {
+        public static final ItemSample EMPTY = new ItemSample(0, Vec.ZERO, 0);
+
+        /** {@code Tracker.applyCurrentTo} non-player branch: normalized sum x {@code scale}, near-still {@code 0.0045} floor. {@code movX/movZ} = horizontal velocity (b/t). */
+        public Vec current(double scale, double movX, double movZ) {
+            if (cells == 0 || flowSum.lengthSquared() < 1.0E-5F) return Vec.ZERO;
+            Vec impulse = flowSum.normalize().mul(scale);
+            if (Math.abs(movX) < MODERN_STILL && Math.abs(movZ) < MODERN_STILL && impulse.length() < MODERN_MIN_IMPULSE) {
+                impulse = impulse.normalize().mul(MODERN_MIN_IMPULSE);
+            }
+            return impulse;
+        }
     }
 
     /** Modern fluid render height for a water {@code level} ({@code (8-level)/9}; falling/{@code >=8} ~full). */

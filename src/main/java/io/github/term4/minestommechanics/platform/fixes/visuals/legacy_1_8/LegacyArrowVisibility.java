@@ -11,24 +11,12 @@ import net.minestom.server.scoreboard.Team;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Drives the {@link LegacyArrowVisibilityConfig#enabled} fix: keeps the enabled players on a single, cosmetically
- * neutral scoreboard team so a 1.8 client (via Via) stops hiding deflected / passed-through arrows.
- *
- * <p><b>Why a team:</b> the "arrow goes invisible after touching an entity" glitch is a native 1.8 client bug - the
- * client runs its own {@code EntityArrow} collision and bounces+hides the arrow on a hit it cannot damage. The only
- * client lever that suppresses it is {@code EntityArrow.t_()}'s {@code !shooter.canAttackPlayer(target)} null-out
- * (same team + friendly fire off). Team membership is replicated to the 1.8 client (the shooter id rides the spawn
- * packet, the friendly-fire byte survives the Via chain), so shooter+target on one FF-off team -&gt; the client nulls
- * the hit -&gt; the arrow flies straight through the teammate and stays visible. Server-side damage ignores teams, so
- * combat is unaffected; the team carries no color / prefix / suffix and default nametag-visibility + collision, so the
- * only client-visible change is arrow rendering.
- *
- * <p><b>Per player, not per arrow:</b> a scoreboard team is a persistent, pairwise object - you cannot put a single
- * in-flight arrow on a team, and both the shooter and the target must be members. So membership is resolved per player
- * from {@link FixesSystem#legacyArrowVisibilityEnabled} (the profile chain, else the install config) and applied
- * on (re)spawn. For the fix to work between two players both must be enabled.
- *
- * <p>The {@link #setEnabled(boolean) runtime master switch} is the global on/off (the config decides who when on).
+ * Keeps enabled players on one cosmetically neutral, friendly-fire-off scoreboard team so a 1.8 client stops hiding
+ * deflected / passed-through arrows. The glitch is a native 1.8 client bug ({@code EntityArrow} bounces+hides a hit it
+ * can't damage); the only client lever is the {@code canAttackPlayer} null-out - same team + FF off - which survives
+ * the Via chain. Server-side damage ignores teams, and the team carries no color/prefix/collision changes.
+ * Per PLAYER, not per arrow (teams are pairwise - both shooter and target must be enabled members); membership is
+ * resolved from {@link FixesSystem#legacyArrowVisibilityEnabled} on (re)spawn. {@link #setEnabled} = global on/off.
  */
 public final class LegacyArrowVisibility {
 

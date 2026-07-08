@@ -7,6 +7,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedPr
 import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Pearl;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.instance.Instance;
@@ -58,7 +59,7 @@ public final class Projectiles {
                 .boundingBox(0.1, 0.1, 0.1)
                 .spread(0.0)
                 .build();
-        return ProjectileConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla18.Projectiles.config())
+        return ProjectileConfig.builder(Vanilla18.projectiles())
                 .typeConfigs(bwFireball, bwPearl)
                 .build();
     }

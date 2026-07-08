@@ -20,6 +20,10 @@ public interface ProjectileBehavior {
     /** Fired every tick the projectile is alive, after its built-in update. */
     default void onTick(ManagedProjectile projectile, long time) {}
 
+    /** Per-target hit gate ANDed with the entity's own {@code canHit} - lets a behavior pass through targets
+     *  (the mmc18 pseudo-hook rod ignores players after its one hit). */
+    default boolean canHit(ManagedProjectile projectile, Entity target) { return true; }
+
     /** Fired once a hit lands (entity or block) and is not cancelled, after the damage/knockback pipeline, before removal. */
     default void onImpact(ManagedProjectile projectile, @Nullable Entity hit) {}
 

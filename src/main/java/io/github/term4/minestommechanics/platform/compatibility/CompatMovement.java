@@ -24,31 +24,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The {@code PlayerMoveEvent} home for the compat movement restrictions (all <em>modern-clients-only</em> for the speed
- * ones - a 1.8 client already moves at 1.8 speed). The knockback i-frame window is always skipped so a hit still launches.
- *
- * <p><b>{@code restrictMovement}</b> - the server-authoritative half of pose disabling: rejects a move that newly puts the
- * player's pose-aware {@link Player#getBoundingBox()} hitbox into a solid block it wasn't already overlapping (a stuck
- * player can still slide out), set back without an absolute-view snap (camera kept; the resolved crawl-drag fix).
- *
- * <p><b>{@code restrictSprintSneak}/{@code restrictSprintUse}</b> - while the client believes it's sprinting (tracked, not
- * the forced server state) and sneaking / using an item, {@code setSprinting(false)} strips the server's {@code +0.3}
- * sprint speed modifier + clears the sprint flag (1.8 can't sprint-sneak/use; also removes the sprint knockback). Restored
- * once they stop. Needs the {@code SprintTracker}.
- *
- * <p><b>{@code restrictSwimSpeed}</b> - while swim-posed (sprinting + feet in water, the {@code ClientEye} proxy), a reduced
- * velocity ({@link EntityVelocityPacket}) is spammed to the client each move (Hypixel's approach), capping the swim in all
- * directions (vertical damped harder, since holding space re-adds swim-up input). Gated on sprint so plain bobbing/floating
- * in water stays natural - only the fast sprint-swim is capped.
- *
- * <p>Installed once when the player provider is on; inert unless the player's config enables a restriction. Minemen behaviour.
+ * The {@code PlayerMoveEvent} home for the compat movement restrictions (speed ones are modern-clients-only; the
+ * knockback i-frame window is always skipped so a hit still launches). {@code restrictMovement} rejects a move that
+ * NEWLY puts the pose-aware hitbox into a solid block (a stuck player can still slide out), set back without an
+ * absolute-view snap (camera kept). {@code restrictSprintSneak}/{@code restrictSprintUse} strip the sprint modifier
+ * while the CLIENT believes it's sprinting and sneaking/using (needs {@code SprintTracker}); restored when they stop.
+ * {@code restrictSwimSpeed} spams a reduced velocity while sprint-swimming (Hypixel's approach; vertical damped harder
+ * since holding space re-adds swim-up). Installed once; inert unless a player's config enables a restriction.
  */
 public final class CompatMovement {
 
-    /** Swim HORIZONTAL velocity divisor - the spammed velocity is the observed move scaled by {@code 1/SWIM_FACTOR}. Higher = slower. Tune in-game. */
-    private static final double SWIM_FACTOR = 1.25;
-    /** Swim VERTICAL divisor - stronger than horizontal, since holding space re-adds swim-up input each tick. Higher = slower up/down. Tune in-game. */
-    private static final double SWIM_VERTICAL_FACTOR = 3.0;
     /** Below this squared move, the dampen is a no-op (look-only). */
     private static final double MIN_MOVE_SQ = 1.0e-8;
 
@@ -98,7 +83,7 @@ public final class CompatMovement {
         // fight the 1.8 current (e.g. cap the falling-water down-push). Non-Animatium modern clients keep the dampen.
         if (c.restrictSwimSpeed() && player.isSprinting() && inWater(player, instance)
                 && !c.handlesNatively(AnimatiumFeature.OLD_FLUID_PHYSICS)) {
-            dampenSwim(player, from, to);
+            dampenSwim(player, c, from, to);
             return;
         }
         restrictSprint(player, c, sprintTracker);
@@ -124,11 +109,11 @@ public final class CompatMovement {
         }
     }
 
-    /** Hypixel-style swim cap: spam a reduced velocity (blocks/tick) to the client each move, damping horizontal AND (harder) vertical swim - smoother than a position setback. */
-    private static void dampenSwim(Player player, Pos from, Pos to) {
+    /** Hypixel-style swim cap: spam a reduced velocity (blocks/tick) to the client each move, damping horizontal AND (harder) vertical swim - smoother than a position setback. Divisors from {@code CompatConfig.swimFactor}/{@code swimVerticalFactor}. */
+    private static void dampenSwim(Player player, CompatState c, Pos from, Pos to) {
         double dx = to.x() - from.x(), dy = to.y() - from.y(), dz = to.z() - from.z();
         if (dx * dx + dy * dy + dz * dz <= MIN_MOVE_SQ) return;
-        Vec velocity = new Vec(dx / SWIM_FACTOR, dy / SWIM_VERTICAL_FACTOR, dz / SWIM_FACTOR);
+        Vec velocity = new Vec(dx / c.swimFactor(), dy / c.swimVerticalFactor(), dz / c.swimFactor());
         player.sendPacket(new EntityVelocityPacket(player.getEntityId(), velocity));
     }
 

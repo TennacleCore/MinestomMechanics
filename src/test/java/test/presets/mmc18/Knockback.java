@@ -7,6 +7,7 @@ import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.motion.VelocityConfig;
 import io.github.term4.minestommechanics.util.Directions;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import org.jetbrains.annotations.Nullable;
@@ -27,7 +28,7 @@ public final class Knockback {
     static final int SPRINT_BUFFER = 5;
 
     public static KnockbackConfig melee() {
-        return KnockbackConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla18.Knockback.melee())
+        return KnockbackConfig.builder(Vanilla18.knockback())
                 .sprintBuffer(SPRINT_BUFFER)
                 .horizontal(Knockback::baseStrength)
                 .extraHorizontal(0.0)
@@ -40,6 +41,18 @@ public final class Knockback {
                 .addCustomComponent(Knockback::verticalLaunchHold)
                 .addCustomComponent(Knockback::axialFactor)
                 .addCustomComponent(Knockback::rangeReduction)
+                .build();
+    }
+
+    /**
+     * MineMen rod hit, bobber-relative (the preset sets {@code knockbackSource(PROJECTILE)}): the old lib's tuned
+     * values - H 0.525, V 0.365 capped 0.45 - on the vanilla 1.8 fold. Pending capture confirmation.
+     */
+    public static KnockbackConfig rod() {
+        return KnockbackConfig.builder(Vanilla18.knockback())
+                .horizontal(0.525)
+                .vertical(0.365)
+                .verticalBounds(null, 0.45)
                 .build();
     }
 
@@ -90,7 +103,7 @@ public final class Knockback {
         if (!recentlySprinting(ctx, attacker) || !clientRecentlySprinting(ctx, target)) return null;
         Vec victimFacing = Directions.fromYaw(target.getPosition().yaw());
         Vec attackerFacing = Directions.fromYaw(attacker.getPosition().yaw());
-        double proj = victimFacing.x() * attackerFacing.x() + victimFacing.z() * attackerFacing.z();   // cos(victim yaw - attacker yaw)\
+        double proj = victimFacing.x() * attackerFacing.x() + victimFacing.z() * attackerFacing.z();   // cos(victim yaw - attacker yaw)
         /*
         push-direction variant (needs the reconstructed victim velocity):
         Vec vel = ctx.victimVelocity();
@@ -129,8 +142,10 @@ public final class Knockback {
         return new Vec(kb.x() * s, kb.y(), kb.z() * s);
     }
 
-    /** Normal (server-state) recent sprint - the attacker gate for the sprint bonus, enchant, and axial. */
+    /** Normal (server-state) recent sprint - the attacker gate for the sprint bonus, enchant, and axial. A queued
+     *  {@link Attack} flush on a projectile-hit victim reads non-sprinting (measured: it lands at the plain base). */
     private static boolean recentlySprinting(KnockbackContext ctx, Entity e) {
+        if (Attack.flushingNonSprint(ctx.snap().target())) return false;
         return SprintTracker.wasRecentlySprinting(ctx.services().sprintTracker(),
                 e, TickScaler.duration(SPRINT_BUFFER, KnockbackSystem.KEY));
     }

@@ -37,9 +37,22 @@ public record FieldValue<CTX, T>(Function<CTX, T> fn, @Nullable T constant) {
         return fn.apply(ctx);
     }
 
+    /** Resolves a possibly-unset field: an unset field or a {@code null} resolution falls back to {@code def}. */
+    public static <CTX, T> T resolve(@Nullable FieldValue<CTX, T> field, CTX ctx, T def) {
+        T v = field != null ? field.resolve(ctx) : null;
+        return v != null ? v : def;
+    }
+
     /** The constant value when this was built from a constant, else {@code null} (context-dependent). */
     public @Nullable T constantOrNull() {
         return constant;
+    }
+
+    /** {@code a} layered over {@code b} ({@code a} wins, falling back per resolution); either side may be {@code null}. */
+    public static <CTX, T> FieldValue<CTX, T> merge(FieldValue<CTX, T> a, FieldValue<CTX, T> b) {
+        if (b == null) return a;
+        if (a == null) return b;
+        return a.or(b);
     }
 
     /** Returns a value that uses {@code fallback} when this one resolves to {@code null}. */

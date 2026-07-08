@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage;
 
+import io.github.term4.minestommechanics.codegen.GenerateBuilder;
 import io.github.term4.minestommechanics.config.Config;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
@@ -15,6 +16,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /** Immutable damage config. Use {@link #builder()}, {@link #toBuilder()}. Mirrors KnockbackConfig. */
+@GenerateBuilder
 public final class DamageConfig extends Config<DamageContext, DamageConfig> {
 
     public final FieldValue<DamageContext, Integer> invulTicks;
@@ -60,14 +62,10 @@ public final class DamageConfig extends Config<DamageContext, DamageConfig> {
     public DamageConfig fromBase(DamageConfig base) {
         Map<Key, DamageTypeConfig> mergedTypes = new LinkedHashMap<>(base.typeConfigs);
         mergedTypes.putAll(typeConfigs);
-        return new Builder()
+        Builder b = new Builder();
+        b.mergeKnobs(this, base);
+        return b
                 .subConfig(subConfig != null ? subConfig : base.subConfig)
-                .invulTicks(merge(invulTicks, base.invulTicks))
-                .enableOverdamage(merge(enableOverdamage, base.enableOverdamage))
-                .silent(merge(silent, base.silent))
-                .overdamageSilent(merge(overdamageSilent, base.overdamageSilent))
-                .syncHurtVelocity(merge(syncHurtVelocity, base.syncHurtVelocity))
-                .hurtKnockback(merge(hurtKnockback, base.hurtKnockback))
                 .typeConfigs(mergedTypes)
                 .customComponents(customComponents != null ? customComponents : base.customComponents)
                 .build();
@@ -85,54 +83,23 @@ public final class DamageConfig extends Config<DamageContext, DamageConfig> {
         return base != null ? new Builder(base) : new Builder();
     }
 
-    public static final class Builder {
+    public static final class Builder extends DamageConfigBuilderBase<Builder> {
+
+        @Override protected Builder self() { return this; }
         private Function<DamageContext, DamageConfig> subConfig;
-        private FieldValue<DamageContext, Integer> invulTicks;
-        private FieldValue<DamageContext, Boolean> enableOverdamage;
-        private FieldValue<DamageContext, Boolean> silent;
-        private FieldValue<DamageContext, Boolean> overdamageSilent;
-        private FieldValue<DamageContext, Boolean> syncHurtVelocity;
-        private FieldValue<DamageContext, KnockbackConfig> hurtKnockback;
         private final Map<Key, DamageTypeConfig> typeConfigs = new LinkedHashMap<>();
         private List<DamageComponent> customComponents;
 
         Builder() {}
 
         Builder(DamageConfig c) {
+            super(c);
             subConfig = c.subConfig;
-            invulTicks = c.invulTicks;
-            enableOverdamage = c.enableOverdamage;
-            silent = c.silent;
-            overdamageSilent = c.overdamageSilent;
-            syncHurtVelocity = c.syncHurtVelocity;
-            hurtKnockback = c.hurtKnockback;
             typeConfigs.putAll(c.typeConfigs);
             customComponents = c.customComponents;
         }
 
         public Builder subConfig(Function<DamageContext, DamageConfig> fn) { subConfig = fn; return this; }
-        public Builder invulTicks(Integer v) { invulTicks = FieldValue.constant(v); return this; }
-        public Builder invulTicks(Function<DamageContext, Integer> fn) { invulTicks = FieldValue.of(fn); return this; }
-        public Builder invulTicks(Integer fallback, Function<DamageContext, Integer> fn) { invulTicks = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder enableOverdamage(Boolean v) { enableOverdamage = FieldValue.constant(v); return this; }
-        public Builder enableOverdamage(Function<DamageContext, Boolean> fn) { enableOverdamage = FieldValue.of(fn); return this; }
-        public Builder enableOverdamage(Boolean fallback, Function<DamageContext, Boolean> fn) { enableOverdamage = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder silent(Boolean v) { silent = FieldValue.constant(v); return this; }
-        public Builder silent(Function<DamageContext, Boolean> fn) { silent = FieldValue.of(fn); return this; }
-        public Builder silent(Boolean fallback, Function<DamageContext, Boolean> fn) { silent = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder overdamageSilent(Boolean v) { overdamageSilent = FieldValue.constant(v); return this; }
-        public Builder overdamageSilent(Function<DamageContext, Boolean> fn) { overdamageSilent = FieldValue.of(fn); return this; }
-        public Builder overdamageSilent(Boolean fallback, Function<DamageContext, Boolean> fn) { overdamageSilent = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder syncHurtVelocity(Boolean v) { syncHurtVelocity = FieldValue.constant(v); return this; }
-        public Builder syncHurtVelocity(Function<DamageContext, Boolean> fn) { syncHurtVelocity = FieldValue.of(fn); return this; }
-        public Builder syncHurtVelocity(Boolean fallback, Function<DamageContext, Boolean> fn) { syncHurtVelocity = FieldValue.ofWithFallback(fallback, fn); return this; }
-
-        public Builder hurtKnockback(KnockbackConfig v) { hurtKnockback = FieldValue.constant(v); return this; }
-        public Builder hurtKnockback(Function<DamageContext, KnockbackConfig> fn) { hurtKnockback = FieldValue.of(fn); return this; }
-        public Builder hurtKnockback(KnockbackConfig fallback, Function<DamageContext, KnockbackConfig> fn) { hurtKnockback = FieldValue.ofWithFallback(fallback, fn); return this; }
 
         /** Adds a single per-type config override, keyed by its {@link DamageTypeConfig#key()}. */
         public Builder typeConfig(DamageTypeConfig cfg) { typeConfigs.put(cfg.key(), cfg); return this; }
@@ -150,12 +117,6 @@ public final class DamageConfig extends Config<DamageContext, DamageConfig> {
             return this;
         }
 
-        Builder invulTicks(FieldValue<DamageContext, Integer> v) { invulTicks = v; return this; }
-        Builder enableOverdamage(FieldValue<DamageContext, Boolean> v) { enableOverdamage = v; return this; }
-        Builder silent(FieldValue<DamageContext, Boolean> v) { silent = v; return this; }
-        Builder overdamageSilent(FieldValue<DamageContext, Boolean> v) { overdamageSilent = v; return this; }
-        Builder syncHurtVelocity(FieldValue<DamageContext, Boolean> v) { syncHurtVelocity = v; return this; }
-        Builder hurtKnockback(FieldValue<DamageContext, KnockbackConfig> v) { hurtKnockback = v; return this; }
         Builder typeConfigs(Map<Key, DamageTypeConfig> cfgs) { typeConfigs.putAll(cfgs); return this; }
         Builder customComponents(List<DamageComponent> components) { customComponents = components; return this; }
 

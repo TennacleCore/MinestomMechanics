@@ -22,50 +22,25 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Map;
 
 /**
- * The library's custom {@link Player}, hosting several independent opt-in behaviors wired by {@code MinestomMechanics}.
- *
- * <p><b>Self-echo meta fix:</b> suppresses client-predicted metadata/attribute echoes (sneak, sprint, pose, item use)
- * so a high-ping 1.9+ client does not stutter for one tick when the server broadcasts state the client already
- * predicted. Driven by {@code MetaFix}, which flips {@link #setProcessingClientInput} around the client-input
- * listeners; the filtering lives in {@link #sendPacketToViewersAndSelf} + {@link SelfMetaFilter}. Viewers always get
- * the full packet.
- *
- * <p><b>Position-broadcast throttle:</b> drops a fraction of position broadcasts to viewers (Spigot-style),
- * configured by {@link #setPositionBroadcastInterval}.
- *
- * <p><b>Self-placement exclusion:</b> lets a player place a passable block into their own body while
- * {@link #setSelfPlacing self-placing} (driven by {@code fixes.client.SelfPlacementFix}).
- *
- * <p><b>Cross-version compat:</b> serves 1.8-style mechanics to modern clients - pose disabling ({@link #setPose}),
- * legacy hitbox/eye ({@link #getBoundingBox}/{@link #getEyeHeight}) and the attack-box margin ({@link #sendPacket}).
- * The state + policy live in {@link CompatState} (accessed via {@link #compat()}); these overrides only route to it.
- * Pushed from {@code CompatConfig} by {@code PlayerConfigApplier}.
- *
- * <p>The echo fix + throttle were ported from the standalone {@code minestom-echo-fix} so the library has no external dependency.
+ * The library's custom {@link Player}: self-echo suppression ({@link SelfMetaFilter}), a position-broadcast
+ * throttle, the self-placement exclusion, and the cross-version compat overrides (pose/hitbox/eye/attack-box,
+ * state in {@link CompatState}). Each behavior is opt-in and wired by {@code MinestomMechanics}.
  */
 public class OptimizedPlayer extends Player {
 
-    // --- self-echo meta fix ---
     private @Nullable SelfMetaFilter selfMetaFilter = SelfMetaFilter.defaultPlayerFilter();
     private boolean processingClientInput = false;
-
-    // --- position-broadcast throttle ---
     private int positionBroadcastInterval = 1;
-
-    // --- self-placement exclusion hook (driven by fixes.client.SelfPlacementFix) ---
     private boolean selfPlacing = false;
-
-    // --- cross-version compat state + logic (pushed from CompatConfig by PlayerConfigApplier; the overrides below route here) ---
     private final CompatState compat = new CompatState();
 
     public OptimizedPlayer(PlayerConnection connection, GameProfile gameProfile) {
         super(connection, gameProfile);
+        // vanilla scans item pickups every tick; Minestom's default 5-tick cooldown adds up to 250ms of pickup lag
+        this.itemPickupCooldown = new net.minestom.server.utils.time.Cooldown(java.time.Duration.ZERO);
     }
 
-    /**
-     * Marks whether the packet currently being processed originates from client input. Set by {@code MetaFix}
-     * around the client-input listeners; while {@code true}, self-bound echoes are filtered.
-     */
+    /** Set by {@code MetaFix} around the client-input listeners; while {@code true}, self-bound echoes are filtered. */
     public void setProcessingClientInput(boolean value) {
         this.processingClientInput = value;
     }
@@ -75,18 +50,13 @@ public class OptimizedPlayer extends Player {
         return selfMetaFilter;
     }
 
-    /** Sets the self-metadata filter, or {@code null} to disable filtering for this player. */
     public void setSelfMetaFilter(@Nullable SelfMetaFilter filter) {
         this.selfMetaFilter = filter;
     }
 
     /**
-     * Updates player state without sending the change to this player; other viewers still receive it.
-     * <pre>{@code
-     * player.suppressSelf(() -> player.setSneaking(true));
-     * }</pre>
-     *
-     * @param action the state change to suppress from self
+     * Updates player state without sending the change to this player; viewers still receive it.
+     * <pre>{@code player.suppressSelf(() -> player.setSneaking(true)); }</pre>
      */
     public void suppressSelf(@NotNull Runnable action) {
         processingClientInput = true;
@@ -100,8 +70,7 @@ public class OptimizedPlayer extends Player {
     @Override
     public void sendPacketToViewersAndSelf(@NotNull SendablePacket packet) {
         if (processingClientInput && selfMetaFilter != null) {
-
-            // Metadata filtering (crouching, use item, start elytra fly)
+            // client-predicted metadata (crouch, use item, elytra): viewers get the full packet, self only the rest
             if (packet instanceof EntityMetaDataPacket(int entityId, Map<Integer, Metadata.Entry<?>> entries) && entityId == getEntityId()) {
                 Map<Integer, Metadata.Entry<?>> filtered = selfMetaFilter.filter(entries);
                 if (filtered != null) {
@@ -112,8 +81,6 @@ public class OptimizedPlayer extends Player {
                     return;
                 }
             }
-
-            // Attribute filter (e.g. sprint)
             if (packet instanceof EntityAttributesPacket attr
                     && attr.entityId() == getEntityId()
                     && selfMetaFilter.suppressAttributes()) {
@@ -121,44 +88,32 @@ public class OptimizedPlayer extends Player {
                 return;
             }
         }
-
         super.sendPacketToViewersAndSelf(packet);
     }
 
-    /**
-     * Outgoing-packet transforms: {@link CompatState#stampAttackRange} stamps the {@code attack_range} component onto the items a
-     * client sees (so a modern 1.21.11+ client attacks with the 1.8 hitbox box), then {@link LegacyEquipmentFix#rewrite} strips
-     * empty equipment slots from {@code EntityEquipmentPacket}s (vanilla parity; avoids the ViaBackwards BODY-&gt;chestplate
-     * collision). Both no-op when their fix is off, so the hot path stays cheap.
-     */
+    /** Outgoing transforms: {@code attack_range} stamped onto seen items + empty equipment slots stripped. Both no-op when off. */
     @Override
     public void sendPacket(@NotNull SendablePacket packet) {
         super.sendPacket(LegacyEquipmentFix.rewrite(compat.stampAttackRange(packet)));
     }
 
-    /**
-     * Bulk equipment resends to viewers (respawn/teleport {@code refreshAfterTeleport}) get grouped into a
-     * {@code CachedPacket} that the per-viewer {@link #sendPacket} transform can't unwrap - so strip empty slots here, on
-     * the still-bare packet, before grouping. Otherwise the stray {@code BODY=AIR} reaches ViaBackwards and the chestplate
-     * renders invisible on legacy clients after respawn.
-     */
+    // bulk equipment resends (respawn/teleport) group into a CachedPacket the per-viewer transform can't unwrap,
+    // so strip empty slots before grouping - else BODY=AIR reaches ViaBackwards and hides the chestplate
     @Override
     public void sendPacketToViewers(@NotNull SendablePacket packet) {
         super.sendPacketToViewers(LegacyEquipmentFix.rewrite(packet));
     }
 
     /**
-     * Arms the self-echo filter around tick-driven pose recalculation. {@link Player#updatePose()} runs every server tick
-     * (not only in a packet listener), recomputing the pose from whether the player still fits - where crawl enter/exit
-     * happens. Without arming the flag here the self-bound pose echo slips through, causing the crawl/stand stutter
-     * ({@link SelfMetaFilter} suppresses the pose index, it just needs the flag). Save/restore so it nests if a listener
-     * already armed it; a direct {@code setPose} doesn't route here, so server-authoritative poses still echo.
+     * {@link Player#updatePose()} recomputes the pose every tick (crawl enter/exit), not only in packet listeners -
+     * without arming the echo guard here the self-bound pose echo slips through (the crawl/stand stutter).
+     * Save/restore so it nests; a direct {@code setPose} doesn't route here, so server-authoritative poses still echo.
      */
     @Override
     protected void updatePose() {
         boolean previous = processingClientInput;
         processingClientInput = true;
-        compat.resetInterceptedPose(); // reset each tick; setPose (called by super.updatePose) re-captures any disabled pose Minestom computes now
+        compat.resetInterceptedPose(); // setPose (via super.updatePose) re-captures any disabled pose computed this tick
         try {
             super.updatePose();
         } finally {
@@ -167,15 +122,13 @@ public class OptimizedPlayer extends Player {
     }
 
     /**
-     * Cross-version compat: a {@code CompatConfig}-disabled pose is rewritten to {@link EntityPose#STANDING} <em>before</em>
-     * it reaches metadata, so the player never enters it (nothing visible to self or viewers, like a 1.8 server). {@link #updatePose()}
-     * routes both the swim flag and the squeeze-crawl through {@code setPose}, so intercepting here covers both at the source.
-     * The metadata layer dedups the repeated {@code STANDING} write (a held input = one correction packet, not per-tick spam); sent with the self-echo guard cleared so the correction reaches the mispredicting client.
+     * A compat-disabled pose is rewritten to {@code STANDING} before it reaches metadata (1.8 parity). Sent with the
+     * echo guard cleared so the correction reaches the mispredicting client; the metadata layer dedups the repeat.
      */
     @Override
     public void setPose(@NotNull EntityPose pose) {
         if (compat.isPoseDisabled(pose)) {
-            compat.recordInterceptedPose(pose); // remember the pose the client believes it's in, even as we force STANDING server-side
+            compat.recordInterceptedPose(pose); // what the client believes it's in
             boolean previous = processingClientInput;
             processingClientInput = false;
             try {
@@ -188,33 +141,22 @@ public class OptimizedPlayer extends Player {
         super.setPose(pose);
     }
 
-    /** This player's cross-version compat state + logic (pose/hitbox/eye/attack-box). Driven by {@code CompatConfig} via {@code PlayerConfigApplier}; read by {@code CompatMovement}, {@code ClientEye} and the reach guard. */
+    /** This player's cross-version compat state + logic (pose/hitbox/eye/attack-box); pushed from {@code CompatConfig}. */
     public @NotNull CompatState compat() { return compat; }
 
-    /**
-     * Cross-version compat: with {@code legacyHitbox} on, the server box stays standing (the {@code boundingBox} field)
-     * regardless of pose, so a modern client's crouch/crawl shrink doesn't apply server-side (1.8 parity; lets
-     * {@code CompatMovement} block the 1.5-block sneak gap). Disabled poses already resolve to standing, so this only adds the sneak case.
-     */
+    // legacyHitbox: the server box stays standing regardless of pose (1.8 parity; CompatMovement blocks the sneak gap)
     @Override
     public BoundingBox getBoundingBox() {
         return compat.legacyHitbox() ? boundingBox : super.getBoundingBox();
     }
 
-    /**
-     * The SERVER-treated eye height (value (b) of the eye model) - the preset consumed by projectile spawn, drowning and
-     * suffocation. {@link CompatState#eyeHeight} applies the fixed 1.8 preset when {@code legacyHitbox} is on, else Minestom's
-     * native value. Value (a) - what the client believes, for reach/raytrace - is {@code ClientEye}, derived from the protocol.
-     */
+    /** The SERVER-treated eye height (projectile spawn, drowning); what the client believes is {@code ClientEye}. */
     @Override
     public double getEyeHeight() {
         return compat.eyeHeight(super.getEyeHeight(), getPose());
     }
 
-    /**
-     * How often this player's position is broadcast to viewers.
-     * 1 = every tick (default Minestom), 2 = every other tick (Spigot).
-     */
+    /** Position-broadcast cadence to viewers: 1 = every tick (Minestom), 2 = every other (Spigot). */
     public void setPositionBroadcastInterval(int interval) {
         if (interval < 1) throw new IllegalArgumentException("interval must be >= 1");
         this.positionBroadcastInterval = interval;
@@ -227,39 +169,25 @@ public class OptimizedPlayer extends Player {
     @Override
     public void refreshPosition(Pos newPosition, boolean ignoreView, boolean sendPackets) {
         if (sendPackets) {
-            // broadcast at the client's rate: identity at 20, throttled toward ~client Hz as server TPS rises (saves packets)
+            // identity at 20 TPS, throttled toward ~client Hz as server TPS rises
             int cadence = TickScaler.clientCadence(positionBroadcastInterval);
             if (cadence > 1 && getAliveTicks() % cadence != 0) sendPackets = false;
         }
-        // api-internal override, but it works.
-        super.refreshPosition(newPosition, ignoreView, sendPackets);
+        super.refreshPosition(newPosition, ignoreView, sendPackets); // api-internal override
     }
 
-    /**
-     * Routes client settings through {@link LegacyViewDistanceFix} - a temporary workaround that clamps the reported
-     * view distance to the instance's so Minestom's {@code refreshSettings} does not over-send chunks (the legacy-client
-     * "invisibility band" far from spawn). No-op when the fix is off or the client is already within the cap.
-     */
+    // clamp the reported view distance to the instance's - Minestom's refreshSettings over-sends chunks past the cap
+    // (the legacy-client "invisibility band"); temporary until the upstream fix lands
     @Override
     public void refreshSettings(@NotNull ClientSettings settings) {
         super.refreshSettings(LegacyViewDistanceFix.clamp(getInstance(), settings));
     }
 
-    /**
-     * Arms the self-placement exclusion for the duration of this player's own block placement (lets a passable block
-     * be placed into the player's own body). Driven by {@code fixes.client.SelfPlacementFix}; while {@code true},
-     * {@link #preventBlockPlacement()} returns false.
-     *
-     * @param value true while this player's own placement is being processed
-     */
+    /** Armed by {@code SelfPlacementFix} while this player's own placement is processed; lets a passable block into their body. */
     public void setSelfPlacing(boolean value) {
         this.selfPlacing = value;
     }
 
-    /**
-     * Skips the self-collision check while {@link #setSelfPlacing(boolean) self-placing}. The 1.8 self-placement fix
-     * that drives this - and the policy of when to arm it - lives in {@code fixes.client.SelfPlacementFix}.
-     */
     @Override
     public boolean preventBlockPlacement() {
         return !selfPlacing && super.preventBlockPlacement();

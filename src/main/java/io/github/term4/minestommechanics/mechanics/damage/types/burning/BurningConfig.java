@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.burning;
 
+import io.github.term4.minestommechanics.codegen.GenerateBuilder;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
@@ -14,14 +15,15 @@ import java.util.function.Function;
  * Adds the family's scheduling knobs (ignite ticks, ignite warmup, contact/burn intervals, skip-burn-in-lava) on top of
  * the common {@link DamageTypeConfig} tunables; vanilla values are wired in {@code Vanilla18}/{@code Vanilla}.
  */
+@GenerateBuilder
 public final class BurningConfig extends DamageTypeConfig {
 
-    private final @Nullable FieldValue<DamageContext, Integer> igniteTicks;
-    private final @Nullable FieldValue<DamageContext, Integer> igniteWarmupTicks;
-    private final @Nullable FieldValue<DamageContext, Integer> igniteWarmupInvulMult;
-    private final @Nullable FieldValue<DamageContext, Integer> contactIntervalTicks;
-    private final @Nullable FieldValue<DamageContext, Integer> intervalTicks;
-    private final @Nullable FieldValue<DamageContext, Boolean> skipBurnWhileInLava;
+    public final @Nullable FieldValue<DamageContext, Integer> igniteTicks;
+    public final @Nullable FieldValue<DamageContext, Integer> igniteWarmupTicks;
+    public final @Nullable FieldValue<DamageContext, Integer> igniteWarmupInvulMult;
+    public final @Nullable FieldValue<DamageContext, Integer> contactIntervalTicks;
+    public final @Nullable FieldValue<DamageContext, Integer> intervalTicks;
+    public final @Nullable FieldValue<DamageContext, Boolean> skipBurnWhileInLava;
 
     private BurningConfig(Builder b) {
         super(b.common);
@@ -67,34 +69,17 @@ public final class BurningConfig extends DamageTypeConfig {
         DamageTypeConfig mergedCommon = super.fromBase(base);
         Builder b = new Builder();
         b.common.copyFrom(mergedCommon);
-        if (base instanceof BurningConfig f) {
-            b.igniteTicks = merge(this.igniteTicks, f.igniteTicks);
-            b.igniteWarmupTicks = merge(this.igniteWarmupTicks, f.igniteWarmupTicks);
-            b.igniteWarmupInvulMult = merge(this.igniteWarmupInvulMult, f.igniteWarmupInvulMult);
-            b.contactIntervalTicks = merge(this.contactIntervalTicks, f.contactIntervalTicks);
-            b.intervalTicks = merge(this.intervalTicks, f.intervalTicks);
-            b.skipBurnWhileInLava = merge(this.skipBurnWhileInLava, f.skipBurnWhileInLava);
-        } else {
-            b.igniteTicks = this.igniteTicks;
-            b.igniteWarmupTicks = this.igniteWarmupTicks;
-            b.igniteWarmupInvulMult = this.igniteWarmupInvulMult;
-            b.contactIntervalTicks = this.contactIntervalTicks;
-            b.intervalTicks = this.intervalTicks;
-            b.skipBurnWhileInLava = this.skipBurnWhileInLava;
-        }
+        if (base instanceof BurningConfig f) b.mergeKnobs(this, f);
+        else b.copyKnobs(this);
         return b.build();
     }
 
     public static Builder builder() { return new Builder(); }
 
-    public static final class Builder {
+    public static final class Builder extends BurningConfigBuilderBase<Builder> {
+
+        @Override protected Builder self() { return this; }
         private final DamageTypeConfig.Builder common = new DamageTypeConfig.Builder();
-        private FieldValue<DamageContext, Integer> igniteTicks;
-        private FieldValue<DamageContext, Integer> igniteWarmupTicks;
-        private FieldValue<DamageContext, Integer> igniteWarmupInvulMult;
-        private FieldValue<DamageContext, Integer> contactIntervalTicks;
-        private FieldValue<DamageContext, Integer> intervalTicks;
-        private FieldValue<DamageContext, Boolean> skipBurnWhileInLava;
 
         public Builder key(Key key) { common.key(key); return this; }
 
@@ -133,19 +118,7 @@ public final class BurningConfig extends DamageTypeConfig {
         public Builder ownsVelocityBroadcast(Function<DamageContext, Boolean> fn) { common.ownsVelocityBroadcast(fn); return this; }
         public Builder subConfig(Function<DamageContext, DamageTypeConfig> fn) { common.subConfig(fn); return this; }
 
-        public Builder igniteTicks(Integer v) { igniteTicks = FieldValue.constant(v); return this; }
-        public Builder igniteTicks(Function<DamageContext, Integer> fn) { igniteTicks = FieldValue.of(fn); return this; }
-        public Builder igniteWarmupTicks(Integer v) { igniteWarmupTicks = FieldValue.constant(v); return this; }
-        public Builder igniteWarmupTicks(Function<DamageContext, Integer> fn) { igniteWarmupTicks = FieldValue.of(fn); return this; }
-        public Builder igniteWarmupInvulMult(Integer v) { igniteWarmupInvulMult = FieldValue.constant(v); return this; }
-        public Builder igniteWarmupInvulMult(Function<DamageContext, Integer> fn) { igniteWarmupInvulMult = FieldValue.of(fn); return this; }
-        public Builder contactIntervalTicks(Integer v) { contactIntervalTicks = FieldValue.constant(v); return this; }
-        public Builder contactIntervalTicks(Function<DamageContext, Integer> fn) { contactIntervalTicks = FieldValue.of(fn); return this; }
-        public Builder intervalTicks(Integer v) { intervalTicks = FieldValue.constant(v); return this; }
-        public Builder intervalTicks(Function<DamageContext, Integer> fn) { intervalTicks = FieldValue.of(fn); return this; }
 
-        public Builder skipBurnWhileInLava(Boolean v) { skipBurnWhileInLava = FieldValue.constant(v); return this; }
-        public Builder skipBurnWhileInLava(Function<DamageContext, Boolean> fn) { skipBurnWhileInLava = FieldValue.of(fn); return this; }
 
         public BurningConfig build() { return new BurningConfig(this); }
     }

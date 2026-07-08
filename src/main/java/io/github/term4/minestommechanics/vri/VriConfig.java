@@ -1,0 +1,53 @@
+package io.github.term4.minestommechanics.vri;
+
+import org.jetbrains.annotations.Nullable;
+
+/** Toggles for the VRI (Vanilla Re-Implemented) behaviors; the set grows as chests / deaths etc. land. */
+public final class VriConfig {
+
+    /** The crack-overlay broadcast ({@link BlockBreakProgress}); default off. */
+    public final boolean blockBreakProgress;
+    /** Block drops on break ({@link BlockDrops}); {@code null} = off. {@link BlockDrops#VANILLA} = correct-tool gate +
+     *  the block's own item; compose custom loot with {@link BlockDrops#chain}. */
+    public final @Nullable BlockDrops.DropRule blockDrops;
+    /** Item physics override; {@code null} resolves {@code MechanicsKeys.ITEM_PHYSICS} from the profile (LEGACY fallback). */
+    public final @Nullable DroppedItemEntity.Model itemPhysics;
+    /** The player item collector ({@link ItemPickup}); default off. */
+    public final boolean itemPickup;
+    /** Spawn the item a player drops (Q / drag-out, {@link ItemDrop}); default off. */
+    public final boolean itemDrop;
+
+    private VriConfig(Builder b) {
+        blockBreakProgress = b.blockBreakProgress;
+        blockDrops = b.blockDrops;
+        itemPhysics = b.itemPhysics;
+        itemPickup = b.itemPickup;
+        itemDrop = b.itemDrop;
+    }
+
+    public static Builder builder() { return new Builder(); }
+
+    /** Everything on: {@link BlockDrops#VANILLA} drops, item physics from the profile. */
+    public static VriConfig all() {
+        return builder().blockBreakProgress(true)
+                .blockDrops(BlockDrops.VANILLA).itemPickup(true).itemDrop(true).build();
+    }
+
+    public static final class Builder {
+        private boolean blockBreakProgress;
+        private @Nullable BlockDrops.DropRule blockDrops;
+        private @Nullable DroppedItemEntity.Model itemPhysics;
+        private boolean itemPickup;
+        private boolean itemDrop;
+
+        Builder() {}
+
+        public Builder blockBreakProgress(boolean v) { blockBreakProgress = v; return this; }
+        public Builder blockDrops(@Nullable BlockDrops.DropRule v) { blockDrops = v; return this; }
+        public Builder itemPhysics(@Nullable DroppedItemEntity.Model v) { itemPhysics = v; return this; }
+        public Builder itemPickup(boolean v) { itemPickup = v; return this; }
+        public Builder itemDrop(boolean v) { itemDrop = v; return this; }
+
+        public VriConfig build() { return new VriConfig(this); }
+    }
+}

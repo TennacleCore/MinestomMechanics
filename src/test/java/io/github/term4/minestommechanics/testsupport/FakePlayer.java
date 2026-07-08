@@ -7,6 +7,11 @@ import net.minestom.server.event.player.AsyncPlayerConfigurationEvent;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.network.ConnectionState;
 import net.minestom.server.network.packet.server.SendablePacket;
+import net.minestom.server.network.packet.server.ServerPacket;
+import net.minestom.server.network.packet.server.play.EntityMetaDataPacket;
+import net.minestom.server.network.packet.server.play.EntityTeleportPacket;
+import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
+import net.minestom.server.network.packet.server.play.SpawnEntityPacket;
 import net.minestom.server.network.player.GameProfile;
 import net.minestom.server.network.player.PlayerConnection;
 import org.jetbrains.annotations.NotNull;
@@ -59,8 +64,21 @@ public final class FakePlayer {
         return holder[0];
     }
 
-    /** The captured packets of {@code type}, in send order. */
+    /** The captured packets of {@code type}, in send order (broadcast CachedPacket wrappers unwrapped). */
     public <T extends SendablePacket> List<T> sent(Class<T> type) {
-        return sent.stream().filter(type::isInstance).map(type::cast).toList();
+        return sent.stream()
+                .map(p -> (SendablePacket) SendablePacket.extractServerPacket(ConnectionState.PLAY, p))
+                .filter(type::isInstance).map(type::cast).toList();
+    }
+
+    /** The captured spawn/metadata/velocity/teleport packets for entity {@code entityId}, in send order
+     *  (broadcasts arrive as CachedPacket - unwrapped here). */
+    public List<ServerPacket> packetsFor(int entityId) {
+        return sent.stream()
+                .map(p -> SendablePacket.extractServerPacket(ConnectionState.PLAY, p))
+                .filter(p -> p instanceof SpawnEntityPacket s && s.entityId() == entityId
+                        || p instanceof EntityMetaDataPacket m && m.entityId() == entityId
+                        || p instanceof EntityVelocityPacket v && v.entityId() == entityId
+                        || p instanceof EntityTeleportPacket t && t.entityId() == entityId).toList();
     }
 }

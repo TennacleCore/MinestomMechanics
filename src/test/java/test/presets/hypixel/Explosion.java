@@ -2,6 +2,7 @@ package test.presets.hypixel;
 
 import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
+import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 
 /**
  * Hypixel explosion: the 1.8 baseline ({@link io.github.term4.minestommechanics.mechanics.vanilla18.Explosion}) plus a
@@ -24,7 +25,7 @@ public final class Explosion {
     private static final double FLAT_DAMAGE = 2.0;
 
     public static ExplosionConfig config() {
-        return ExplosionConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla18.Explosion.config())
+        return ExplosionConfig.builder(Vanilla18.explosion())
                 .baseKnockback(BASE).baseHorizontalScale(BASE_HORIZONTAL_SCALE).baseDownwardScale(BASE_DOWNWARD_SCALE).baseHeight(BASE_HEIGHT)
                 .knockbackImpactFloor(KB_IMPACT_FLOOR)
                 .flatDamage(FLAT_DAMAGE).damageBypass(Bypass.builder().armor(true).build())

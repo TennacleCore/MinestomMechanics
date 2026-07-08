@@ -18,7 +18,7 @@ public final class Compat18 {
                 .disabledPoses(EntityPose.SWIMMING, EntityPose.FALL_FLYING)
                 .restrictMovement(true)
                 .legacyHitbox(true)
-                .attackHitboxMargin(0.1f)
+                .attackHitboxMargin(0.1f) // 1.8 attack-target box grow (EntityPlayer.attackTargetEntityWithCurrentItem 0.1)
                 .disableOffhand(true)
                 .restrictSprintSneak(true)
                 .restrictSprintUse(true)

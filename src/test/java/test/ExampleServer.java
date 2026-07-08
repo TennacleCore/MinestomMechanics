@@ -11,6 +11,8 @@ import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
+import io.github.term4.minestommechanics.vri.Vri;
+import io.github.term4.minestommechanics.vri.VriConfig;
 import io.github.term4.minestommechanics.platform.fixes.Fixes18;
 import io.github.term4.minestommechanics.platform.compatibility.Compat18;
 import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
@@ -54,7 +56,6 @@ import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.potion.PotionType;
 import net.minestom.server.timer.TaskSchedule;
 import test.presets.hypixel.Hypixel;
-import test.presets.customItems.PrimedTnt;
 import test.presets.mmc18.Mmc18;
 
 public class ExampleServer {
@@ -93,6 +94,7 @@ public class ExampleServer {
         ConsumableSystem.install(mm); // the golden-apple types come from the profile's consumable config
         BlockingSystem.install(mm);
         FixesSystem.install(mm);      // the legacy-client fix set comes from the profile's fixes config
+        Vri.install(mm, VriConfig.all()); // VRI: vanilla behaviors Minestom omits (crack overlay, break FX, drops, pickup)
         ExplosionSystem explosions = ExplosionSystem.install(mm); // explosion config comes from the profile (EXPLOSION key)
 
         InstanceManager instanceManager = MinecraftServer.getInstanceManager();
@@ -121,24 +123,27 @@ public class ExampleServer {
         // lane feet-in-water on the floor and take a hit: the folded knockback should carry the flow term (the
         // VelocityConfig.flowPush residual) in the AWAY-from-the-wool direction. Compare to vanilla 1.8.
         instanceContainer.loadChunk(0, 0).thenRun(() -> {
-            buildFlowLane(instanceContainer,  2, 40,  4,  1,  0, 7, Block.RED_WOOL);    // EAST  (+X)
-            buildFlowLane(instanceContainer,  8, 40,  7, -1,  0, 7, Block.BLUE_WOOL);   // WEST  (-X)
-            buildFlowLane(instanceContainer, 12, 40,  4,  0,  1, 7, Block.YELLOW_WOOL); // SOUTH (+Z)
-            buildFlowLane(instanceContainer, 14, 40, 10,  0, -1, 7, Block.LIME_WOOL);   // NORTH (-Z)
+            buildFlowLane(instanceContainer,  2, 40,  4,  1,  0, 7, Block.RED_WOOL, true);    // EAST  (+X)
+            buildFlowLane(instanceContainer,  8, 40,  7, -1,  0, 7, Block.BLUE_WOOL, true);   // WEST  (-X)
+            buildFlowLane(instanceContainer, 12, 40,  4,  0,  1, 7, Block.YELLOW_WOOL, true); // SOUTH (+Z)
+            buildFlowLane(instanceContainer, 14, 40, 10,  0, -1, 7, Block.LIME_WOOL, true);   // NORTH (-Z)
+            buildFlowLane(instanceContainer,  2, 40, 12,  1,  0, 7, Block.ORANGE_WOOL, false); // 1-deep: items slide
             System.out.println("[flow-test] lanes @ y=40 (flow points AWAY from the wool marker): "
-                    + "EAST/+X red src(2,4) | WEST/-X blue src(8,7) | SOUTH/+Z yellow src(12,4) | NORTH/-Z green src(14,10)");
+                    + "EAST/+X red src(2,4) | WEST/-X blue src(8,7) | SOUTH/+Z yellow src(12,4) | NORTH/-Z green src(14,10)"
+                    + " | 1-deep ITEM lane orange src(2,12): items slide here, sit still in the deep lanes");
         });
 
         GlobalEventHandler globalEventHandler = MinecraftServer.getGlobalEventHandler();
 
-        // TNT test item: placing TNT spawns a primed-TNT entity (falls + fuses + detonates power 4) instead of a block
+        // TNT test item: placing TNT spawns a primed-TNT entity instead of a block.
+        // mmc18 (MineMen) variant: fuse 52, feet detonation, live bounce, measured TNT-push table.
+        // Swap to presets.hypixel.Tnt.spawn for the Hypixel variant (fuse 50, +h/16 detonation).
         globalEventHandler.addListener(PlayerBlockPlaceEvent.class, event -> {
             if (!event.getBlock().compare(Block.TNT)) return;
             event.setCancelled(true);
             Player p = event.getPlayer();
             if (p.getInstance() == null || explosions == null) return;
-            Point at = event.getBlockPosition();
-            PrimedTnt.spawn(explosions, p.getInstance(), new Pos(at.blockX() + 0.5, at.blockY(), at.blockZ() + 0.5));
+            test.presets.mmc18.Tnt.spawn(explosions, p.getInstance(), event.getBlockPosition());
             if (p.getGameMode() != GameMode.CREATIVE) { // cancelling the place keeps the item, so consume one like vanilla TNT
                 ItemStack held = p.getItemInHand(event.getHand());
                 p.setItemInHand(event.getHand(), held.withAmount(held.amount() - 1));
@@ -224,17 +229,22 @@ public class ExampleServer {
      * rising along {@code (dirX,dirZ)}) so the water flows toward the far end - a deterministic flow-push test pad.
      * Stone floor + side/end walls isolate the lane; the player stands feet-in-water on the floor (the verified
      * standing {@code -0.02} motY case), so only the horizontal flow term folds into a hit.
+     * <p>
+     * {@code deep} = a stream over a source pool: the gradient in the TOP layer only. Vanilla invariant: water under
+     * water is always source/falling (flow decay 0), never a 1-7 gradient - a bottom-layer gradient pushes
+     * bottom-resting items in a way vanilla can't produce, and the 1.8 client (which simulates item physics itself)
+     * rubber-bands against it. Items on a deep lane's floor sit still; they slide in a shallow lane.
      */
     private static void buildFlowLane(InstanceContainer inst, int sx, int baseY, int sz,
-                                      int dirX, int dirZ, int length, Block marker) {
+                                      int dirX, int dirZ, int length, Block marker, boolean deep) {
         int pdx = dirZ, pdz = -dirX; // perpendicular = side-wall offset
         for (int i = -1; i <= length; i++) { // -1 and length = solid end caps
             int cx = sx + dirX * i, cz = sz + dirZ * i;
             boolean cap = i < 0 || i >= length;
-            Block fill = cap ? Block.STONE : Block.WATER.withProperty("level", Integer.toString(Math.min(i, 7)));
-            inst.setBlock(cx, baseY - 1, cz, Block.STONE); // floor
-            inst.setBlock(cx, baseY, cz, fill);            // feet
-            inst.setBlock(cx, baseY + 1, cz, fill);        // body
+            Block grad = cap ? Block.STONE : Block.WATER.withProperty("level", Integer.toString(Math.min(i, 7)));
+            inst.setBlock(cx, baseY - 1, cz, Block.STONE);                                 // floor
+            inst.setBlock(cx, baseY, cz, deep ? (cap ? Block.STONE : Block.WATER) : grad); // feet
+            inst.setBlock(cx, baseY + 1, cz, deep ? grad : Block.AIR);                     // body
             inst.setBlock(cx, baseY + 2, cz, Block.AIR);   // headroom
             for (int s = -1; s <= 1; s += 2) {             // side walls (solid -> no spurious side flow)
                 int wx = cx + pdx * s, wz = cz + pdz * s;

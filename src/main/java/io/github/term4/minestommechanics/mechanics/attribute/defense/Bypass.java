@@ -6,19 +6,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * A hit's mitigation-bypass spec: which defense stages (and which specific attributes/effects/enchants within them) a hit
- * ignores when it runs the {@link io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem#mitigate pipeline}.
- *
- * <p>Two layers that {@link #merge merge}:
- * <ul>
- *   <li><b>Broad stage flags</b> ({@link Builder#armor}/{@link Builder#effects}/{@link Builder#enchants}, or {@link Builder#all})
- *       — the nature of the damage <em>type</em> (void skips everything, fall skips armor).</li>
- *   <li><b>Targeted keys</b> ({@link Builder#attribute}/{@link Builder#effect}/{@link Builder#enchant}) — a specific
- *       attribute/effect/enchant skipped by the attacking <em>item</em> (a "god killer" that ignores only
- *       {@code minecraft:resistance}, a stake that ignores only {@code minecraft:protection}).</li>
- * </ul>
- *
- * <p>Deliberately not called "true damage": vanilla players read true damage as armor-only, and this is broader/granular.
+ * A hit's mitigation-bypass spec: which defense stages (or specific attribute/effect/enchant keys within them) the
+ * {@link io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem#mitigate pipeline} skips. Two layers
+ * that {@link #merge merge}: broad stage flags from the damage TYPE (void skips everything, fall skips armor), and
+ * targeted keys from the attacking ITEM (a "god killer" ignoring only {@code minecraft:resistance}).
+ * Deliberately not "true damage" - vanilla players read that as armor-only, and this is broader/granular.
  */
 public final class Bypass {
 

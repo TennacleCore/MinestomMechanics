@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.melee;
 
+import io.github.term4.minestommechanics.codegen.GenerateBuilder;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.item.ItemRegistry;
@@ -16,12 +17,13 @@ import java.util.function.Function;
  * Config for {@link MeleeDamage}. Adds the melee-only {@code critMultiplier} on top of the common
  * {@link DamageTypeConfig} tunables; like them it is a {@link FieldValue} (constant or per-hit lambda).
  */
+@GenerateBuilder
 public final class MeleeDamageConfig extends DamageTypeConfig {
 
     /** Bare-hand melee damage (the 1.8 base attack-damage attribute); the fallback for fist/unlisted items. */
     public static final double FIST_DAMAGE = 1.0;
 
-    private final @Nullable FieldValue<DamageContext, Double> critMultiplier;
+    public final @Nullable FieldValue<DamageContext, Double> critMultiplier;
 
     private MeleeDamageConfig(Builder b) {
         super(b.common);
@@ -49,18 +51,19 @@ public final class MeleeDamageConfig extends DamageTypeConfig {
         DamageTypeConfig mergedCommon = super.fromBase(base);
         Builder b = new Builder();
         b.common.copyFrom(mergedCommon);
-        FieldValue<DamageContext, Double> baseCrit = base instanceof MeleeDamageConfig p ? p.critMultiplier : null;
-        b.critMultiplier = merge(this.critMultiplier, baseCrit);
+        if (base instanceof MeleeDamageConfig p) b.mergeKnobs(this, p);
+        else b.copyKnobs(this);
         return b.build();
     }
 
     public static Builder builder() { return new Builder(); }
 
-    public static final class Builder {
+    public static final class Builder extends MeleeDamageConfigBuilderBase<Builder> {
+
+        @Override protected Builder self() { return this; }
         // default base amount = the held weapon's ATTACK_DAMAGE via the ItemRegistry; invul/overdamage stay unset to inherit global
         private final DamageTypeConfig.Builder common = new DamageTypeConfig.Builder().key(MeleeDamage.KEY)
                 .baseAmount(MeleeDamageConfig::weaponBaseAmount);
-        private FieldValue<DamageContext, Double> critMultiplier = FieldValue.constant(1.5);
 
         public Builder enabled(Boolean v) { common.enabled(v); return this; }
         public Builder enabled(Function<DamageContext, Boolean> fn) { common.enabled(fn); return this; }
@@ -89,9 +92,6 @@ public final class MeleeDamageConfig extends DamageTypeConfig {
         public Builder ownsVelocityBroadcast(Function<DamageContext, Boolean> fn) { common.ownsVelocityBroadcast(fn); return this; }
         public Builder subConfig(Function<DamageContext, DamageTypeConfig> fn) { common.subConfig(fn); return this; }
 
-        public Builder critMultiplier(Double v) { critMultiplier = FieldValue.constant(v); return this; }
-        public Builder critMultiplier(Function<DamageContext, Double> fn) { critMultiplier = FieldValue.of(fn); return this; }
-        public Builder critMultiplier(Double fallback, Function<DamageContext, Double> fn) { critMultiplier = FieldValue.ofWithFallback(fallback, fn); return this; }
 
         public MeleeDamageConfig build() { return new MeleeDamageConfig(this); }
     }

@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.blocking;
 
+import io.github.term4.minestommechanics.codegen.GenerateBuilder;
 import io.github.term4.minestommechanics.config.Config;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfigResolver.BlockingContext;
@@ -15,6 +16,7 @@ import java.util.function.Function;
  * {@link BlockingConfig#defaults()} -&gt; hard fallbacks. The {@link #behavior} knob picks how blocking works (sword /
  * shield / custom); the rest are its parameters (reduction curve, shield arc / delay / bypasses).
  */
+@GenerateBuilder
 public final class BlockingTypeConfig extends Config<BlockingContext, BlockingTypeConfig> {
 
     /** Whether this item blocks (default {@code true}); {@code false} disables blocking for it in the scope. */
@@ -46,14 +48,8 @@ public final class BlockingTypeConfig extends Config<BlockingContext, BlockingTy
     /** Merges this config over {@code base}: this config's set fields win, unset fields fall back per resolution. */
     public BlockingTypeConfig fromBase(BlockingTypeConfig base) {
         Builder b = new Builder();
+        b.mergeKnobs(this, base);
         b.subConfig = subConfig != null ? subConfig : base.subConfig;
-        b.enabled = merge(enabled, base.enabled);
-        b.behavior = merge(behavior, base.behavior);
-        b.reductionBase = merge(reductionBase, base.reductionBase);
-        b.reductionFactor = merge(reductionFactor, base.reductionFactor);
-        b.blockDelayTicks = merge(blockDelayTicks, base.blockDelayTicks);
-        b.blockingAngle = merge(blockingAngle, base.blockingAngle);
-        b.bypassedTypes = merge(bypassedTypes, base.bypassedTypes);
         return b.build();
     }
 
@@ -61,51 +57,19 @@ public final class BlockingTypeConfig extends Config<BlockingContext, BlockingTy
     public static Builder builder(BlockingTypeConfig base) { return new Builder(base); }
     public Builder toBuilder() { return new Builder(this); }
 
-    public static final class Builder {
+    public static final class Builder extends BlockingTypeConfigBuilderBase<Builder> {
+
+        @Override protected Builder self() { return this; }
         private Function<BlockingContext, BlockingTypeConfig> subConfig;
-        private FieldValue<BlockingContext, Boolean> enabled;
-        private FieldValue<BlockingContext, BlockingBehavior> behavior;
-        private FieldValue<BlockingContext, Double> reductionBase;
-        private FieldValue<BlockingContext, Double> reductionFactor;
-        private FieldValue<BlockingContext, Integer> blockDelayTicks;
-        private FieldValue<BlockingContext, Double> blockingAngle;
-        private FieldValue<BlockingContext, Set<Key>> bypassedTypes;
 
         Builder() {}
 
         Builder(BlockingTypeConfig c) {
+            super(c);
             subConfig = c.subConfig;
-            enabled = c.enabled;
-            behavior = c.behavior;
-            reductionBase = c.reductionBase;
-            reductionFactor = c.reductionFactor;
-            blockDelayTicks = c.blockDelayTicks;
-            blockingAngle = c.blockingAngle;
-            bypassedTypes = c.bypassedTypes;
         }
 
         public Builder subConfig(Function<BlockingContext, BlockingTypeConfig> fn) { subConfig = fn; return this; }
-        public Builder enabled(Boolean v) { enabled = FieldValue.constant(v); return this; }
-        public Builder enabled(Function<BlockingContext, Boolean> fn) { enabled = FieldValue.of(fn); return this; }
-        public Builder enabled(Boolean fallback, Function<BlockingContext, Boolean> fn) { enabled = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder behavior(BlockingBehavior v) { behavior = FieldValue.constant(v); return this; }
-        public Builder behavior(Function<BlockingContext, BlockingBehavior> fn) { behavior = FieldValue.of(fn); return this; }
-        public Builder behavior(BlockingBehavior fallback, Function<BlockingContext, BlockingBehavior> fn) { behavior = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder reductionBase(Double v) { reductionBase = FieldValue.constant(v); return this; }
-        public Builder reductionBase(Function<BlockingContext, Double> fn) { reductionBase = FieldValue.of(fn); return this; }
-        public Builder reductionBase(Double fallback, Function<BlockingContext, Double> fn) { reductionBase = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder reductionFactor(Double v) { reductionFactor = FieldValue.constant(v); return this; }
-        public Builder reductionFactor(Function<BlockingContext, Double> fn) { reductionFactor = FieldValue.of(fn); return this; }
-        public Builder reductionFactor(Double fallback, Function<BlockingContext, Double> fn) { reductionFactor = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder blockDelayTicks(Integer v) { blockDelayTicks = FieldValue.constant(v); return this; }
-        public Builder blockDelayTicks(Function<BlockingContext, Integer> fn) { blockDelayTicks = FieldValue.of(fn); return this; }
-        public Builder blockDelayTicks(Integer fallback, Function<BlockingContext, Integer> fn) { blockDelayTicks = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder blockingAngle(Double v) { blockingAngle = FieldValue.constant(v); return this; }
-        public Builder blockingAngle(Function<BlockingContext, Double> fn) { blockingAngle = FieldValue.of(fn); return this; }
-        public Builder blockingAngle(Double fallback, Function<BlockingContext, Double> fn) { blockingAngle = FieldValue.ofWithFallback(fallback, fn); return this; }
-        public Builder bypassedTypes(Set<Key> v) { bypassedTypes = FieldValue.constant(v); return this; }
-        public Builder bypassedTypes(Function<BlockingContext, Set<Key>> fn) { bypassedTypes = FieldValue.of(fn); return this; }
-        public Builder bypassedTypes(Set<Key> fallback, Function<BlockingContext, Set<Key>> fn) { bypassedTypes = FieldValue.ofWithFallback(fallback, fn); return this; }
 
         public BlockingTypeConfig build() { return new BlockingTypeConfig(this); }
     }

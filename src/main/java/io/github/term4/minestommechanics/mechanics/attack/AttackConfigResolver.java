@@ -35,7 +35,7 @@ public final class AttackConfigResolver {
                 enabledVal != null ? enabledVal : true,
                 rulesetVal != null ? rulesetVal : Attack.ruleset(),
                 cfg.criticalRule != null ? cfg.criticalRule : AttackEvent.CriticalRule.DEFAULT,
-                fullHitScaleVal != null ? fullHitScaleVal : 0.6
+                fullHitScaleVal != null ? fullHitScaleVal : AttackConfig.VANILLA_FULL_HIT_SCALE
         );
     }
 
@@ -55,7 +55,7 @@ public final class AttackConfigResolver {
                     true,
                     Attack.ruleset(),
                     AttackEvent.CriticalRule.DEFAULT,
-                    0.6
+                    AttackConfig.VANILLA_FULL_HIT_SCALE
             );
         }
     }

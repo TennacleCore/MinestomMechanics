@@ -2,7 +2,6 @@ package io.github.term4.minestommechanics.mechanics.knockback;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.motion.VelocityContext;
 import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
@@ -14,9 +13,13 @@ import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
-/** Computes the knockback vector for a snapshot: directions, strengths, friction fold, bounds, components. */
-// TODO(stages): make each built-in stage a replaceable strategy (frictionRule/combineRule/boundsRule, current math as
-//  default). Custom components are append-only post-stages, so a preset must zero a knob + re-emulate a stage (Mmc18). Same for DamageCalculator.
+/**
+ * Computes the knockback vector for a snapshot: assembles the inputs (directions, strengths, victim velocity) and
+ * runs the {@link KnockbackPipeline}. Two override levels: a stage's MATH via the rule knobs
+ * ({@link KnockbackConfig.FrictionRule} etc., consulted by the built-in stages), or the STRUCTURE via
+ * {@code KnockbackConfig.stages} (replace/insert/remove/reorder). Vanilla math is exposed
+ * ({@link #vanillaFriction}, {@link #vanillaCombine}, {@link #vanillaBounds}) so overrides can decorate it.
+ */
 public final class KnockbackCalculator {
 
     private final Services services;
@@ -81,38 +84,14 @@ public final class KnockbackCalculator {
                 ? extraKb.direction().mul(extraKb.h() * extraLevel, extraKb.v(), extraKb.h() * extraLevel)
                 : null;
 
-        double iFH = frictionCoeff(cfg.frictionH(), cfg.frictionModeH());
-        double iFV = frictionCoeff(cfg.frictionV(), cfg.frictionModeV());
-        // resolved once, threaded onto the component ctx so components read the same velocity
+        // resolved once, threaded onto the state ctx so every stage/component reads the same velocity
         VelocityRule velRule = cfg.velocity();
         if (velRule == null) velRule = services.profiles().resolve(t, MechanicsKeys.VELOCITY);
         if (velRule == null) velRule = VelocityRule.DEFAULT;
         Vec vel = velRule.estimate(VelocityContext.of(t, services.sprintTracker()));
 
-        kb = new Vec(vel.x() * iFH + kb.x(), vel.y() * iFV + kb.y(), vel.z() * iFH + kb.z());
-
-        if (cfg.horizontalBounds() != null) kb = applyHorizontalBounds(kb, cfg.horizontalBounds());
-        if (cfg.verticalBounds() != null) kb = applyVerticalBounds(kb, cfg.verticalBounds());
-
-        Vec kbVec = kbe != null ? addVectors(kb, kbe, cfg) : kb;
-
-        if (kbe != null) {
-            if (cfg.extraHorizontalBounds() != null) kbVec = applyHorizontalBounds(kbVec, cfg.extraHorizontalBounds());
-            if (cfg.extraVerticalBounds() != null) kbVec = applyVerticalBounds(kbVec, cfg.extraVerticalBounds());
-        }
-
-        if (cfg.customComponents() != null) {
-            KnockbackConfigResolver.KnockbackContext compCtx = ctx.withVelocity(velRule);
-            for (KnockbackComponent comp : cfg.customComponents()) {
-                Vec out = comp.apply(compCtx, kbVec);
-                if (out != null) kbVec = out;
-            }
-        }
-
-        // 26.1 onGround gate: an airborne victim keeps its own motY (no vertical lift); 1.8 always lifts. applied last
-        if (!cfg.airborneVertical() && !MotionTracker.onGround(t)) {
-            kbVec = new Vec(kbVec.x(), vel.y(), kbVec.z());
-        }
+        var state = new KnockbackPipeline.State(ctx.withVelocity(velRule), cfg, vel, kb, kbe, extraLevel);
+        Vec kbVec = KnockbackPipeline.run(cfg.stages(), state);
 
         return new KnockbackResult(new Vec(kbVec.x() * tps, kbVec.y() * tps, kbVec.z() * tps), cfg);
     }
@@ -191,6 +170,22 @@ public final class KnockbackCalculator {
         return new DirAndStrength(dir3D, magH, magV);
     }
 
+    /** Vanilla friction stage: {@code kb + victimVel * coeff} per axis ({@link #frictionCoeff}). All b/t. */
+    public static Vec vanillaFriction(Vec vel, Vec kb, KnockbackConfigResolver.ResolvedKnockbackConfig cfg) {
+        double iFH = frictionCoeff(cfg.frictionH(), cfg.frictionModeH());
+        double iFV = frictionCoeff(cfg.frictionV(), cfg.frictionModeV());
+        return new Vec(vel.x() * iFH + kb.x(), vel.y() * iFV + kb.y(), vel.z() * iFH + kb.z());
+    }
+
+    /** Vanilla bounds stage: the configured {@link KnockbackConfig.Bounds} clamps for the pass ({@code afterExtra} picks the extra pair). */
+    public static Vec vanillaBounds(Vec kb, boolean afterExtra, KnockbackConfigResolver.ResolvedKnockbackConfig cfg) {
+        KnockbackConfig.Bounds h = afterExtra ? cfg.extraHorizontalBounds() : cfg.horizontalBounds();
+        KnockbackConfig.Bounds v = afterExtra ? cfg.extraVerticalBounds() : cfg.verticalBounds();
+        if (h != null) kb = applyHorizontalBounds(kb, h);
+        if (v != null) kb = applyVerticalBounds(kb, v);
+        return kb;
+    }
+
     private static Vec applyVerticalBounds(Vec v, KnockbackConfig.Bounds b) {
         double y = v.y();
         if (b.lower() != null) y = Math.max(y, b.lower());
@@ -208,7 +203,8 @@ public final class KnockbackCalculator {
         return new Vec(v.x() * scale, v.y(), v.z() * scale);
     }
 
-    private Vec addVectors(Vec a, Vec b, KnockbackConfigResolver.ResolvedKnockbackConfig cfg) {
+    /** Vanilla combine stage: base+extra per the config's {@link KnockbackConfig.DirectionMode}s (vector addition or magnitude-preserving blend). */
+    public static Vec vanillaCombine(Vec a, Vec b, KnockbackConfigResolver.ResolvedKnockbackConfig cfg) {
         boolean hAdd = cfg.horizontalCombine() == KnockbackConfig.DirectionMode.VECTOR_ADDITION;
         boolean vAdd = cfg.verticalCombine() == KnockbackConfig.DirectionMode.VECTOR_ADDITION;
 

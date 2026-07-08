@@ -98,7 +98,11 @@ public final class KnockbackConfigResolver {
                 or(resolve(cfg.quantizeVelocity, ctx), Boolean.TRUE),
                 or(resolve(cfg.velocityCap, ctx), LegacyVelocity.DEFAULT_CAP), // vanilla 1.8 wire ±3.9
                 or(resolve(cfg.airborneVertical, ctx), Boolean.TRUE), // 1.8 always lifts
-                cfg.customComponents
+                cfg.customComponents,
+                cfg.frictionRule,
+                cfg.combineRule,
+                cfg.boundsRule,
+                cfg.stages
         );
     }
 
@@ -137,6 +141,10 @@ public final class KnockbackConfigResolver {
             boolean quantizeVelocity,
             double velocityCap,
             boolean airborneVertical,
-            @Nullable List<KnockbackComponent> customComponents
+            @Nullable List<KnockbackComponent> customComponents,
+            @Nullable KnockbackConfig.FrictionRule frictionRule,
+            @Nullable KnockbackConfig.CombineRule combineRule,
+            @Nullable KnockbackConfig.BoundsRule boundsRule,
+            @Nullable List<KnockbackPipeline.Stage> stages
     ) {}
 }

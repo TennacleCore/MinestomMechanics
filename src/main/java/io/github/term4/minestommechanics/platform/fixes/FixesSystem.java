@@ -10,7 +10,6 @@ import io.github.term4.minestommechanics.platform.fixes.client.SelfPlacementFix;
 import io.github.term4.minestommechanics.platform.fixes.visuals.VisualsConfig;
 import io.github.term4.minestommechanics.platform.fixes.visuals.legacy_1_8.LegacyArrowVisibility;
 import io.github.term4.minestommechanics.platform.fixes.visuals.legacy_1_8.LegacyArrowVisibilityConfig;
-import io.github.term4.minestommechanics.platform.fixes.world.BlockBreakProgressFix;
 import io.github.term4.minestommechanics.platform.fixes.world.BlockPlacementFix;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.event.Event;
@@ -95,10 +94,8 @@ public final class FixesSystem implements MechanicsModule {
         if (enabled(cfg.legacyEquipmentFix())) LegacyEquipmentFix.install();
         // View-distance clamp rides the OptimizedPlayer refresh-settings override (server-wide), so it reads the install config directly.
         if (enabled(cfg.legacyViewDistanceFix())) LegacyViewDistanceFix.install();
-        // Tab-completion fix registers a PlayerPacketEvent listener on the fixes node (server-wide), so it reads the install config directly.
-        if (enabled(cfg.legacyTabCompleteFix())) LegacyTabCompleteFix.install(system.node);
-        // Break-progress broadcast rides the digging events + the tick loop (server-wide), so it reads the install config directly.
-        if (enabled(cfg.blockBreakProgress())) BlockBreakProgressFix.install(system.node);
+        // Tab-completion fix replaces the tab-complete packet listener (server-wide), so it reads the install config directly.
+        if (enabled(cfg.legacyTabCompleteFix())) LegacyTabCompleteFix.install();
         mm.install(system.node);
         return system;
     }

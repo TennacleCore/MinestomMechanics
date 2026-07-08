@@ -28,9 +28,7 @@ public abstract class Config<CTX, SELF extends Config<CTX, SELF>> {
     /** Returns {@code a} layered over {@code b}: {@code a} wins, falling back to {@code b} per resolution. */
     protected static <CTX, T> FieldValue<CTX, T> merge(@Nullable FieldValue<CTX, T> a,
                                                        @Nullable FieldValue<CTX, T> b) {
-        if (b == null) return a;
-        if (a == null) return b;
-        return a.or(b);
+        return FieldValue.merge(a, b);
     }
 
     /** Resolves a (possibly {@code null}) field against the context, returning {@code null} when unset. */

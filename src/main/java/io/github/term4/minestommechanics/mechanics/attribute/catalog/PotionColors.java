@@ -67,23 +67,20 @@ public final class PotionColors {
             Map.entry(PotionEffect.POISON, 5149489),
             Map.entry(PotionEffect.WITHER, 3484199));
 
-    /** The splash/display color for a potion item: its {@code custom_color} if set, else the vanilla amplifier-weighted blend of {@code effects}. */
+    /** The splash/display color for a potion item: its {@code custom_color} if set, else the vanilla amplifier-weighted blend of {@code effects} ({@code PotionContents.getColorOptional}). */
     public static int color(@org.jetbrains.annotations.Nullable PotionContents contents, List<CustomPotionEffect> effects) {
-        RGBLike custom = contents != null ? contents.customColor() : null;
-        if (custom != null) return (custom.red() << 16) | (custom.green() << 8) | custom.blue();
-        return blend(effects, false);
+        return color(contents, effects, false);
     }
 
     /** {@link #color} with the 1.8 palette + blend (unweighted average, 1.8 {@code PotionHelper}); for the 1.8-parity particle look on modern clients. */
     public static int legacyColor(@org.jetbrains.annotations.Nullable PotionContents contents, List<CustomPotionEffect> effects) {
-        RGBLike custom = contents != null ? contents.customColor() : null;
-        if (custom != null) return (custom.red() << 16) | (custom.green() << 8) | custom.blue();
-        return blend(effects, true);
+        return color(contents, effects, true);
     }
 
-    /** Vanilla {@code PotionContents.getColorOptional}: per-channel average weighted by {@code amplifier + 1} over the visible effects. */
-    public static int blend(List<CustomPotionEffect> effects) {
-        return blend(effects, false);
+    private static int color(@org.jetbrains.annotations.Nullable PotionContents contents, List<CustomPotionEffect> effects, boolean legacy) {
+        RGBLike custom = contents != null ? contents.customColor() : null;
+        if (custom != null) return (custom.red() << 16) | (custom.green() << 8) | custom.blue();
+        return blend(effects, legacy);
     }
 
     private static int blend(List<CustomPotionEffect> effects, boolean legacy) {

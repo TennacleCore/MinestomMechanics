@@ -20,7 +20,7 @@ public final class Fireball extends ThrowableItemType {
     public static final Fireball INSTANCE = new Fireball();
 
     private Fireball() {
-        super(KEY, "Fireball", EntityType.FIREBALL, Material.FIRE_CHARGE);
+        super(KEY, "Fireball", EntityType.FIREBALL, Material.FIRE_CHARGE, true); // blockAction: lights fire client-side
     }
 
     @Override

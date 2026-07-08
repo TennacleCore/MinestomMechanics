@@ -45,7 +45,7 @@ public final class EnvironmentalDamageTicker {
         DamageSystem sys = this.system;
         if (sys == null || producers.isEmpty()) return;
         for (Entity entity : instance.getEntities()) {
-            if (!(entity instanceof LivingEntity living) || living.isDead()) continue;
+            if (!(entity instanceof LivingEntity living)) continue;
             if (DamageProducers.exempt(living)) continue;
             for (EnvironmentalTickProducer producer : producers) producer.tick(living, sys);
         }

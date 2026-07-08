@@ -6,87 +6,68 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Set;
 
 /**
- * Immutable cross-version compatibility config: per-scope knobs that make the server present consistent mechanics to
- * mixed-version clients (e.g. serving 1.8-style behavior to modern clients). Scoped via {@code MechanicsProfile.compat}
- * and pushed to {@code OptimizedPlayer} at spawn / on profile change by {@code PlayerConfigApplier}, like {@code PlayerConfig}.
- * Plain values - rarely-changing platform knobs, not per-hit values, so deliberately no {@code FieldValue}/subconfig
- * machinery. Unset ({@code null}) fields are left unmanaged.
- *
- * <p>{@code disabledPoses} - poses the server forces back to {@link EntityPose#STANDING} (e.g. {@code SWIMMING}, {@code FALL_FLYING})
- * so a modern client can't enter a pose 1.8 lacks. The pose visual is client-authoritative, so this only fixes the server + other viewers; the gameplay half is {@code restrictMovement}.
- *
- * <p>{@code restrictMovement} - rejects a move that newly places the <em>server</em> hitbox in block collision, so a client
- * rendering itself crawling/swimming can't traverse a gap its server hitbox can't fit. With {@code legacyHitbox} on, the 1.5-block sneak gap is restricted too. Enforced by {@code CompatMovement}.
- *
- * <p>{@code legacyHitbox} - keeps the server bounding box at standing dimensions (no crouch shrink to 1.5) + 1.8 eye heights
- * (1.54 sneaking), for server-side collision / drowning / projectile spawn. The client still renders its own pose; this is the server half. Enforced by {@code OptimizedPlayer}.
- *
- * <p>{@code attackHitboxMargin} - the {@code attack_range.hitbox_margin} stamped onto the player's items as the client sees
- * them, so a modern 1.21.11+ client gets a 1.8 attack box ({@code 0.1}) not the modern {@code 0.3}. Held-item only (bare-hand hardcodes {@code 0.0} client-side - unfixable). Enforced by {@code OptimizedPlayer} on outgoing inventory packets.
- *
- * <p>{@code disableOffhand} - blocks a modern client using the offhand 1.8 lacks (F-swap + offhand-slot clicks cancelled).
- * Enforced by {@code CompatOffhand}; no effect on 1.8 clients.
- *
- * <p>{@code restrictSprintSneak} / {@code restrictSprintUse} / {@code restrictSwimSpeed} - independently remove the modern
- * speed of sprinting while sneaking / using an item / swimming (forbidden or slower in 1.8). Enforced by {@code CompatMovement}
- * (strips the sprint bonus while sprinting in that state; the knockback i-frame window is skipped so hits still launch).
- *
- * <p>{@code blockPlaceReach} - max blocks from the server eye to a placement's clicked point; farther is cancelled. Closes
- * the modern sneak-bridge over-reach. Uses the server eye (1.8 preset under {@code legacyHitbox}), so pair the two. Enforced by {@code CompatPlacement}.
- *
- * <p>{@code animatiumFeatures} - explicit override for the {@link AnimatiumFeature} set sent to an Animatium client (which
- * applies 1.8 behaviour natively, so the matching server hacks are skipped). {@code null} (default) derives it from the knobs
- * above; set a value to send exactly that set. Enforced by {@code CompatAnimatium}; no effect on non-Animatium clients.
+ * Immutable cross-version compatibility config: per-scope knobs that present consistent (typically 1.8-style)
+ * mechanics to mixed-version clients. Scoped via {@code MechanicsProfile.compat}, pushed to {@code OptimizedPlayer}
+ * by {@code PlayerConfigApplier}. Plain values (platform knobs, not per-hit); unset ({@code null}) = unmanaged.
  */
 public final class CompatConfig {
 
-    /** Poses forced back to {@code STANDING}; {@code null} = unmanaged, empty = none disabled. */
+    /** Poses the server forces back to {@code STANDING} (e.g. {@code SWIMMING}, {@code FALL_FLYING}); the gameplay half is {@link #restrictMovement}. Empty = none disabled. */
     public final @Nullable Set<EntityPose> disabledPoses;
-    /** When {@code true}, a move placing the player's server hitbox in block collision is rejected (no crawl/sneak through a gap it can't fit). {@code null} = unmanaged. */
+    /** Reject a move that newly places the SERVER hitbox in block collision - a client rendering itself crawling/swimming can't traverse a gap its server hitbox can't fit. With {@link #legacyHitbox} the 1.5-block sneak gap is restricted too. */
     public final @Nullable Boolean restrictMovement;
-    /** When {@code true}, the server hitbox stays standing dimensions (no crouch shrink) and uses 1.8 eye heights. {@code null} = unmanaged. */
+    /** Keep the server box at standing dimensions (no crouch shrink) + 1.8 eye heights (1.54 sneaking) for collision / drowning / projectile spawn. The client still renders its own pose. */
     public final @Nullable Boolean legacyHitbox;
-    /** {@code attack_range.hitbox_margin} stamped on the client's view of held items (1.8 = {@code 0.1f}); {@code null} = unmanaged (leave items untouched). */
+    /** {@code attack_range.hitbox_margin} stamped on the client's view of held items (1.8 = {@code 0.1f}, modern 0.3). Held-item only - bare-hand hardcodes 0 client-side. */
     public final @Nullable Float attackHitboxMargin;
-    /** When {@code true}, the offhand is disabled (F-swap + offhand-slot clicks cancelled); {@code null} = unmanaged. */
+    /** Disable the offhand (F-swap + offhand-slot clicks cancelled); no effect on 1.8 clients. */
     public final @Nullable Boolean disableOffhand;
-    /** When {@code true}, cancels the sprint speed boost while sneaking (1.8 can't sprint-sneak); {@code null} = unmanaged. */
+    /** Cancel the sprint speed boost while sneaking (1.8 can't sprint-sneak). */
     public final @Nullable Boolean restrictSprintSneak;
-    /** When {@code true}, cancels the sprint speed boost while using an item (1.8 can't sprint-use); {@code null} = unmanaged. */
+    /** Cancel the sprint speed boost while using an item (1.8 can't sprint-use). */
     public final @Nullable Boolean restrictSprintUse;
-    /** When {@code true}, cancels the sprint speed boost while in water (caps modern fast-swim toward 1.8 water speed); {@code null} = unmanaged. */
+    /** Cancel the sprint speed boost while in water (caps modern fast-swim toward 1.8). */
     public final @Nullable Boolean restrictSwimSpeed;
-    /** Max distance (blocks) from the server eye to a placement's clicked point before it's cancelled (1.8 sneak-reach parity); {@code null} = unmanaged. */
+    /** Horizontal divisor for the {@link #restrictSwimSpeed} dampen (higher = slower); {@code null} = 1.25. */
+    public final @Nullable Double swimFactor;
+    /** Vertical divisor for the {@link #restrictSwimSpeed} dampen (stronger - holding space re-adds swim-up); {@code null} = 3.0. */
+    public final @Nullable Double swimVerticalFactor;
+    /** {@code attack_range} reach stamped alongside {@link #attackHitboxMargin} (1.8 = 3 blocks); {@code null} = 3. */
+    public final @Nullable Float attackReach;
+    /** Max blocks from the SERVER eye to a placement's clicked point; farther is cancelled (modern sneak-bridge over-reach). Pair with {@link #legacyHitbox}. */
     public final @Nullable Double blockPlaceReach;
-    /** When {@code true}, Animatium clients get 1.8 water/lava movement (drag/gravity, no swim sprint/buoyancy, no lava current); {@code null} = unmanaged. Client-side only (Animatium feature). */
-    public final @Nullable Boolean legacyFluids;
-    /** When {@code true}, Animatium clients can't elytra-glide (1.8 has no elytra; they just fall); {@code null} = unmanaged. Client-side only (Animatium feature). */
-    public final @Nullable Boolean disableElytraFlight;
-    /** When {@code true}, Animatium clients get 1.8 creative/spectator flight (sneaking while flying slows horizontal); {@code null} = unmanaged. Client-side only (Animatium feature). */
-    public final @Nullable Boolean oldFlight;
-    /** When {@code true}, Animatium clients can start using an item while mining a block (1.8 parity; modern MC blocks use-item the moment you're destroying); {@code null} = unmanaged. Client-side only (Animatium feature). */
-    public final @Nullable Boolean leftClickItemUsage;
-    /** When {@code true}, Animatium clients don't auto-crouch to fit under a low ceiling (1.8 sneak is shift-only); {@code null} = unmanaged. Client-side only (Animatium feature). */
-    public final @Nullable Boolean disableAutoSneak;
-    /** Convenience bundle for the four 1.8 physics aspects below ({@code oldMomentum}/{@code disableBedBounce}/{@code disableHoneyPhysics}/{@code disableBubbleColumn}): {@code true} enables all, each per-aspect knob overrides it. {@code null} = unmanaged. Client-side only (Animatium feature). */
-    public final @Nullable Boolean oldPhysics;
-    /** Per-aspect physics override (1.8 parkour momentum threshold). {@code null} follows {@link #oldPhysics}; {@code true}/{@code false} forces it. Client-side only (Animatium feature). */
-    public final @Nullable Boolean oldMomentum;
-    /** Per-aspect physics override (1.8 beds don't bounce). {@code null} follows {@link #oldPhysics}; {@code true}/{@code false} forces it. Client-side only (Animatium feature). */
-    public final @Nullable Boolean disableBedBounce;
-    /** Per-aspect physics override (honey acts like a plain block - no slide, no jump/walk slowdown). {@code null} follows {@link #oldPhysics}; {@code true}/{@code false} forces it. Client-side only (Animatium feature). */
-    public final @Nullable Boolean disableHoneyPhysics;
-    /** Per-aspect physics override (no bubble-column push). {@code null} follows {@link #oldPhysics}; {@code true}/{@code false} forces it. Client-side only (Animatium feature). */
-    public final @Nullable Boolean disableBubbleColumn;
-    /** When {@code true}, Animatium clients aren't shoved by entity collision (NOT 1.8 parity - a preference); {@code null} = unmanaged. Client-side only (Animatium feature). */
-    public final @Nullable Boolean disableEntityPush;
-    /** When {@code true}, 1.8 block placement: no placing a block against an air cell (kills the creative "quick replace" floating block). Enforced both client-side (Animatium {@code OLD_PLACEMENT}) and server-side ({@code CompatPlacement}, any client); {@code null} = unmanaged. */
+    /** 1.8 block placement: no placing against an air cell. Enforced client-side (Animatium) AND server-side ({@code CompatPlacement}, any client). */
     public final @Nullable Boolean oldPlacement;
-    /** When {@code true}, the modern attack cooldown + crosshair indicator is removed (huge {@code ATTACK_SPEED} so hits are always full, 1.8-style); {@code null} = unmanaged. Server-side (attribute), works for any client. */
+    /** Remove the modern attack cooldown + crosshair indicator (huge {@code ATTACK_SPEED}). Server-side, any client. */
     public final @Nullable Boolean removeAttackCooldown;
-    /** When {@code true}, Animatium clients that advertise the {@code SHORTS_VELOCITY} capability get byte-exact 1.8 velocity (3 shorts) instead of the lossy modern wire; {@code null} = unmanaged. Client-side (Animatium fork feature); gated on advertised support so a client that can't decode it is never sent shorts. */
+
+    // --- Animatium client-side features: applied natively by the mod, no effect on other clients ---
+
+    /** 1.8 water/lava movement (drag/gravity, no swim sprint/buoyancy, no lava current). */
+    public final @Nullable Boolean legacyFluids;
+    /** No elytra glide (1.8 has no elytra; they just fall). */
+    public final @Nullable Boolean disableElytraFlight;
+    /** 1.8 creative/spectator flight (sneaking while flying slows horizontal). */
+    public final @Nullable Boolean oldFlight;
+    /** Allow starting an item use while mining (modern MC blocks use-item during destroy; 1.8 doesn't). */
+    public final @Nullable Boolean leftClickItemUsage;
+    /** No auto-crouch under a low ceiling (1.8 sneak is shift-only). */
+    public final @Nullable Boolean disableAutoSneak;
+    /** Bundle for the four physics aspects below: {@code true} enables all; each per-aspect knob overrides it. */
+    public final @Nullable Boolean oldPhysics;
+    /** 1.8 parkour momentum threshold; {@code null} follows {@link #oldPhysics}. */
+    public final @Nullable Boolean oldMomentum;
+    /** 1.8 beds don't bounce; {@code null} follows {@link #oldPhysics}. */
+    public final @Nullable Boolean disableBedBounce;
+    /** Honey acts like a plain block (no slide/slowdown); {@code null} follows {@link #oldPhysics}. */
+    public final @Nullable Boolean disableHoneyPhysics;
+    /** No bubble-column push; {@code null} follows {@link #oldPhysics}. */
+    public final @Nullable Boolean disableBubbleColumn;
+    /** No entity-collision shove (NOT 1.8 parity - a preference; pair with a server-side push disable). */
+    public final @Nullable Boolean disableEntityPush;
+    /** Byte-exact 1.8 velocity (3 shorts) for clients advertising {@code SHORTS_VELOCITY}; never sent to clients without the decoder. */
     public final @Nullable Boolean nativeShortVelocity;
-    /** Explicit set of Animatium features to send (overrides the knob-derived set); {@code null} = derive from the knobs above. */
+    /** Explicit override for the {@link AnimatiumFeature} set sent; {@code null} = derive from the knobs above. */
     public final @Nullable Set<AnimatiumFeature> animatiumFeatures;
 
     private CompatConfig(Builder b) {
@@ -98,6 +79,9 @@ public final class CompatConfig {
         restrictSprintSneak = b.restrictSprintSneak;
         restrictSprintUse = b.restrictSprintUse;
         restrictSwimSpeed = b.restrictSwimSpeed;
+        swimFactor = b.swimFactor;
+        swimVerticalFactor = b.swimVerticalFactor;
+        attackReach = b.attackReach;
         blockPlaceReach = b.blockPlaceReach;
         legacyFluids = b.legacyFluids;
         disableElytraFlight = b.disableElytraFlight;
@@ -121,6 +105,7 @@ public final class CompatConfig {
     public static Builder builder() { return builder(null); }
     public static Builder builder(@Nullable CompatConfig base) { return base != null ? new Builder(base) : new Builder(); }
 
+    /** Setters mirror the field docs; sets are defensively copied. */
     public static final class Builder {
         private @Nullable Set<EntityPose> disabledPoses;
         private @Nullable Boolean restrictMovement;
@@ -130,6 +115,9 @@ public final class CompatConfig {
         private @Nullable Boolean restrictSprintSneak;
         private @Nullable Boolean restrictSprintUse;
         private @Nullable Boolean restrictSwimSpeed;
+        private @Nullable Double swimFactor;
+        private @Nullable Double swimVerticalFactor;
+        private @Nullable Float attackReach;
         private @Nullable Double blockPlaceReach;
         private @Nullable Boolean legacyFluids;
         private @Nullable Boolean disableElytraFlight;
@@ -158,6 +146,9 @@ public final class CompatConfig {
             restrictSprintSneak = c.restrictSprintSneak;
             restrictSprintUse = c.restrictSprintUse;
             restrictSwimSpeed = c.restrictSwimSpeed;
+            swimFactor = c.swimFactor;
+            swimVerticalFactor = c.swimVerticalFactor;
+            attackReach = c.attackReach;
             blockPlaceReach = c.blockPlaceReach;
             legacyFluids = c.legacyFluids;
             disableElytraFlight = c.disableElytraFlight;
@@ -176,57 +167,34 @@ public final class CompatConfig {
             animatiumFeatures = c.animatiumFeatures;
         }
 
-        /** Poses forced back to {@code STANDING} for in-scope players ({@code null} = unmanaged). Defensively copied. */
         public Builder disabledPoses(@Nullable Set<EntityPose> v) { disabledPoses = v != null ? Set.copyOf(v) : null; return this; }
-        /** Convenience: disable the given poses (e.g. {@code SWIMMING}, {@code FALL_FLYING}). */
         public Builder disabledPoses(EntityPose... poses) { disabledPoses = Set.of(poses); return this; }
-        /** Reject moves that place the player's server hitbox in block collision (no crawl/sneak through a too-small gap). */
         public Builder restrictMovement(@Nullable Boolean v) { restrictMovement = v; return this; }
-        /** Keep the server hitbox at standing dimensions (no crouch shrink) + 1.8 eye heights. */
         public Builder legacyHitbox(@Nullable Boolean v) { legacyHitbox = v; return this; }
-        /** Stamp {@code attack_range.hitbox_margin} on the client's held items (1.8 = {@code 0.1f}; {@code null} = leave untouched). */
         public Builder attackHitboxMargin(@Nullable Float v) { attackHitboxMargin = v; return this; }
-        /** Disable the offhand for in-scope players (cancels the F-swap + offhand-slot clicks). No effect on 1.8 clients. */
         public Builder disableOffhand(@Nullable Boolean v) { disableOffhand = v; return this; }
-        /** Cancel the sprint speed boost while sneaking (1.8 parity). */
         public Builder restrictSprintSneak(@Nullable Boolean v) { restrictSprintSneak = v; return this; }
-        /** Cancel the sprint speed boost while using an item (1.8 parity). */
         public Builder restrictSprintUse(@Nullable Boolean v) { restrictSprintUse = v; return this; }
-        /** Cancel the sprint speed boost while in water (caps modern fast-swim toward 1.8). */
         public Builder restrictSwimSpeed(@Nullable Boolean v) { restrictSwimSpeed = v; return this; }
-        /** Cancel placements whose clicked point is farther than {@code reach} blocks from the server eye (1.8 sneak-reach parity; pair with {@code legacyHitbox}). */
+        public Builder swimFactor(@Nullable Double v) { swimFactor = v; return this; }
+        public Builder swimVerticalFactor(@Nullable Double v) { swimVerticalFactor = v; return this; }
+        public Builder attackReach(@Nullable Float v) { attackReach = v; return this; }
         public Builder blockPlaceReach(@Nullable Double v) { blockPlaceReach = v; return this; }
-        /** Give Animatium clients 1.8 water/lava movement (client-side; no effect on non-Animatium clients). */
         public Builder legacyFluids(@Nullable Boolean v) { legacyFluids = v; return this; }
-        /** Prevent Animatium clients from elytra-gliding (1.8 has no elytra; client-side, no effect on non-Animatium clients). */
         public Builder disableElytraFlight(@Nullable Boolean v) { disableElytraFlight = v; return this; }
-        /** Give Animatium clients 1.8 creative/spectator flight (sneaking while flying slows horizontal; client-side, no effect on non-Animatium clients). */
         public Builder oldFlight(@Nullable Boolean v) { oldFlight = v; return this; }
-        /** Let Animatium clients start using an item while mining a block (1.8 parity; client-side, no effect on non-Animatium clients). */
         public Builder leftClickItemUsage(@Nullable Boolean v) { leftClickItemUsage = v; return this; }
-        /** Stop Animatium clients auto-crouching to fit under a low ceiling (1.8 sneak is shift-only; client-side, no effect on non-Animatium clients). */
         public Builder disableAutoSneak(@Nullable Boolean v) { disableAutoSneak = v; return this; }
-        /** Bundle: enable all four 1.8 physics aspects (momentum, bed bounce, honey, bubble columns) for Animatium clients; each {@code old*}/{@code disable*} knob below overrides it. Client-side, no effect on non-Animatium clients. */
         public Builder oldPhysics(@Nullable Boolean v) { oldPhysics = v; return this; }
-        /** Override the 1.8 parkour momentum threshold aspect ({@code null} follows {@link #oldPhysics}). Client-side, no effect on non-Animatium clients. */
         public Builder oldMomentum(@Nullable Boolean v) { oldMomentum = v; return this; }
-        /** Override the no-bed-bounce aspect ({@code null} follows {@link #oldPhysics}). Client-side, no effect on non-Animatium clients. */
         public Builder disableBedBounce(@Nullable Boolean v) { disableBedBounce = v; return this; }
-        /** Override the honey-acts-like-a-plain-block aspect ({@code null} follows {@link #oldPhysics}). Client-side, no effect on non-Animatium clients. */
         public Builder disableHoneyPhysics(@Nullable Boolean v) { disableHoneyPhysics = v; return this; }
-        /** Override the no-bubble-column-push aspect ({@code null} follows {@link #oldPhysics}). Client-side, no effect on non-Animatium clients. */
         public Builder disableBubbleColumn(@Nullable Boolean v) { disableBubbleColumn = v; return this; }
-        /** Stop Animatium clients being shoved by entity collision (client-side; pair with a server-side push disable for full effect). */
         public Builder disableEntityPush(@Nullable Boolean v) { disableEntityPush = v; return this; }
-        /** Give Animatium clients 1.8 block placement (a place won't refill a spot just broken - no same-tick floating block; client-side, no effect on non-Animatium clients). */
         public Builder oldPlacement(@Nullable Boolean v) { oldPlacement = v; return this; }
-        /** Remove the modern attack cooldown + crosshair indicator (huge {@code ATTACK_SPEED}; 1.8-style full hits). Server-side, any client. */
         public Builder removeAttackCooldown(@Nullable Boolean v) { removeAttackCooldown = v; return this; }
-        /** Send Animatium clients byte-exact 1.8 velocity (3 shorts) when they advertise the {@code SHORTS_VELOCITY} capability (fork feature; safe no-op for clients without the decoder). */
         public Builder nativeShortVelocity(@Nullable Boolean v) { nativeShortVelocity = v; return this; }
-        /** Override the Animatium feature set sent to Animatium clients ({@code null} = derive from the knobs above). Defensively copied. */
         public Builder animatiumFeatures(@Nullable Set<AnimatiumFeature> v) { animatiumFeatures = v != null ? Set.copyOf(v) : null; return this; }
-        /** Convenience: send exactly these Animatium features (overriding the knob-derived set). */
         public Builder animatiumFeatures(AnimatiumFeature... features) { animatiumFeatures = Set.of(features); return this; }
 
         public CompatConfig build() { return new CompatConfig(this); }

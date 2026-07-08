@@ -1,4 +1,4 @@
-package io.github.term4.minestommechanics.platform.fixes.world;
+package io.github.term4.minestommechanics.vri;
 
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The break-progress broadcast against synthesized instance ticks (the headless harness has no ticker): stage 0 at
  * start, the next stage exactly at its vanilla boundary tick, dedup in between, {@code -1} on abort, miner excluded.
  */
-class BlockBreakProgressFixTest extends HeadlessServerTest {
+class BlockBreakProgressTest extends HeadlessServerTest {
 
     private static final BlockVec BLOCK = new BlockVec(2, 63, 2);
 
@@ -39,7 +39,7 @@ class BlockBreakProgressFixTest extends HeadlessServerTest {
     @BeforeAll
     static void setUp() {
         EventNode<@NotNull Event> node = EventNode.all("test:block-break-progress");
-        BlockBreakProgressFix.install(node);
+        BlockBreakProgress.install(node);
         MinecraftServer.getGlobalEventHandler().addChild(node);
         miner = FakePlayer.connect(instance, new Pos(0.5, 64, 0.5), "Miner");
         viewer = FakePlayer.connect(instance, new Pos(5.5, 64, 5.5), "Viewer");

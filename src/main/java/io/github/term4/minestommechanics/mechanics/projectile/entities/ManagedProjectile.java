@@ -134,6 +134,11 @@ public class ManagedProjectile extends ProjectileEntity {
     }
 
     @Override
+    protected boolean canHit(@NotNull Entity entity) {
+        return behavior.canHit(this, entity) && super.canHit(entity);
+    }
+
+    @Override
     protected boolean onStuck() {
         ResolvedHit hit = resolveHit(null);
         ProjectileHitEvent ev = new ProjectileHitEvent(this, snap, shooter, null, getPosition(),

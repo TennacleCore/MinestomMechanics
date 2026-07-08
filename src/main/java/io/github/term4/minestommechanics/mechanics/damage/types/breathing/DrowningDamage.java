@@ -17,7 +17,7 @@ import net.minestom.server.entity.EquipmentSlot;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
-import net.minestom.server.potion.TimedPotion;
+import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.tag.Tag;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -39,7 +39,6 @@ public final class DrowningDamage extends DamageType implements EnvironmentalTic
     private static final int MAX_AIR = 300;
     private static final int DROWN_AT = -20;
     private static final Key RESPIRATION = Key.key("minecraft:respiration");
-    private static final Key WATER_BREATHING = Key.key("minecraft:water_breathing");
     private static final Tag<Integer> AIR = Tag.Transient("mm:air");
     private static final EquipmentSlot[] ARMOR = {
             EquipmentSlot.HELMET, EquipmentSlot.CHESTPLATE, EquipmentSlot.LEGGINGS, EquipmentSlot.BOOTS};
@@ -103,7 +102,7 @@ public final class DrowningDamage extends DamageType implements EnvironmentalTic
         int air = stored != null ? stored : maxAir;
 
         boolean inWater = headInWater(living, inst);
-        boolean canBreathe = !inWater || hasEffect(living, WATER_BREATHING); // identical 1.8/26; invulnerable already filtered
+        boolean canBreathe = !inWater || living.hasEffect(PotionEffect.WATER_BREATHING); // identical 1.8/26; invulnerable already filtered
 
         if (!canBreathe) {
             air = drainAir(living, air);
@@ -133,12 +132,5 @@ public final class DrowningDamage extends DamageType implements EnvironmentalTic
     private static boolean headInWater(LivingEntity living, Instance inst) {
         Point eye = living.getPosition().add(0, living.getEyeHeight(), 0);
         return inst.isChunkLoaded(eye.chunkX(), eye.chunkZ()) && inst.getBlock(eye).compare(Block.WATER);
-    }
-
-    private static boolean hasEffect(LivingEntity living, Key key) {
-        for (TimedPotion tp : living.getActiveEffects()) {
-            if (tp.potion().effect().key().equals(key)) return true;
-        }
-        return false;
     }
 }

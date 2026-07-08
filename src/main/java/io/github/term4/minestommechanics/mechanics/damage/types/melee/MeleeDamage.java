@@ -24,7 +24,7 @@ public final class MeleeDamage extends DamageType {
 
     public static final Key KEY = Key.key("minecraft:player_attack");
     /** Builder defaults: 1.8 weapon-table base amount, 1.5x crit. */
-    private static final MeleeDamageConfig DEFAULT = MeleeDamageConfig.builder().build();
+    private static final MeleeDamageConfig DEFAULT = MeleeDamageConfig.builder().critMultiplier(1.5).build(); // vanilla crit x1.5
     public static final MeleeDamage INSTANCE = new MeleeDamage();
 
     private MeleeDamage() {

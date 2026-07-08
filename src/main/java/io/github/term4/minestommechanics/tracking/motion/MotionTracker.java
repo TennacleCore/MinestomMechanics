@@ -4,6 +4,7 @@ import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfiles;
 import io.github.term4.minestommechanics.tracking.Tracker;
 import io.github.term4.minestommechanics.util.BlockContact;
+import io.github.term4.minestommechanics.util.Directions;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
@@ -51,10 +52,13 @@ public final class MotionTracker implements Tracker {
     private static final Tag<Boolean> LAUNCHED = Tag.Transient("mm:launched");
     private static final Tag<Vec> MOVE_VELOCITY = Tag.Transient("mm:move-velocity");
     private static final Tag<MovePrev> MOVE_PREV = Tag.Transient("mm:move-prev");
+    /** Instance tick of the last move packet; gates the motY sim under {@code motYOnMovePacket}. */
+    private static final Tag<Long> LAST_MOVE_TICK = Tag.Transient("mm:last-move-tick");
     private static final Tag<LaunchStamp> LAUNCH_STAMP = Tag.Transient("mm:launch-stamp");
     /**
      * Server-side horizontal {@code motX/motZ} (b/t): the victim's own simulated motion (the {@code bF()} sprint-jump
-     * boost), not the player's WASD and not prior knockback (vanilla restores the pre-KB velocity after broadcasting it).
+     * boost) plus delivered non-melee knockback ({@link #foldDelivered} replaces it, measured on instrumented 1.8.8),
+     * not the player's WASD and not melee knockback (vanilla restores the pre-KB velocity after a player-melee hit).
      * Anchored at its last write, read lazily, bled by vanilla friction per elapsed tick. Folded into every hit.
      */
     private static final Tag<MotState> MOT_H = Tag.Transient("mm:mot-h");
@@ -182,6 +186,7 @@ public final class MotionTracker implements Tracker {
         p.removeTag(LAUNCHED);
         p.removeTag(MOVE_VELOCITY);
         p.removeTag(MOVE_PREV);
+        p.removeTag(LAST_MOVE_TICK);
         p.removeTag(LAUNCH_STAMP);
         p.removeTag(MOT_H);
         p.removeTag(ENTITY_PUSH);
@@ -194,6 +199,7 @@ public final class MotionTracker implements Tracker {
     private void onMove(PlayerMoveEvent e) {
         Player p = e.getPlayer();
         long now = TickSystem.instanceTick(p);
+        p.setTag(LAST_MOVE_TICK, now);
         boolean nowOnGround = e.isOnGround();
         Pos newPos = e.getNewPosition();
         // compare vs the previous packet so transition detection is independent of event/move ordering
@@ -216,8 +222,9 @@ public final class MotionTracker implements Tracker {
         }
 
         if (wasOnGround) {
-            // ground->air: the rising packet is the jump tick. vanilla seeds 0.42 even into a fluid, so latch unconditionally
-            if (dy > 0) latchLaunch(p, now, newPos.yaw()); // rising = launched, else walk-off
+            // ground->air: the rising packet is the jump tick. vanilla seeds 0.42 even into a fluid, so latch
+            // whenever the arc isn't already a delivered-KB launch (foldDelivered - its seed must survive the rise)
+            if (dy > 0 && !Boolean.TRUE.equals(p.getTag(LAUNCHED))) latchLaunch(p, now, newPos.yaw()); // rising = launched, else walk-off
             p.setTag(AIR_START_TICK, now);
         } else {
             // already airborne: keep an anchor + latch a mid-air re-launch, but not in a fluid/ladder
@@ -259,8 +266,7 @@ public final class MotionTracker implements Tracker {
 
     /** Vanilla {@code bF()} sprint-jump horizontal impulse for a facing yaw (b/t). */
     private static Vec sprintJumpImpulse(double yaw) {
-        double r = Math.toRadians(yaw);
-        return new Vec(-Math.sin(r) * SPRINT_IMPULSE, 0, Math.cos(r) * SPRINT_IMPULSE);
+        return Directions.fromYaw(yaw).mul(SPRINT_IMPULSE);
     }
 
     /** The anchored residual bled to {@code now} ({@code motH x friction^elapsed}), then the near-zero clamp so a stale residual snaps to 0. */
@@ -331,7 +337,10 @@ public final class MotionTracker implements Tracker {
                     VelocityRule.webPhysicsEnabled(rule),
                     climbModel, modernBlocks));
             // vanilla order: clamp, move, gravity, then entity push
-            tickVertSim(p, env, climbModel, modernBlocks, flowModel);
+            // motYOnMovePacket hold: a move processed during the previous dispatch stamps now-1 (this runs PRE_DISPATCH)
+            Long lastMove = p.getTag(LAST_MOVE_TICK);
+            boolean hold = VelocityRule.motYOnMovePacketEnabled(rule) && (lastMove == null || lastMove < now - 1);
+            tickVertSim(p, env, climbModel, modernBlocks, flowModel, hold);
             // web zeroes everything, push included
             if (env == Env.WEB) p.removeTag(ENTITY_PUSH);
             else tickEntityPush(p);
@@ -343,10 +352,11 @@ public final class MotionTracker implements Tracker {
     }
 
     /** One vanilla {@code m()} travel step for the ticked motY: clamp, {@code move()} collide-zero, gravity - or the
-     *  fluid / web / ladder vertical law when {@code env} is not {@link Env#NORMAL}. */
-    private static void tickVertSim(Player p, Env env, ClimbModel climbModel, boolean modernBlocks, FluidFlow.Model flowModel) {
+     *  fluid / web / ladder vertical law when {@code env} is not {@link Env#NORMAL}. {@code hold} freezes the step. */
+    private static void tickVertSim(Player p, Env env, ClimbModel climbModel, boolean modernBlocks, FluidFlow.Model flowModel, boolean hold) {
         VertSim sim = p.getTag(VERT_SIM);
         if (sim == null) p.setTag(VERT_SIM, sim = new VertSim());
+        if (hold) return;
         if (p.isFlying() || p.getInstance() == null) {
             shift(sim.clamped, 0);
             shift(sim.raw, 0);
@@ -531,6 +541,27 @@ public final class MotionTracker implements Tracker {
         h[0] = v;
     }
 
+    /**
+     * Folds a delivered non-melee knockback into the tracked motion, replacing it (residuals were consumed by
+     * the delivery's own fold). Measured on instrumented Paper 1.8.8: the impulse stays in server mot, decays
+     * by travel friction (~7-15 ticks), and folds into hits in that window - the rod->hit combo; only
+     * player-melee restores. The vy seeds the motY sim; LAUNCHED keeps the rising move packet from re-seeding
+     * the jump value over the KB arc.
+     */
+    public static void foldDelivered(Entity entity, Vec bt) {
+        if (!(entity instanceof Player p)) return;
+        long now = TickSystem.instanceTick(p);
+        p.setTag(MOT_H, new MotState(new Vec(bt.x(), 0, bt.z()), now, !p.isOnGround()));
+        p.removeTag(ENTITY_PUSH);
+        p.removeTag(FLOW_PUSH);
+        VertSim sim = p.getTag(VERT_SIM);
+        if (sim == null) p.setTag(VERT_SIM, sim = new VertSim());
+        sim.clamped[0] = bt.y();
+        sim.raw[0] = bt.y();
+        sim.collided = false;
+        if (bt.y() > 0) p.setTag(LAUNCHED, true);
+    }
+
     /** Whether the sim's last {@code move()} probe clamped a descent (vanilla collision {@code onGround}). Fires before a laggy client's landing packet, so fall damage ends in sync with the combat ground checks. */
     public static boolean simCollided(Entity entity) {
         if (!(entity instanceof Player p)) return false;
@@ -645,9 +676,14 @@ public final class MotionTracker implements Tracker {
         return new Vec(clampNearZero(decayed.x()), clampNearZero(decayed.y()), clampNearZero(decayed.z()));
     }
 
-    /** Mirrors vanilla {@code Entity.move}'s {@code if (collided) motX/motZ = 0}: zeroes the flow residual on a collision-blocked axis, so a current pinning a player against a wall never accumulates. */
-    private static Vec zeroBlockedAxes(Player p, Vec acc) {
-        if (acc.isZero() || p.getInstance() == null) return acc;
+    /**
+     * Mirrors vanilla {@code Entity.move}'s {@code if (collided) motX/motZ = 0}: zeroes a collision-blocked
+     * horizontal axis, keeping y. Measured live (motlog): a KB into a wall zeroes that mot axis on the next
+     * tick while the free axes decay - so wall-pinned residuals must read 0. Probed at READ time (currently
+     * blocked), a cheap stand-in for vanilla's per-tick zeroing during the decay window.
+     */
+    public static Vec zeroBlockedAxes(Entity entity, Vec acc) {
+        if (acc.isZero() || !(entity instanceof Player p) || p.getInstance() == null) return acc;
         PhysicsResult r = CollisionUtils.handlePhysics(p, new Vec(acc.x(), 0, acc.z()));
         return new Vec(r.collisionX() ? 0.0 : acc.x(), acc.y(), r.collisionZ() ? 0.0 : acc.z());
     }

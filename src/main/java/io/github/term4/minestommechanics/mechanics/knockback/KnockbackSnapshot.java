@@ -17,7 +17,6 @@ import org.jetbrains.annotations.Nullable;
  *                       (set by the attack ruleset, which has the weapon) or a projectile's Punch; a melee sprint adds a
  *                       further {@code +1} in the calculator. Each level scales the config's {@code extra}* knobs. {@code 0} = none.
  */
-// TODO: Do we even need the melee boolean?
 public record KnockbackSnapshot(Entity target, boolean melee, @Nullable Entity source,
                                 @Nullable Point origin, @Nullable Vec direction, @Nullable KnockbackConfig config,
                                 int extraKnockback) {

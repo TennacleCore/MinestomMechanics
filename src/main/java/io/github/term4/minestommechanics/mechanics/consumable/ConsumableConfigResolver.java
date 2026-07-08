@@ -5,7 +5,6 @@ import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableTypeConfig.ParticleVisibility;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.PlayerHand;
-import net.minestom.server.item.ItemAnimation;
 import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
@@ -60,7 +59,6 @@ public final class ConsumableConfigResolver {
         return new ResolvedConsumable(
                 or(resolve(tc.enabled, ctx), Boolean.TRUE),
                 or(resolve(tc.consumeTicks, ctx), Consumable.VANILLA_CONSUME_TICKS),
-                or(resolve(tc.animation, ctx), ItemAnimation.EAT),
                 or(resolve(tc.behavior, ctx), ConsumableBehavior.NONE));
     }
 
@@ -70,6 +68,6 @@ public final class ConsumableConfigResolver {
         return fv != null ? fv.resolve(ctx) : null;
     }
 
-    /** Resolved per-consume values: whether it consumes, how long it takes, the animation, and the behavior. */
-    public record ResolvedConsumable(boolean enabled, int consumeTicks, ItemAnimation animation, ConsumableBehavior behavior) {}
+    /** Resolved per-consume values: whether it consumes, how long it takes, and the behavior. */
+    public record ResolvedConsumable(boolean enabled, int consumeTicks, ConsumableBehavior behavior) {}
 }

@@ -6,7 +6,7 @@ import io.github.term4.minestommechanics.item.VanillaItems;
 
 /**
  * Modern (26) item registry: the MODERN version - weapon attack damage derives from Minestom's {@code ATTACK_DAMAGE}.
- * Registered separately via {@code mm.registerItems(...)} - not a {@code MechanicsProfile} member.
+ * Carried on the profile as the {@code MechanicsKeys.ITEMS} member ({@link Vanilla#profile()} sets it).
  */
 public final class Items {
 

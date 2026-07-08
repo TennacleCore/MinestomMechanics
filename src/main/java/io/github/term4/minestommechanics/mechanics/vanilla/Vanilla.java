@@ -19,10 +19,12 @@ public final class Vanilla {
     public static MechanicsProfile profile() {
         return MechanicsProfile.builder()
                 .set(MechanicsKeys.DAMAGE, Damage.config())
+                .set(MechanicsKeys.DEATH, Death.config())
                 .set(MechanicsKeys.PROJECTILES, Projectiles.config())
                 .set(MechanicsKeys.ATTRIBUTES, Attributes.config())
                 .set(MechanicsKeys.CONSUMABLES, Consumables.config())
                 .set(MechanicsKeys.VELOCITY, Movement.velocity())
+                .set(MechanicsKeys.ITEM_PHYSICS, io.github.term4.minestommechanics.vri.DroppedItemEntity.Model.MODERN)
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.ITEMS, Items.registry())
                 .build();
