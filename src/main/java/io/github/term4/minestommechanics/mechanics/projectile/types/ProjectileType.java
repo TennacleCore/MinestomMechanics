@@ -11,6 +11,9 @@ import net.minestom.server.entity.EntityType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Base for a projectile type in the {@code ProjectileSystem} (the analog of {@code DamageType}): identifies a
  * projectile, maps to a Minestom {@link EntityType}, optionally carries intrinsic {@link #defaultConfig() defaults},
@@ -39,7 +42,13 @@ public abstract class ProjectileType {
         this.name = name;
         this.entityType = entityType;
         this.defaultConfig = defaultConfig;
+        REGISTRY.put(key, this);
     }
+
+    private static final Map<Key, ProjectileType> REGISTRY = new ConcurrentHashMap<>();
+
+    /** The constructed type registered under {@code key} (types self-register on construction), or {@code null}. */
+    public static @Nullable ProjectileType byKey(@NotNull Key key) { return REGISTRY.get(key); }
 
     public Key key() { return key; }
     public String name() { return name; }

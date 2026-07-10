@@ -101,6 +101,7 @@ public final class Projectiles {
         return ProjectileConfig.builder(base)
                 .typeConfigs(fireball, splash, bobber, snowball, egg, pearl)
                 .shootables(new PseudoHook.Installer()) // the re-flash-on-move listener
+                .useItemAimSync(true) // MineMen launches on the CLICK-time aim (in-game: flick-throws never desync)
                 .build();
     }
 }

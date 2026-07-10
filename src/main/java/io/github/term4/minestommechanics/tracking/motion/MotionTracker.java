@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.tracking.motion;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfiles;
 import io.github.term4.minestommechanics.tracking.Tracker;
@@ -298,7 +300,7 @@ public final class MotionTracker implements Tracker {
     private static double blockSpeedFactor(Player p) {
         Instance inst = p.getInstance();
         if (inst == null) return 1.0;
-        Block below = inst.getBlock(p.getPosition().sub(0, 0.5000001, 0));
+        Block below = MechanicsWorld.viewed(p).getBlock(p.getPosition().sub(0, 0.5000001, 0));
         return below.compare(Block.SOUL_SAND) || below.compare(Block.HONEY_BLOCK) ? BLOCK_SPEED_FACTOR : 1.0;
     }
 
@@ -306,7 +308,7 @@ public final class MotionTracker implements Tracker {
     private static double blockFriction(Player p) {
         var instance = p.getInstance();
         if (instance == null) return DEFAULT_BLOCK_FRICTION;
-        return instance.getBlock(p.getPosition().sub(0, 0.5000001, 0)).registry().friction();
+        return MechanicsWorld.viewed(p).getBlock(p.getPosition().sub(0, 0.5000001, 0)).registry().friction();
     }
 
     /** At an air-&gt;ground transition, re-anchor the residual as grounded (bled to {@code now}) so the gap to the next jump bleeds by ground friction. No-op if already grounded. */
@@ -317,7 +319,7 @@ public final class MotionTracker implements Tracker {
     }
 
     private void tick(Instance instance) {
-        for (Player p : instance.getPlayers()) {
+        for (Player p : MechanicsWorld.of(instance).players()) {
             long now = TickSystem.instanceTick(p);
             // fallback, a tick behind onMove: catches status-only onGround packets (no PlayerMoveEvent)
             if (p.isOnGround()) {
@@ -434,7 +436,7 @@ public final class MotionTracker implements Tracker {
     /** Whether the bubble column at the player's feet drags DOWN (magma base, {@code drag=true}) vs up (soul-sand base). */
     private static boolean bubbleDown(Player p) {
         Instance inst = p.getInstance();
-        return inst != null && "true".equals(inst.getBlock(p.getPosition()).getProperty("drag"));
+        return inst != null && "true".equals(MechanicsWorld.viewed(p).getBlock(p.getPosition()).getProperty("drag"));
     }
 
     /**
@@ -448,7 +450,7 @@ public final class MotionTracker implements Tracker {
         if (!p.isSneaking()) {
             Instance inst = p.getInstance();
             if (inst != null) {
-                Block below = inst.getBlock(res.newPosition().sub(0, 0.5000001, 0));
+                Block below = MechanicsWorld.viewed(p).getBlock(res.newPosition().sub(0, 0.5000001, 0));
                 if (below.compare(Block.SLIME_BLOCK)) return -motY;
                 if (modernBlocks && isBed(below)) return -motY * 0.66;
             }
@@ -504,8 +506,8 @@ public final class MotionTracker implements Tracker {
 
     /** Movement env at the player's box, vanilla precedence WEB &gt; WATER &gt; LAVA &gt; LADDER &gt; HONEY. Each category gated by its toggle (a disabled medium falls through). Fluids/web use the cell-walk; climb is the feet block. */
     private static Env environmentOf(Player p, boolean fluidOn, boolean climbOn, boolean webOn, ClimbModel climbModel, boolean modernBlocks) {
-        Instance inst = p.getInstance();
-        if (inst == null) return Env.NORMAL;
+        if (p.getInstance() == null) return Env.NORMAL;
+        MechanicsWorld inst = MechanicsWorld.viewed(p);
         // web overrides fluid/normal; modern adds the 26-only stuck blocks
         if (webOn && BlockContact.touching(p, modernBlocks ? IS_WEB_MODERN : IS_WEB)) return Env.WEB;
         BoundingBox box = p.getBoundingBox();
@@ -610,9 +612,10 @@ public final class MotionTracker implements Tracker {
         var range = p.getBoundingBox().expand(PUSH_GROW, 0, PUSH_GROW);
 
         double px = 0, pz = 0;
-        for (Entity other : instance.getNearbyEntities(p.getPosition(), PUSH_QUERY_RANGE)) {
+        for (Entity other : MechanicsWorld.of(p).nearbyEntities(p.getPosition(), PUSH_QUERY_RANGE)) {
             if (other == p || !(other instanceof LivingEntity living) || living.isDead()) continue;
             if (other instanceof Player op && op.getGameMode() == GameMode.SPECTATOR) continue;
+            if (!WorldPolicy.canAffect(other, p)) continue; // no pushes across worlds you can't see into
             if (!range.intersectEntity(p.getPosition(), other)) continue;
 
             double dx = other.getPosition().x() - p.getPosition().x();
@@ -666,7 +669,7 @@ public final class MotionTracker implements Tracker {
         Instance instance = p.getInstance();
         if (instance == null) return Vec.ZERO;
         Vec mov = positionDelta(p);
-        return model.impulse(instance, p.getPosition(), p.getBoundingBox(), fluid, scale, mov.x(), mov.z());
+        return model.impulse(MechanicsWorld.viewed(p), p.getPosition(), p.getBoundingBox(), fluid, scale, mov.x(), mov.z());
     }
 
     /** One fluid-friction step for the 3D flow residual + near-zero clamp. Unlike {@link #bleedPush} this keeps Y (the falling-water down-term rides it). */

@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.platform.compatibility;
 
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.tracking.ClientVersion;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.entity.Player;
@@ -59,11 +60,10 @@ public final class ClientEye {
     }
 
     private static boolean inWater(Player player) {
-        Instance instance = player.getInstance();
-        if (instance == null) return false;
+        if (player.getInstance() == null) return false;
         Pos p = player.getPosition();
         try {
-            Block block = instance.getBlock(p.blockX(), p.blockY(), p.blockZ(), Block.Getter.Condition.TYPE);
+            Block block = MechanicsWorld.viewed(player).getBlock(p.blockX(), p.blockY(), p.blockZ(), Block.Getter.Condition.TYPE);
             return block != null && block.compare(Block.WATER);
         } catch (Exception ignored) {
             return false; // unloaded chunk

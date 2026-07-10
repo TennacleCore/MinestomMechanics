@@ -5,6 +5,7 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.util.BlockContact;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Pos;
@@ -64,9 +65,13 @@ public final class CompatMovement {
         if (to.samePoint(from)) return; // look-only change: the hitbox didn't move
         Instance instance = player.getInstance();
         if (instance == null) return;
+        MechanicsWorld world = MechanicsWorld.viewed(player); // the blocks the CLIENT renders - a spectator walks the viewed world, not the base
+        // a view-only observer (block view != binding) plays in no world the revert protects, and their client can
+        // legitimately disagree mid-resync (a rejected read-only dig they walked into) - never bounce them
+        if (collision && world != MechanicsWorld.of(player)) collision = false;
 
         // Collision restriction: reject a move that newly enters a block (revert fully to from, kill momentum).
-        if (collision && entersNewCollision(instance, player.getBoundingBox(), from, to)) {
+        if (collision && entersNewCollision(world, player.getBoundingBox(), from, to)) {
             boolean rotated = to.yaw() != from.yaw() || to.pitch() != from.pitch();
             // a non-rotating revert-to-from has no view delta to trip the early-out, so nudge the yaw one ULP (invisible)
             float yaw = rotated ? to.yaw() : Math.nextUp(from.yaw());
@@ -81,7 +86,7 @@ public final class CompatMovement {
         // swim cap only when swim-POSED (sprint + in water, the ClientEye proxy) - plain in-water stays natural (bobbing/floating).
         // Skipped for Animatium clients running old_fluid_physics: they already move at 1.8 speed natively, and the dampen would
         // fight the 1.8 current (e.g. cap the falling-water down-push). Non-Animatium modern clients keep the dampen.
-        if (c.restrictSwimSpeed() && player.isSprinting() && inWater(player, instance)
+        if (c.restrictSwimSpeed() && player.isSprinting() && inWater(player, world)
                 && !c.handlesNatively(AnimatiumFeature.OLD_FLUID_PHYSICS)) {
             dampenSwim(player, c, from, to);
             return;
@@ -118,10 +123,10 @@ public final class CompatMovement {
     }
 
     /** Whether the player's feet are in water (position-based, like {@code ClientEye.inWater}); 1.8 slows all in-water movement, so this also covers surface swimming + wading. */
-    private static boolean inWater(Player p, Instance instance) {
+    private static boolean inWater(Player p, MechanicsWorld world) {
         Pos pos = p.getPosition();
         try {
-            Block b = instance.getBlock(pos.blockX(), pos.blockY(), pos.blockZ(), Block.Getter.Condition.TYPE);
+            Block b = world.getBlock(pos.blockX(), pos.blockY(), pos.blockZ(), Block.Getter.Condition.TYPE);
             return b != null && b.compare(Block.WATER);
         } catch (Exception ignored) {
             return false; // unloaded chunk
@@ -133,13 +138,13 @@ public final class CompatMovement {
      * box already overlaps at {@code from} is ignored (so a player stuck in a block can slide out); only freshly entering a
      * block - crawling in from open ground or along a tunnel - is caught. Normal (non-colliding) movement is never affected.
      */
-    private static boolean entersNewCollision(Instance instance, BoundingBox box, Pos from, Pos to) {
+    private static boolean entersNewCollision(MechanicsWorld world, BoundingBox box, Pos from, Pos to) {
         var blocks = box.getBlocks(to);
         while (blocks.hasNext()) {
             var bp = blocks.next();
             Block block;
             try {
-                block = instance.getBlock(bp.blockX(), bp.blockY(), bp.blockZ(), Block.Getter.Condition.TYPE);
+                block = world.getBlock(bp.blockX(), bp.blockY(), bp.blockZ(), Block.Getter.Condition.TYPE);
             } catch (Exception ignored) {
                 continue; // unloaded chunk -> no collision
             }

@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem.DamageOutcome;
@@ -42,6 +43,8 @@ public final class DamageAppliedEvent implements Event {
 
     public DamageType type() { return snapshot.type(); }
     public Entity target() { return snapshot.target(); }
+    /** The victim's gameplay world. */
+    public MechanicsWorld world() { return MechanicsWorld.of(target()); }
     public @Nullable Entity source() { return snapshot.source(); }
     /** The attacker's weapon, or {@code null}. */
     public @Nullable ItemStack item() { return snapshot.item(); }

@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfigResolver;
@@ -60,6 +61,8 @@ public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot>
 
     public Entity attacker() { return finalSnap().attacker(); }
     public @Nullable Entity target() { return finalSnap().target(); }
+    /** The attacker's gameplay world. */
+    public MechanicsWorld world() { return MechanicsWorld.of(attacker()); }
 
     /** Attacker is off the ground and descending (a crit precondition). */
     public boolean attackerFalling() {

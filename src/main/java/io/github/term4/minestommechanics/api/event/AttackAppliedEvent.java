@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
 import net.minestom.server.entity.Entity;
@@ -29,4 +30,6 @@ public final class AttackAppliedEvent implements Event {
 
     public Entity attacker() { return snapshot.attacker(); }
     public @Nullable Entity target() { return snapshot.target(); }
+    /** The attacker's gameplay world. */
+    public MechanicsWorld world() { return MechanicsWorld.of(attacker()); }
 }

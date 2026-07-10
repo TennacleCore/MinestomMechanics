@@ -1,6 +1,7 @@
 package test.presets;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
@@ -12,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * {@link ExplosionExposure#seenPercent18} against minemen's measured pillar-capture values (14-14-57): at
+ * {@link ExplosionExposure#seenPercent18FullCube} against minemen's measured pillar-capture values (14-14-57): at
  * their exact pillar-frame geometries the port reproduces the k/27 readings ray-for-ray (5 exact, others
  * within one ray; two cliff-edge cases excluded - sub-wire feet drift flips layers there).
  */
@@ -37,7 +38,7 @@ class Mmc18FireballExposureTest extends HeadlessServerTest {
         for (double[] c : cases) {
             tnt.teleport(new Pos(5 + c[0], 65, 5 + c[1])).join();
             Vec center = new Vec(5 + c[2], 64 + c[3], 5 + c[4]);
-            float e = ExplosionExposure.seenPercent18(instance, center, tnt);
+            float e = ExplosionExposure.seenPercent18FullCube(MechanicsWorld.of(instance), center, tnt);
             assertEquals(c[5], e, 1.05 / 27.0, "k/27 within one ray of the minemen reading");
         }
         tnt.remove();

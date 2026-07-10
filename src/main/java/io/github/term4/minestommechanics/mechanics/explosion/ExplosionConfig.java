@@ -131,7 +131,6 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
         public Builder knockbackTargets(Predicate<Entity> v) { knockbackTargets = v; return this; }
         public Builder pushEye(Function<Entity, Double> v) { pushEye = v; return this; }
 
-
         public ExplosionConfig build() { return new ExplosionConfig(this); }
     }
 }

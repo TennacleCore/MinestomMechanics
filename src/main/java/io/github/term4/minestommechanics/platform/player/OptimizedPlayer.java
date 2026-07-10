@@ -1,5 +1,8 @@
 package io.github.term4.minestommechanics.platform.player;
 
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.compatibility.CompatState;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyEquipmentFix;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyViewDistanceFix;
@@ -10,6 +13,7 @@ import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.entity.Metadata;
 import net.minestom.server.entity.Player;
+import net.minestom.server.network.packet.client.ClientPacket;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.play.EntityAttributesPacket;
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket;
@@ -33,6 +37,7 @@ public class OptimizedPlayer extends Player {
     private int positionBroadcastInterval = 1;
     private boolean selfPlacing = false;
     private final CompatState compat = new CompatState();
+    private final UseItemAimSync aimSync = new UseItemAimSync();
 
     public OptimizedPlayer(PlayerConnection connection, GameProfile gameProfile) {
         super(connection, gameProfile);
@@ -181,6 +186,20 @@ public class OptimizedPlayer extends Player {
     @Override
     public void refreshSettings(@NotNull ClientSettings settings) {
         super.refreshSettings(LegacyViewDistanceFix.clamp(getInstance(), settings));
+    }
+
+    // use-item aim sync (see UseItemAimSync); runs on the connection's read thread
+    @Override
+    public void addPacketToQueue(ClientPacket packet) {
+        aimSync.intercept(packet, this::useItemAimSyncEnabled, super::addPacketToQueue);
+    }
+
+    /** {@link ProjectileConfig#useItemAimSync} + a legacy client (a modern use packet already carries the click aim). */
+    private boolean useItemAimSyncEnabled() {
+        MinestomMechanics mm = MinestomMechanics.getInstance();
+        if (!mm.isInitialized() || !mm.clientInfo().isLegacy(this)) return false;
+        ProjectileConfig cfg = mm.profiles().resolve(this, MechanicsKeys.PROJECTILES);
+        return cfg != null && Boolean.TRUE.equals(cfg.useItemAimSync);
     }
 
     /** Armed by {@code SelfPlacementFix} while this player's own placement is processed; lets a passable block into their body. */

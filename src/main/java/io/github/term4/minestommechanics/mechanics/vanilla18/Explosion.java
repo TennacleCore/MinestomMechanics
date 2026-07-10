@@ -15,7 +15,7 @@ public final class Explosion {
                 .damageConstant(8.0)
                 .floorDamage(true)
                 .knockbackMultiplier(1.0)
-                .exposure(ExplosionExposure.Rays.LEGACY_1_8) // 1.8 rayTraceBlocks, not the modern clip - block-edge shadows differ
+                .exposure(ExplosionExposure.Rays.LEGACY_1_8) // faithful 1.8 rayTraceBlocks (block-real shape, pushes off-flat); servers override to LEGACY_1_8_FULL_CUBE
                 .build();
     }
 }

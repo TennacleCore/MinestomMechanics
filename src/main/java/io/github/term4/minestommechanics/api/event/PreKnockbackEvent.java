@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
@@ -26,4 +27,6 @@ public final class PreKnockbackEvent extends CancellableMechanicsEvent<Knockback
 
     public @Nullable Entity source() { return finalSnap().source(); }
     public @Nullable Entity target() { return finalSnap().target(); }
+    /** The victim's gameplay world. */
+    public MechanicsWorld world() { return MechanicsWorld.of(target()); }
 }

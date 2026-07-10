@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.damage.DamageType;
@@ -30,6 +31,8 @@ public final class BlockingDamageEvent implements CancellableEvent {
     }
 
     public Player defender() { return defender; }
+    /** The defender's gameplay world. */
+    public MechanicsWorld world() { return MechanicsWorld.of(defender()); }
     public @Nullable Entity attacker() { return attacker; }
     /** Incoming damage before the block. */
     public float originalAmount() { return originalAmount; }

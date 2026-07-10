@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.types;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
@@ -63,7 +64,7 @@ public abstract class ThrowableItemType extends ProjectileType {
     private void throwItem(Player p, PlayerHand hand, ItemStack item) {
         if (item.material() != material || system == null) return;
         Instance instance = p.getInstance();
-        long age = instance != null ? instance.getWorldAge() : 0;
+        long age = instance != null ? MechanicsWorld.of(p).worldAge() : 0;
         Long last = p.getTag(LAST_THROW_AGE);
         if (last != null && last == age) return; // the same click's second packet
         p.setTag(LAST_THROW_AGE, age);

@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
@@ -9,6 +10,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigRe
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedFlight;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.arrow.ArrowEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.FishingBobberEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.shootables.Shootable;
@@ -30,6 +32,12 @@ import io.github.term4.minestommechanics.util.Directions;
 import io.github.term4.minestommechanics.item.Enchants;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.kyori.adventure.key.Key;
+import net.kyori.adventure.nbt.BinaryTagTypes;
+import net.kyori.adventure.nbt.CompoundBinaryTag;
+import net.kyori.adventure.nbt.DoubleBinaryTag;
+import net.kyori.adventure.nbt.ListBinaryTag;
+import net.minestom.server.MinecraftServer;
+import net.minestom.server.codec.Transcoder;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
@@ -39,12 +47,14 @@ import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.entity.EntityAttackEvent;
 import net.minestom.server.instance.Instance;
+import net.minestom.server.item.ItemStack;
 import net.minestom.server.network.NetworkBuffer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -120,11 +130,12 @@ public final class ProjectileSystem implements MechanicsModule {
         ProjectileLaunchEvent event = new ProjectileLaunchEvent(working, entity, flight, spawnPos, velocity);
         EventDispatcher.call(event);
         if (event.isCancelled()) return null;
-        if (event.behavior() != null && entity instanceof ManagedProjectile mp) mp.setBehavior(event.behavior());
+        ProjectileBehavior behavior = event.behavior();
+        if (behavior != null && entity instanceof ManagedProjectile mp) mp.setBehavior(behavior);
+        stampWorldSeams(entity, working, effectiveConfig, flight, behavior);
 
-        // Wire lockstep: snap the spawn state onto what the predicting client decodes (per WireGrid). Server-
-        // authoritative projectiles (fireball) keep FULL precision - the 1/32 truncation would offset a straight-down
-        // explosion from the thrower's x/z, leaking horizontal knockback.
+        // wire lockstep: snap the spawn state onto what the predicting client decodes (per WireGrid); server-
+        // authoritative projectiles (fireball) keep full precision - the 1/32 truncation leaked horizontal KB
         Vec spawnVel = event.velocity();
         Pos spawnAt = event.spawnPos().withView(Directions.yaw(spawnVel), Directions.pitch(spawnVel));
         boolean lockstep = flight.wireLockstep() != null ? flight.wireLockstep() : flight.velocitySyncInterval() <= 0;
@@ -135,7 +146,66 @@ public final class ProjectileSystem implements MechanicsModule {
         }
         entity.setVelocityBt(spawnVel);
         entity.setSpawnPosition(spawnAt);
-        entity.setInstance(instance, spawnAt);
+        MechanicsWorld.of(shooter).spawn(entity, spawnAt);
+        return entity;
+    }
+
+    /**
+     * World-system seams: the fork copy + save descriptor stamps, with the CURRENT velocity read at copy/save time.
+     * Bobbers get no DEFAULT stamps (a forked/saved copy is an orphan - the rod tracks ITS instance); move a live
+     * bobber cross-world instead, or a game with re-attach logic stamps its own.
+     */
+    private void stampWorldSeams(ProjectileEntity entity, ProjectileSnapshot working, ProjectileTypeConfig effectiveConfig,
+                                 ResolvedFlight flight, @Nullable ProjectileBehavior behavior) {
+        if (entity instanceof FishingBobberEntity) return;
+        Entity shooter = working.shooter();
+        entity.setTag(MechanicsWorld.ENTITY_COPY, () -> {
+            ProjectileEntity copy = working.type().createEntity(shooter, working, effectiveConfig);
+            stampFlight(copy, flight, working);
+            if (behavior != null && copy instanceof ManagedProjectile mp) mp.setBehavior(behavior);
+            stampWorldSeams(copy, working, effectiveConfig, flight, behavior);
+            copy.setVelocityBt(entity.velocityBt());
+            copy.setSpawnPosition(entity.getPosition());
+            return copy;
+        });
+        entity.setTag(MechanicsWorld.ENTITY_SAVE, () -> {
+            Vec vel = entity.velocityBt();
+            CompoundBinaryTag.Builder out = CompoundBinaryTag.builder().putString("id", "mm:projectile")
+                    .putString("type", working.type().key().asString())
+                    .putDouble("power", working.power())
+                    .put("vel", ListBinaryTag.builder(BinaryTagTypes.DOUBLE)
+                            .add(DoubleBinaryTag.doubleBinaryTag(vel.x()))
+                            .add(DoubleBinaryTag.doubleBinaryTag(vel.y()))
+                            .add(DoubleBinaryTag.doubleBinaryTag(vel.z())).build());
+            if (working.item() != null) out.put("item", ItemStack.CODEC.encode(Transcoder.NBT, working.item()).orElseThrow());
+            if (shooter != null) out.putString("shooter", shooter.getUuid().toString());
+            return out.build();
+        });
+    }
+
+    /**
+     * Rebuilds a saved projectile - the load-side reviver for {@code "mm:projectile"} descriptors. The launch
+     * build path minus the event and spawn, resolved against the shooter's (or global) profile; the shooter
+     * re-links when still online. {@code null} if the type key is unknown to this server.
+     */
+    public @Nullable ProjectileEntity fromSave(@NotNull CompoundBinaryTag data) {
+        ProjectileType type = ProjectileType.byKey(Key.key(data.getString("type")));
+        if (type == null) return null;
+        String uuid = data.getString("shooter");
+        Entity shooter = uuid.isEmpty() ? null
+                : MinecraftServer.getConnectionManager().getOnlinePlayerByUuid(UUID.fromString(uuid));
+        ItemStack item = data.get("item") != null
+                ? ItemStack.CODEC.decode(Transcoder.NBT, data.get("item")).orElseThrow() : null;
+        ProjectileSnapshot snap = new ProjectileSnapshot(shooter, type, item, data.getDouble("power"),
+                null, null, configFor(shooter), null);
+        ProjectileContext ctx = ProjectileContext.of(snap, services);
+        ProjectileTypeConfig effectiveConfig = ctx.typeConfig();
+        ResolvedFlight flight = ProjectileConfigResolver.resolveFlight(effectiveConfig, ctx);
+        ProjectileEntity entity = type.createEntity(shooter, snap, effectiveConfig);
+        stampFlight(entity, flight, snap);
+        stampWorldSeams(entity, snap, effectiveConfig, flight, null);
+        ListBinaryTag vel = data.getList("vel", BinaryTagTypes.DOUBLE);
+        if (vel.size() == 3) entity.setVelocityBt(new Vec(vel.getDouble(0), vel.getDouble(1), vel.getDouble(2)));
         return entity;
     }
 
@@ -172,9 +242,8 @@ public final class ProjectileSystem implements MechanicsModule {
         entity.setBroadcastMovement(flight.broadcastMovement());
         entity.setSynchronizationTicks(TickScaler.duration(flight.syncInterval(), KEY));
         entity.setVelocitySyncInterval(TickScaler.duration(flight.velocitySyncInterval(), KEY));
-        // Minestom seeds nextSynchronizationTick from the DEFAULT interval (20) and setSynchronizationTicks doesn't reset it,
-        // so a denser cadence stays silent until tick 20 (the fireball froze for ~1s, then snapped downrange). Kick the first
-        // sync now for per-tick-velocity projectiles so the client sees them move from spawn (vanilla/Hypixel parity).
+        // Minestom seeds nextSynchronizationTick at 20 and setSynchronizationTicks doesn't reset it - a denser
+        // cadence would stay silent until tick 20 (the fireball froze ~1s, then snapped downrange)
         if (flight.velocitySyncInterval() > 0) entity.synchronizeNextTick();
         entity.setShooterImmunityTicks(TickScaler.duration(flight.shooterImmunityTicks(), KEY));
         entity.setEntityHitGrow(flight.entityHitGrow());

@@ -15,8 +15,7 @@ public final class ExplosionCalculator {
 
     /** Vanilla effect on one entity, or {@code null} if outside the {@code 2·power} radius. */
     public static @Nullable Hit compute(@NotNull Point center, float power, @NotNull Point eyeOrigin, double distance,
-                                        float exposure, double damageConstant, boolean floorDamage,
-                                        double knockbackMultiplier, double knockbackReduction) {
+                                        float exposure, double damageConstant, boolean floorDamage, double knockbackMultiplier) {
         final double doubleRadius = power * 2.0;
         if (doubleRadius <= 0.0) return null;
         final double dist = normalizedDistance(distance, doubleRadius);
@@ -32,8 +31,7 @@ public final class ExplosionCalculator {
         final double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
         // point-blank (eye AT center = no direction): push straight UP, not nowhere (Hypixel; vanilla skips)
         final Vec dir = len < 1.0e-7 ? new Vec(0, 1, 0) : new Vec(dx / len, dy / len, dz / len);
-        final Vec knockback = dir.mul(impact * knockbackMultiplier * (1.0 - knockbackReduction));
-        return new Hit(knockback, damage);
+        return new Hit(dir.mul(impact * knockbackMultiplier), damage);
     }
 
     /** The falloff impact {@code (1 − dist/2power)·exposure} (0 outside the radius): the KB magnitude, and what Hypixel gates on. */

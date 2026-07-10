@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import net.minestom.server.coordinate.Vec;
@@ -34,4 +35,6 @@ public final class KnockbackAppliedEvent implements Event {
 
     public @Nullable Entity source() { return snapshot.source(); }
     public @Nullable Entity target() { return snapshot.target(); }
+    /** The victim's gameplay world. */
+    public MechanicsWorld world() { return MechanicsWorld.of(target()); }
 }

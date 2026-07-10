@@ -29,14 +29,14 @@ class ExplosionTest extends HeadlessServerTest {
     @Test
     void calculatorFallsOffWithDistance() {
         Point center = new Vec(0, 0, 0);
-        ExplosionCalculator.Hit near = ExplosionCalculator.compute(center, 4f, new Vec(1, 0, 0), 1.0, 1.0f, 8.0, true, 1.0, 0.0);
-        ExplosionCalculator.Hit far = ExplosionCalculator.compute(center, 4f, new Vec(5, 0, 0), 5.0, 1.0f, 8.0, true, 1.0, 0.0);
+        ExplosionCalculator.Hit near = ExplosionCalculator.compute(center, 4f, new Vec(1, 0, 0), 1.0, 1.0f, 8.0, true, 1.0);
+        ExplosionCalculator.Hit far = ExplosionCalculator.compute(center, 4f, new Vec(5, 0, 0), 5.0, 1.0f, 8.0, true, 1.0);
         assertNotNull(near);
         assertNotNull(far);
         assertTrue(near.knockback().length() > far.knockback().length(), "closer knockback should be stronger");
         assertTrue(near.damage() > far.damage(), "closer damage should be higher");
         // outside 2*power (8) -> no hit
-        assertNull(ExplosionCalculator.compute(center, 4f, new Vec(9, 0, 0), 9.0, 1.0f, 8.0, true, 1.0, 0.0));
+        assertNull(ExplosionCalculator.compute(center, 4f, new Vec(9, 0, 0), 9.0, 1.0f, 8.0, true, 1.0));
     }
 
     @Test

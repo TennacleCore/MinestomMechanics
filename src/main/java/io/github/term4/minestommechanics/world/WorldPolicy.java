@@ -1,0 +1,59 @@
+package io.github.term4.minestommechanics.world;
+
+import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.Player;
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * Cross-world gameplay rules, globally pluggable. The default gates everything to the actor's own world; override
+ * to open specific reaches - e.g. staff hitting or building into a game they observe - and delegate back to
+ * {@link #SAME_WORLD} for everyone else. A view layer governs what a player SEES; this governs what they DO.
+ */
+public interface WorldPolicy {
+
+    WorldPolicy SAME_WORLD = new WorldPolicy() {};
+
+    /**
+     * Whether {@code actor}'s gameplay effects reach {@code target} (melee, projectiles, splash, explosions,
+     * pushes, pickup, item merging). {@code actor} = the acting ENTITY, not its shooter. Bindings only - an actor may be
+     * legitimately world-less (a fireball removes itself pre-detonate).
+     */
+    default boolean affects(@NotNull Entity actor, @NotNull Entity target) {
+        return MechanicsWorld.binding(actor) == MechanicsWorld.binding(target);
+    }
+
+    /** Whether {@code player} may edit blocks of a world they view without belonging to it (staff build mode). */
+    default boolean edits(@NotNull Player player, @NotNull MechanicsWorld viewed) {
+        return false;
+    }
+
+    /**
+     * Whether {@code viewer}'s client renders {@code world}'s BLOCKS - the per-viewer filter for block-anchored
+     * FX (crack overlays). A view layer re-points this at its own block-view state.
+     */
+    default boolean seesBlocksOf(@NotNull Player viewer, @NotNull MechanicsWorld world) {
+        return MechanicsWorld.binding(viewer) == null && viewer.getInstance() == world.instance();
+    }
+
+    static boolean canAffect(@NotNull Entity actor, @NotNull Entity target) {
+        return Holder.POLICY.affects(actor, target);
+    }
+
+    static boolean canEdit(@NotNull Player player, @NotNull MechanicsWorld viewed) {
+        return Holder.POLICY.edits(player, viewed);
+    }
+
+    static boolean seesBlocks(@NotNull Player viewer, @NotNull MechanicsWorld world) {
+        return Holder.POLICY.seesBlocksOf(viewer, world);
+    }
+
+    static @NotNull WorldPolicy get() { return Holder.POLICY; }
+
+    /** Replaces the rules server-wide. */
+    static void set(@NotNull WorldPolicy policy) { Holder.POLICY = policy; }
+
+    final class Holder {
+        private static volatile WorldPolicy POLICY = SAME_WORLD;
+        private Holder() {}
+    }
+}

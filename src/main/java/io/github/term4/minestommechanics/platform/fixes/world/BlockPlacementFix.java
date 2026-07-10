@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.platform.fixes.world;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.MinecraftServer;
-import net.minestom.server.collision.CollisionUtils;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
@@ -145,7 +145,7 @@ public final class BlockPlacementFix {
         final ItemBlockState blockState = usedItem.get(DataComponents.BLOCK_STATE, ItemBlockState.EMPTY);
         final Block placedBlock = blockState.apply(useMaterial.block());
 
-        Entity collisionEntity = CollisionUtils.canPlaceBlockAt(instance, placementPosition, placedBlock);
+        Entity collisionEntity = canPlaceBlockAt(instance, placementPosition, placedBlock, player);
         if (collisionEntity != null) {
             // FIX: send a targeted block change (not a chunk resend) so the colliding entity stays in the client's
             // per-chunk index and remains interactable. Ack regardless so the client's prediction sequence resolves.
@@ -176,6 +176,25 @@ public final class BlockPlacementFix {
         } else {
             player.getInventory().update();
         }
+    }
+
+    /** {@code CollisionUtils.canPlaceBlockAt} scoped to the placer's world: an entity in a different world is
+     *  invisible to the placer and never blocks their placement. */
+    private static Entity canPlaceBlockAt(Instance instance, Point blockPos, Block b, Player placer) {
+        for (Entity entity : instance.getNearbyEntities(blockPos, 3)) {
+            if (!entity.preventBlockPlacement()) continue;
+            if (entity.getTag(MechanicsWorld.ENTITY_TAG) != placer.getTag(MechanicsWorld.ENTITY_TAG)) continue;
+            final boolean intersects;
+            if (entity instanceof Player) {
+                // nudged off the block edge like upstream (a player exactly on the boundary would false-intersect)
+                Point playerPos = entity.getPosition().add(entity.getPosition().sub(blockPos).mul(0.0000001));
+                intersects = b.registry().collisionShape().intersectBox(playerPos.sub(blockPos), entity.getBoundingBox());
+            } else {
+                intersects = b.registry().collisionShape().intersectBox(entity.getPosition().sub(blockPos), entity.getBoundingBox());
+            }
+            if (intersects) return entity;
+        }
+        return null;
     }
 
     /** FIX: corrects a cancelled placement with a targeted block change (+ ack) instead of resending the whole chunk. */

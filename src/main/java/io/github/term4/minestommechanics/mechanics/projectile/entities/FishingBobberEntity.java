@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
@@ -193,10 +195,11 @@ public class FishingBobberEntity extends ManagedProjectile {
     private double waterSurface(double x, double y, double z) {
         Instance instance = getInstance();
         if (instance == null) return Double.NEGATIVE_INFINITY;
+        MechanicsWorld world = MechanicsWorld.of(this);
         int bx = (int) Math.floor(x), by = (int) Math.floor(y), bz = (int) Math.floor(z);
-        Block block = instance.getBlock(bx, by, bz);
+        Block block = world.getBlock(bx, by, bz);
         if (!block.compare(Block.WATER)) return Double.NEGATIVE_INFINITY;
-        if (instance.getBlock(bx, by + 1, bz).compare(Block.WATER)) return by + 1;
+        if (world.getBlock(bx, by + 1, bz).compare(Block.WATER)) return by + 1;
         String level = block.getProperty("level");
         int lvl = level != null ? Integer.parseInt(level) : 0;
         if (lvl >= 8) lvl = 0;
@@ -232,7 +235,8 @@ public class FishingBobberEntity extends ManagedProjectile {
 
     private boolean hookedValid() {
         return hooked != null && !hooked.isRemoved() && hooked.getInstance() == getInstance()
-                && !(hooked instanceof LivingEntity living && living.isDead());
+                && !(hooked instanceof LivingEntity living && living.isDead())
+                && WorldPolicy.canAffect(this, hooked); // a target that left the bobber's world slips the line
     }
 
     /** Holds the bobber at {@code target}; on a silent wire a changed pin is pushed explicitly - the 1.8 client has
@@ -267,6 +271,7 @@ public class FishingBobberEntity extends ManagedProjectile {
     private boolean shouldStopFishing() {
         Entity owner = getShooter();
         if (owner == null || owner.isRemoved()) return true;
+        if (!WorldPolicy.canAffect(this, owner)) return true; // the angler left this world: the line dies with it (vanilla cross-dimension parity)
         if (owner instanceof LivingEntity living) {
             if (living.isDead()) return true;
             if (!holdsRod(living)) return true;

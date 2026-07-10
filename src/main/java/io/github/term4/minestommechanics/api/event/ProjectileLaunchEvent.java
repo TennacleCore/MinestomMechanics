@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileBehavior;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedFlight;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
@@ -42,6 +43,8 @@ public class ProjectileLaunchEvent implements CancellableEvent {
 
     /** The built projectile entity (not yet in the world) - a typed handle for physics, velocity, behavior, cosmetics. */
     public @NotNull ProjectileEntity projectile() { return projectile; }
+    /** The world the projectile launches into (the shooter's). */
+    public MechanicsWorld world() { return MechanicsWorld.of(snapshot.shooter()); }
 
     public @NotNull Pos spawnPos() { return spawnPos; }
     public void setSpawnPos(@NotNull Pos pos) { this.spawnPos = pos; }

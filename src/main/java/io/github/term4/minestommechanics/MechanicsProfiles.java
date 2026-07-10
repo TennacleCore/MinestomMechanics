@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
@@ -7,10 +8,10 @@ import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Scoped {@link MechanicsProfile} registry: assign profiles per player, per instance (world), or globally, and swap
- * them at runtime (configs are immutable, so a swap takes effect on the next hit; the {@code player} platform member
- * is pushed by {@code PlayerConfigApplier} on change). Resolution is per <em>member</em>, highest scope first:
- * <pre>player profile -> instance profile -> global profile -> the system's install config</pre>
+ * Scoped {@link MechanicsProfile} registry: assign profiles per player, per world (a virtual game world), per instance, or globally,
+ * and swap them at runtime (configs are immutable, so a swap takes effect on the next hit; the {@code player} platform
+ * member is pushed by {@code PlayerConfigApplier} on change). Resolution is per <em>member</em>, highest scope first:
+ * <pre>player profile -> world profile -> instance profile -> global profile -> the system's install config</pre>
  * so a partial profile (e.g. knockback only) overrides just that system. Resolve a single member with {@link #resolve};
  * a hit reading several members should use {@link #resolved} to walk the scopes once.
  *
@@ -45,6 +46,17 @@ public final class MechanicsProfiles {
     }
     public @Nullable MechanicsProfile global() { return global; }
 
+    /** Re-fires the change hook (the player platform push) - call after moving a player between worlds. */
+    public void refresh() { changed(); }
+
+    /** Sets (or with {@code null} clears) the profile for a world - per-game mechanics (above instance scope). */
+    public void setWorld(MechanicsWorld world, @Nullable MechanicsProfile profile) {
+        if (profile == null) world.removeTag(PROFILE);
+        else world.setTag(PROFILE, profile);
+        changed();
+    }
+    public @Nullable MechanicsProfile world(MechanicsWorld world) { return world.getTag(PROFILE); }
+
     /** Sets (or with {@code null} clears) the profile for an instance (world/dimension). */
     public void setInstance(Instance instance, @Nullable MechanicsProfile profile) {
         if (profile == null) instance.removeTag(PROFILE);
@@ -62,8 +74,8 @@ public final class MechanicsProfiles {
     public @Nullable MechanicsProfile player(Player player) { return player.getTag(PROFILE); }
 
     /**
-     * The effective value of {@code key} for {@code subject}: player scope, else instance scope, else global, else
-     * {@code null}. For a hit that reads several members, prefer {@link #resolved} (one scope walk for all keys).
+     * The effective value of {@code key} for {@code subject}: player scope, else world, else instance, else global,
+     * else {@code null}. For a hit that reads several members, prefer {@link #resolved} (one scope walk for all keys).
      */
     public <C> @Nullable C resolve(@Nullable Entity subject, ConfigKey<C> key) {
         if (subject != null) {
@@ -73,7 +85,9 @@ public final class MechanicsProfiles {
             }
             Instance in = subject.getInstance();
             if (in != null) {
-                C v = memberOf(in.getTag(PROFILE), key);
+                C v = memberOf(MechanicsWorld.of(subject).getTag(PROFILE), key);
+                if (v != null) return v;
+                v = memberOf(in.getTag(PROFILE), key);
                 if (v != null) return v;
             }
         }
@@ -85,35 +99,43 @@ public final class MechanicsProfiles {
     }
 
     /**
-     * Captures {@code subject}'s resolution scopes (player / instance / global) once, then answers any key off that
-     * snapshot. Use it when a single hit reads several members, to avoid re-walking the scopes per member.
+     * Captures {@code subject}'s resolution scopes (player / world / instance / global) once, then answers any key off
+     * that snapshot. Use it when a single hit reads several members, to avoid re-walking the scopes per member.
      */
     public Resolved resolved(@Nullable Entity subject) {
         MechanicsProfile player = subject instanceof Player p ? p.getTag(PROFILE) : null;
+        MechanicsProfile world = null;
         MechanicsProfile instance = null;
         if (subject != null) {
             Instance in = subject.getInstance();
-            if (in != null) instance = in.getTag(PROFILE);
+            if (in != null) {
+                world = MechanicsWorld.of(subject).getTag(PROFILE);
+                instance = in.getTag(PROFILE);
+            }
         }
-        return new Resolved(player, instance, global);
+        return new Resolved(player, world, instance, global);
     }
 
-    /** A one-shot resolution view over fixed player / instance / global scopes; resolve any key with {@link #get}. */
+    /** A one-shot resolution view over fixed player / world / instance / global scopes; resolve any key with {@link #get}. */
     public static final class Resolved {
         private final @Nullable MechanicsProfile player;
+        private final @Nullable MechanicsProfile world;
         private final @Nullable MechanicsProfile instance;
         private final @Nullable MechanicsProfile global;
 
-        private Resolved(@Nullable MechanicsProfile player, @Nullable MechanicsProfile instance, @Nullable MechanicsProfile global) {
+        private Resolved(@Nullable MechanicsProfile player, @Nullable MechanicsProfile world,
+                         @Nullable MechanicsProfile instance, @Nullable MechanicsProfile global) {
             this.player = player;
+            this.world = world;
             this.instance = instance;
             this.global = global;
         }
 
-        /** The effective value of {@code key}: player, else instance, else global; {@code null} if no scope sets it. */
+        /** The effective value of {@code key}: player, else world, else instance, else global; {@code null} if no scope sets it. */
         public <C> @Nullable C get(ConfigKey<C> key) {
             C v;
             if (player != null && (v = player.get(key)) != null) return v;
+            if (world != null && (v = world.get(key)) != null) return v;
             if (instance != null && (v = instance.get(key)) != null) return v;
             return global != null ? global.get(key) : null;
         }

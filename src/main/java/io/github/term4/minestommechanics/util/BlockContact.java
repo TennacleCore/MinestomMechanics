@@ -1,11 +1,11 @@
 package io.github.term4.minestommechanics.util;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.collision.Shape;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
-import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.instance.block.BlockFace;
 import net.minestom.server.world.DimensionType;
@@ -45,24 +45,24 @@ public final class BlockContact {
 
     /** Visits overlapped cells until {@code visitor} returns {@code true}. */
     public static boolean scan(Entity entity, double inset, Predicate<Block> visitor) {
-        Instance instance = entity.getInstance();
-        if (instance == null) return false;
-        return scanCells(instance, entity.getPosition(), entity.getBoundingBox(), inset, visitor);
+        if (entity.getInstance() == null) return false;
+        // the blocks PHYSICALLY around the entity: a spectator's contacts follow the viewed world, not the base
+        return scanCells(MechanicsWorld.viewed(entity), entity.getPosition(), entity.getBoundingBox(), inset, visitor);
     }
 
     /** Cell walk with vanilla inset. */
-    public static boolean scan(Instance instance, Point position, BoundingBox box, Predicate<Block> visitor) {
-        return scanCells(instance, position, box, VANILLA_INSET, visitor);
+    public static boolean scan(MechanicsWorld world, Point position, BoundingBox box, Predicate<Block> visitor) {
+        return scanCells(world, position, box, VANILLA_INSET, visitor);
     }
 
     /**
      * Visits each block cell overlapped by {@code box} at {@code position} (after {@code inset}),
      * until {@code visitor} returns {@code true}.
      */
-    public static boolean scanCells(Instance instance, Point position, BoundingBox box,
+    public static boolean scanCells(MechanicsWorld world, Point position, BoundingBox box,
                                     double inset, Predicate<Block> visitor) {
         if (inset > 0) box = inset(box, inset);
-        DimensionType dim = instance.getCachedDimensionType();
+        DimensionType dim = world.dimension();
         int minY = dim.minY();
         int maxY = dim.minY() + dim.height() - 1;
 
@@ -71,8 +71,8 @@ public final class BlockContact {
             var p = it.next();
             int x = p.blockX(), y = p.blockY(), z = p.blockZ();
             if (y < minY || y > maxY) continue;
-            if (!instance.isChunkLoaded(x >> 4, z >> 4)) continue;
-            Block block = instance.getBlock(x, y, z, Block.Getter.Condition.TYPE);
+            if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
+            Block block = world.getBlock(x, y, z, Block.Getter.Condition.TYPE);
             if (block != null && visitor.test(block)) return true;
         }
         return false;
@@ -99,15 +99,14 @@ public final class BlockContact {
      * contacted {@link BlockFace} (shallowest-axis separation).
      */
     public static boolean scanShapes(Entity entity, double inset, Predicate<BlockContactHit> visitor) {
-        Instance instance = entity.getInstance();
-        if (instance == null) return false;
-        return scanShapes(instance, entity.getPosition(), entity.getBoundingBox(), inset, visitor);
+        if (entity.getInstance() == null) return false;
+        return scanShapes(MechanicsWorld.viewed(entity), entity.getPosition(), entity.getBoundingBox(), inset, visitor);
     }
 
-    public static boolean scanShapes(Instance instance, Point position, BoundingBox box,
+    public static boolean scanShapes(MechanicsWorld world, Point position, BoundingBox box,
                                      double inset, Predicate<BlockContactHit> visitor) {
         if (inset > 0) box = inset(box, inset);
-        DimensionType dim = instance.getCachedDimensionType();
+        DimensionType dim = world.dimension();
         int minY = dim.minY();
         int maxY = dim.minY() + dim.height() - 1;
 
@@ -123,9 +122,9 @@ public final class BlockContact {
             var p = it.next();
             int x = p.blockX(), y = p.blockY(), z = p.blockZ();
             if (y < minY || y > maxY) continue;
-            if (!instance.isChunkLoaded(x >> 4, z >> 4)) continue;
+            if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
 
-            Block block = instance.getBlock(x, y, z, Block.Getter.Condition.TYPE);
+            Block block = world.getBlock(x, y, z, Block.Getter.Condition.TYPE);
             if (block == null || block.isAir()) continue;
 
             Point blockOrigin = new Vec(x, y, z);

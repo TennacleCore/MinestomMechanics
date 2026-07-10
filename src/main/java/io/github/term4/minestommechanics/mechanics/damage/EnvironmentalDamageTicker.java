@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import net.minestom.server.entity.Entity;
@@ -44,7 +45,7 @@ public final class EnvironmentalDamageTicker {
     private void tickInstance(Instance instance) {
         DamageSystem sys = this.system;
         if (sys == null || producers.isEmpty()) return;
-        for (Entity entity : instance.getEntities()) {
+        for (Entity entity : MechanicsWorld.of(instance).entities()) {
             if (!(entity instanceof LivingEntity living)) continue;
             if (DamageProducers.exempt(living)) continue;
             for (EnvironmentalTickProducer producer : producers) producer.tick(living, sys);

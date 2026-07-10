@@ -25,10 +25,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Generic config-driven projectile. Hit knobs resolve at impact against a {@link ProjectileContext} (struck target +
- * throw origin). On an entity hit it applies the resolved damage ({@link DamageSystem}) + knockback ({@link KnockbackSystem})
- * then removes per {@code removeOnEntityHit}; a self-hit may pass through or deflect. Block hits remove per
- * {@code removeOnBlockHit}. Both fire the cancellable {@link ProjectileHitEvent}. Egg/pearl override {@link #onImpact}.
+ * Generic config-driven projectile: hit knobs resolve at impact against a {@link ProjectileContext}; entity/block hits
+ * apply the resolved damage + knockback, fire the cancellable {@link ProjectileHitEvent}, and remove per the
+ * {@code removeOn*} knobs. Egg/pearl override {@link #onImpact}.
  */
 public class ManagedProjectile extends ProjectileEntity {
 
@@ -168,7 +167,7 @@ public class ManagedProjectile extends ProjectileEntity {
     @Override
     protected void updateProjectile(long time) {
         super.updateProjectile(time);
-        if (!spawned) { spawned = true; behavior.onSpawn(this); } // first tick in the world
+        if (!spawned) { spawned = true; behavior.onSpawn(this); }
         behavior.onTick(this, time);
     }
 
@@ -178,16 +177,11 @@ public class ManagedProjectile extends ProjectileEntity {
         super.remove();
     }
 
-    /**
-     * The damage to deal to {@code target} on an entity hit. Default: the resolved config {@code damage} (a flat
-     * amount). Arrows override this to compute vanilla velocity-based damage ({@code ceil(speed * 2) + crit}).
-     */
+    /** Damage for an entity hit; arrows override with vanilla velocity-based damage ({@code ceil(speed * 2) + crit}). */
     protected float hitDamage(ResolvedHit hit, @NotNull Entity target) { return (float) hit.damage(); }
 
-    /**
-     * Bounces off an entity it may not damage (no damage/KB/break): the {@link ProjectileTypeConfig.Deflect} knob transforms
-     * the velocity (1.8 {@code *-0.1}; 26.1 {@code *-0.5} + a small turn), then re-arms shooter immunity so the bounced arrow can't instantly re-hit the shooter.
-     */
+    /** Bounces off an entity it may not damage: apply the {@link ProjectileTypeConfig.Deflect}, then re-arm shooter
+     *  immunity so the bounced arrow can't instantly re-hit the shooter. */
     protected void deflect(ProjectileTypeConfig.Deflect d) {
         setVelocityBt(applyDeflect(d, velocityBt));
         rearmShooterImmunity();

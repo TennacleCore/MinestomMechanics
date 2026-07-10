@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
@@ -45,7 +46,7 @@ public class ExplosionEvent implements CancellableEvent {
         public void setDamage(float damage) { this.damage = damage; }
     }
 
-    private final Instance instance;
+    private final MechanicsWorld world;
     private final Point center;
     private final float power;
     private final @Nullable Entity source;
@@ -53,9 +54,9 @@ public class ExplosionEvent implements CancellableEvent {
     private final List<Target> targets;
     private boolean cancelled;
 
-    public ExplosionEvent(@NotNull Instance instance, @NotNull Point center, float power, @Nullable Entity source,
+    public ExplosionEvent(@NotNull MechanicsWorld world, @NotNull Point center, float power, @Nullable Entity source,
                           boolean fire, @NotNull List<Target> targets) {
-        this.instance = instance;
+        this.world = world;
         this.center = center;
         this.power = power;
         this.source = source;
@@ -63,7 +64,9 @@ public class ExplosionEvent implements CancellableEvent {
         this.targets = targets;
     }
 
-    public @NotNull Instance instance() { return instance; }
+    public @NotNull Instance instance() { return world.instance(); }
+    /** The gameplay world the explosion runs in - a block-break/fire listener must mutate through this, or a world blast edits the base map. */
+    public @NotNull MechanicsWorld world() { return world; }
     public @NotNull Point center() { return center; }
     public float power() { return power; }
     public @Nullable Entity source() { return source; }

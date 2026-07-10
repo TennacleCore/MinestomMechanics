@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.vri;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import net.minestom.server.coordinate.BlockVec;
@@ -69,7 +71,8 @@ public final class BlockBreakProgress {
             Dig dig = entry.getValue();
             if (dig.instance() != instance) continue;
             Player miner = instance.getPlayerByUuid(entry.getKey());
-            if (miner == null || instance.getBlock(dig.pos()).isAir()) { // left the instance or the block is gone
+            // the MINER's world - an overlay block over base air reads AIR instance-wide, killing the dig
+            if (miner == null || MechanicsWorld.viewed(miner).getBlock(dig.pos()).isAir()) { // left the instance or the block is gone
                 digs.remove(entry.getKey());
                 if (miner != null) broadcast(miner, dig, CLEAR_STAGE);
                 continue;
@@ -87,7 +90,7 @@ public final class BlockBreakProgress {
     }
 
     private static byte stage(Player miner, Dig dig) {
-        Block block = dig.instance().getBlock(dig.pos());
+        Block block = MechanicsWorld.viewed(miner).getBlock(dig.pos()); // the block the digger's CLIENT digs - an overlay block cracks at its own speed
         int breakTicks = BlockBreakCalculation.breakTicks(block, miner);
         if (breakTicks == BlockBreakCalculation.UNBREAKABLE) return 0;
         long ticksSpent = TickSystem.instanceTick(dig.instance()) - dig.startTick();
@@ -98,9 +101,11 @@ public final class BlockBreakProgress {
     private static void broadcast(Player miner, Dig dig, byte stage) {
         Chunk chunk = dig.instance().getChunkAt(dig.pos());
         if (chunk == null) return;
+        var minerWorld = MechanicsWorld.viewed(miner);
         PacketSendingUtils.sendGroupedPacket(chunk.getViewers(),
                 new BlockBreakAnimationPacket(miner.getEntityId(), dig.pos(), stage), viewer -> {
                     if (viewer == miner) return false;
+                    if (!WorldPolicy.seesBlocks(viewer, minerWorld)) return false; // cracks on a block you don't see
                     Pos at = viewer.getPosition();
                     double dx = dig.pos().x() - at.x(), dy = dig.pos().y() - at.y(), dz = dig.pos().z() - at.z();
                     return dx * dx + dy * dy + dz * dz < RANGE_SQ;

@@ -1,6 +1,8 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.util.Directions;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
@@ -24,15 +26,12 @@ import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.entity.projectile.ProjectileCollideWithBlockEvent;
 import net.minestom.server.event.entity.projectile.ProjectileCollideWithEntityEvent;
 import net.minestom.server.event.entity.projectile.ProjectileUncollideEvent;
-import net.minestom.server.instance.Chunk;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.play.EntityTeleportPacket;
 import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
 import net.minestom.server.network.packet.server.play.SpawnEntityPacket;
 import net.minestom.server.tag.Tag;
-import net.minestom.server.utils.chunk.ChunkCache;
-import net.minestom.server.utils.chunk.ChunkUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -146,6 +145,7 @@ public abstract class ProjectileEntity extends Entity {
 
     /** Whether this projectile can hit {@code entity} (shooter immunity is handled separately). */
     protected boolean canHit(@NotNull Entity entity) {
+        if (!WorldPolicy.canAffect(this, entity)) return false; // cross-world: a main-map projectile passes through game players
         // vanilla ad(): a live non-spectator target, or a solid entity opting in via the tag (primed TNT); arrows/pearls/items pass through.
         // A collidable projectile (fireball) is a strike target only for a NON-collidable one (arrow/pearl) - two fireballs pass through each other (Hypixel).
         if (entity instanceof ProjectileEntity pe) return pe.collidableTarget() && !collidableTarget();
@@ -157,8 +157,7 @@ public abstract class ProjectileEntity extends Entity {
     /** Whether other projectiles/attacks can hit this one (vanilla {@code ad()}/canBeCollidedWith). Default {@code false}; a fireball overrides it (collidable + deflectable). */
     protected boolean collidableTarget() { return false; }
 
-    // vanilla ad(): only a collidable projectile (a fireball) is a strike target for others' collision sweeps; the rest pass through.
-    // Overridden (like Minestom's own preventBlockPlacement()) instead of poking the field, so it can't desync from collidableTarget().
+    // vanilla ad(): only a collidable projectile (a fireball) is a strike target for others' collision sweeps
     @Override
     public boolean hasEntityCollision() { return collidableTarget(); }
 
@@ -169,8 +168,9 @@ public abstract class ProjectileEntity extends Entity {
     /** Deflects this projectile off {@code deflector} (redirect along its look + reassign ownership); default no-op. Returns whether it deflected. */
     public boolean deflectBy(@Nullable Entity deflector) { return false; }
 
-    /** Reassigns the owner/shooter (a deflected fireball's new owner is the deflector) + re-arms leave-owner immunity against it. */
-    protected void reassignShooter(@Nullable Entity newShooter) {
+    /** Reassigns the owner/shooter (a deflected fireball's new owner; a replay's ghost - the wire spawn needs a
+     *  live owner id: clients DISCARD ownerless bobbers and 1.8 drops ownerless spawn velocity) + re-arms leave-owner immunity. */
+    public void reassignShooter(@Nullable Entity newShooter) {
         this.shooter = newShooter;
         if (getEntityMeta() instanceof ProjectileMeta meta) meta.setShooter(newShooter);
         this.leftOwner = false;
@@ -201,10 +201,14 @@ public abstract class ProjectileEntity extends Entity {
     /** The block this projectile is stuck in (queried live), or {@code null} if not stuck / no instance. */
     public @Nullable Block getStuckBlock() {
         Point pos = getStuckBlockPosition();
-        return pos != null && instance != null ? instance.getBlock(pos) : null;
+        return pos != null && instance != null ? MechanicsWorld.of(this).getBlock(pos) : null;
     }
 
     public void setShooterImmunityTicks(int ticks) { this.shooterImmunityTicks = ticks; }
+
+    /** {@code false} = block collisions only: no entity hits, deflects or self-hits (cosmetic/replayed projectiles). */
+    public void setEntityHits(boolean v) { this.entityHits = v; }
+    private boolean entityHits = true;
 
     public void setEntityHitGrow(double grow) { this.entityHitGrow = grow; }
 
@@ -277,7 +281,8 @@ public abstract class ProjectileEntity extends Entity {
         this.gravityTickCount = isStuck() ? 0 : gravityTickCount + 1;
         if (vehicle != null || isStuck()) return;
 
-        if (instance.isInVoid(position)) {
+        final MechanicsWorld world = MechanicsWorld.of(this);
+        if (world.isInVoid(position)) {
             pendingRemove = true;
             return;
         }
@@ -292,49 +297,46 @@ public abstract class ProjectileEntity extends Entity {
         // 26.1 applies drag/gravity before the move (1.8 after)
         if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_BEFORE_MOVE) applyDragGravity();
 
-        // --- Block physics (swept) ---
-        ChunkCache blockGetter = new ChunkCache(instance, currentChunk, Block.AIR);
-        PhysicsResult physics = CollisionUtils.handlePhysics(
-                blockGetter, collisionBox(), position, velocityBt, previousPhysicsResult, true);
+        // --- Block physics (swept; loaded chunks only) ---
+        PhysicsResult physics = world.sweepLoaded(collisionBox(), position, velocityBt, previousPhysicsResult, true);
         this.previousPhysicsResult = physics;
-        // Minestom caps even a non-colliding swept move at (1 - EPSILON)*v, so a free-flying projectile drifts ~1e-6/tick
-        // short. The explosion CENTER is this entity's detonation pos, which must match a native 1.8 server bit-for-bit
-        // (a 1e-6-high detonation shifts the knockback by a wire unit) - so restore the full move when nothing was hit.
+        // Minestom caps even a non-colliding swept move at (1 - EPSILON)*v; a 1e-6-high detonation center shifts
+        // the explosion KB by a wire unit, so restore the full move when nothing was hit
         Pos resolved = physics.hasCollision() ? physics.newPosition() : position.add(velocityBt);
-        Pos newPosition = CollisionUtils.applyWorldBorder(instance.getWorldBorder(), position, resolved);
+        Pos newPosition = CollisionUtils.applyWorldBorder(world.worldBorder(), position, resolved);
 
-        // --- Entity collision (swept alongside the block physics) ---
-        // grow the zero-size projectile box by entityHitGrow and sweep along velocity (the Minkowski dual of vanilla growing the target).
-        // shooter immunity: 26.1 = until the projectile leaves the shooter's box, 1.8 = fixed ticks; the post-deflect re-arm applies either way.
-        if (leftOwnerImmunity && !leftOwner && shooter != null && !withinShooterBox(position)) leftOwner = true;
-        boolean shooterImmune = (leftOwnerImmunity ? (shooter != null && !leftOwner)
-                : getAliveTicks() < shooterImmunityTicks) || getAliveTicks() < shooterImmuneUntilAlive;
-        Collection<EntityCollisionResult> hits = CollisionUtils.checkEntityCollisions(
-                instance, collisionBox().growSymmetrically(entityHitGrow, entityHitGrow, entityHitGrow), position, velocityBt, 3,
-                e -> e != this && !(shooterImmune && e == shooter) && canHit(e), physics);
-        if (!hits.isEmpty()) {
-            EntityCollisionResult hit = hits.iterator().next();
-            var event = new ProjectileCollideWithEntityEvent(this, hit.collisionPoint().asPos(), hit.entity());
-            EventDispatcher.call(event);
-            if (!event.isCancelled()) {
-                // a deflectable target (fireball) redirects along our shooter's look (vanilla EntityFireball.damageEntity), and the hitter
-                // is then CONSUMED even if its own hit would bounce (vanilla: the arrow die()s on a returned-true damageEntity; the pearl teleports + die()s)
-                boolean deflected = hit.entity() instanceof ProjectileEntity target && target.deflectBy(getShooter());
-                if (onHit(hit.entity()) || deflected) {
-                    pendingRemove = true; // removed in tick() after touchTick (see field doc)
+        // --- Entity collision: grow our box by entityHitGrow and sweep (the Minkowski dual of vanilla growing the target) ---
+        // shooter immunity: 26.1 = until the projectile leaves the shooter's box, 1.8 = fixed ticks
+        if (entityHits) {
+            if (leftOwnerImmunity && !leftOwner && shooter != null && !withinShooterBox(position)) leftOwner = true;
+            boolean shooterImmune = (leftOwnerImmunity ? (shooter != null && !leftOwner)
+                    : getAliveTicks() < shooterImmunityTicks) || getAliveTicks() < shooterImmuneUntilAlive;
+            Collection<EntityCollisionResult> hits = world.sweepEntities(
+                    collisionBox().growSymmetrically(entityHitGrow, entityHitGrow, entityHitGrow), position, velocityBt, 3,
+                    e -> e != this && !(shooterImmune && e == shooter) && canHit(e), physics);
+            if (!hits.isEmpty()) {
+                EntityCollisionResult hit = hits.iterator().next();
+                var event = new ProjectileCollideWithEntityEvent(this, hit.collisionPoint().asPos(), hit.entity());
+                EventDispatcher.call(event);
+                if (!event.isCancelled()) {
+                    // a deflectable target (fireball) redirects along our shooter's look, and the hitter is then CONSUMED
+                    // even if its own hit would bounce (vanilla: the arrow die()s on a returned-true damageEntity)
+                    boolean deflected = hit.entity() instanceof ProjectileEntity target && target.deflectBy(getShooter());
+                    if (onHit(hit.entity()) || deflected) {
+                        pendingRemove = true; // removed in tick() after touchTick (see field doc)
+                        return;
+                    }
+                }
+                // deflect (velocity reversed, not removed): stop the forward move at the hit point so it doesn't overshoot before bouncing
+                if (deflectedThisTick) {
+                    deflectedThisTick = false;
+                    refreshPosition(hit.collisionPoint().asPos().withView(prevYaw, prevPitch), false, false);
                     return;
                 }
             }
-            // deflect (velocity reversed, not removed): stop the forward move at the hit point so it doesn't overshoot before bouncing
-            if (deflectedThisTick) {
-                deflectedThisTick = false;
-                refreshPosition(hit.collisionPoint().asPos().withView(prevYaw, prevPitch), false, false);
-                return;
-            }
         }
 
-        Chunk finalChunk = ChunkUtils.retrieve(instance, currentChunk, newPosition);
-        if (!ChunkUtils.isLoaded(finalChunk)) return;
+        if (!world.isChunkLoaded(newPosition)) return;
 
         this.justBecameStuck = false;
 
@@ -343,7 +345,7 @@ public abstract class ProjectileEntity extends Entity {
             for (int axis = 0; axis < 3; axis++) {
                 if (physics.collisionShapes()[axis] instanceof ShapeImpl) {
                     Point hitPoint = physics.collisionPoints()[axis];
-                    Block hitBlock = instance.getBlock(hitPoint.sub(0, Vec.EPSILON, 0), Block.Getter.Condition.TYPE);
+                    Block hitBlock = world.getBlock(hitPoint.sub(0, Vec.EPSILON, 0), Block.Getter.Condition.TYPE);
                     stick(hitBlock, hitPoint, axis, newPosition);
                     if (isRemoved() || pendingRemove) return;
                     break;
@@ -474,10 +476,10 @@ public abstract class ProjectileEntity extends Entity {
         if (collisionDirection == null || stuckCollisionPoint == null) return false;
         // block broken = unstick (an intersect-box check false-unsticks on fences/slabs)
         Point intoBlock = stuckCollisionPoint.add(collisionDirection.mul(0.5));
+        MechanicsWorld world = MechanicsWorld.of(this);
         // don't unstick while the chunk is unloaded (a relog briefly empties it -> reads AIR -> drops the arrow)
-        Chunk chunk = instance.getChunkAt(intoBlock.x(), intoBlock.z());
-        if (chunk == null || !chunk.isLoaded()) return false;
-        return instance.getBlock(intoBlock.asBlockVec(), Block.Getter.Condition.TYPE).isAir();
+        if (!world.isChunkLoaded(intoBlock)) return false;
+        return world.getBlock(intoBlock.asBlockVec(), Block.Getter.Condition.TYPE).isAir();
     }
 
     private void unstick() {
@@ -560,10 +562,8 @@ public abstract class ProjectileEntity extends Entity {
         }
     }
 
-    /**
-     * The block-edge "slide" fix: vanilla sends an arrow's velocity once at spawn, the 1.8 client predicts the flight, and
-     * Minestom's per-tick re-broadcast perturbs that over Via - so drop the automatic packet (gated by {@code velocitySyncInterval}). See design doc §3f.
-     */
+    /** The block-edge "slide" fix: Minestom's per-tick velocity re-broadcast perturbs the 1.8 client's spawn-velocity
+     *  prediction over Via, so drop it (gated by {@code velocitySyncInterval}). See design doc §3f. */
     @Override
     public void sendPacketToViewers(@NotNull SendablePacket packet) {
         if (packet instanceof EntityVelocityPacket && !allowVelocityPacket) {

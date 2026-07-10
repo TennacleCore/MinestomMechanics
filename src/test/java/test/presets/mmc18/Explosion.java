@@ -1,6 +1,7 @@
 package test.presets.mmc18;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
+import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
@@ -24,6 +25,7 @@ public final class Explosion {
                 .damageKnockback(Knockback.explosionHurt())
                 .packetPush(false)
                 .pushEye(Explosion::pushEye)
+                .exposure(ExplosionExposure.Rays.LEGACY_1_8_FULL_CUBE) // MineMen gates off-flat blasts (full-cube), unlike singleplayer 1.8
                 .build();
     }
 

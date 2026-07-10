@@ -15,6 +15,8 @@ import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.tracking.motion.VelocityContext;
 import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import io.github.term4.minestommechanics.util.Directions;
@@ -34,7 +36,6 @@ import net.minestom.server.instance.Instance;
 import net.minestom.server.network.packet.server.play.ExplosionPacket;
 import net.minestom.server.particle.Particle;
 import net.minestom.server.sound.SoundEvent;
-import net.minestom.server.utils.PacketSendingUtils;
 import net.minestom.server.utils.WeightedList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -47,8 +48,8 @@ import java.util.function.Predicate;
 
 /**
  * Explosion system: entity selection + exposure raytrace + the vanilla falloff curve, fired through {@link ExplosionEvent}.
- * Knockback rides the {@link KnockbackSystem} (base + push) on a fresh hit, the explosion packet during i-frames; damage
- * rides the {@link DamageSystem}; blocks are delegated to a listener off {@link ExplosionEvent#center()} + power.
+ * Knockback rides the {@link KnockbackSystem}, damage the {@link DamageSystem}; block breaking is a listener's job
+ * (off {@link ExplosionEvent#center()} + power).
  */
 public final class ExplosionSystem implements MechanicsModule {
 
@@ -67,7 +68,7 @@ public final class ExplosionSystem implements MechanicsModule {
         this.node = EventNode.all("mm:explosion");
     }
 
-    /** Per-player explosion: every player in the instance gets the visual, those in range their own falloff knockback. */
+    /** Per-player explosion: every player in the world gets the visual, those in range their own falloff knockback. */
     public void explode(@NotNull Instance instance, @NotNull Point center, float power) {
         explode(instance, center, power, null);
     }
@@ -76,21 +77,26 @@ public final class ExplosionSystem implements MechanicsModule {
         explode(instance, center, power, source, null);
     }
 
-    /** {@code directHit} = the entity the projectile struck (or {@code null}); only it is subject to the {@link ExplosionConfig#knockbackImpactFloor knockback impact gate}. */
     public void explode(@NotNull Instance instance, @NotNull Point center, float power, @Nullable Entity source, @Nullable Entity directHit) {
-        detonate(instance, center, power, source, directHit, resolve(instance, center, source));
+        explode(MechanicsWorld.of(instance), center, power, source, directHit);
+    }
+
+    /** {@code directHit} = the entity the projectile struck (or {@code null}); only it is subject to the {@link ExplosionConfig#knockbackImpactFloor knockback impact gate}. */
+    public void explode(@NotNull MechanicsWorld world, @NotNull Point center, float power, @Nullable Entity source, @Nullable Entity directHit) {
+        detonate(world, center, power, source, directHit, resolve(world, center, source));
     }
 
     /** Per-player explosion using the configured (or default) radius. */
     public void explode(@NotNull Instance instance, @NotNull Point center, @Nullable Entity source) {
-        ResolvedExplosionConfig resolved = resolve(instance, center, source);
+        MechanicsWorld world = MechanicsWorld.of(instance);
+        ResolvedExplosionConfig resolved = resolve(world, center, source);
         float power = resolved.power() != null ? resolved.power().floatValue() : DEFAULT_POWER;
-        detonate(instance, center, power, source, null, resolved);
+        detonate(world, center, power, source, null, resolved);
     }
 
-    private void detonate(Instance instance, Point center, float power, @Nullable Entity source, @Nullable Entity directHit, ResolvedExplosionConfig resolved) {
-        List<ExplosionEvent.Target> targets = computeAndFire(instance, center, power, source, resolved);
-        if (targets != null) applyPerPlayer(instance, center, power, source, directHit, targets, resolved);
+    private void detonate(MechanicsWorld world, Point center, float power, @Nullable Entity source, @Nullable Entity directHit, ResolvedExplosionConfig resolved) {
+        List<ExplosionEvent.Target> targets = computeAndFire(world, center, power, source, resolved);
+        if (targets != null) applyEffects(world, center, power, source, directHit, targets, resolved);
     }
 
     /**
@@ -99,34 +105,37 @@ public final class ExplosionSystem implements MechanicsModule {
      */
     public void explodeUniform(@NotNull Instance instance, @NotNull Point center, float power,
                                @Nullable Entity source, @Nullable Vec knockback) {
-        ResolvedExplosionConfig resolved = resolve(instance, center, source);
-        List<ExplosionEvent.Target> targets = computeAndFire(instance, center, power, source, resolved);
+        MechanicsWorld world = MechanicsWorld.of(instance);
+        ResolvedExplosionConfig resolved = resolve(world, center, source);
+        List<ExplosionEvent.Target> targets = computeAndFire(world, center, power, source, resolved);
         if (targets == null) return;
         applyDamage(source, center, targets, resolved.damageBypass());
-        PacketSendingUtils.sendGroupedPacket(instance.getPlayers(), packet(center, power, knockback));
+        world.broadcast(packet(center, power, knockback));
     }
 
     /** Config: the source's scope chain (player -&gt; instance -&gt; global) over the install config. */
-    private ResolvedExplosionConfig resolve(Instance instance, Point center, @Nullable Entity source) {
+    private ResolvedExplosionConfig resolve(MechanicsWorld world, Point center, @Nullable Entity source) {
         ExplosionConfig scoped = services.profiles().resolve(source, MechanicsKeys.EXPLOSION);
-        return ExplosionConfigResolver.resolve(scoped != null ? scoped : config, ExplosionContext.of(instance, center, source, services));
+        return ExplosionConfigResolver.resolve(scoped != null ? scoped : config, ExplosionContext.of(world.instance(), center, source, services));
     }
 
     /** Builds the per-entity result set, fires the event, and returns the (possibly listener-edited) targets, or {@code null} if cancelled. */
-    private @Nullable List<ExplosionEvent.Target> computeAndFire(Instance instance, Point center, float power,
+    private @Nullable List<ExplosionEvent.Target> computeAndFire(MechanicsWorld world, Point center, float power,
                                                                  @Nullable Entity source, ResolvedExplosionConfig resolved) {
-        List<ExplosionEvent.Target> targets = computeTargets(instance, center, power, source, resolved);
-        ExplosionEvent event = new ExplosionEvent(instance, center, power, source, resolved.fire(), targets);
+        List<ExplosionEvent.Target> targets = computeTargets(world, center, power, source, resolved);
+        ExplosionEvent event = new ExplosionEvent(world, center, power, source, resolved.fire(), targets);
         EventDispatcher.call(event);
         return event.isCancelled() ? null : event.targets();
     }
 
-    private List<ExplosionEvent.Target> computeTargets(Instance instance, Point center, float power,
+    private List<ExplosionEvent.Target> computeTargets(MechanicsWorld world, Point center, float power,
                                                        @Nullable Entity source, ResolvedExplosionConfig resolved) {
         List<ExplosionEvent.Target> targets = new ArrayList<>();
         double doubleRadius = power * 2.0;
         if (doubleRadius <= 0.0) return targets;
-        for (Entity entity : instance.getNearbyEntities(center, doubleRadius + 1.0)) { // coarse query; the distance gate below is authoritative
+        for (Entity entity : world.nearbyEntities(center, doubleRadius + 1.0)) { // coarse query; the distance gate below is authoritative
+            // sourceless = the exploding world itself acts
+            if (source != null ? !WorldPolicy.canAffect(source, entity) : !MechanicsWorld.of(entity).equals(world)) continue;
             boolean living = entity instanceof LivingEntity;
             boolean kbTarget = isKnockbackTarget(entity, resolved); // players + non-living physics entities by default
             if (!living && !kbTarget) continue;
@@ -141,12 +150,13 @@ public final class ExplosionSystem implements MechanicsModule {
             Point eyeOrigin = entity.getPosition().add(0, headHeight, 0);
             float exposure = switch (resolved.exposure()) {
                 case NONE -> 1.0f;
-                case MODERN -> ExplosionExposure.seenPercent(instance, center, entity);
-                case LEGACY_1_8 -> ExplosionExposure.seenPercent18(instance, center, entity);
+                case MODERN -> ExplosionExposure.seenPercent(world, center, entity);
+                case LEGACY_1_8 -> ExplosionExposure.seenPercent18(world, center, entity);
+                case LEGACY_1_8_FULL_CUBE -> ExplosionExposure.seenPercent18FullCube(world, center, entity);
             };
-            // knockback reduction (Blast Protection / KB resistance): TODO via the attribute layer
+            // TODO knockback reduction (Blast Protection / KB resistance) via the attribute layer
             ExplosionCalculator.Hit hit = ExplosionCalculator.compute(center, power, eyeOrigin, distance, exposure,
-                    resolved.damageConstant(), resolved.floorDamage(), resolved.knockbackMultiplier(), 0.0);
+                    resolved.damageConstant(), resolved.floorDamage(), resolved.knockbackMultiplier());
             if (hit == null) continue;
             float damage = !living ? 0f : (resolved.flatDamage() != null ? resolved.flatDamage().floatValue() : hit.damage());
             damage *= (float) resolved.damageScale(); // post-floor, so a scaled vanilla curve stays step-quantized (MineMen FBF)
@@ -163,58 +173,66 @@ public final class ExplosionSystem implements MechanicsModule {
         return entity instanceof Player || (!(entity instanceof LivingEntity) && entity.hasPhysics());
     }
 
-    private void applyPerPlayer(Instance instance, Point center, float power, @Nullable Entity source,
-                                @Nullable Entity directHit, List<ExplosionEvent.Target> targets, ResolvedExplosionConfig resolved) {
+    private void applyEffects(MechanicsWorld world, Point center, float power, @Nullable Entity source,
+                              @Nullable Entity directHit, List<ExplosionEvent.Target> targets, ResolvedExplosionConfig resolved) {
         DamageSystem damage = services.damage();
         KnockbackSystem knockback = services.knockback();
-        // vanilla a() away from the source, folded before the push on a fresh hit; Hypixel overrides via damageKnockback
-        KnockbackConfig damageKb = resolved.damageKnockback() != null ? resolved.damageKnockback() : Knockback.melee();
-        Map<Player, Vec> packetKnockback = new HashMap<>(); // vanilla i-frame push, client-applied from the explosion packet
-        List<Runnable> sendKnockback = new ArrayList<>();    // deferred so the explosion packet goes out first (Hypixel order)
+        // Two phases so the visual explosion packet reaches everyone BEFORE the knockback velocity (Hypixel's order).
+        Map<Player, Vec> packetPush = new HashMap<>();     // i-frame push, client-applied from each player's explosion packet
+        List<Runnable> velocitySends = new ArrayList<>();  // fresh-hit knockback, sent after the packets
         for (ExplosionEvent.Target target : targets) {
             Entity entity = target.entity();
             Vec push = target.knockback();
-            // damage respects i-frames (vanilla order); the explosion knockback below does not
-            DamageSystem.DamageOutcome outcome = DamageSystem.DamageOutcome.BLOCKED;
-            if (damage != null && entity instanceof LivingEntity && target.damage() > 0f) {
-                outcome = damage.apply(explosionDamage(entity, source, center, target.damage(), resolved.damageBypass()));
-            }
+            DamageSystem.DamageOutcome outcome = damageTarget(damage, target, source, center, resolved.damageBypass());
             if (entity instanceof Player player) {
-                // vanilla pushes only non-invulnerable players
-                if (DamageSystem.isImmune(player)) continue;
-                // Hypixel gate: only the direct-hit player; below the floor no explosion KB (bystanders never gated)
-                Double impactFloor = resolved.knockbackImpactFloor();
-                if (player == directHit && impactFloor != null
-                        && ExplosionCalculator.impact(target.distance(), power, target.exposure()) < impactFloor) continue;
-                // the explosion push always reaches the player (bypasses i-frames); only the wire path differs
-                if (knockback != null && resolved.baseKnockback() > 0.0) {
-                    // Hypixel: radial base (toward feet+baseHeight) + push, SET as one velocity packet; explosion packet stays motion-less
-                    Vec base = radialBase(player.getPosition(), center, resolved.baseKnockback(), resolved.baseHeight(),
-                            resolved.baseHorizontalScale(), resolved.baseDownwardScale());
-                    Vec velocity = perSecond(push != null ? base.add(push) : base);
-                    sendKnockback.add(() -> knockback.deliver(player, velocity));
-                } else if (push != null) {
-                    if (outcome == DamageSystem.DamageOutcome.FRESH_DAMAGE && knockback != null && source != null) {
-                        Vec impulse = perSecond(push);
-                        sendKnockback.add(() -> knockback.apply(new KnockbackSnapshot(player, false, source, null, null, damageKb), impulse)); // a() fold + push
-                    } else if (resolved.packetPush()) {
-                        packetKnockback.put(player, push); // i-frame: rides the explosion packet, not a velocity packet
-                    } else if (knockback != null && outcome != DamageSystem.DamageOutcome.BLOCKED) {
-                        // velocity-only (MineMen): sourceless fresh / i-frame overdamage = push ADDED to the tracked
-                        // motion (vanilla g(); a same-tick contact KB is in the tracker via foldDelivered). Blocked = nothing.
-                        sendKnockback.add(() -> knockback.deliver(player, perSecond(trackedMotion(player).add(push))));
-                    }
-                }
+                if (DamageSystem.isImmune(player) || gatedByImpactFloor(player, directHit, target, power, resolved)) continue;
+                queuePlayerKnockback(player, push, outcome, center, source, resolved, knockback, packetPush, velocitySends);
             } else if (push != null && knockback != null) {
-                // non-player physics entity (TNT etc.): vanilla ADDS the push to current motion, not replaces
+                // vanilla ADDS the push; the ~0.7 seen on a landed TNT is its own ground friction, not a scale
                 entity.setVelocity(entity.getVelocity().add(perSecond(push)));
             }
         }
-        // explosion packet (visual) first, then the velocity knockback - Hypixel's packet-before-KB order
-        for (Player player : instance.getPlayers()) {
-            player.sendPacket(packet(center, power, packetKnockback.get(player)));
+        for (Player player : world.watchers()) player.sendPacket(packet(center, power, packetPush.get(player)));
+        velocitySends.forEach(Runnable::run);
+    }
+
+    /** {@code BLOCKED} for a non-living target or no damage. */
+    private DamageSystem.DamageOutcome damageTarget(@Nullable DamageSystem damage, ExplosionEvent.Target target,
+                                                    @Nullable Entity source, Point center, @Nullable Bypass bypass) {
+        if (damage == null || !(target.entity() instanceof LivingEntity) || target.damage() <= 0f) return DamageSystem.DamageOutcome.BLOCKED;
+        return damage.apply(explosionDamage(target.entity(), source, center, target.damage(), bypass));
+    }
+
+    /** Hypixel gate: the direct-hit player below the falloff impact floor gets no explosion KB (bystanders + block hits are never gated). */
+    private static boolean gatedByImpactFloor(Player player, @Nullable Entity directHit, ExplosionEvent.Target target,
+                                              float power, ResolvedExplosionConfig resolved) {
+        Double floor = resolved.knockbackImpactFloor();
+        return player == directHit && floor != null
+                && ExplosionCalculator.impact(target.distance(), power, target.exposure()) < floor;
+    }
+
+    /** The push always reaches the player (bypasses i-frames); only the wire path differs per config. */
+    private void queuePlayerKnockback(Player player, @Nullable Vec push, DamageSystem.DamageOutcome outcome, Point center,
+                                      @Nullable Entity source, ResolvedExplosionConfig resolved, @Nullable KnockbackSystem knockback,
+                                      Map<Player, Vec> packetPush, List<Runnable> velocitySends) {
+        if (knockback != null && resolved.baseKnockback() > 0.0) {
+            // Hypixel: radial base (toward feet+baseHeight) + push as one velocity; the explosion packet stays motion-less
+            Vec base = radialBase(player.getPosition(), center, resolved.baseKnockback(), resolved.baseHeight(),
+                    resolved.baseHorizontalScale(), resolved.baseDownwardScale());
+            Vec velocity = perSecond(push != null ? base.add(push) : base);
+            velocitySends.add(() -> knockback.deliver(player, velocity));
+        } else if (push != null) {
+            if (outcome == DamageSystem.DamageOutcome.FRESH_DAMAGE && knockback != null && source != null) {
+                KnockbackConfig damageKb = resolved.damageKnockback() != null ? resolved.damageKnockback() : Knockback.melee();
+                Vec impulse = perSecond(push);
+                velocitySends.add(() -> knockback.apply(new KnockbackSnapshot(player, false, source, null, null, damageKb), impulse)); // a() fold, then push
+            } else if (resolved.packetPush()) {
+                packetPush.put(player, push); // i-frame: rides the explosion packet, not a velocity packet
+            } else if (knockback != null && outcome != DamageSystem.DamageOutcome.BLOCKED) {
+                // velocity-only (MineMen): push ADDED to the tracked motion (a same-tick contact KB is already folded in)
+                velocitySends.add(() -> knockback.deliver(player, perSecond(trackedMotion(player).add(push))));
+            }
         }
-        sendKnockback.forEach(Runnable::run);
     }
 
     /** Explosion model vectors are blocks/tick (vanilla); the {@link KnockbackSystem} wire boundary takes blocks/second. */
@@ -240,15 +258,9 @@ public final class ExplosionSystem implements MechanicsModule {
 
     private void applyDamage(@Nullable Entity source, Point center, List<ExplosionEvent.Target> targets, @Nullable Bypass bypass) {
         DamageSystem damage = services.damage();
-        if (damage == null) return;
-        for (ExplosionEvent.Target target : targets) {
-            if (target.entity() instanceof LivingEntity && target.damage() > 0f) {
-                damage.apply(explosionDamage(target.entity(), source, center, target.damage(), bypass));
-            }
-        }
+        for (ExplosionEvent.Target target : targets) damageTarget(damage, target, source, center, bypass);
     }
 
-    /** Explosion-damage snapshot for one target; {@code bypass} = mitigation skip (e.g. armor-only) or null. */
     private static DamageSnapshot explosionDamage(Entity target, @Nullable Entity source, Point center, float amount, @Nullable Bypass bypass) {
         DamageSnapshot snap = DamageSnapshot.of(target, ExplosionDamage.INSTANCE).withSource(source).withPoint(center).withAmount(amount);
         return bypass != null ? snap.withBypass(bypass) : snap;

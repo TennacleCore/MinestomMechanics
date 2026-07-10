@@ -5,13 +5,16 @@ plugins {
 
 description = "A library for Minestom 1.8 mechanics"
 group = "io.github.term4"
-version = "0.1.5"
+version = "0.2.0"
 java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 mavenPublishing {
     coordinates(group.toString(), "minestom-mechanics", version.toString())
     publishToMavenCentral()
-    signAllPublications()
+    // sign only when keys are configured (release env); keyless dev machines can still publishToMavenLocal
+    if (providers.gradleProperty("signingInMemoryKey").isPresent || providers.gradleProperty("signing.keyId").isPresent) {
+        signAllPublications()
+    }
 
     pom {
         name = "minestom-mechanics"
@@ -51,7 +54,7 @@ repositories {
 dependencies {
     compileOnly(project(":codegen"))
     annotationProcessor(project(":codegen"))
-    val minestomVersion = "2026.06.20-26.1.2"
+    val minestomVersion = "2026.07.01-26.1.2"
     val slf4jVersion = "2.0.18"
     val junitVersion = "6.0.3"
 

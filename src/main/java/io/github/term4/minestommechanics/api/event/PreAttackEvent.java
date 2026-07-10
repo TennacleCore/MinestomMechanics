@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
@@ -25,4 +26,6 @@ public final class PreAttackEvent extends CancellableMechanicsEvent<AttackSnapsh
 
     /** Target, or {@code null} for a target-less detection (swing miss). */
     public @Nullable Entity target() { return finalSnap().target(); }
+    /** The attacker's gameplay world. */
+    public MechanicsWorld world() { return MechanicsWorld.of(attacker()); }
 }

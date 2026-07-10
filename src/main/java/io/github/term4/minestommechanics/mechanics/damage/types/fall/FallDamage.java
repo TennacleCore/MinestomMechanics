@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.fall;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.damage.DamageProducers;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
@@ -138,7 +139,7 @@ public final class FallDamage extends DamageType {
 
     /** Fallback landing poll for players (status-only onGround packets fire no move event); one instance per tick. */
     private void pollLandings(Instance instance) {
-        for (Player p : instance.getPlayers()) {
+        for (Player p : MechanicsWorld.of(instance).players()) {
             if (!p.isOnGround()) continue;
             float dist = fallDistance(p);
             if (dist <= 0) continue;
@@ -179,7 +180,7 @@ public final class FallDamage extends DamageType {
     /** Vanilla 1.8 climbable set: ladder or vine at the feet block. */
     private static boolean climbing(LivingEntity living) {
         if (living.getInstance() == null) return false;
-        Block feet = living.getInstance().getBlock(living.getPosition(), Block.Getter.Condition.TYPE);
+        Block feet = MechanicsWorld.viewed(living).getBlock(living.getPosition(), Block.Getter.Condition.TYPE);
         return feet != null && (feet.compare(Block.LADDER) || feet.compare(Block.VINE));
     }
 
@@ -189,7 +190,7 @@ public final class FallDamage extends DamageType {
         if (living instanceof Player p && p.isSneaking()) return false;
         Instance inst = living.getInstance();
         if (inst == null) return false;
-        Block below = inst.getBlock(pos.sub(0, 0.5000001, 0), Block.Getter.Condition.TYPE);
+        Block below = MechanicsWorld.viewed(living).getBlock(pos.sub(0, 0.5000001, 0), Block.Getter.Condition.TYPE);
         return below != null && below.compare(Block.SLIME_BLOCK);
     }
 

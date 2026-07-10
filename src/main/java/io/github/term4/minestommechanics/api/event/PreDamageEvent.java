@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
@@ -26,6 +27,8 @@ public final class PreDamageEvent extends CancellableMechanicsEvent<DamageSnapsh
 
     public DamageType type() { return finalSnap().type(); }
     public Entity target() { return finalSnap().target(); }
+    /** The victim's gameplay world. */
+    public MechanicsWorld world() { return MechanicsWorld.of(target()); }
     public @Nullable Entity source() { return finalSnap().source(); }
     /** The attacker's weapon, or {@code null}. */
     public @Nullable ItemStack item() { return finalSnap().item(); }

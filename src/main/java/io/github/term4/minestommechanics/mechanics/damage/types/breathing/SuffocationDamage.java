@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.breathing;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
@@ -77,6 +78,6 @@ public final class SuffocationDamage extends DamageType implements Environmental
         BoundingBox eyePlane = new BoundingBox(
                 new Vec(-half, eye - 5.0E-7, -half),
                 new Vec(half, eye + 5.0E-7, half));
-        return BlockContact.scanCells(inst, living.getPosition(), eyePlane, 0, BlockContact::isFullCube);
+        return BlockContact.scanCells(MechanicsWorld.viewed(living), living.getPosition(), eyePlane, 0, BlockContact::isFullCube);
     }
 }

@@ -1,11 +1,18 @@
 package io.github.term4.minestommechanics.vri;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.tracking.motion.FluidFlow;
+import net.kyori.adventure.nbt.BinaryTagTypes;
+import net.kyori.adventure.nbt.CompoundBinaryTag;
+import net.kyori.adventure.nbt.DoubleBinaryTag;
+import net.kyori.adventure.nbt.ListBinaryTag;
 import net.kyori.adventure.sound.Sound;
 import net.minestom.server.ServerFlag;
+import net.minestom.server.codec.Transcoder;
 import net.minestom.server.collision.Aerodynamics;
+import net.minestom.server.collision.PhysicsResult;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.ItemEntity;
@@ -42,6 +49,9 @@ public class DroppedItemEntity extends ItemEntity {
     private static final double TPS = ServerFlag.SERVER_TICKS_PER_SECOND;
 
     private final @Nullable Model model;
+
+    private PhysicsResult lastPhysics;
+    private boolean landedLastTick;
     private @Nullable Model resolved;
     // lava-pop cadence: vanilla pops on int-cast cell change or every 25 ticks
     private int cellX = Integer.MIN_VALUE, cellY, cellZ;
@@ -52,20 +62,85 @@ public class DroppedItemEntity extends ItemEntity {
     public DroppedItemEntity(@NotNull ItemStack itemStack, @Nullable Model model) {
         super(itemStack);
         this.model = model;
+        // a copy with the current stack + motion (world fork/respawn cloners read the stamp)
+        setTag(MechanicsWorld.ENTITY_COPY, () -> {
+            DroppedItemEntity copy = new DroppedItemEntity(getItemStack(), this.model);
+            copy.setVelocity(getVelocity());
+            return copy;
+        });
+        // the disk twin: world saves persist this descriptor, apps revive it via fromSave
+        setTag(MechanicsWorld.ENTITY_SAVE, () -> {
+            Vec vel = getVelocity();
+            CompoundBinaryTag.Builder out = CompoundBinaryTag.builder().putString("id", "mm:item")
+                    .put("item", ItemStack.CODEC.encode(Transcoder.NBT, getItemStack()).orElseThrow())
+                    .put("vel", ListBinaryTag.builder(BinaryTagTypes.DOUBLE)
+                            .add(DoubleBinaryTag.doubleBinaryTag(vel.x()))
+                            .add(DoubleBinaryTag.doubleBinaryTag(vel.y()))
+                            .add(DoubleBinaryTag.doubleBinaryTag(vel.z())).build());
+            if (this.model != null) out.putString("model", this.model.name());
+            return out.build();
+        });
     }
 
-    /** Spawns a drop ({@code velocity} in b/t) after firing {@link ItemSpawnEvent}; {@code null} if cancelled. */
+    /** Rebuilds a drop from its {@link MechanicsWorld#ENTITY_SAVE} descriptor - the load-side reviver for {@code "mm:item"}. */
+    public static @NotNull DroppedItemEntity fromSave(@NotNull CompoundBinaryTag data) {
+        String model = data.getString("model");
+        DroppedItemEntity item = new DroppedItemEntity(
+                ItemStack.CODEC.decode(Transcoder.NBT, data.get("item")).orElseThrow(),
+                model.isEmpty() ? null : Model.valueOf(model));
+        ListBinaryTag vel = data.getList("vel", BinaryTagTypes.DOUBLE);
+        if (vel.size() == 3) item.setVelocity(new Vec(vel.getDouble(0), vel.getDouble(1), vel.getDouble(2)));
+        return item;
+    }
+
+    /** Spawns a player-attributed drop ({@code velocity} in b/t) into the player's world; {@code null} if cancelled. */
     public static @Nullable DroppedItemEntity spawn(@NotNull Instance instance, @NotNull Pos pos, @NotNull Vec velocity,
                                                     @NotNull ItemStack stack, @Nullable Model physics, int pickupDelayTicks,
                                                     ItemSpawnEvent.@NotNull Cause cause, @NotNull Player player) {
+        return spawn(MechanicsWorld.of(player), pos, velocity, stack, physics, pickupDelayTicks, cause, player);
+    }
+
+    /** Server/minigame drop straight into {@code world} (generators, kill drops); {@code null} if cancelled. */
+    public static @Nullable DroppedItemEntity spawn(@NotNull MechanicsWorld world, @NotNull Pos pos, @NotNull Vec velocity,
+                                                    @NotNull ItemStack stack, @Nullable Model physics, int pickupDelayTicks) {
+        return spawn(world, pos, velocity, stack, physics, pickupDelayTicks, ItemSpawnEvent.Cause.SERVER, null);
+    }
+
+    private static @Nullable DroppedItemEntity spawn(MechanicsWorld world, Pos pos, Vec velocity, ItemStack stack,
+                                                     @Nullable Model physics, int pickupDelayTicks,
+                                                     ItemSpawnEvent.Cause cause, @Nullable Player player) {
         DroppedItemEntity item = new DroppedItemEntity(stack, physics);
         item.setPickupDelay(pickupDelayTicks, TimeUnit.SERVER_TICK);
         item.setVelocity(velocity.mul(TPS));
-        ItemSpawnEvent event = new ItemSpawnEvent(item, cause, player, instance, pos);
+        ItemSpawnEvent event = new ItemSpawnEvent(item, cause, player, world, pos);
         EventDispatcher.call(event);
         if (event.isCancelled()) return null;
-        item.setInstance(instance, pos);
+        world.spawn(item, pos);
         return item;
+    }
+
+    // Minestom's movementTick collides against the backing instance only; a drop in a diff world would fall through
+    // placed blocks server-side. Same step, world block view.
+    @Override
+    public void movementTick() {
+        this.gravityTickCount = onGround ? 0 : gravityTickCount + 1;
+        if (vehicle == null && getInstance() != null) {
+            MechanicsWorld world = MechanicsWorld.of(this, getInstance());
+            var result = world.simulateMovement(position, velocity.div(TPS), getBoundingBox(),
+                    getAerodynamics(), hasNoGravity(), hasPhysics(), onGround, lastPhysics);
+            this.lastPhysics = result;
+            if (world.isChunkLoaded(result.newPosition())) {
+                this.velocity = result.newVelocity().mul(TPS);
+                this.onGround = result.isOnGround();
+                refreshPosition(result.newPosition(), true, false); // ITEM is a synchronize-only type
+            }
+        }
+        // ItemEntity's landing sync (one position + velocity when the drop first touches down)
+        if (!landedLastTick && onGround) {
+            synchronizePosition();
+            sendPacketToViewers(getVelocityPacket());
+        }
+        landedLastTick = onGround;
     }
 
     @Override
@@ -76,36 +151,37 @@ public class DroppedItemEntity extends ItemEntity {
         Pos pos = getPosition();
         Vec v0 = getVelocity().div(TPS); // b/t; Minestom already applied gravity + drag this tick
 
-        Vec v = effectiveModel() == Model.LEGACY ? legacyTick(instance, pos, v0) : modernTick(instance, pos, v0);
-        if (buried(instance, pos)) v = pushOutOfBlocks(instance, pos, v);
+        MechanicsWorld world = MechanicsWorld.of(this);
+        Vec v = effectiveModel() == Model.LEGACY ? legacyTick(world, pos, v0) : modernTick(world, pos, v0);
+        if (buried(world, pos)) v = pushOutOfBlocks(world, pos, v);
 
         // silent: setVelocity broadcasts, fighting the client's own item sim
         if (!v.samePoint(v0)) this.velocity = v.mul(TPS);
     }
 
-    private Vec legacyTick(Instance instance, Pos pos, Vec v) {
+    private Vec legacyTick(MechanicsWorld world, Pos pos, Vec v) {
         int bx = (int) pos.x(), by = (int) pos.y(), bz = (int) pos.z();
         boolean cellChanged = bx != cellX || by != cellY || bz != cellZ;
         cellX = bx;
         cellY = by;
         cellZ = bz;
         if ((cellChanged || getAliveTicks() % 25 == 0)
-                && instance.getBlock(pos, Block.Getter.Condition.TYPE).compare(Block.LAVA)) {
+                && world.getBlock(pos, Block.Getter.Condition.TYPE).compare(Block.LAVA)) {
             var rnd = ThreadLocalRandom.current();
             v = new Vec((rnd.nextFloat() - rnd.nextFloat()) * 0.2, 0.2, (rnd.nextFloat() - rnd.nextFloat()) * 0.2);
-            instance.playSound(Sound.sound(SoundEvent.BLOCK_FIRE_EXTINGUISH.key(), Sound.Source.NEUTRAL,
-                    0.4f, 2.0f + rnd.nextFloat() * 0.4f), pos.x(), pos.y(), pos.z());
+            world.playSound(Sound.sound(SoundEvent.BLOCK_FIRE_EXTINGUISH.key(), Sound.Source.NEUTRAL,
+                    0.4f, 2.0f + rnd.nextFloat() * 0.4f), pos);
         }
         // twice per tick (Entity.onEntityUpdate + the EntityItem tail); half-speed sliding rubber-bands
         // against the client's own sim
-        Vec flow = FluidFlow.itemLegacyFlow(instance, pos, getBoundingBox());
+        Vec flow = FluidFlow.itemLegacyFlow(world, pos, getBoundingBox());
         return flow.isZero() ? v : v.add(flow.mul(2 * FLOW_SCALE));
     }
 
-    private Vec modernTick(Instance instance, Pos pos, Vec v) {
-        var water = FluidFlow.itemModernSample(instance, pos, getBoundingBox(), Block.WATER);
+    private Vec modernTick(MechanicsWorld world, Pos pos, Vec v) {
+        var water = FluidFlow.itemModernSample(world, pos, getBoundingBox(), Block.WATER);
         var lava = water.height() > 0 ? FluidFlow.ItemSample.EMPTY
-                : FluidFlow.itemModernSample(instance, pos, getBoundingBox(), Block.LAVA);
+                : FluidFlow.itemModernSample(world, pos, getBoundingBox(), Block.LAVA);
 
         // vanilla skipped gravity this tick - invert exactly what Minestom's aerodynamics (registry item 0.04/0.98) applied
         if (fluidMotion) {
@@ -127,9 +203,9 @@ public class DroppedItemEntity extends ItemEntity {
         return v;
     }
 
-    private boolean buried(Instance instance, Pos pos) {
+    private boolean buried(MechanicsWorld world, Pos pos) {
         double cy = pos.y() + getBoundingBox().height() / 2.0;
-        return instance.getBlock((int) Math.floor(pos.x()), (int) Math.floor(cy), (int) Math.floor(pos.z()),
+        return world.getBlock((int) Math.floor(pos.x()), (int) Math.floor(cy), (int) Math.floor(pos.z()),
                 Block.Getter.Condition.TYPE).isSolid();
     }
 
@@ -143,18 +219,18 @@ public class DroppedItemEntity extends ItemEntity {
     }
 
     /** Vanilla {@code Entity.pushOutOfBlocks}: inside a solid block, shove {@code 0.1..0.3} toward the nearest free face (up wins ties). */
-    private Vec pushOutOfBlocks(Instance instance, Pos pos, Vec v) {
+    private Vec pushOutOfBlocks(MechanicsWorld world, Pos pos, Vec v) {
         double cy = pos.y() + getBoundingBox().height() / 2.0;
         int bx = (int) Math.floor(pos.x()), by = (int) Math.floor(cy), bz = (int) Math.floor(pos.z());
 
         double dx = pos.x() - bx, dy = cy - by, dz = pos.z() - bz;
         double best = 9999.0;
         int dir = 3; // up default, like vanilla
-        if (free(instance, bx - 1, by, bz) && dx < best) { best = dx; dir = 0; }
-        if (free(instance, bx + 1, by, bz) && 1.0 - dx < best) { best = 1.0 - dx; dir = 1; }
-        if (free(instance, bx, by + 1, bz) && 1.0 - dy < best) { best = 1.0 - dy; dir = 3; }
-        if (free(instance, bx, by, bz - 1) && dz < best) { best = dz; dir = 4; }
-        if (free(instance, bx, by, bz + 1) && 1.0 - dz < best) { dir = 5; }
+        if (free(world, bx - 1, by, bz) && dx < best) { best = dx; dir = 0; }
+        if (free(world, bx + 1, by, bz) && 1.0 - dx < best) { best = 1.0 - dx; dir = 1; }
+        if (free(world, bx, by + 1, bz) && 1.0 - dy < best) { best = 1.0 - dy; dir = 3; }
+        if (free(world, bx, by, bz - 1) && dz < best) { best = dz; dir = 4; }
+        if (free(world, bx, by, bz + 1) && 1.0 - dz < best) { dir = 5; }
         double f = ThreadLocalRandom.current().nextFloat() * 0.2 + 0.1;
         return switch (dir) {
             case 0 -> v.withX(-f);
@@ -165,7 +241,7 @@ public class DroppedItemEntity extends ItemEntity {
         };
     }
 
-    private static boolean free(Instance instance, int x, int y, int z) {
-        return !instance.getBlock(x, y, z, Block.Getter.Condition.TYPE).isSolid();
+    private static boolean free(MechanicsWorld world, int x, int y, int z) {
+        return !world.getBlock(x, y, z, Block.Getter.Condition.TYPE).isSolid();
     }
 }

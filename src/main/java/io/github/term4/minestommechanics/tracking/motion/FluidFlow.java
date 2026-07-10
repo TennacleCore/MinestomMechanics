@@ -3,7 +3,7 @@ package io.github.term4.minestommechanics.tracking.motion;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
-import net.minestom.server.instance.Instance;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.instance.block.Block;
 
 /**
@@ -24,7 +24,7 @@ public final class FluidFlow {
     public interface Model {
 
         /** This tick's fluid-current impulse (b/t, already x {@code scale}) for {@code fluid} (WATER/LAVA). {@code movX/movZ} = horizontal velocity (only MODERN's near-still floor reads it). */
-        Vec impulse(Instance inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ);
+        Vec impulse(MechanicsWorld inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ);
 
         /** motY (b/t) subtracted per WATER tick (1.8: flat {@code 0.02}; 26: {@code 0.005}, and {@code 0} while sprinting). Lava gravity is model-agnostic. */
         double waterGravity(boolean sprinting);
@@ -47,7 +47,7 @@ public final class FluidFlow {
         default Model withLegacyWaterGravity() {
             Model base = this;
             return new Model() {
-                @Override public Vec impulse(Instance inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {
+                @Override public Vec impulse(MechanicsWorld inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {
                     return base.impulse(inst, pos, box, fluid, scale, movX, movZ);
                 }
                 @Override public double waterGravity(boolean sprinting) { return LEGACY.waterGravity(sprinting); }
@@ -59,7 +59,7 @@ public final class FluidFlow {
 
         /** 1.8: flat impulse, {@code 0.02}/{@code 0.8} water gravity/friction, zeroes against a wall, no lava push. */
         Model LEGACY = new Model() {
-            @Override public Vec impulse(Instance inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {
+            @Override public Vec impulse(MechanicsWorld inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {
                 Vec dir = legacyFlow(inst, pos, box, fluid);
                 return dir.isZero() ? Vec.ZERO : dir.mul(scale);
             }
@@ -71,7 +71,7 @@ public final class FluidFlow {
 
         /** 26.1: averaged + depth-scaled impulse, {@code 0.005}/{@code 0.9} water gravity/friction, no wall-zero, pushes in lava. */
         Model MODERN = new Model() {
-            @Override public Vec impulse(Instance inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {
+            @Override public Vec impulse(MechanicsWorld inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {
                 return modernImpulse(inst, pos, box, fluid, scale, movX, movZ);
             }
             @Override public double waterGravity(boolean sprinting) { return sprinting ? 0.0 : WATER_GRAVITY_MODERN; }
@@ -113,7 +113,7 @@ public final class FluidFlow {
      * or {@link Vec#ZERO} in still / pure-source fluid (a full source pool has no slope - why static water folds 1:1
      * without this). The summed per-cell unit slopes are re-normalized, so the magnitude is flat regardless of depth.
      */
-    private static Vec legacyFlow(Instance inst, Point pos, BoundingBox box, Block fluid) {
+    private static Vec legacyFlow(MechanicsWorld inst, Point pos, BoundingBox box, Block fluid) {
         // Vanilla water push box
         return legacyScan(inst,
                 pos.x() + box.minX() + INSET, pos.y() + box.minY() + Y_SHRINK + INSET, pos.z() + box.minZ() + INSET,
@@ -122,13 +122,13 @@ public final class FluidFlow {
     }
 
     /** 1.8 item water current: {@code EntityItem} scans the RAW box (the player Y-inset would invert a 0.25-tall box and scan nothing). Unit direction or ZERO. */
-    public static Vec itemLegacyFlow(Instance inst, Point pos, BoundingBox box) {
+    public static Vec itemLegacyFlow(MechanicsWorld inst, Point pos, BoundingBox box) {
         return legacyScan(inst,
                 pos.x() + box.minX(), pos.y() + box.minY(), pos.z() + box.minZ(),
                 pos.x() + box.maxX(), pos.y() + box.maxY(), pos.z() + box.maxZ(), Block.WATER);
     }
 
-    private static Vec legacyScan(Instance inst, double ax, double ay, double az, double dx, double dy, double dz, Block fluid) {
+    private static Vec legacyScan(MechanicsWorld inst, double ax, double ay, double az, double dx, double dy, double dz, Block fluid) {
         int xi = floor(ax), xj = floor(dx + 1.0);
         int yi = floor(ay), yj = floor(dy + 1.0);
         int zi = floor(az), zj = floor(dz + 1.0);
@@ -157,7 +157,7 @@ public final class FluidFlow {
      * <em>averaged</em> over the fluid-cell count (zero-flow source cells in the box dilute it) rather than normalized. A
      * near-still floor nudges a tiny impulse up to {@code 0.0045}. {@code movX/movZ} = the player's current horizontal velocity.
      */
-    private static Vec modernImpulse(Instance inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {
+    private static Vec modernImpulse(MechanicsWorld inst, Point pos, BoundingBox box, Block fluid, double scale, double movX, double movZ) {
         double feetY = pos.y() + box.minY();
         int xi = floor(pos.x() + box.minX()), xj = floor(pos.x() + box.maxX());
         int yi = floor(feetY), yj = (int) Math.ceil(pos.y() + box.maxY()) - 1;
@@ -205,7 +205,7 @@ public final class FluidFlow {
      * the box bottom (gates {@code isInFluid > 0} / item float {@code > 0.1}) plus the accumulated current -
      * normalized by {@link ItemSample#current}, not player-averaged.
      */
-    public static ItemSample itemModernSample(Instance inst, Point pos, BoundingBox box, Block fluid) {
+    public static ItemSample itemModernSample(MechanicsWorld inst, Point pos, BoundingBox box, Block fluid) {
         // vanilla scans bb.deflate(0.001) but measures height from the raw bb bottom
         double minX = pos.x() + box.minX() + INSET, maxX = pos.x() + box.maxX() - INSET;
         double minY = pos.y() + box.minY() + INSET, maxY = pos.y() + box.maxY() - INSET;
@@ -258,7 +258,7 @@ public final class FluidFlow {
     }
 
     /** Per-cell unit slope (vanilla {@code BlockFluids.h} / {@code FlowingFluid.getFlow}): neighbour {@code level} gradient + falling down-term, for the given {@code fluid}. */
-    private static Vec slopeAt(Instance inst, int x, int y, int z, Block fluid) {
+    private static Vec slopeAt(MechanicsWorld inst, int x, int y, int z, Block fluid) {
         int i = effLevel(inst, x, y, z, fluid); // this cell's flow level (source/falling -> 0)
         double sx = 0, sz = 0;
         for (int[] dir : HORIZONTAL) {
@@ -296,14 +296,14 @@ public final class FluidFlow {
     }
 
     /** Vanilla {@code f()}: -1 if the cell is not {@code fluid}, else the flow level ({@code level >= 8 -> 0}). */
-    private static int effLevel(Instance inst, int x, int y, int z, Block fluid) {
+    private static int effLevel(MechanicsWorld inst, int x, int y, int z, Block fluid) {
         int raw = rawLevel(inst, x, y, z, fluid);
         if (raw < 0) return -1;
         return raw >= 8 ? 0 : raw;
     }
 
     /** The {@code fluid}'s {@code level} property (0 source, 1-7 flowing, 8-15 falling), or -1 when the cell is not that fluid. */
-    private static int rawLevel(Instance inst, int x, int y, int z, Block fluid) {
+    private static int rawLevel(MechanicsWorld inst, int x, int y, int z, Block fluid) {
         if (!inst.isChunkLoaded(x >> 4, z >> 4)) return -1; // unloaded -> not fluid
         Block block = inst.getBlock(x, y, z); // full state so the level property is present
         if (block == null || !block.compare(fluid)) return -1; // by id: matches every fluid level
@@ -317,7 +317,7 @@ public final class FluidFlow {
     }
 
     /** Approximates vanilla's {@code material.isSolid()} / face-occlusion test with the registry solid flag. */
-    private static boolean solid(Instance inst, int x, int y, int z) {
+    private static boolean solid(MechanicsWorld inst, int x, int y, int z) {
         if (!inst.isChunkLoaded(x >> 4, z >> 4)) return false; // unloaded -> non-solid
         Block block = inst.getBlock(x, y, z, Block.Getter.Condition.TYPE);
         return block != null && block.isSolid();

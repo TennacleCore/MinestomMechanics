@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.breathing;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.item.Enchants;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
@@ -101,7 +102,7 @@ public final class DrowningDamage extends DamageType implements EnvironmentalTic
         Integer stored = living.getTag(AIR);
         int air = stored != null ? stored : maxAir;
 
-        boolean inWater = headInWater(living, inst);
+        boolean inWater = headInWater(living);
         boolean canBreathe = !inWater || living.hasEffect(PotionEffect.WATER_BREATHING); // identical 1.8/26; invulnerable already filtered
 
         if (!canBreathe) {
@@ -129,8 +130,9 @@ public final class DrowningDamage extends DamageType implements EnvironmentalTic
     }
 
     /** Whether the head (eye position) block is water; {@code false} if its chunk is unloaded. */
-    private static boolean headInWater(LivingEntity living, Instance inst) {
+    private static boolean headInWater(LivingEntity living) {
         Point eye = living.getPosition().add(0, living.getEyeHeight(), 0);
-        return inst.isChunkLoaded(eye.chunkX(), eye.chunkZ()) && inst.getBlock(eye).compare(Block.WATER);
+        MechanicsWorld world = MechanicsWorld.viewed(living);
+        return world.isChunkLoaded(eye.chunkX(), eye.chunkZ()) && world.getBlock(eye).compare(Block.WATER);
     }
 }

@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.PotionColors;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.VanillaPotions;
@@ -28,14 +30,11 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 /**
- * Splash potion projectile: on impact it applies the item's effect payload to every living entity in the vanilla
- * splash volume, scaled by distance. Two vanilla models via {@code modernSplash}: 1.8 (default,
- * {@code EntityPotion.a()}) gates on center distance² {@code < 16} with a directly-hit entity at intensity
- * {@code 1.0}; 26.1 ({@code ThrownSplashPotion.onHitAsPotion}) measures box-to-box distance instead (no direct-hit
- * case - a touched target's gap is 0). Intensity {@code 1 - sqrt(d)/4}; timed effects last
- * {@code (int)(intensity * duration * durationScale + 0.5)} and only apply above 20 ticks; instant ones route through
- * {@link HealOrHarm}. The glass break + particle cloud is level event 2002 (26.1: 2007 for instant potions),
- * per-viewer (see {@link #broadcastSplashEvent}).
+ * Splash potion projectile: applies the item's effect payload to the vanilla splash volume at intensity
+ * {@code 1 - sqrt(d)/4}. Two models via {@code modernSplash}: 1.8 (default) gates on center distance² {@code < 16}
+ * with the directly-hit entity at 1.0; 26.1 measures box-to-box distance (no direct-hit case). Timed effects only
+ * apply above 20 ticks; instant ones route through {@link HealOrHarm}; the glass break is per-viewer level event
+ * 2002/2007 ({@link #broadcastSplashEvent}).
  */
 public class SplashPotionEntity extends ManagedProjectile {
 
@@ -109,8 +108,8 @@ public class SplashPotionEntity extends ManagedProjectile {
 
     private void splash(Instance instance, Point at, @Nullable Entity hitEntity,
                         List<CustomPotionEffect> payload, float durationScale) {
-        for (Entity entity : instance.getNearbyEntities(at, 8.0)) {
-            if (!(entity instanceof LivingEntity living)) continue;
+        for (Entity entity : MechanicsWorld.of(this).nearbyEntities(at, 8.0)) {
+            if (!(entity instanceof LivingEntity living) || !WorldPolicy.canAffect(this, living)) continue;
             // vanilla gathers from the impact box grown (4, 2, 4); the y gate is what the box adds over the distance one
             if (Math.abs(living.getPosition().y() - at.y()) > 2.0 + living.getBoundingBox().height()) continue;
             double distSq = living.getPosition().distanceSquared(at);
@@ -125,8 +124,9 @@ public class SplashPotionEntity extends ManagedProjectile {
     private void splashModern(Instance instance, Point at, List<CustomPotionEffect> payload, float durationScale) {
         double halfWidth = getEntityType().width() / 2.0, height = getEntityType().height();
         double margin = Math.max(0.0, Math.min(0.3, (getAliveTicks() - 2) / 20.0));
-        for (Entity entity : instance.getNearbyEntities(at, 8.0)) {
-            if (!(entity instanceof LivingEntity living) || living.isDead()) continue; // isAffectedByPotions
+        for (Entity entity : MechanicsWorld.of(this).nearbyEntities(at, 8.0)) {
+            if (!(entity instanceof LivingEntity living) || living.isDead()
+                    || !WorldPolicy.canAffect(this, living)) continue; // isAffectedByPotions
             Pos ep = living.getPosition();
             var bb = living.getBoundingBox();
             double ey0 = ep.y() + bb.relativeStart().y(), ey1 = ep.y() + bb.relativeEnd().y();

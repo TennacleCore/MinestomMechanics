@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedHit;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
@@ -55,6 +56,8 @@ public class ProjectileHitEvent implements CancellableEvent {
     public @Nullable Entity shooter() { return shooter; }
     /** The hit entity, or {@code null} for a block hit. */
     public @Nullable Entity target() { return target; }
+    /** The world the projectile flew in. */
+    public MechanicsWorld world() { return MechanicsWorld.of(projectile()); }
     public @NotNull Point hitPoint() { return hitPoint; }
     public boolean isBlockHit() { return target == null; }
     public boolean isSelfHit() { return target != null && target == shooter; }

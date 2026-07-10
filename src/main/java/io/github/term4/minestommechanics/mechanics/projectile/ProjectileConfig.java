@@ -26,12 +26,18 @@ public final class ProjectileConfig extends Config<ProjectileContext, Projectile
     public final Map<Key, ProjectileTypeConfig> typeConfigs;
     /** Item launchers (e.g. {@code Bow}) this config installs - the item-&gt;projectile bindings. Read once at install, from the global profile. */
     public final List<Shootable> shootables;
+    /** Sync a LEGACY client's use-item aim to the click (MineMen): the 1.8 use packet carries no rotation, so Via fills
+     *  the previous tick's - a flick-and-throw launches on the stale aim. Held at queue entry until the same-tick flying
+     *  packet supplies the click aim ({@code UseItemAimSync}). {@code null}/false = vanilla (the desync); modern clients
+     *  are unaffected either way (their use packet carries the click aim natively). */
+    public final @Nullable Boolean useItemAimSync;
 
     private ProjectileConfig(Builder b) {
         super(b.subConfig);
         this.defaults = b.defaults;
         this.typeConfigs = Map.copyOf(b.typeConfigs);
         this.shootables = List.copyOf(b.shootables);
+        this.useItemAimSync = b.useItemAimSync;
     }
 
     /** The generic base config every type inherits, or {@code null} if none set. */
@@ -51,12 +57,13 @@ public final class ProjectileConfig extends Config<ProjectileContext, Projectile
         mergedShootables.addAll(shootables);
         ProjectileTypeConfig mergedDefaults = defaults == null ? base.defaults
                 : base.defaults == null ? defaults : defaults.fromBase(base.defaults);
-        return new Builder()
+        Builder b = new Builder()
                 .subConfig(subConfig != null ? subConfig : base.subConfig)
                 .defaults(mergedDefaults)
                 .typeConfigs(merged)
-                .shootables(mergedShootables)
-                .build();
+                .shootables(mergedShootables);
+        b.useItemAimSync = useItemAimSync != null ? useItemAimSync : base.useItemAimSync;
+        return b.build();
     }
 
     public Builder toBuilder() { return new Builder(this); }
@@ -68,9 +75,10 @@ public final class ProjectileConfig extends Config<ProjectileContext, Projectile
         private @Nullable ProjectileTypeConfig defaults;
         private final Map<Key, ProjectileTypeConfig> typeConfigs = new LinkedHashMap<>();
         private final List<Shootable> shootables = new ArrayList<>();
+        private @Nullable Boolean useItemAimSync;
 
         Builder() {}
-        Builder(ProjectileConfig c) { subConfig = c.subConfig; defaults = c.defaults; typeConfigs.putAll(c.typeConfigs); shootables.addAll(c.shootables); }
+        Builder(ProjectileConfig c) { subConfig = c.subConfig; defaults = c.defaults; typeConfigs.putAll(c.typeConfigs); shootables.addAll(c.shootables); useItemAimSync = c.useItemAimSync; }
 
         public Builder subConfig(Function<ProjectileContext, ProjectileConfig> fn) { subConfig = fn; return this; }
         /** Sets the generic base config every type inherits (its knobs apply unless a per-type entry overrides them). */
@@ -86,6 +94,9 @@ public final class ProjectileConfig extends Config<ProjectileContext, Projectile
 
         /** Adds item launchers (the item-&gt;projectile bindings, e.g. {@code new Bow()}) this config installs. */
         public Builder shootables(Shootable... s) { for (Shootable sh : s) shootables.add(sh); return this; }
+
+        /** Sync a legacy client's use-item aim to the click (see the field doc); default off (vanilla). */
+        public Builder useItemAimSync(boolean v) { useItemAimSync = v; return this; }
 
         Builder shootables(List<Shootable> s) { shootables.addAll(s); return this; }
 

@@ -1,6 +1,7 @@
 package test.presets;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
@@ -13,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * The fireball->TNT launch against the 2026-07-07_16-13-13 minemen capture (the pedestal jump-shot the A/B
- * was taken on): at each captured geometry the push is 1.3167 * (1-d/4) * seenPercent18 * feet-radial, and
+ * was taken on): at each captured geometry the push is 1.3167 * (1-d/4) * seenPercent18FullCube * feet-radial, and
  * the DELIVERED vy carries the victim's settled rest motY +0.013154 additively (vanilla adds blast impulses
  * to stored motion). Two knife-edge shots excluded - sub-wire feet drift flips a 3-ray layer there.
  * Arena translated into chunk 0,0: X=x-363448, Y=y-28, Z=z-363451.
@@ -47,7 +48,7 @@ class Mmc18FireballTntLaunchTest extends HeadlessServerTest {
         for (double[] c : CASES) {
             tnt.teleport(new Pos(c[0], 65, c[1])).join();
             Vec center = new Vec(c[2], c[3], c[4]);
-            float exp = ExplosionExposure.seenPercent18(instance, center, tnt);
+            float exp = ExplosionExposure.seenPercent18FullCube(MechanicsWorld.of(instance), center, tnt);
             assertEquals(c[5] / 27, exp, 1e-6, "exact ray count at " + c[2]);
 
             double dx = c[0] - c[2], dy = 65 - c[3], dz = c[1] - c[4];

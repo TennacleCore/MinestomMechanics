@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.consumable;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
@@ -122,7 +123,7 @@ public final class ConsumableSystem implements MechanicsModule {
 
     /** Per-instance "during" pass: each consuming player whose held item is an enabled registered consumable gets {@code onUsing}. */
     private void tick(Instance instance) {
-        for (Player p : instance.getPlayers()) {
+        for (Player p : MechanicsWorld.of(instance).players()) {
             if (!p.isUsingItem()) continue;
             PlayerHand hand = p.getItemUseHand();
             if (hand == null) continue;

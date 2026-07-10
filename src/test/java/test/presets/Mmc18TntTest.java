@@ -2,6 +2,7 @@ package test.presets;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.BlockVec;
 import net.minestom.server.coordinate.Pos;
@@ -59,9 +60,9 @@ class Mmc18TntTest extends HeadlessServerTest {
         assertTrue(Math.hypot(victim.getVelocity().x(), victim.getVelocity().z()) < 0.2, "settled before the blast");
         source.tick(0); // 52nd tick: detonates at its feet
         double d = vp.distance(sp);
-        double expected = 1.08 * (1 - d / 8); // grounded scale, level victims -> pure horizontal (b/t)
+        double expected = 1.1 * (1 - d / 8); // TNT-on-TNT scale, level victims -> pure horizontal (b/t)
         Vec v = victim.getVelocity().div(20);
-        assertEquals(expected, Math.hypot(v.x(), v.z()), 0.02, "grounded TNT push = 1.08*(1-d/8) at d=" + d);
+        assertEquals(expected, Math.hypot(v.x(), v.z()), 0.02, "grounded TNT push = 1.1*(1-d/8) at d=" + d);
         assertTrue(v.x() < 0, "pushed away from the source");
         victim.remove();
     }
@@ -85,7 +86,7 @@ class Mmc18TntTest extends HeadlessServerTest {
     }
 
     @Test
-    void pillarUnderVictimOccludesCloseRangePush() {
+    void pillarUnderVictimReducesPushByExposure() {
         instance.setBlock(11, 64, 3, Block.STONE); // 1-block pillar
         PrimedTnt victim = Tnt.spawn(explosions, instance, new BlockVec(11, 65, 3)); // rests on the pillar at 65
         victim.setVelocity(new Vec(0, 0.2, 0).mul(20)); // driftless - deterministic geometry
@@ -94,19 +95,17 @@ class Mmc18TntTest extends HeadlessServerTest {
         for (int i = 0; i < 51; i++) { victim.tick(0); source.tick(0); }
         assertEquals(65.0, victim.getPosition().y(), 0.01, "victim must rest on the pillar");
         double d = victim.getPosition().distance(source.getPosition());
-        float exposure = Tnt.exposure(instance, source.getPosition(), victim.getPosition());
+        float exposure = ExplosionExposure.seenPercent18FullCube(MechanicsWorld.of(instance), source.getPosition(), victim);
         source.tick(0);
-        assertTrue(exposure > 0.1 && exposure < 0.85, "close pillar shadow is partial (" + exposure + ")");
-        assertEquals(1.44 * (1 - d / 8) * exposure, victim.getVelocity().div(20).length(), 0.03,
-                "close push = 1.44 * F * exposure");
+        assertEquals(1.1 * (1 - d / 8) * exposure, victim.getVelocity().div(20).length(), 0.03,
+                "push = 1.1 * F * shared 1.8 exposure (the pillar shadow reduces it)");
         victim.remove();
         instance.setBlock(11, 64, 3, Block.AIR);
     }
 
     @Test
-    void elevatedVictimGetsTheFullScale() {
-        // the grounded 3/4 is a seam-ray effect that releases at dy=1: the victim takes 1.44 x exposure
-        // (minemen far dy!=0 rows read 1.15-1.21, above 1.08 - impossible under 1.08 x exposure).
+    void elevatedVictimTakesTheScaledVanillaPush() {
+        // the collapse: no special 1.44 "seam release" - just 1.1 x the shared vanilla push (real 1.8 exposure).
         // stays inside chunk (0,0): the swept exposure rays treat unloaded chunks as solid
         instance.setBlock(3, 64, 9, Block.STONE);
         PrimedTnt victim = Tnt.spawn(explosions, instance, new BlockVec(3, 65, 9));
@@ -115,11 +114,10 @@ class Mmc18TntTest extends HeadlessServerTest {
         for (int i = 0; i < 51; i++) { victim.tick(0); source.tick(0); }
         assertEquals(65.0, victim.getPosition().y(), 0.01, "victim must rest on the pillar");
         double d = victim.getPosition().distance(source.getPosition());
-        float exposure = Tnt.exposure(instance, source.getPosition(), victim.getPosition());
+        float exposure = ExplosionExposure.seenPercent18FullCube(MechanicsWorld.of(instance), source.getPosition(), victim);
         source.tick(0);
-        double expected = 1.44 * (1 - d / 8) * exposure;
-        assertTrue(exposure > 0.7, "far dy=1: bottom layer released, only the pillar face occludes (" + exposure + ")");
-        assertEquals(expected, victim.getVelocity().div(20).length(), 0.03, "elevated push = 1.44 * F * exposure");
+        assertEquals(1.1 * (1 - d / 8) * exposure, victim.getVelocity().div(20).length(), 0.03,
+                "elevated push = 1.1 * F * shared 1.8 exposure");
         victim.remove();
         instance.setBlock(3, 64, 9, Block.AIR);
     }

@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.platform.compatibility;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.entity.GameMode;
@@ -43,7 +44,8 @@ public final class CompatPlacement {
     /** 1.8 refused to place against an air cell. An air clicked-block (a live raycast never block-hits air) = the client aimed at a cell it just broke - block the item use to refuse the floating quick-replace. */
     private static void onInteract(PlayerBlockInteractEvent event) {
         if (!(event.getPlayer() instanceof OptimizedPlayer op)) return;
-        if (op.compat().oldPlacement() && event.getBlock().isAir()) {
+        // the event's block is the base-map read; a virtual-world member's clicked block may exist only in their world
+        if (op.compat().oldPlacement() && MechanicsWorld.viewed(op).getBlock(event.getBlockPosition()).isAir()) {
             event.setBlockingItemUse(true);
         }
     }

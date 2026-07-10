@@ -4,7 +4,7 @@ import net.kyori.adventure.key.Key;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A gameplay attribute a {@link Source} can modify - either a {@link Vanilla} one backed by a Minestom attribute
+ * A gameplay attribute a {@link io.github.term4.minestommechanics.mechanics.attribute.source.Source Source} can modify - either a {@link Vanilla} one backed by a Minestom attribute
  * (client-facing; Minestom does its own base+modifier math) or a {@link Custom} one we resolve ourselves (a key, e.g. a
  * pipeline term like melee flat-add). One uniform handle so a modifier can target anything.
  *

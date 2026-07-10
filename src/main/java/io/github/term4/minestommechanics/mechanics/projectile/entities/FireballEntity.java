@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import net.minestom.server.ServerFlag;
@@ -48,11 +49,10 @@ public class FireballEntity extends ManagedProjectile {
 
     @Override
     public boolean deflectBy(@Nullable Entity deflector) {
-        // Hypixel: the owner can NEVER deflect its own fireball (capture: 13/13 self-hits at 23-167ms all ignored); this
-        // also blocks instant re-deflect chains, since a deflect reassigns ownership to the deflector.
+        // the owner can never deflect its own fireball (Hypixel capture: 13/13 self-hits ignored); a deflect
+        // reassigns ownership, which also blocks instant re-deflect chains
         if (deflector == null || deflector == shooter) return false;
-        // vanilla EntityFireball.damageEntity / 26.1 AIM_DEFLECT: motion = the deflector's look (unit ~1.0 b/t), the
-        // self-propulsion re-latches along it, and ownership transfers to the deflector.
+        // vanilla EntityFireball.damageEntity / 26.1 AIM_DEFLECT: motion = the deflector's look, propulsion re-latches
         Vec look = deflector.getPosition().direction();
         setVelocity(look.mul(ServerFlag.SERVER_TICKS_PER_SECOND)); // b/s; unit look = 1.0 b/t, like vanilla ap()
         setAcceleration(look.mul(SELF_PROPULSION));
@@ -63,7 +63,7 @@ public class FireballEntity extends ManagedProjectile {
 
     @Override
     protected void movementTick() {
-        // latch self-propulsion (aim·0.1) on the first moving tick, decoupled from launch speed (Hypixel launches ~1.0 b/t but still propels 0.1/tick toward the ~1.9 terminal)
+        // latch self-propulsion (aim·0.1) on the first moving tick, decoupled from launch speed
         if (!propelled && velocityBt().lengthSquared() > 1.0e-9) {
             setAcceleration(velocityBt().normalize().mul(SELF_PROPULSION));
             propelled = true;
@@ -74,7 +74,7 @@ public class FireballEntity extends ManagedProjectile {
     @Override
     protected void onImpact(@Nullable Entity hitEntity) {
         super.onImpact(hitEntity);
-        // bare fireball detonates same-tick (vanilla 1.8 EntityLargeFireball.a / 26.1 LargeFireball.onHit); one carrying a behavior lets IT own the timing (Hypixel delays a tick so the projectile KB lands first)
+        // bare fireball detonates same-tick (vanilla); one carrying a behavior lets IT own the timing (Hypixel delays a tick)
         Instance instance = getInstance();
         if (!hasBehavior() && instance != null) detonate(instance, getPosition(), hitEntity);
     }
@@ -83,6 +83,6 @@ public class FireballEntity extends ManagedProjectile {
     public void detonate(@NotNull Instance instance, @NotNull Point center, @Nullable Entity hitEntity) {
         Services s = services();
         ExplosionSystem explosion = s != null ? s.explosion() : null;
-        if (explosion != null) explosion.explode(instance, center, explosionPower, this, hitEntity);
+        if (explosion != null) explosion.explode(MechanicsWorld.of(this, instance), center, explosionPower, this, hitEntity);
     }
 }

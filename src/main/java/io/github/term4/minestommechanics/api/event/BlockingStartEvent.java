@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.api.event;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.PlayerHand;
 import net.minestom.server.event.trait.CancellableEvent;
@@ -24,6 +25,8 @@ public final class BlockingStartEvent implements CancellableEvent {
     }
 
     public Player player() { return player; }
+    /** The player's gameplay world. */
+    public MechanicsWorld world() { return MechanicsWorld.of(player()); }
     public PlayerHand hand() { return hand; }
     public ItemStack item() { return item; }
 

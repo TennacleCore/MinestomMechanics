@@ -55,19 +55,25 @@ import net.minestom.server.potion.Potion;
 import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.potion.PotionType;
 import net.minestom.server.timer.TaskSchedule;
-import test.presets.hypixel.Hypixel;
-import test.presets.mmc18.Mmc18;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
+import test.presets.Preset;
+import test.presets.customItems.PrimedTnt;
 
 public class ExampleServer {
+
+    /** The active preset - swap this ONE line to change the whole setup (mechanics profile + the primed-TNT entity, together). */
+    private static final Preset PRESET = Preset.MMC18;
+
+    private static Preset presetFor(Player p) {
+        return PRESET;
+    }
+
     static void main() {
         // Enable faster socket writes
         System.setProperty("minestom.new-socket-write-lock", "true");
 
         // Disable interaction range enforcement (mechanics lib handles reach)
         System.setProperty( "minestom.enforce-entity-interaction-range", "false");
-
-        // Set up required flags for legacy players (prevents visual bugs on older versions)
-        System.setProperty("minestom.chunk-view-distance", "12"); // less than 12 causes players to disappear at ~150 block from spawn
 
         // Set server TPS (default is 20, library should work with any TPS tested up to 1000)
         System.setProperty("minestom.tps", "20");
@@ -81,7 +87,7 @@ public class ExampleServer {
         // Everything the server runs lives on one profile: the mmc18 mechanics, the general 1.8 compat layer, and the
         // legacy-client fixes. Each system below just enables itself and reads its config from here, so swapping the
         // profile swaps the whole setup.
-        mm.profiles().setGlobal(Mmc18.profile().toBuilder()
+        mm.profiles().setGlobal(PRESET.profile().toBuilder()
                 .set(MechanicsKeys.COMPAT, Compat18.config())
                 .set(MechanicsKeys.FIXES, Fixes18.config())
                 .build());
@@ -89,12 +95,12 @@ public class ExampleServer {
         AttackSystem.install(mm);
         DamageSystem.install(mm);
         KnockbackSystem.install(mm);
-        ProjectileSystem.install(mm); // type enablement + the Bow launcher come from the profile's projectile config
+        ProjectileSystem.install(mm);
         AttributeSystem.install(mm);
-        ConsumableSystem.install(mm); // the golden-apple types come from the profile's consumable config
+        ConsumableSystem.install(mm);
         BlockingSystem.install(mm);
-        FixesSystem.install(mm);      // the legacy-client fix set comes from the profile's fixes config
-        Vri.install(mm, VriConfig.all()); // VRI: vanilla behaviors Minestom omits (crack overlay, break FX, drops, pickup)
+        FixesSystem.install(mm);
+        Vri.install(mm, VriConfig.all());
         ExplosionSystem explosions = ExplosionSystem.install(mm); // explosion config comes from the profile (EXPLOSION key)
 
         InstanceManager instanceManager = MinecraftServer.getInstanceManager();
@@ -135,15 +141,14 @@ public class ExampleServer {
 
         GlobalEventHandler globalEventHandler = MinecraftServer.getGlobalEventHandler();
 
-        // TNT test item: placing TNT spawns a primed-TNT entity instead of a block.
-        // mmc18 (MineMen) variant: fuse 52, feet detonation, live bounce, measured TNT-push table.
-        // Swap to presets.hypixel.Tnt.spawn for the Hypixel variant (fuse 50, +h/16 detonation).
+        // TNT test item: placing TNT spawns a primed-TNT entity instead of a block, from the active PRESET - so its
+        // wire/bounce/fuse always match the profile above (a mismatch made a Hypixel-profile run behave like MineMen).
         globalEventHandler.addListener(PlayerBlockPlaceEvent.class, event -> {
             if (!event.getBlock().compare(Block.TNT)) return;
             event.setCancelled(true);
             Player p = event.getPlayer();
             if (p.getInstance() == null || explosions == null) return;
-            test.presets.mmc18.Tnt.spawn(explosions, p.getInstance(), event.getBlockPosition());
+            PrimedTnt.spawn(explosions, MechanicsWorld.of(p), event.getBlockPosition(), presetFor(p).tnt);
             if (p.getGameMode() != GameMode.CREATIVE) { // cancelling the place keeps the item, so consume one like vanilla TNT
                 ItemStack held = p.getItemInHand(event.getHand());
                 p.setItemInHand(event.getHand(), held.withAmount(held.amount() - 1));

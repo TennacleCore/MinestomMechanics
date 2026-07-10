@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities.arrow;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Flame;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedHit;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.VanillaPotions;
@@ -167,8 +169,8 @@ public class ArrowEntity extends ManagedProjectile {
         Pos arrow = getPosition();
         // query nearby players only, then test the exact box intersection + pickup mode (the radius is just the pre-filter)
         Player[] collected = {null};
-        instance.getEntityTracker().nearbyEntities(arrow, pickupScanRange, EntityTracker.Target.PLAYERS, p -> {
-            if (collected[0] == null && canCollect(p) && withinPickupBox(arrow, p)) collected[0] = p;
+        MechanicsWorld.of(this).nearbyPlayers(arrow, pickupScanRange, p -> {
+            if (collected[0] == null && WorldPolicy.canAffect(p, this) && canCollect(p) && withinPickupBox(arrow, p)) collected[0] = p;
         });
         Player p = collected[0];
         if (p == null) return;
