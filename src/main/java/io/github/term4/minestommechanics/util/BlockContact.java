@@ -15,9 +15,9 @@ import java.util.function.Predicate;
 /**
  * Block occupancy / collision-shape contact tests for hazard producers.
  *
- * <p>{@link #scan}/{@link #touching} walk full block cells — use for fluids and fire, which fill
+ * <p>{@link #scan}/{@link #touching} walk full block cells - use for fluids and fire, which fill
  * the cell but often have no collision shape. {@link #scanShapes}/{@link #touchingShapes} test
- * registry collision shapes — use for cactus and similar, whose damage hitbox is smaller than the
+ * registry collision shapes - use for cactus and similar, whose damage hitbox is smaller than the
  * cell. Unloaded chunks and out-of-range Y are skipped.
  */
 public final class BlockContact {

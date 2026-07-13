@@ -176,7 +176,6 @@ public final class Knockback {
                 e, TickScaler.duration(SPRINT_BUFFER, KnockbackSystem.KEY));
     }
 
-    // ----- vertical: launch-hold then decay -----
     private static final int VERTICAL_DECAY_N = 7;
     private static final double VERTICAL_CAP = 0.3614;
     private static final double VERTICAL_BASE = VERTICAL_CAP + VelocityConfig.GRAVITY / VERTICAL_DECAY_N;  // 0.3728286

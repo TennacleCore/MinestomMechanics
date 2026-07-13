@@ -14,6 +14,8 @@ import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 // Sprint usage audited: combat/knockback all routes through this tracker (KnockbackCalculator, KnockbackConfigResolver,
 // Vanilla18.sprintingForKb, VelocityContext); raw isSprinting() is only the no-tracker fallback. MotionTracker's raw
 // reads (sprint-jump boost, fluid friction) are physics, not combat timing, so they stay raw by design.
@@ -22,11 +24,18 @@ public final class SprintTracker implements Tracker {
     private static final Tag<TickState> LAST_SPRINT_STATE = Tag.Transient("mm:last-sprint-state");
     private static final Tag<TickState> LAST_CLIENT_START_SPRINT = Tag.Transient("mm:client-sprint-start");
     private static final Tag<TickState> LAST_CLIENT_STOP_SPRINT  = Tag.Transient("mm:client-sprint-stop");
+    private static final AtomicBoolean CLOCK_RESET = new AtomicBoolean();
 
-    public SprintTracker() { }
+    public SprintTracker() {
+        if (CLOCK_RESET.compareAndSet(false, true)) {
+            TickSystem.onClockChange(e -> {
+                if (e instanceof Player p) clearTransient(p);
+            });
+        }
+    }
 
     public void markStopSprint(Player player) {
-        player.setTag(LAST_SPRINT_STATE, new TickState(TickSystem.instanceTick(player), 0));
+        player.setTag(LAST_SPRINT_STATE, new TickState(TickSystem.tick(player), 0));
     }
 
     /** Listener node that stamps the sprint start/stop ticks. */
@@ -36,13 +45,13 @@ public final class SprintTracker implements Tracker {
 
         node.addListener(PlayerStartSprintingEvent.class, e -> {
             Player p = e.getPlayer();
-            p.setTag(LAST_CLIENT_START_SPRINT, new TickState(TickSystem.instanceTick(p), 0));
+            p.setTag(LAST_CLIENT_START_SPRINT, new TickState(TickSystem.tick(p), 0));
         });
 
         node.addListener(PlayerStopSprintingEvent.class, e -> {
             Player p = e.getPlayer();
             markStopSprint(p);
-            p.setTag(LAST_CLIENT_STOP_SPRINT, new TickState(TickSystem.instanceTick(p), 0));
+            p.setTag(LAST_CLIENT_STOP_SPRINT, new TickState(TickSystem.tick(p), 0));
         });
 
         // Instance change reseeds the per-instance clock these stamps use; isClientSprinting compares raw eventTicks
@@ -65,7 +74,7 @@ public final class SprintTracker implements Tracker {
         if (t == null || p.isSprinting()) return p.isSprinting();
         TickState state = p.getTag(LAST_SPRINT_STATE);
         if (state == null) return false;
-        return state.isActiveWithin(TickSystem.instanceTick(p), (int) ticks);
+        return state.isActiveWithin(TickSystem.tick(p), (int) ticks);
     }
 
     /** True if the client's last sprint action was start (client thinks it is currently sprinting even if the server does not.) */
@@ -86,6 +95,6 @@ public final class SprintTracker implements Tracker {
         // Not currently sprinting (per the check above) and no stop ever recorded = never sprinted at all
         // (e.g. fresh join) - not "recently sprinting".
         if (stop == null) return false;
-        return stop.isActiveWithin(TickSystem.instanceTick(e), ticks);
+        return stop.isActiveWithin(TickSystem.tick(e), ticks);
     }
 }

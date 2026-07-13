@@ -5,21 +5,25 @@ import net.minestom.server.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Cross-world gameplay rules, globally pluggable. The default gates everything to the actor's own world; override
- * to open specific reaches - e.g. staff hitting or building into a game they observe - and delegate back to
- * {@link #SAME_WORLD} for everyone else. A view layer governs what a player SEES; this governs what they DO.
+ * Cross-world gameplay rules, globally pluggable. The default gates everything to the actor's own world;
+ * override to open specific reaches (staff hitting/building into an observed game). Views govern what a player
+ * SEES; this governs what they DO.
  */
 public interface WorldPolicy {
 
     WorldPolicy SAME_WORLD = new WorldPolicy() {};
 
     /**
-     * Whether {@code actor}'s gameplay effects reach {@code target} (melee, projectiles, splash, explosions,
-     * pushes, pickup, item merging). {@code actor} = the acting ENTITY, not its shooter. Bindings only - an actor may be
-     * legitimately world-less (a fireball removes itself pre-detonate).
+     * Whether {@code actor}'s gameplay effects reach {@code target} (melee, projectiles, splash, pushes, pickup,
+     * merging). {@code actor} = the acting ENTITY, not its shooter; an actor may legitimately be world-less.
      */
     default boolean affects(@NotNull Entity actor, @NotNull Entity target) {
         return MechanicsWorld.binding(actor) == MechanicsWorld.binding(target);
+    }
+
+    /** Whether {@code viewer}'s client renders {@code subject} - the per-viewer entity filter (view layers re-point it). */
+    default boolean sees(@NotNull Player viewer, @NotNull Entity subject) {
+        return MechanicsWorld.binding(viewer) == MechanicsWorld.binding(subject);
     }
 
     /** Whether {@code player} may edit blocks of a world they view without belonging to it (staff build mode). */
@@ -27,16 +31,17 @@ public interface WorldPolicy {
         return false;
     }
 
-    /**
-     * Whether {@code viewer}'s client renders {@code world}'s BLOCKS - the per-viewer filter for block-anchored
-     * FX (crack overlays). A view layer re-points this at its own block-view state.
-     */
+    /** Whether {@code viewer}'s client renders {@code world}'s BLOCKS - the filter for block-anchored FX. */
     default boolean seesBlocksOf(@NotNull Player viewer, @NotNull MechanicsWorld world) {
         return MechanicsWorld.binding(viewer) == null && viewer.getInstance() == world.instance();
     }
 
     static boolean canAffect(@NotNull Entity actor, @NotNull Entity target) {
         return Holder.POLICY.affects(actor, target);
+    }
+
+    static boolean canSee(@NotNull Player viewer, @NotNull Entity subject) {
+        return Holder.POLICY.sees(viewer, subject);
     }
 
     static boolean canEdit(@NotNull Player player, @NotNull MechanicsWorld viewed) {

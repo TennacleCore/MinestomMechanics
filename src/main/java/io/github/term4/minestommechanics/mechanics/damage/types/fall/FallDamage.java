@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.fall;
 
+import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.damage.DamageProducers;
@@ -77,7 +78,7 @@ public final class FallDamage extends DamageType {
         system.node().addChild(n);
         node = n;
         // fallback poll a tick behind onMove: catches status-only onGround landings (no PlayerMoveEvent)
-        pollHook = TickSystem.register(TickPhase.DEFAULT, ctx -> pollLandings(ctx.instance()));
+        pollHook = TickSystem.register(TickPhase.DEFAULT, this::pollLandings);
     }
 
     @Override
@@ -138,9 +139,9 @@ public final class FallDamage extends DamageType {
     }
 
     /** Fallback landing poll for players (status-only onGround packets fire no move event); one instance per tick. */
-    private void pollLandings(Instance instance) {
-        for (Player p : MechanicsWorld.of(instance).players()) {
-            if (!p.isOnGround()) continue;
+    private void pollLandings(TickContext ctx) {
+        for (Player p : ctx.world().players()) {
+            if (!ctx.owns(p) || !p.isOnGround()) continue;
             float dist = fallDistance(p);
             if (dist <= 0) continue;
             if (!DamageProducers.exempt(p)) land(p, p.getPosition(), dist);

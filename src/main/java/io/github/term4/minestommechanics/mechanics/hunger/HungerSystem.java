@@ -61,8 +61,8 @@ public final class HungerSystem implements MechanicsModule {
 
     /** Per-instance hunger pass over each enabled player. <b>Stub:</b> a no-op until the hunger logic lands. */
     private void tick(TickContext ctx) {
-        for (Player p : ctx.instance().getPlayers()) {
-            if (!enabled(p)) continue;
+        for (Player p : ctx.world().players()) {
+            if (!ctx.owns(p) || !enabled(p)) continue;
             // TODO(hunger): step exhaustion -> saturation -> food, natural regen, and starvation (route through DamageSystem).
         }
     }

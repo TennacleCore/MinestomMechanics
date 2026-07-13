@@ -2,9 +2,12 @@ package io.github.term4.minestommechanics.vri;
 
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.minestommechanics.util.tick.TickSystem;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.BlockVec;
 import net.minestom.server.coordinate.Pos;
+import net.minestom.server.entity.Entity;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
@@ -75,6 +78,36 @@ class BlockBreakProgressTest extends HeadlessServerTest {
         assertEquals((byte) -1, packets.getLast().destroyStage(), "abort must clear the crack overlay");
 
         assertEquals(List.of(), miner.sent(BlockBreakAnimationPacket.class), "the miner predicts its own cracks");
+    }
+
+    @Test
+    void domainMinersCrackOnTheirOwnClock() {
+        instance.setBlock(BLOCK.blockX(), BLOCK.blockY(), BLOCK.blockZ(), Block.STONE);
+        long[] clock = {100};
+        MechanicsWorld.resolver(new MechanicsWorld.Resolver() {
+            @Override public MechanicsWorld resolve(Entity e) { return e.getTag(MechanicsWorld.ENTITY_TAG); }
+            @Override public boolean externallyTicked(Entity e) { return e == miner.player; }
+            @Override public long externalTick(Entity e) { return e == miner.player ? clock[0] : -1; }
+        });
+        try {
+            int breakTicks = BlockBreakCalculation.breakTicks(instance.getBlock(BLOCK), miner.player);
+            int stage1Boundary = breakTicks / 10;
+            EventDispatcher.call(new PlayerStartDiggingEvent(miner.player, instance, instance.getBlock(BLOCK), BLOCK, BlockFace.TOP));
+            viewer.sent.clear();
+
+            for (int i = 0; i < stage1Boundary + 3; i++) EventDispatcher.call(new InstanceTickEvent(instance, 0, 0));
+            assertEquals(List.of(), viewer.sent(BlockBreakAnimationPacket.class),
+                    "the main pass leaves a domain miner's dig alone");
+
+            clock[0] += stage1Boundary;
+            TickSystem.tickWorld(MechanicsWorld.of(instance), clock[0]);
+            List<BlockBreakAnimationPacket> packets = viewer.sent(BlockBreakAnimationPacket.class);
+            assertEquals(1, packets.size(), "the world pass advances the crack on the miner's clock");
+            assertEquals((byte) 1, packets.getFirst().destroyStage());
+        } finally {
+            MechanicsWorld.resolver(MechanicsWorld.Resolver.DEFAULT);
+            EventDispatcher.call(new PlayerCancelDiggingEvent(miner.player, instance, instance.getBlock(BLOCK), BLOCK));
+        }
     }
 
     @Test

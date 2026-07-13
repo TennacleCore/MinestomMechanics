@@ -51,8 +51,6 @@ class ProtectionStageTest extends HeadlessServerTest {
         @Override public int nextInt(int bound) { return 0; }
     };
 
-    // --- pure formula pins ---
-
     @Test
     void legacyPerPieceIsFlooredVanilla() {
         // floor((6 + lvl²)/3 × typeMult); MathHelper.d = floor of float
@@ -95,8 +93,6 @@ class ProtectionStageTest extends HeadlessServerTest {
         assertEquals(10.0f, ProtectionConfig.applyModern(10f, 0f), 1e-5f); // no protection
     }
 
-    // --- the Bypass model ---
-
     @Test
     void bypassModelQueriesAndMerge() {
         Bypass b = Bypass.builder().armor(true).effect(RESISTANCE).enchant(PROTECTION).build();
@@ -112,8 +108,6 @@ class ProtectionStageTest extends HeadlessServerTest {
         assertTrue(merged.enchantStage());
         assertEquals(Bypass.NONE, Bypass.NONE.merge(null));
     }
-
-    // --- entity-backed: real armor enchant reads + category gating ---
 
     @Test
     void modernProtectionReducesAllDamage() {
@@ -161,8 +155,6 @@ class ProtectionStageTest extends HeadlessServerTest {
         assertEquals(6.0f, legacy.damageAfterProtection(victim, cats, 10f, MIN_ROLL, Bypass.NONE), 1e-4f);
     }
 
-    // --- targeted bypass (the "god killer" / "wooden stake" support) ---
-
     @Test
     void targetedEnchantBypassSkipsOnlyThatEnchant() {
         LivingEntity victim = zombie(new Pos(0, 64, 408));
@@ -188,8 +180,6 @@ class ProtectionStageTest extends HeadlessServerTest {
         // blanket bypassAll -> everything skipped
         assertEquals(10.0f, mitigate(victim, 10f, Bypass.builder().all().build()), 1e-4f);
     }
-
-    // --- preset wiring + live pipeline ---
 
     @Test
     void presetsWireTheFormula() {

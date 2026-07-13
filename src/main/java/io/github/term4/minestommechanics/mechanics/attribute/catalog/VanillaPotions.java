@@ -22,7 +22,7 @@ import java.util.Map;
  * {@code customEffects} are used directly and don't need a row.
  *
  * <p><b>Version-invariant.</b> The recipe (which effect + duration/amplifier) is the same in 1.8 and 26 for every shared
- * potion (Swiftness 3600/9600/1800, Regeneration 900/1800/450, Poison 900/1800/432, …); what differs by version is each
+ * potion (Swiftness 3600/9600/1800, Regeneration 900/1800/450, Poison 900/1800/432, ...); what differs by version is each
  * <em>effect's mechanic</em>, which lives in the {@code LEGACY}/{@code MODERN} effect sources, not here. The 26-only
  * potions (Turtle Master, Slow Falling, Luck, Strong Slowness) are simply never reachable by a 1.8/Via client, so one
  * table serves both. The vanilla 1/8 tipped-arrow scaling is NOT baked here - it's the arrow's {@code potion_duration_scale}.

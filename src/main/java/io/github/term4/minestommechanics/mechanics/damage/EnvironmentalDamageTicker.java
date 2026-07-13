@@ -1,11 +1,10 @@
 package io.github.term4.minestommechanics.mechanics.damage;
 
-import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
-import net.minestom.server.instance.Instance;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Set;
@@ -34,7 +33,7 @@ public final class EnvironmentalDamageTicker {
     public void bind(DamageSystem system) {
         this.system = system;
         if (hooked.compareAndSet(false, true)) {
-            TickSystem.register(TickPhase.DEFAULT, ctx -> tickInstance(ctx.instance()));
+            TickSystem.register(TickPhase.DEFAULT, this::tick);
         }
     }
 
@@ -42,12 +41,12 @@ public final class EnvironmentalDamageTicker {
 
     public void unregister(EnvironmentalTickProducer producer) { producers.remove(producer); }
 
-    private void tickInstance(Instance instance) {
+    private void tick(TickContext ctx) {
         DamageSystem sys = this.system;
         if (sys == null || producers.isEmpty()) return;
-        for (Entity entity : MechanicsWorld.of(instance).entities()) {
+        for (Entity entity : ctx.world().entities()) {
             if (!(entity instanceof LivingEntity living)) continue;
-            if (DamageProducers.exempt(living)) continue;
+            if (!ctx.owns(living) || DamageProducers.exempt(living)) continue;
             for (EnvironmentalTickProducer producer : producers) producer.tick(living, sys);
         }
     }

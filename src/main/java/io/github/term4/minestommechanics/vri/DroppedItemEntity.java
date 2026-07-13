@@ -36,6 +36,21 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class DroppedItemEntity extends ItemEntity {
 
+    // @ApiStatus.Internal override: super is exactly this field write + dispatcher().updateElement (verified
+    // 2026.07.12-26.2, re-verify on bumps) - an externally ticked entity in the global dispatcher double-ticks
+    @Override protected void refreshCurrentChunk(@NotNull net.minestom.server.instance.Chunk chunk) {
+        if (MechanicsWorld.externallyTicked(this)) {
+            currentChunk = chunk;
+            return;
+        }
+        super.refreshCurrentChunk(chunk);
+    }
+
+    @Override public void tick(long time) {
+        if (!MechanicsWorld.ownsCurrentTick(this)) return;
+        super.tick(time);
+    }
+
     /** Which vanilla item physics to run. */
     public enum Model { LEGACY, MODERN }
 

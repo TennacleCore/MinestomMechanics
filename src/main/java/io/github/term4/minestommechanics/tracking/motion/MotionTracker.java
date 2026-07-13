@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.tracking.motion;
 
+import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.MechanicsKeys;
@@ -37,6 +38,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.OptionalDouble;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 /**
@@ -154,7 +156,16 @@ public final class MotionTracker implements Tracker {
     /** Resolves each player's velocity rule once per tick to read its fluid/climb/web toggles (gate the env handling). */
     private final MechanicsProfiles profiles;
 
-    public MotionTracker(MechanicsProfiles profiles) { this.profiles = profiles; }
+    private static final AtomicBoolean CLOCK_RESET = new AtomicBoolean();
+
+    public MotionTracker(MechanicsProfiles profiles) {
+        this.profiles = profiles;
+        if (CLOCK_RESET.compareAndSet(false, true)) {
+            TickSystem.onClockChange(e -> {
+                if (e instanceof Player p) clearTransient(p);
+            });
+        }
+    }
 
     /**
      * Registers the per-tick ground-state fallback poll (a tick behind {@link #onMove}; catches status-only onGround
@@ -164,7 +175,7 @@ public final class MotionTracker implements Tracker {
      */
     @Override
     public void start() {
-        TickSystem.register(TickPhase.PRE_DISPATCH, ctx -> tick(ctx.instance()));
+        TickSystem.register(TickPhase.PRE_DISPATCH, this::tick);
     }
 
     /** Listener anchoring the air clock + move-delta to the client's own move packets (ping-invariant). */
@@ -200,7 +211,7 @@ public final class MotionTracker implements Tracker {
 
     private void onMove(PlayerMoveEvent e) {
         Player p = e.getPlayer();
-        long now = TickSystem.instanceTick(p);
+        long now = TickSystem.tick(p);
         p.setTag(LAST_MOVE_TICK, now);
         boolean nowOnGround = e.isOnGround();
         Pos newPos = e.getNewPosition();
@@ -318,9 +329,10 @@ public final class MotionTracker implements Tracker {
         p.setTag(MOT_H, new MotState(residualAt(p, s, now), now, false));
     }
 
-    private void tick(Instance instance) {
-        for (Player p : MechanicsWorld.of(instance).players()) {
-            long now = TickSystem.instanceTick(p);
+    private void tick(TickContext ctx) {
+        for (Player p : ctx.world().players()) {
+            if (!ctx.owns(p)) continue;
+            long now = TickSystem.tick(p);
             // fallback, a tick behind onMove: catches status-only onGround packets (no PlayerMoveEvent)
             if (p.isOnGround()) {
                 freezeOnLanding(p, now);
@@ -552,7 +564,7 @@ public final class MotionTracker implements Tracker {
      */
     public static void foldDelivered(Entity entity, Vec bt) {
         if (!(entity instanceof Player p)) return;
-        long now = TickSystem.instanceTick(p);
+        long now = TickSystem.tick(p);
         p.setTag(MOT_H, new MotState(new Vec(bt.x(), 0, bt.z()), now, !p.isOnGround()));
         p.removeTag(ENTITY_PUSH);
         p.removeTag(FLOW_PUSH);
@@ -703,7 +715,7 @@ public final class MotionTracker implements Tracker {
         if (entity == null) return 0;
         Long start = entity.getTag(AIR_START_TICK);
         if (start == null) return 0;
-        return (int) Math.max(0, TickSystem.instanceTick(entity) - start);
+        return (int) Math.max(0, TickSystem.tick(entity) - start);
     }
 
     /** Whether the entity is in an upward-launched arc (jump/KB boost) vs a ledge walk-off. Cleared on landing or flight. */
@@ -725,7 +737,7 @@ public final class MotionTracker implements Tracker {
      */
     public static Vec horizontalMot(Entity entity, int tickOffset) {
         if (!(entity instanceof Player p)) return Vec.ZERO;
-        return residualAt(p, p.getTag(MOT_H), TickSystem.instanceTick(p) + tickOffset);
+        return residualAt(p, p.getTag(MOT_H), TickSystem.tick(p) + tickOffset);
     }
 
     /**
@@ -736,7 +748,7 @@ public final class MotionTracker implements Tracker {
         if (!(entity instanceof Player p)) return;
         MotState s = p.getTag(MOT_H);
         if (s == null) return;
-        long now = TickSystem.instanceTick(p);
+        long now = TickSystem.tick(p);
         Vec bled = residualAt(p, s, now);
         p.setTag(MOT_H, new MotState(bled.mul(factor), now, s.airborne()));
     }

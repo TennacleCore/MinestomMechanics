@@ -5,13 +5,13 @@ import io.github.term4.minestommechanics.api.event.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage;
+import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
-import net.minestom.server.instance.Instance;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -78,7 +78,7 @@ public final class Attack {
             event.overrideCritical(event.critical());
             event.overrideItem(event.item());
             return new PendingHit(event, rule,
-                    TickSystem.instanceTick(target) + DamageSystem.remainingDamageInvul(target));
+                    TickSystem.tick(target) + DamageSystem.remainingDamageInvul(target));
         }
     }
 
@@ -89,22 +89,24 @@ public final class Attack {
      */
     private static void ensureFlushListener() {
         if (!flushListenerStarted.compareAndSet(false, true)) return;
-        TickSystem.register(TickPhase.PRE_DISPATCH, ctx -> flushExpired(ctx.instance()));
+        TickSystem.register(TickPhase.PRE_DISPATCH, Attack::flushExpired);
     }
 
-    private static void flushExpired(Instance instance) {
+    // flush on the victim's own pass: shards share the base instance, and a wrong-pass flush would run the
+    // hit on a foreign thread against the owner's combat tick
+    private static void flushExpired(TickContext ctx) {
         for (LivingEntity target : pendingHit.keySet()) {
             if (target.isRemoved()) pendingHit.remove(target);
-            else if (target.getInstance() == instance) flushPending(target);
+            else if (ctx.owns(target)) flushPending(target);
         }
     }
 
-    /** Victim of the queued hit currently flushing as non-sprint; {@link Knockback}'s sprint gate asks. */
-    private static LivingEntity flushingNonSprintFor;
+    /** Victim of the queued hit currently flushing as non-sprint; {@link Knockback}'s sprint gate asks (same call stack). */
+    private static final ThreadLocal<LivingEntity> flushingNonSprintFor = new ThreadLocal<>();
 
     /** Whether {@code target}'s incoming hit is a queued flush applying as a non-sprint hit. */
     static boolean flushingNonSprint(Entity target) {
-        return flushingNonSprintFor == target;
+        return flushingNonSprintFor.get() == target;
     }
 
     /**
@@ -115,13 +117,13 @@ public final class Attack {
      */
     private static boolean flushPending(LivingEntity le) {
         PendingHit p = pendingHit.get(le);
-        if (p == null || TickSystem.instanceTick(le) < p.deadline()) return false;
+        if (p == null || TickSystem.tick(le) < p.deadline()) return false;
         if (!pendingHit.remove(le, p)) return false; // claimed elsewhere
         // the queued hit applies as a NON-sprint hit iff the victim's most recent damage is still the projectile
         // that opened the window - an overdamage replacement in between overrides it (measured + user-decoded)
         if (DamageSystem.lastDamageType(le) instanceof ProjectileDamage) {
-            flushingNonSprintFor = le;
-            try { p.rule().processAttack(p.event()); } finally { flushingNonSprintFor = null; }
+            flushingNonSprintFor.set(le);
+            try { p.rule().processAttack(p.event()); } finally { flushingNonSprintFor.remove(); }
         } else {
             p.rule().processAttack(p.event());
         }

@@ -44,6 +44,16 @@ import java.util.Collection;
  */
 public abstract class ProjectileEntity extends Entity {
 
+    // @ApiStatus.Internal override: super is exactly this field write + dispatcher().updateElement (verified
+    // 2026.07.12-26.2, re-verify on bumps) - an externally ticked entity in the global dispatcher double-ticks
+    @Override protected void refreshCurrentChunk(@NotNull net.minestom.server.instance.Chunk chunk) {
+        if (MechanicsWorld.externallyTicked(this)) {
+            currentChunk = chunk;
+            return;
+        }
+        super.refreshCurrentChunk(chunk);
+    }
+
     /** Default ticks a freshly launched projectile cannot hit its own shooter (vanilla pass-through at spawn). */
     public static final int DEFAULT_SHOOTER_IMMUNITY_TICKS = 5;
 
@@ -261,6 +271,7 @@ public abstract class ProjectileEntity extends Entity {
 
     @Override
     public void tick(long time) {
+        if (!MechanicsWorld.ownsCurrentTick(this)) return;
         if (isStuck()) {
             if (isRemoved()) return;
             // frozen but not radio-silent: a periodic teleport re-asserts pos + rotation so a mispredicted 1.8 stuck arrow self-heals
@@ -296,16 +307,12 @@ public abstract class ProjectileEntity extends Entity {
 
         // 26.1 applies drag/gravity before the move (1.8 after)
         if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_BEFORE_MOVE) applyDragGravity();
-
-        // --- Block physics (swept; loaded chunks only) ---
         PhysicsResult physics = world.sweepLoaded(collisionBox(), position, velocityBt, previousPhysicsResult, true);
         this.previousPhysicsResult = physics;
         // Minestom caps even a non-colliding swept move at (1 - EPSILON)*v; a 1e-6-high detonation center shifts
         // the explosion KB by a wire unit, so restore the full move when nothing was hit
         Pos resolved = physics.hasCollision() ? physics.newPosition() : position.add(velocityBt);
         Pos newPosition = CollisionUtils.applyWorldBorder(world.worldBorder(), position, resolved);
-
-        // --- Entity collision: grow our box by entityHitGrow and sweep (the Minkowski dual of vanilla growing the target) ---
         // shooter immunity: 26.1 = until the projectile leaves the shooter's box, 1.8 = fixed ticks
         if (entityHits) {
             if (leftOwnerImmunity && !leftOwner && shooter != null && !withinShooterBox(position)) leftOwner = true;
@@ -339,8 +346,6 @@ public abstract class ProjectileEntity extends Entity {
         if (!world.isChunkLoaded(newPosition)) return;
 
         this.justBecameStuck = false;
-
-        // --- Block stick: per-axis collision shape -> hit block / point / axis ---
         if (physics.hasCollision()) {
             for (int axis = 0; axis < 3; axis++) {
                 if (physics.collisionShapes()[axis] instanceof ShapeImpl) {
@@ -356,8 +361,6 @@ public abstract class ProjectileEntity extends Entity {
         // 1.8 applies drag + gravity after the move (skip on the stick tick - velocity is already zeroed + frozen).
         if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_AFTER_MOVE && !justBecameStuck) applyDragGravity();
         this.onGround = physics.isOnGround();
-
-        // --- Rotation: eased toward the motion direction (vanilla 0.2 lerp); latched at impact when sticking ---
         float yaw = prevYaw, pitch = prevPitch;
         if (justBecameStuck) {
             yaw = stuckYaw;

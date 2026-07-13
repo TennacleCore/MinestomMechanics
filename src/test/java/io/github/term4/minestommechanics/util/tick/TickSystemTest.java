@@ -1,6 +1,13 @@
 package io.github.term4.minestommechanics.util.tick;
 
+import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
+import net.minestom.server.coordinate.Pos;
+import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.EntityType;
 import net.minestom.server.instance.Instance;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * {@link TickSystem} dispatch contract: phase order ({@code PRE_DISPATCH → DEFAULT → POST}) and per-interval gating.
@@ -50,6 +58,74 @@ class TickSystemTest extends HeadlessServerTest {
         SINK.clear();
         dispatchAt(11); // not divisible by 3
         assertFalse(SINK.contains("D3"), "interval-3 tickable must skip non-multiple ticks");
+    }
+
+    @Test
+    void worldPassRunsOnTheGivenClock() {
+        TickSystem.tickWorld(MechanicsWorld.of(instance), 9); // 9 % 3 == 0 -> D3 fires on the WORLD clock
+        assertEquals(List.of("A", "B", "D3", "C"), SINK);
+    }
+
+    @Test
+    void entityClockFollowsTheExternalOwner() {
+        Entity owned = new Entity(EntityType.ARMOR_STAND);
+        Entity plain = new Entity(EntityType.ARMOR_STAND);
+        try {
+            MechanicsWorld.resolver(new MechanicsWorld.Resolver() {
+                @Override public MechanicsWorld resolve(Entity e) { return e.getTag(MechanicsWorld.ENTITY_TAG); }
+                @Override public boolean externallyTicked(Entity e) { return e == owned; }
+                @Override public long externalTick(Entity e) { return e == owned ? 123 : -1; }
+            });
+            assertEquals(123, TickSystem.tick(owned));
+            TickContext main = new TickContext(MechanicsWorld.of(instance), 5, 20, false);
+            TickContext world = new TickContext(MechanicsWorld.of(instance), 5, 20, true);
+            assertFalse(main.owns(owned), "the main pass leaves externally ticked entities to their owner");
+            assertTrue(world.owns(owned));
+            assertTrue(main.owns(plain));
+            assertFalse(world.owns(plain), "a world pass never touches server-ticked entities");
+        } finally {
+            MechanicsWorld.resolver(MechanicsWorld.Resolver.DEFAULT);
+        }
+    }
+
+    @Test
+    void worldPassesOwnOnlyTheirOwnWorldsEntities() {
+        Entity external = new Entity(EntityType.ARMOR_STAND);
+        Entity boundOnly = new Entity(EntityType.ARMOR_STAND); // world-bound but server-ticked (plain-shard case)
+        try {
+            MechanicsWorld a = MechanicsWorld.of(instance);
+            MechanicsWorld b = MechanicsWorld.of(net.minestom.server.MinecraftServer.getInstanceManager().createInstanceContainer());
+            MechanicsWorld.resolver(new MechanicsWorld.Resolver() {
+                @Override public MechanicsWorld resolve(Entity e) { return e.getTag(MechanicsWorld.ENTITY_TAG); }
+                @Override public boolean externallyTicked(Entity e) { return e == external; }
+                @Override public long externalTick(Entity e) { return e == external ? 7 : -1; }
+            });
+            external.setTag(MechanicsWorld.ENTITY_TAG, a);
+            boundOnly.setTag(MechanicsWorld.ENTITY_TAG, a);
+            TickContext passA = new TickContext(a, 5, 20, true);
+            TickContext passB = new TickContext(b, 5, 20, true);
+            TickContext main = new TickContext(a, 5, 20, false);
+            assertTrue(passA.owns(external));
+            assertFalse(passB.owns(external), "a foreign world's pass never owns another world's entity");
+            assertTrue(main.owns(boundOnly), "the main pass owns a world-BOUND but server-ticked entity");
+            assertFalse(passA.owns(boundOnly), "a world pass never takes server-ticked entities, bound or not");
+        } finally {
+            MechanicsWorld.resolver(MechanicsWorld.Resolver.DEFAULT);
+        }
+    }
+
+    @Test
+    void clockChangeResetsTickStampedState() {
+        var victim = zombie(new Pos(8, 65, 8));
+        try {
+            services.damage().apply(DamageSnapshot.of(victim, ProjectileDamage.INSTANCE).withAmount(0f));
+            assertEquals(10, DamageSystem.remainingDamageInvul(victim));
+            TickSystem.clockChanged(victim);
+            assertEquals(0, DamageSystem.remainingDamageInvul(victim),
+                    "an i-frame window never survives a clock change");
+        } finally {
+            victim.remove();
+        }
     }
 
     private record Marker(String id, TickPhase phase, int interval) implements Tickable {

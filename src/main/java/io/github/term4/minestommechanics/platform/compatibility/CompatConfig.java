@@ -41,8 +41,6 @@ public final class CompatConfig {
     /** Remove the modern attack cooldown + crosshair indicator (huge {@code ATTACK_SPEED}). Server-side, any client. */
     public final @Nullable Boolean removeAttackCooldown;
 
-    // --- Animatium client-side features: applied natively by the mod, no effect on other clients ---
-
     /** 1.8 water/lava movement (drag/gravity, no swim sprint/buoyancy, no lava current). */
     public final @Nullable Boolean legacyFluids;
     /** No elytra glide (1.8 has no elytra; they just fall). */

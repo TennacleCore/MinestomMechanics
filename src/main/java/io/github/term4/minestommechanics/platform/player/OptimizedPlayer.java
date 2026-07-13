@@ -5,19 +5,19 @@ import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.compatibility.CompatState;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyEquipmentFix;
-import io.github.term4.minestommechanics.platform.fixes.client.LegacyViewDistanceFix;
 import io.github.term4.minestommechanics.platform.fixes.client.SelfMetaFilter;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.entity.Metadata;
 import net.minestom.server.entity.Player;
+import net.minestom.server.instance.Chunk;
 import net.minestom.server.network.packet.client.ClientPacket;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.play.EntityAttributesPacket;
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket;
-import net.minestom.server.network.player.ClientSettings;
 import net.minestom.server.network.player.GameProfile;
 import net.minestom.server.network.player.PlayerConnection;
 import org.jetbrains.annotations.NotNull;
@@ -43,6 +43,21 @@ public class OptimizedPlayer extends Player {
         super(connection, gameProfile);
         // vanilla scans item pickups every tick; Minestom's default 5-tick cooldown adds up to 250ms of pickup lag
         this.itemPickupCooldown = new net.minestom.server.utils.time.Cooldown(java.time.Duration.ZERO);
+    }
+
+    // @ApiStatus.Internal override: super is exactly this field write + dispatcher().updateElement (verified
+    // 2026.07.12-26.2, re-verify on bumps) - an externally ticked player in the global dispatcher double-ticks
+    @Override protected void refreshCurrentChunk(@NotNull Chunk chunk) {
+        if (MechanicsWorld.externallyTicked(this)) {
+            currentChunk = chunk;
+            return;
+        }
+        super.refreshCurrentChunk(chunk);
+    }
+
+    @Override public void tick(long time) {
+        if (!MechanicsWorld.ownsCurrentTick(this)) return;
+        super.tick(time);
     }
 
     /** Set by {@code MetaFix} around the client-input listeners; while {@code true}, self-bound echoes are filtered. */
@@ -179,13 +194,6 @@ public class OptimizedPlayer extends Player {
             if (cadence > 1 && getAliveTicks() % cadence != 0) sendPackets = false;
         }
         super.refreshPosition(newPosition, ignoreView, sendPackets); // api-internal override
-    }
-
-    // clamp the reported view distance to the instance's - Minestom's refreshSettings over-sends chunks past the cap
-    // (the legacy-client "invisibility band"); temporary until the upstream fix lands
-    @Override
-    public void refreshSettings(@NotNull ClientSettings settings) {
-        super.refreshSettings(LegacyViewDistanceFix.clamp(getInstance(), settings));
     }
 
     // use-item aim sync (see UseItemAimSync); runs on the connection's read thread

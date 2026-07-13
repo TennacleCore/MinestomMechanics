@@ -15,10 +15,8 @@ import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfigReso
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfigResolver.ResolvedAttributeConfig;
 import io.github.term4.minestommechanics.mechanics.attribute.combat.HitContext;
 import io.github.term4.minestommechanics.mechanics.attribute.combat.OnHit;
-import io.github.term4.minestommechanics.mechanics.attribute.defense.ArmorConfig;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.MitigationRequest;
-import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionConfig;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.entity.Entity;

@@ -19,14 +19,13 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Backend RPC to the ViaBridge Velocity plugin ({@value #CHANNEL}). Player version via {@code vv:proxy_details}. */
 public final class ViaBridgeRpc {
 
     public static final String CHANNEL = "viabridge:rpc";
-    /** {@code ClientboundPackets1_21_6} — shorts-format {@code SET_ENTITY_MOTION}. */
+    /** {@code ClientboundPackets1_21_6} - shorts-format {@code SET_ENTITY_MOTION}. */
     public static final int PROTOCOL_1_21_6 = 771;
 
     private static final int WIRE_VERSION = 1;
@@ -105,13 +104,11 @@ public final class ViaBridgeRpc {
         CompletableFuture<Response> future = new CompletableFuture<>();
         pending.put(requestId, new Pending(future, player.getUuid()));
         player.sendPluginMessage(CHANNEL, encodeFrame(WIRE_VERSION, requestId, opcode, payload));
-        future.orTimeout(timeoutMs, TimeUnit.MILLISECONDS).whenComplete((ignored, err) -> {
-            pending.remove(requestId);
-            if (err instanceof TimeoutException) {
+        // own timeout, not orTimeout: that completes the future FIRST, making a replacement exception a no-op
+        CompletableFuture.delayedExecutor(timeoutMs, TimeUnit.MILLISECONDS).execute(() ->
                 future.completeExceptionally(new ViaBridgeException(
-                        "ViaBridge RPC timed out — is the Velocity plugin installed?"));
-            }
-        });
+                        "ViaBridge RPC timed out - is the Velocity plugin installed?")));
+        future.whenComplete((ignored, err) -> pending.remove(requestId));
         return future;
     }
 

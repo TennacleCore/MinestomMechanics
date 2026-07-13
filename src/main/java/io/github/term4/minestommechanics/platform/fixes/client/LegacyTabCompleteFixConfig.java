@@ -4,13 +4,8 @@ import io.github.term4.minestommechanics.platform.fixes.FixToggle;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Config for the legacy tab-completion fix - the {@code legacyTabCompleteFix} member of
- * {@link io.github.term4.minestommechanics.platform.fixes.FixesConfig}. When enabled, the server answers command-name
- * tab-completion (which Minestom otherwise ignores) so legacy clients can complete command names. See
- * {@link LegacyTabCompleteFix}.
- *
- * <p>Replaces the tab-complete packet listener server-wide, so it's an install-level toggle ({@code null} = off),
- * not a per-scope one. Harmless for modern clients, which never request command-name completion.
+ * Answers command-name tab-completion for legacy clients - Minestom only completes arguments
+ * ({@link LegacyTabCompleteFix}). Replaces the packet listener server-wide: install-level toggle, not per-scope.
  */
 public final class LegacyTabCompleteFixConfig implements FixToggle {
 

@@ -56,6 +56,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Main damage system: resolves config, computes the amount, fires {@link DamageEvent}, applies the 1.8 overdamage
@@ -85,6 +86,7 @@ public final class DamageSystem implements MechanicsModule {
     // Pre/Applied fire only when listened to; main always fires
     private static final ListenerHandle<PreDamageEvent> PRE_DAMAGE = EventDispatcher.getHandle(PreDamageEvent.class);
     private static final ListenerHandle<DamageAppliedEvent> DAMAGE_APPLIED = EventDispatcher.getHandle(DamageAppliedEvent.class);
+    private static final AtomicBoolean CLOCK_RESET = new AtomicBoolean();
 
     private final MinestomMechanics mm;
     private final DamageConfig config;
@@ -103,6 +105,11 @@ public final class DamageSystem implements MechanicsModule {
         // i-frame window stamps use the victim's per-instance clock; drop the window state on (re)spawn (the TickState
         // future-guard covers most cross-instance carries, but a long-lived target instance could coincide with one).
         this.node.addListener(PlayerSpawnEvent.class, e -> clearDamageWindow(e.getPlayer()));
+        if (CLOCK_RESET.compareAndSet(false, true)) {
+            TickSystem.onClockChange(e -> {
+                if (e instanceof LivingEntity le) clearDamageWindow(le);
+            });
+        }
         // Death handling lives here (the damage system owns the death/respawn path). Vanilla clears active effects +
         // transient combat state on death; Minestom's kill() does not, so it would leak across respawn (the Player object
         // persists). clearEffects() fires the remove events the AttributeSystem reacts to. Behavior is the victim's scoped
@@ -476,14 +483,14 @@ public final class DamageSystem implements MechanicsModule {
     public static void setDamageInvulnerable(Entity e, int duration) {
         if (!(e instanceof LivingEntity le) || duration <= 0) return;
         // stamp against the instance-local combat clock so the window is opened and checked on one phase (see TickSystem)
-        le.setTag(INVUL_DAMAGE, new TickState(TickSystem.instanceTick(le), duration));
+        le.setTag(INVUL_DAMAGE, new TickState(TickSystem.tick(le), duration));
     }
 
     /** Whether the target is inside its i-frame window. Not fundamental immunity (creative/spectator). */
     public static boolean isInvulnerableToDamage(Entity e) {
         if (!(e instanceof LivingEntity le)) return false;
         TickState s = getDamageInvul(le);
-        return s != null && s.isActive(TickSystem.instanceTick(le));
+        return s != null && s.isActive(TickSystem.tick(le));
     }
 
     /** Fundamental immunity - creative/spectator, which take no damage AND no knockback (vanilla {@code abilities.isInvulnerable}). Distinct from the i-frame window {@link #isInvulnerableToDamage}. */
@@ -494,7 +501,7 @@ public final class DamageSystem implements MechanicsModule {
     /** Ticks left in the target's damage-invulnerability window ({@code 0} if none). */
     public static int remainingDamageInvul(LivingEntity le) {
         TickState s = getDamageInvul(le);
-        return s != null ? s.remainingTicks(TickSystem.instanceTick(le)) : 0;
+        return s != null ? s.remainingTicks(TickSystem.tick(le)) : 0;
     }
 
     /** Clears the i-frame window state (the window, its overdamage highwater, its type, and its opening item) as one unit. */

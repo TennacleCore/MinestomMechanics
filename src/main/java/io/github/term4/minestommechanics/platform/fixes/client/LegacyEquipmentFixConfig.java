@@ -4,14 +4,9 @@ import io.github.term4.minestommechanics.platform.fixes.FixToggle;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Config for the legacy equipment-slot fix - the {@code legacyEquipmentFix} member of
- * {@link io.github.term4.minestommechanics.platform.fixes.FixesConfig}. When enabled, empty (AIR) equipment slots are stripped
- * from outgoing {@code EntityEquipmentPacket}s to legacy clients, matching what vanilla emits. See {@link LegacyEquipmentFix}.
- *
- * <p>It rides the {@link io.github.term4.minestommechanics.platform.player.OptimizedPlayer} send-packet override (a server-wide
- * transform), so this is an install-level toggle ({@code null} = off), not a per-scope one. Applied to all clients - harmless for
- * modern ones, since dropping empty slots is vanilla parity. Temporary workaround; removable once the upstream
- * {@code getEquipmentsPacket} fix (branch {@code fix/skip-empty-equipment-slots}) is on the pinned dependency.
+ * Strips empty (AIR) slots from outgoing {@code EntityEquipmentPacket}s, matching vanilla ({@link LegacyEquipmentFix}).
+ * Rides the OptimizedPlayer send-packet override: install-level toggle, not per-scope; vanilla-parity for every client.
+ * Temporary - removable once branch {@code fix/skip-empty-equipment-slots} is on the pinned dependency.
  */
 public final class LegacyEquipmentFixConfig implements FixToggle {
 

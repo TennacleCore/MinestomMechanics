@@ -27,7 +27,6 @@ import net.minestom.server.MinecraftServer;
 import net.minestom.server.command.builder.Command;
 import net.minestom.server.command.builder.arguments.ArgumentType;
 import net.minestom.server.command.builder.arguments.Argument;
-import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.GlobalEventHandler;
@@ -40,7 +39,7 @@ import net.minestom.server.event.trait.PlayerEvent;
 import org.jetbrains.annotations.NotNull;
 import net.minestom.server.instance.InstanceContainer;
 import net.minestom.server.instance.InstanceManager;
-import io.github.term4.minestommechanics.platform.fixes.world.FluidCountChunk;
+import net.minestom.server.instance.LightingChunk;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
@@ -109,7 +108,7 @@ public class ExampleServer {
 
         // Generate the world & add lighting
         instanceContainer.setGenerator(unit -> unit.modifier().fillHeight(0, 40, Block.GRASS_BLOCK));
-        instanceContainer.setChunkSupplier(FluidCountChunk::new);
+        instanceContainer.setChunkSupplier(LightingChunk::new);
 
         // Test damage types
         instanceContainer.loadChunk(1, 0).thenRun(() -> {
@@ -222,7 +221,7 @@ public class ExampleServer {
             player.setBoots(ItemStack.of(Material.DIAMOND_BOOTS));
         });
 
-        // ─── DEV / TEST TOOLS — delete this call + the DEV TOOLS section at the bottom of this file for production ───
+        // DEV / TEST TOOLS - delete this call + the DEV TOOLS section at the bottom of this file for production
         installDevTools(mm);
 
         // Start the server
@@ -260,11 +259,8 @@ public class ExampleServer {
         }
         inst.setBlock(sx, baseY + 2, sz, marker); // flow points AWAY from this marker
     }
-
-    // ================================================================================================================
-    //  DEV / TEST TOOLS  —  in-game testing commands + the inbound-lag simulator. Delete this whole section (and the
-    //  installDevTools(mm) call in main) for production; LagSimulator.java is then unused and can also be deleted.
-    // ================================================================================================================
+    // DEV / TEST TOOLS - in-game testing commands + the inbound-lag simulator. Delete this whole section (and the
+    // installDevTools(mm) call in main) for production; LagSimulator.java is then unused and can also be deleted.
 
     private static void installDevTools(MinestomMechanics mm) {
         // test-only inbound-lag simulator (delays a player's movement packets so the server perceives their

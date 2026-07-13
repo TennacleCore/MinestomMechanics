@@ -1,7 +1,5 @@
 package io.github.term4.minestommechanics.mechanics.projectile.shootables;
 
-import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;

@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.vri;
 
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.world.WorldPolicy;
+import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import net.minestom.server.coordinate.BlockVec;
@@ -50,14 +51,15 @@ public final class BlockBreakProgress {
         node.addListener(PlayerCancelDiggingEvent.class, e -> feature.clear(e.getPlayer()));
         node.addListener(PlayerFinishDiggingEvent.class, e -> feature.clear(e.getPlayer()));
         node.addListener(PlayerDisconnectEvent.class, e -> feature.clear(e.getPlayer()));
-        TickSystem.register(TickPhase.DEFAULT, ctx -> feature.tick(ctx.instance()));
+        // a dig follows its MINER's pass: it starts, ticks and clears on whichever thread owns the miner
+        TickSystem.register(TickPhase.DEFAULT, feature::tick);
     }
 
     /** Only fired for non-instant breaks, so every tracked dig needs the overlay. */
     private void start(Player miner, Instance instance, BlockVec pos) {
         Dig previous = digs.get(miner.getUuid());
         if (previous != null && !previous.pos().equals(pos)) broadcast(miner, previous, CLEAR_STAGE);
-        Dig dig = new Dig(instance, pos, TickSystem.instanceTick(instance), CLEAR_STAGE);
+        Dig dig = new Dig(instance, pos, TickSystem.tick(miner), CLEAR_STAGE);
         digs.put(miner.getUuid(), update(miner, dig));
     }
 
@@ -66,15 +68,18 @@ public final class BlockBreakProgress {
         if (dig != null) broadcast(miner, dig, CLEAR_STAGE);
     }
 
-    private void tick(Instance instance) {
+    private void tick(TickContext ctx) {
         for (Map.Entry<UUID, Dig> entry : digs.entrySet()) {
             Dig dig = entry.getValue();
-            if (dig.instance() != instance) continue;
-            Player miner = instance.getPlayerByUuid(entry.getKey());
-            // the MINER's world - an overlay block over base air reads AIR instance-wide, killing the dig
-            if (miner == null || MechanicsWorld.viewed(miner).getBlock(dig.pos()).isAir()) { // left the instance or the block is gone
+            if (dig.instance() != ctx.instance()) continue;
+            Player miner = ctx.instance().getPlayerByUuid(entry.getKey());
+            if (miner == null) { digs.remove(entry.getKey()); continue; } // left the dig's instance
+            if (!ctx.owns(miner)) continue;
+            // the MINER's world - an overlay block over base air reads AIR instance-wide, killing the dig.
+            // negative elapsed = the stamp is from another clock (mid-dig shard transfer): drop, the client resynced
+            if (MechanicsWorld.viewed(miner).getBlock(dig.pos()).isAir() || TickSystem.tick(miner) < dig.startTick()) {
                 digs.remove(entry.getKey());
-                if (miner != null) broadcast(miner, dig, CLEAR_STAGE);
+                broadcast(miner, dig, CLEAR_STAGE);
                 continue;
             }
             entry.setValue(update(miner, dig));
@@ -93,7 +98,7 @@ public final class BlockBreakProgress {
         Block block = MechanicsWorld.viewed(miner).getBlock(dig.pos()); // the block the digger's CLIENT digs - an overlay block cracks at its own speed
         int breakTicks = BlockBreakCalculation.breakTicks(block, miner);
         if (breakTicks == BlockBreakCalculation.UNBREAKABLE) return 0;
-        long ticksSpent = TickSystem.instanceTick(dig.instance()) - dig.startTick();
+        long ticksSpent = TickSystem.tick(miner) - dig.startTick();
         // vanilla: destroyProgress * (ticks+1), stage = progress*10, unclamped (out-of-range clears client-side)
         return (byte) ((ticksSpent + 1) * 10 / Math.max(1, breakTicks));
     }

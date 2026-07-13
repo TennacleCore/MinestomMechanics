@@ -61,7 +61,7 @@ final class VelocityCapTestCommands {
             }
             String detail = err instanceof ViaBridgeException ? err.getMessage() : err.toString();
             player.sendMessage("[velcapbridge] failed: " + detail
-                    + " — is ViaBridge on the Velocity proxy?");
+                    + " - is ViaBridge on the Velocity proxy?");
         });
     }
 

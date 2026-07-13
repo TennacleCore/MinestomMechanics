@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.util.tick;
 
+import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.entity.Entity;
@@ -41,8 +42,9 @@ public final class TickSystem {
     private static final Map<Instance, AtomicLong> CLOCKS = new ConcurrentHashMap<>();
     /** Registered work, bucketed by phase; insertion order within a phase. */
     private static final Map<TickPhase, List<Tickable>> BY_PHASE = new EnumMap<>(TickPhase.class);
+    private static final TickPhase[] PHASES = TickPhase.values(); // values() clones per call; dispatch is per-tick
 
-    static { for (TickPhase p : TickPhase.values()) BY_PHASE.put(p, new CopyOnWriteArrayList<>()); }
+    static { for (TickPhase p : PHASES) BY_PHASE.put(p, new CopyOnWriteArrayList<>()); }
 
     /** Starts the clocks and the dispatch loop. Idempotent; call once at startup. */
     public static void start() {
@@ -66,9 +68,29 @@ public final class TickSystem {
         return c != null ? c.get() : 0L;
     }
 
-    /** The tick of the entity's instance ({@code 0} if unspawned). */
-    public static long instanceTick(@Nullable Entity entity) {
-        return entity == null ? 0L : instanceTick(entity.getInstance());
+    /**
+     * The clock owning {@code entity}: its external ticker's when one owns it, else its instance's. Stamp AND
+     * judge tick-stamped entity state through THIS accessor - never against another clock.
+     */
+    public static long tick(@Nullable Entity entity) {
+        if (entity == null) return 0L;
+        long external = MechanicsWorld.externalTick(entity);
+        return external >= 0 ? external : instanceTick(entity.getInstance());
+    }
+
+    private static final List<Consumer<Entity>> CLOCK_CHANGE = new CopyOnWriteArrayList<>();
+
+    /** Registers a reset for tick-stamped entity state (i-frames, sprint windows, motion clocks); run by {@link #clockChanged}. */
+    public static void onClockChange(Consumer<Entity> reset) {
+        CLOCK_CHANGE.add(reset);
+    }
+
+    /**
+     * An external ticker took over (or released) {@code entity}: stamps from its old clock are meaningless
+     * against the new one, so every registered reset runs. World bridges call this on ownership changes.
+     */
+    public static void clockChanged(Entity entity) {
+        for (Consumer<Entity> reset : CLOCK_CHANGE) reset.accept(entity);
     }
 
     /** A registered {@link Tickable}'s handle; {@link #cancel()} removes it (safe mid-dispatch - the phase lists are copy-on-write). */
@@ -95,12 +117,20 @@ public final class TickSystem {
     }
 
     private static void dispatch(Instance instance) {
-        long tick = instanceTick(instance);
-        TickContext ctx = new TickContext(instance, tick, ServerFlag.SERVER_TICKS_PER_SECOND);
-        for (TickPhase phase : TickPhase.values()) {
+        dispatch(new TickContext(MechanicsWorld.of(instance), instanceTick(instance),
+                ServerFlag.SERVER_TICKS_PER_SECOND, false));
+    }
+
+    /** One pass of the registered work scoped to {@code world}, on ITS clock - an external world ticker drives this from the world's own thread. */
+    public static void tickWorld(MechanicsWorld world, long tick) {
+        dispatch(new TickContext(world, tick, ServerFlag.SERVER_TICKS_PER_SECOND, true));
+    }
+
+    private static void dispatch(TickContext ctx) {
+        for (TickPhase phase : PHASES) {
             for (Tickable t : BY_PHASE.get(phase)) {
                 int iv = t.interval();
-                if (iv <= 1 || tick % iv == 0) t.tick(ctx);
+                if (iv <= 1 || ctx.tick() % iv == 0) t.tick(ctx);
             }
         }
     }

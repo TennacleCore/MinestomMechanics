@@ -19,7 +19,6 @@ import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.metadata.projectile.AbstractArrowMeta;
-import net.minestom.server.instance.EntityTracker;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.network.packet.server.play.CollectItemPacket;

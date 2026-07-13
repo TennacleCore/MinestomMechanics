@@ -46,7 +46,7 @@ public final class MinestomMechanics {
     public boolean installSprintTracker = true;
     /** Tracks per-entity air-time, launch state, and position-delta motion (drives knockback velocity). Default: true */
     public boolean installMotionTracker = true;
-    /** Removes the pose-change stutter (sneak/sprint/…) 1.9+ clients show under high ping. Requires {@link #installPlayerProvider}. */
+    /** Removes the pose-change stutter (sneak/sprint/...) 1.9+ clients show under high ping. Requires {@link #installPlayerProvider}. */
     public boolean metaFix = true;
     /**
      * Installs the {@code OptimizedPlayer} provider and scoped {@code PlayerConfig} application (e.g.

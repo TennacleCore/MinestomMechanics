@@ -37,17 +37,18 @@ public record TickState(long eventTick, int duration) {
         return isStaleAfter(TickSystem.serverTick(), ticks);
     }
 
-    /** True if event was more than {@code ticks} ago, evaluated against the supplied clock. */
+    /** True if event was more than {@code ticks} ago against the supplied clock; a "future" stamp reads stale. */
     public boolean isStaleAfter(long now, int ticks) {
-        return (now - eventTick) > ticks;
+        long elapsed = now - eventTick;
+        return elapsed < 0 || elapsed > ticks;
     }
 
     public int remainingTicks() {
         return remainingTicks(TickSystem.serverTick());
     }
 
-    /** Ticks remaining, evaluated against the supplied clock. */
+    /** Ticks remaining against the supplied clock; a "future" stamp reads {@code 0}. */
     public int remainingTicks(long now) {
-        return (int) Math.max(0, eventTick + duration - now);
+        return now < eventTick ? 0 : (int) Math.max(0, eventTick + duration - now);
     }
 }

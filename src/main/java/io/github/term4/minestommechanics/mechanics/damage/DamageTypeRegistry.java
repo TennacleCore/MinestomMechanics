@@ -3,7 +3,6 @@ package io.github.term4.minestommechanics.mechanics.damage;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageTypeConfig;
-import io.github.term4.minestommechanics.mechanics.damage.types.VanillaTypes;
 import io.github.term4.minestommechanics.mechanics.damage.types.burning.BurningDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.burning.InFireDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.burning.LavaDamage;

@@ -1,12 +1,12 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities.arrow;
 
+import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.metadata.LivingEntityMeta;
-import net.minestom.server.instance.Instance;
 import net.minestom.server.tag.Tag;
 
 import java.util.Set;
@@ -58,13 +58,13 @@ public final class StuckArrows {
         if (!decayStarted.compareAndSet(false, true)) return;
         // Per-instance tick via the TickSystem (each entity decays on its own instance's tick), not a global scheduler task.
         // Registered once for the JVM; the tracked set self-empties as arrows fall out.
-        TickSystem.register(TickPhase.DEFAULT, ctx -> tickDecay(ctx.instance()));
+        TickSystem.register(TickPhase.DEFAULT, StuckArrows::tickDecay);
     }
 
-    private static void tickDecay(Instance instance) {
+    private static void tickDecay(TickContext ctx) {
         tracked.removeIf(entity -> {
             if (entity.isRemoved() || !(entity.getEntityMeta() instanceof LivingEntityMeta m)) return true;
-            if (entity.getInstance() != instance) return false; // only on the entity's own instance tick - leave it otherwise
+            if (entity.getInstance() != ctx.instance() || !ctx.owns(entity)) return false; // another pass owns it
             int count = m.getArrowCount();
             if (count <= 0) return true;
             Integer t = entity.getTag(REMOVE_TIME);

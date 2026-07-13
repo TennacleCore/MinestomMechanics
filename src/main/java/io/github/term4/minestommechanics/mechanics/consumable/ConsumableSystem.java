@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.consumable;
 
-import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
@@ -20,7 +20,6 @@ import net.minestom.server.event.item.PlayerCancelItemUseEvent;
 import net.minestom.server.event.item.PlayerFinishItemUseEvent;
 import net.minestom.server.event.player.PlayerUseItemEvent;
 import net.minestom.server.event.trait.PlayerEvent;
-import net.minestom.server.instance.Instance;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import org.jetbrains.annotations.NotNull;
@@ -122,9 +121,9 @@ public final class ConsumableSystem implements MechanicsModule {
     }
 
     /** Per-instance "during" pass: each consuming player whose held item is an enabled registered consumable gets {@code onUsing}. */
-    private void tick(Instance instance) {
-        for (Player p : MechanicsWorld.of(instance).players()) {
-            if (!p.isUsingItem()) continue;
+    private void tick(TickContext ctx) {
+        for (Player p : ctx.world().players()) {
+            if (!ctx.owns(p) || !p.isUsingItem()) continue;
             PlayerHand hand = p.getItemUseHand();
             if (hand == null) continue;
             Resolution r = resolve(p, hand, p.getItemInHand(hand));
@@ -150,7 +149,7 @@ public final class ConsumableSystem implements MechanicsModule {
         if (TICK_HOOK.compareAndSet(false, true)) {
             TickSystem.register(TickPhase.DEFAULT, ctx -> {
                 ConsumableSystem live = mm.module(ConsumableSystem.class);
-                if (live != null) live.tick(ctx.instance());
+                if (live != null) live.tick(ctx);
             });
         }
         return system;

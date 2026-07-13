@@ -3,11 +3,10 @@ package io.github.term4.minestommechanics.platform.fixes.visuals.legacy_1_8;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Config for the 1.8-client "arrow goes invisible after touching an entity" fix - one fix, two knobs. {@link #enabled}
- * is the team trick (co-team the enabled players on a neutral friendly-fire-off scoreboard team so a 1.8 client's own
- * arrow-collision stops hiding deflected / passed-through arrows) - the actual visibility fix, purely visual since
- * server-side damage ignores teams, driven by {@link LegacyArrowVisibility}. {@link #deflectParticles} is an optional
- * cosmetic crit-particle trail along a deflected / passed arrow's path (a Hypixel-style flourish), orthogonal to
+ * Keeps deflected / passed-through arrows visible to 1.8 clients ({@link LegacyArrowVisibility}) - one fix, two
+ * knobs. {@link #enabled} is the team trick: co-team the enabled players on a neutral friendly-fire-off scoreboard
+ * team so the client's own arrow-collision stops hiding them; purely visual, server-side damage ignores teams.
+ * {@link #deflectParticles} is an optional cosmetic crit-particle trail along the arrow's path, orthogonal to
  * {@code enabled}. Both resolve per player through the {@code MechanicsProfiles} chain (the fix is a persistent
  * scoreboard team, so it cannot vary per in-flight arrow).
  */
@@ -45,9 +44,7 @@ public final class LegacyArrowVisibilityConfig {
         Builder() {}
         Builder(LegacyArrowVisibilityConfig c) { enabled = c.enabled; deflectParticles = c.deflectParticles; }
 
-        /** The team-trick visibility fix (keeps deflected / passed arrows visible on 1.8 clients). */
         public Builder enabled(@Nullable Boolean v) { this.enabled = v; return this; }
-        /** Optional cosmetic crit-particle trail along the deflected / passed arrow (Hypixel-style; off by default). */
         public Builder deflectParticles(@Nullable Boolean v) { this.deflectParticles = v; return this; }
 
         public LegacyArrowVisibilityConfig build() { return new LegacyArrowVisibilityConfig(this); }

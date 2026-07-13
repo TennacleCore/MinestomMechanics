@@ -7,7 +7,6 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
-import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileBehavior;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
