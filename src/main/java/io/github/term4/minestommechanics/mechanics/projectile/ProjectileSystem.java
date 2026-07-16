@@ -88,6 +88,7 @@ public final class ProjectileSystem implements MechanicsModule {
 
     public ProjectileConfig config() { return config; }
     public EventNode<@NotNull Event> node() { return node; }
+    public Services services() { return services; }
 
     /** Effective config for a snapshot carrying none: the shooter's scoped profile, else the install config. */
     private ProjectileConfig configFor(@Nullable Entity shooter) {

@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.mechanics.vanilla;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
+import io.github.term4.minestommechanics.effect.Effects;
 
 /**
  * Modern (26.1+) preset - the (incomplete) composed, pure-mechanics {@link MechanicsProfile}, built from the config
@@ -27,6 +28,7 @@ public final class Vanilla {
                 .set(MechanicsKeys.ITEM_PHYSICS, io.github.term4.minestommechanics.vri.DroppedItemEntity.Model.MODERN)
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.ITEMS, Items.registry())
+                .set(MechanicsKeys.EFFECTS, Effects.modern())
                 .build();
     }
 }

@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.types;
 
+import io.github.term4.minestommechanics.effect.Effects;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.item.Material;
@@ -17,4 +18,6 @@ public final class Egg extends ThrowableItemType {
     private Egg() {
         super(KEY, "Egg", EntityType.EGG, Material.EGG);
     }
+
+    @Override protected Key throwSound() { return Effects.THROW_EGG; }
 }

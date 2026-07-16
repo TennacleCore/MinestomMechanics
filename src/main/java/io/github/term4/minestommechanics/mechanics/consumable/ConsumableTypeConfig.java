@@ -41,6 +41,9 @@ public final class ConsumableTypeConfig extends Config<ConsumableContext, Consum
 
     /** Whether this consumable consumes (default {@code true}); {@code false} disables it for the scope. */
     public final @Nullable FieldValue<ConsumableContext, Boolean> enabled;
+    /** May {@code user} start using it now (vanilla {@code Consumable.canConsume}); default {@code true} (drinks/custom).
+     *  Food supplies the version's {@code canEat} (1.8 blocks creative, 26 allows it); a blocked use never enters the eating state. */
+    public final @Nullable FieldValue<ConsumableContext, Boolean> canConsume;
     /** Consume duration in ticks (vanilla {@code 32} = 1.6s). */
     public final @Nullable FieldValue<ConsumableContext, Integer> consumeTicks;
     /** The {@link ConsumableBehavior} run on the use lifecycle (effects / hunger / custom). Default {@link ConsumableBehavior#NONE}. */
@@ -52,6 +55,7 @@ public final class ConsumableTypeConfig extends Config<ConsumableContext, Consum
         super(b.subConfig);
         this.key = b.key;
         this.enabled = b.enabled;
+        this.canConsume = b.canConsume;
         this.consumeTicks = b.consumeTicks;
         this.behavior = b.behavior;
         this.particles = b.particles;

@@ -2,8 +2,10 @@ package io.github.term4.minestommechanics.platform.player;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.compatibility.CompatState;
+import io.github.term4.minestommechanics.platform.fixes.client.InventorySync;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyEquipmentFix;
 import io.github.term4.minestommechanics.platform.fixes.client.SelfMetaFilter;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
@@ -38,6 +40,8 @@ public class OptimizedPlayer extends Player {
     private boolean selfPlacing = false;
     private final CompatState compat = new CompatState();
     private final UseItemAimSync aimSync = new UseItemAimSync();
+    private final AttackAimSync attackSync = new AttackAimSync();
+    private final InventorySync inventorySync = new InventorySync();
 
     public OptimizedPlayer(PlayerConnection connection, GameProfile gameProfile) {
         super(connection, gameProfile);
@@ -111,10 +115,18 @@ public class OptimizedPlayer extends Player {
         super.sendPacketToViewersAndSelf(packet);
     }
 
-    /** Outgoing transforms: {@code attack_range} stamped onto seen items + empty equipment slots stripped. Both no-op when off. */
+    /** This player's inventory echo suppressor (the remote-slot mirror); inert until {@code FixesSystem} arms {@link InventorySync}. */
+    public @NotNull InventorySync inventorySync() { return inventorySync; }
+
+    /** Outgoing transforms: {@code attack_range} stamped onto seen items + empty equipment slots stripped, then redundant inventory slot echoes dropped. All no-op when off. */
     @Override
     public void sendPacket(@NotNull SendablePacket packet) {
-        super.sendPacket(LegacyEquipmentFix.rewrite(compat.stampAttackRange(packet)));
+        SendablePacket p = LegacyEquipmentFix.rewrite(compat.stampAttackRange(packet));
+        if (InventorySync.enabled()) {
+            p = inventorySync.filter(p);
+            if (p == null) return; // redundant slot echo: the client already shows it
+        }
+        super.sendPacket(p);
     }
 
     // bulk equipment resends (respawn/teleport) group into a CachedPacket the per-viewer transform can't unwrap,
@@ -196,10 +208,12 @@ public class OptimizedPlayer extends Player {
         super.refreshPosition(newPosition, ignoreView, sendPackets); // api-internal override
     }
 
-    // use-item aim sync (see UseItemAimSync); runs on the connection's read thread
+    // aim sync (see UseItemAimSync / AttackAimSync); runs on the connection's read thread. Independent packet types
+    // (a client can't use-item and attack in one tick), so chaining is order-free.
     @Override
     public void addPacketToQueue(ClientPacket packet) {
-        aimSync.intercept(packet, this::useItemAimSyncEnabled, super::addPacketToQueue);
+        attackSync.intercept(packet, this::attackAimSyncEnabled,
+                p -> aimSync.intercept(p, this::useItemAimSyncEnabled, super::addPacketToQueue));
     }
 
     /** {@link ProjectileConfig#useItemAimSync} + a legacy client (a modern use packet already carries the click aim). */
@@ -208,6 +222,14 @@ public class OptimizedPlayer extends Player {
         if (!mm.isInitialized() || !mm.clientInfo().isLegacy(this)) return false;
         ProjectileConfig cfg = mm.profiles().resolve(this, MechanicsKeys.PROJECTILES);
         return cfg != null && Boolean.TRUE.equals(cfg.useItemAimSync);
+    }
+
+    /** {@link KnockbackConfig#experimentalAimSync} - all client versions (the attack packet never carried rotation). */
+    private boolean attackAimSyncEnabled() {
+        MinestomMechanics mm = MinestomMechanics.getInstance();
+        if (!mm.isInitialized()) return false;
+        KnockbackConfig cfg = mm.profiles().resolve(this, MechanicsKeys.KNOCKBACK);
+        return cfg != null && Boolean.TRUE.equals(cfg.experimentalAimSync);
     }
 
     /** Armed by {@code SelfPlacementFix} while this player's own placement is processed; lets a passable block into their body. */

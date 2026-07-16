@@ -18,14 +18,19 @@ import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.ItemEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.EventDispatcher;
+import net.minestom.server.event.entity.EntityItemMergeEvent;
+import net.minestom.server.instance.EntityTracker;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.sound.SoundEvent;
+import net.minestom.server.utils.MathUtils;
+import net.minestom.server.utils.time.Cooldown;
 import net.minestom.server.utils.time.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -66,6 +71,7 @@ public class DroppedItemEntity extends ItemEntity {
     private final @Nullable Model model;
 
     private PhysicsResult lastPhysics;
+    private long lastMergeCheck;
     private boolean landedLastTick;
     private @Nullable Model resolved;
     // lava-pop cadence: vanilla pops on int-cast cell change or every 25 ticks
@@ -160,9 +166,9 @@ public class DroppedItemEntity extends ItemEntity {
 
     @Override
     public void update(long time) {
-        super.update(time); // merging
         Instance instance = getInstance();
         if (instance == null || isRemoved()) return;
+        mergeScan(time);
         Pos pos = getPosition();
         Vec v0 = getVelocity().div(TPS); // b/t; Minestom already applied gravity + drag this tick
 
@@ -172,6 +178,27 @@ public class DroppedItemEntity extends ItemEntity {
 
         // silent: setVelocity broadcasts, fighting the client's own item sim
         if (!v.samePoint(v0)) this.velocity = v.mul(TPS);
+    }
+
+    // super.update's scan, minus its isPickable() gates: vanilla merges ignore the pickup delay
+    // (1.8 EntityItem.combineItems excludes only the infinite 32767) - fresh drops merge immediately
+    private void mergeScan(long time) {
+        Duration delay = getMergeDelay();
+        if (!isMergeable() || (delay != null && Cooldown.hasCooldown(time, lastMergeCheck, delay))) return;
+        this.lastMergeCheck = time;
+        instance.getEntityTracker().nearbyEntities(position, getMergeRange(), EntityTracker.Target.ITEMS, other -> {
+            if (other == this || !other.isMergeable()) return;
+            ItemStack stack = getItemStack();
+            ItemStack otherStack = other.getItemStack();
+            if (!stack.isSimilar(otherStack)) return;
+            int total = stack.amount() + otherStack.amount();
+            if (!MathUtils.isBetween(total, 0, stack.maxStackSize())) return;
+            EntityItemMergeEvent merge = new EntityItemMergeEvent(this, other, stack.withAmount(total));
+            EventDispatcher.callCancellable(merge, () -> {
+                setItemStack(merge.getResult());
+                other.remove();
+            });
+        });
     }
 
     private Vec legacyTick(MechanicsWorld world, Pos pos, Vec v) {

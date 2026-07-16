@@ -72,6 +72,27 @@ class VriFeaturesTest extends HeadlessServerTest {
     }
 
     @Test
+    void deadAndSpectatorPickupsAreCancelled() {
+        var dead = FakePlayer.connect(instance, new Pos(5.5, 43, 5.5), "VriDead");
+        var ghost = FakePlayer.connect(instance, new Pos(5.5, 43, 5.5), "VriGhost");
+        ItemEntity item = new ItemEntity(ItemStack.of(Material.DIRT, 2));
+        try {
+            dead.player.kill();
+            var pickup = new PickupItemEvent(dead.player, item);
+            EventDispatcher.call(pickup);
+            assertTrue(pickup.isCancelled(), "dead players collide with nothing (1.8 EntityPlayer.onUpdate)");
+
+            ghost.player.setGameMode(net.minestom.server.entity.GameMode.SPECTATOR);
+            var spectate = new PickupItemEvent(ghost.player, item);
+            EventDispatcher.call(spectate);
+            assertTrue(spectate.isCancelled(), "spectators collide with nothing");
+        } finally {
+            dead.player.remove();
+            ghost.player.remove();
+        }
+    }
+
+    @Test
     void qDropSpawnsThrownItemAtEye() {
         EventDispatcher.call(new ItemDropEvent(miner.player, ItemStack.of(Material.OAK_PLANKS)));
         var drop = instance.getEntities().stream()

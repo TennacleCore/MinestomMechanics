@@ -15,6 +15,7 @@ import io.github.term4.minestommechanics.tracking.ClientProfile;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.Tracker;
+import io.github.term4.minestommechanics.world.WorldSounds;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.MinecraftServer;
@@ -117,6 +118,8 @@ public final class MinestomMechanics {
             // seal the attack_range stamp: strip it from a stamped client's creative-echoed items (never becomes server state)
             CompatCreativeGuard.install(this);
         }
+        // block-place + footstep sounds Minestom doesn't emit (broadcast to everyone; any client)
+        WorldSounds.install(this);
         // global scaling drives physics + static-context durations; refresh on any profile change
         profiles.onChange(() -> {
             refreshGlobalScaling();

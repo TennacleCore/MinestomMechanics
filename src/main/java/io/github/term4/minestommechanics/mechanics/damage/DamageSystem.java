@@ -5,6 +5,7 @@ import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.mechanics.death.DeathConfig;
+import io.github.term4.minestommechanics.mechanics.death.DeathConfig.DeathContext;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
 import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
@@ -116,14 +117,15 @@ public final class DamageSystem implements MechanicsModule {
         // DeathConfig; an unset knob defaults to vanilla (on / 20-tick animation).
         this.node.addListener(EntityDeathEvent.class, e -> {
             if (!(e.getEntity() instanceof LivingEntity dead)) return;
-            DeathConfig death = mm.profiles().resolve(dead, MechanicsKeys.DEATH);
-            if (deathFlag(death != null ? death.clearEffects() : null)) dead.clearEffects();
-            if (deathFlag(death != null ? death.resetCombatState() : null)) resetCombatState(dead);
+            DeathContext ctx = new DeathContext(dead);
+            DeathConfig death = effectiveDeath(mm.profiles().resolve(dead, MechanicsKeys.DEATH), ctx);
+            if (deathFlag(death != null ? death.clearEffects(ctx) : null)) dead.clearEffects();
+            if (deathFlag(death != null ? death.resetCombatState(ctx) : null)) resetCombatState(dead);
             // Minestom keeps the health-0 entity in the world (viewers see a lingering body; 1.8/Via replays the death
             // smoke on chunk reload) - hide it from viewers, but only AFTER the death animation plays (immediate removal
             // yanks the entity mid-animation = instant disappear). Guarded so a fast respawn doesn't hide the live player.
-            if (deathFlag(death != null ? death.hideCorpse() : null) && dead instanceof Player p) {
-                Integer knob = death != null ? death.deathAnimationTicks() : null;
+            if (deathFlag(death != null ? death.hideCorpse(ctx) : null) && dead instanceof Player p) {
+                Integer knob = death != null ? death.deathAnimationTicks(ctx) : null;
                 int ticks = knob != null ? knob : DEATH_ANIMATION_TICKS;
                 p.scheduler().buildTask(() -> { if (p.isDead()) p.setAutoViewable(false); })
                         .delay(TaskSchedule.tick(TickScaler.duration(ticks, KEY))).schedule();
@@ -131,8 +133,9 @@ public final class DamageSystem implements MechanicsModule {
         });
         // re-show the respawned player NEXT tick (after the respawn teleport, else viewers re-see them at the death spot)
         this.node.addListener(PlayerRespawnEvent.class, e -> {
-            DeathConfig death = mm.profiles().resolve(e.getPlayer(), MechanicsKeys.DEATH);
-            if (deathFlag(death != null ? death.hideCorpse() : null)) e.getPlayer().scheduleNextTick(p -> p.setAutoViewable(true));
+            DeathContext ctx = new DeathContext(e.getPlayer());
+            DeathConfig death = effectiveDeath(mm.profiles().resolve(e.getPlayer(), MechanicsKeys.DEATH), ctx);
+            if (deathFlag(death != null ? death.hideCorpse(ctx) : null)) e.getPlayer().scheduleNextTick(p -> p.setAutoViewable(true));
         });
     }
 
@@ -313,6 +316,13 @@ public final class DamageSystem implements MechanicsModule {
 
     /** A nullable {@link DeathConfig} toggle: unset (or true) is on; only an explicit {@code false} disables. */
     private static boolean deathFlag(@Nullable Boolean v) { return !Boolean.FALSE.equals(v); }
+
+    /** The scoped config with its {@code subConfig} overlay applied - the resolver-side step the other systems do. */
+    private static @Nullable DeathConfig effectiveDeath(@Nullable DeathConfig cfg, DeathContext ctx) {
+        if (cfg == null || cfg.subConfig == null) return cfg;
+        DeathConfig overlay = cfg.subConfig.apply(ctx);
+        return overlay != null ? overlay.fromBase(cfg) : cfg;
+    }
 
     /** Vanilla {@code damageEntity}: drowning is the one source that never triggers {@code ac()}. */
     private static final Key DROWN_KEY = Key.key("minecraft:drown");

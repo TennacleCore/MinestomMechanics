@@ -3,6 +3,7 @@ package io.github.term4.minestommechanics.platform.fixes;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.platform.fixes.client.InventorySync;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyEquipmentFix;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyTabCompleteFix;
 import io.github.term4.minestommechanics.platform.fixes.client.SelfPlacementFix;
@@ -89,6 +90,8 @@ public final class FixesSystem implements MechanicsModule {
         if (enabled(cfg.legacyEquipmentFix())) LegacyEquipmentFix.install();
         // Tab-completion fix replaces the tab-complete packet listener (server-wide), so it reads the install config directly.
         if (enabled(cfg.legacyTabCompleteFix())) LegacyTabCompleteFix.install();
+        // Inventory echo suppression rides the OptimizedPlayer send override + a click-prediction listener; server-wide, install config.
+        if (enabled(cfg.inventorySync())) InventorySync.install(system.node);
         mm.install(system.node);
         return system;
     }

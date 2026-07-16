@@ -19,11 +19,13 @@ public final class Consumables {
         return ConsumableConfig.builder()
                 .typeConfigs(
                         ConsumableTypeConfig.builder(VanillaConsumables.GOLDEN_APPLE.key())
+                                .canConsume(ctx -> VanillaConsumables.modernCanEat(ctx, true)) // 26 lets creative eat (no item loss)
                                 .behavior(VanillaConsumables.effectFood(4, 9.6f,
                                         VanillaConsumables.eff(PotionEffect.REGENERATION, 2, 100),
                                         VanillaConsumables.eff(PotionEffect.ABSORPTION, 1, 2400)))
                                 .build(),
                         ConsumableTypeConfig.builder(VanillaConsumables.ENCHANTED_GOLDEN_APPLE.key())
+                                .canConsume(ctx -> VanillaConsumables.modernCanEat(ctx, true))
                                 .behavior(VanillaConsumables.effectFood(4, 9.6f,
                                         VanillaConsumables.eff(PotionEffect.REGENERATION, 2, 400),
                                         VanillaConsumables.eff(PotionEffect.RESISTANCE, 1, 6000),

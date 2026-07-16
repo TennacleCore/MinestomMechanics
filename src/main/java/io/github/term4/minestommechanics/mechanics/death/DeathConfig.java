@@ -1,6 +1,12 @@
 package io.github.term4.minestommechanics.mechanics.death;
 
+import io.github.term4.minestommechanics.codegen.GenerateBuilder;
+import io.github.term4.minestommechanics.config.Config;
+import io.github.term4.minestommechanics.config.FieldValue;
+import net.minestom.server.entity.LivingEntity;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.function.Function;
 
 /**
  * Config for the death/respawn cleanup: clearing potion effects, resetting transient combat state, and hiding the dead
@@ -8,14 +14,19 @@ import org.jetbrains.annotations.Nullable;
  * {@link io.github.term4.minestommechanics.MechanicsProfile} {@code DEATH} member and resolved per-victim by
  * {@code DamageSystem} on the death path. An unset knob reads as its vanilla default (on / 20-tick animation).
  */
-public final class DeathConfig {
+@GenerateBuilder
+public final class DeathConfig extends Config<DeathConfig.DeathContext, DeathConfig> {
 
-    private final @Nullable Boolean clearEffects;
-    private final @Nullable Boolean resetCombatState;
-    private final @Nullable Boolean hideCorpse;
-    private final @Nullable Integer deathAnimationTicks;
+    /** What the per-victim {@code FieldValue}s resolve against: the dying entity. */
+    public record DeathContext(LivingEntity victim) {}
+
+    public final @Nullable FieldValue<DeathContext, Boolean> clearEffects;
+    public final @Nullable FieldValue<DeathContext, Boolean> resetCombatState;
+    public final @Nullable FieldValue<DeathContext, Boolean> hideCorpse;
+    public final @Nullable FieldValue<DeathContext, Integer> deathAnimationTicks;
 
     private DeathConfig(Builder b) {
+        super(b.subConfig);
         this.clearEffects = b.clearEffects;
         this.resetCombatState = b.resetCombatState;
         this.hideCorpse = b.hideCorpse;
@@ -23,49 +34,42 @@ public final class DeathConfig {
     }
 
     /** Clear active potion effects on death (Minestom's {@code kill()} doesn't). Unset = on. */
-    public @Nullable Boolean clearEffects() { return clearEffects; }
+    public @Nullable Boolean clearEffects(DeathContext ctx) { return resolve(clearEffects, ctx); }
 
     /** Reset fire, velocity, drowning air, and stuck arrows on death. Unset = on. */
-    public @Nullable Boolean resetCombatState() { return resetCombatState; }
+    public @Nullable Boolean resetCombatState(DeathContext ctx) { return resolve(resetCombatState, ctx); }
 
     /** Hide the health-0 body from viewers until respawn (Minestom keeps broadcasting it). Unset = on. */
-    public @Nullable Boolean hideCorpse() { return hideCorpse; }
+    public @Nullable Boolean hideCorpse(DeathContext ctx) { return resolve(hideCorpse, ctx); }
 
     /** Ticks the death animation plays before {@link #hideCorpse} removes the body. Unset = 20. */
-    public @Nullable Integer deathAnimationTicks() { return deathAnimationTicks; }
+    public @Nullable Integer deathAnimationTicks(DeathContext ctx) { return resolve(deathAnimationTicks, ctx); }
 
-    /** Merges this config over {@code base}, per field (this if set, else base). */
+    /** Merges this config over {@code base}: this config's set fields win, unset fields fall back per resolution. */
     public DeathConfig fromBase(DeathConfig base) {
-        return new Builder()
-                .clearEffects(clearEffects != null ? clearEffects : base.clearEffects)
-                .resetCombatState(resetCombatState != null ? resetCombatState : base.resetCombatState)
-                .hideCorpse(hideCorpse != null ? hideCorpse : base.hideCorpse)
-                .deathAnimationTicks(deathAnimationTicks != null ? deathAnimationTicks : base.deathAnimationTicks)
-                .build();
+        Builder b = new Builder();
+        b.mergeKnobs(this, base);
+        b.subConfig = subConfig != null ? subConfig : base.subConfig;
+        return b.build();
     }
 
     public Builder toBuilder() { return new Builder(this); }
     public static Builder builder() { return new Builder(); }
     public static Builder builder(@Nullable DeathConfig base) { return base != null ? new Builder(base) : new Builder(); }
 
-    public static final class Builder {
-        private @Nullable Boolean clearEffects;
-        private @Nullable Boolean resetCombatState;
-        private @Nullable Boolean hideCorpse;
-        private @Nullable Integer deathAnimationTicks;
+    public static final class Builder extends DeathConfigBuilderBase<Builder> {
+
+        @Override protected Builder self() { return this; }
+        private Function<DeathContext, DeathConfig> subConfig;
 
         Builder() {}
+
         Builder(DeathConfig c) {
-            clearEffects = c.clearEffects;
-            resetCombatState = c.resetCombatState;
-            hideCorpse = c.hideCorpse;
-            deathAnimationTicks = c.deathAnimationTicks;
+            super(c);
+            subConfig = c.subConfig;
         }
 
-        public Builder clearEffects(@Nullable Boolean v) { this.clearEffects = v; return this; }
-        public Builder resetCombatState(@Nullable Boolean v) { this.resetCombatState = v; return this; }
-        public Builder hideCorpse(@Nullable Boolean v) { this.hideCorpse = v; return this; }
-        public Builder deathAnimationTicks(@Nullable Integer v) { this.deathAnimationTicks = v; return this; }
+        public Builder subConfig(Function<DeathContext, DeathConfig> fn) { subConfig = fn; return this; }
 
         public DeathConfig build() { return new DeathConfig(this); }
     }

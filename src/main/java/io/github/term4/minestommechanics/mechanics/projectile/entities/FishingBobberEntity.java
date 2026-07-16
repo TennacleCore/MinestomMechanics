@@ -15,6 +15,8 @@ import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.collision.Aerodynamics;
+import net.minestom.server.collision.BoundingBox;
+import net.minestom.server.collision.PhysicsResult;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
@@ -54,20 +56,26 @@ public class FishingBobberEntity extends ManagedProjectile {
     /** Vanilla bobber box height, for the 1.8 water-coverage slabs (the physics box is a point). */
     private static final double BOX_HEIGHT = 0.25;
     private static final int GROUND_DESPAWN_TICKS = 1200;
+    /** Vanilla hook box (both versions): clips the move; contact detection stays the point ray. */
+    private static final BoundingBox MOVE_BOX = new BoundingBox(0.25, 0.25, 0.25);
 
     private final RodPull rodPull;
     private final RodDurability rodDurability;
     private final double lineSnapDistanceSq;
     private final boolean hookedMetadata;
+    private final @Nullable Boolean hookHalt;
+    private final boolean hookStick;
 
     private @Nullable Entity hooked;
     /** 26.1 BOBBING: latched on water entry, never leaves (out-of-water bobbing just regains gravity). */
     private boolean bobbing;
-    private long stuckTicks;
+    private long groundTicks;
     /** 1.8 ground contact last tick: apply the vanilla {@code rand*0.2} damp before this tick's physics. */
     private boolean contactPending;
     /** Grounded since the last real fall; gates the hit event/behavior to the first contact of a landing. */
     private boolean grounded;
+    /** This tick's 1.8 water coverage was &gt; 0 - the collision drag ({@link #onBlockClip}) composes with it. */
+    private boolean wet;
 
     /** Gravity (b/t) moved off the {@link Aerodynamics} so the bobber controls its placement; see class doc. */
     private double gravityBt;
@@ -85,16 +93,21 @@ public class FishingBobberEntity extends ManagedProjectile {
         double lineSnap = FieldValue.resolve(effectiveConfig.lineSnapDistance, ctx, 32.0);
         this.lineSnapDistanceSq = lineSnap * lineSnap;
         this.hookedMetadata = FieldValue.resolve(effectiveConfig.hookedMetadata, ctx, Boolean.TRUE);
+        this.hookHalt = effectiveConfig.hookHalt != null ? effectiveConfig.hookHalt.resolve(ctx) : null;
+        this.hookStick = FieldValue.resolve(effectiveConfig.hookStick, ctx, Boolean.FALSE);
     }
+
+    /** Unset = the physics order's truth: 26.1 halts (deltaMovement ZERO on HOOKED_IN_ENTITY), 1.8 flies through. */
+    private boolean haltOnHook() { return hookHalt != null ? hookHalt : modernOrder; }
 
     public @Nullable Entity getHookedEntity() { return hooked; }
 
-    /** Hooks/releases the line ({@code hookedMetadata} gates the modern glued-bobber visual) and, hooked, zeroes the
-     *  motion; the pin lands the same tick (see {@link #updateProjectile}). Public so a custom behavior can flash it (mmc18 pseudo-hook). */
+    /** Hooks/releases the line ({@code hookedMetadata} gates the modern glued-bobber visual); {@code hookHalt} zeroes
+     *  the motion (1.8 keeps it - stale on release). Public so a custom behavior can flash it (mmc18 pseudo-hook). */
     public void setHookedEntity(@Nullable Entity entity) {
         this.hooked = entity;
         if (hookedMetadata) ((FishingHookMeta) getEntityMeta()).setHookedEntity(entity);
-        if (entity != null) setVelocity(Vec.ZERO);
+        if (entity != null && haltOnHook()) setVelocity(Vec.ZERO);
     }
 
     @Override
@@ -102,7 +115,9 @@ public class FishingBobberEntity extends ManagedProjectile {
         super.onImpact(hitEntity);
         if (hitEntity == null) return;
         setHookedEntity(hitEntity);
-        setDeflected(); // halt the hit tick's move at the hit point - don't carry the full tick THROUGH the victim
+        // 1.8 completes the hook tick's move THROUGH the victim (the pin starts next tick, carried by the normal
+        // sync); halting + same-tick pin is the 26.1 state machine / the mmc18 silent-wire glued flash
+        if (haltOnHook()) setDeflected();
     }
 
     @Override
@@ -144,9 +159,10 @@ public class FishingBobberEntity extends ManagedProjectile {
      *  lands before drag; in water drag tightens to {@code 0.92*0.9} with an extra {@code 0.8} vertical. */
     private void tickLegacyWater() {
         double coverage = waterCoverage();
+        wet = coverage > 0;
         float f2 = 0.92f;
         double verticalExtra = 1.0;
-        if (coverage > 0) {
+        if (wet) {
             f2 = (float) (f2 * 0.9);
             verticalExtra = 0.8;
         }
@@ -174,7 +190,8 @@ public class FishingBobberEntity extends ManagedProjectile {
                     velocityBt.y() - TickScaler.gravityPerTick(force * ThreadLocalRandom.current().nextFloat() * 0.2),
                     velocityBt.z() * TickScaler.dragPerTick(0.9));
         }
-        if (!inWater) velocityBt = velocityBt.sub(0, TickScaler.gravityPerTick(gravityBt), 0);
+        // 26.1 gates gravity on the ground too - a rested hook stays put (contact zeroed it, see onBlockClip)
+        if (!inWater && !isOnGround()) velocityBt = velocityBt.sub(0, TickScaler.gravityPerTick(gravityBt), 0);
         this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
         return false;
     }
@@ -212,18 +229,38 @@ public class FishingBobberEntity extends ManagedProjectile {
     }
 
     @Override
-    protected Pos stickPlacement(Pos resolvedPosition, Vec flightDir) {
-        // 1.8 skips the move on the hit tick - the bobber halts short of the face, and the predicting client
-        // halts at the same spot; landing at the face would snap it forward on the next correction
-        return modernOrder ? super.stickPlacement(resolvedPosition, flightDir) : getPosition();
+    protected BoundingBox moveBox() { return MOVE_BOX; }
+
+    // hookStick freezes into the block (arrow-like). Else: 26.1 has no stuck state (onBlockClip); 1.8 sticks on the
+    // contact RAY (hold + damp cycle).
+    @Override
+    protected boolean stickOnBlockContact() { return hookStick || !modernOrder; }
+
+    @Override
+    protected void onBlockClip(PhysicsResult physics) {
+        if (!physics.isOnGround() && !physics.collisionX() && !physics.collisionZ()) return; // ceiling-only: full drag
+        if (modernOrder) {
+            // 26.1: a FLYING contact (ground or wall) stops the hook dead; it falls from rest next tick
+            if (!bobbing) setVelocityBt(Vec.ZERO);
+        } else {
+            // 1.8 f2 = 0.5 on onGround/positionChanged move ticks (the box clipped without the ray firing)
+            float f2 = wet ? 0.5f * 0.9f : 0.5f;
+            setAerodynamics(new Aerodynamics(0, f2, (wet ? 0.8 : 1.0) * f2));
+        }
     }
 
     @Override
-    protected boolean freezeOnStick() { return modernOrder; } // 1.8 never freezes: contact halts, then damp-settles
+    protected Pos stickPlacement(Pos resolvedPosition, Vec flightDir) {
+        // stick: pull back to the face like an arrow. Slide (vanilla): the ray-hit tick skips the move - hold at the
+        // pre-move position (the predicting client halts there too; landing at the face snaps it forward on the resync)
+        return hookStick ? super.stickPlacement(resolvedPosition, flightDir) : getPosition();
+    }
+
+    @Override
+    protected boolean freezeOnStick() { return hookStick; } // vanilla never freezes (contact halts, damp-settles); hookStick embeds it
 
     @Override
     protected boolean onStuck() {
-        if (modernOrder) return super.onStuck();
         contactPending = true;
         // vanilla zeroes ticksInAir on every unstick, so the owner (au >= 5 gate) can't hook themselves walking
         // over their grounded bobber
@@ -256,10 +293,12 @@ public class FishingBobberEntity extends ManagedProjectile {
         super.updateProjectile(time);
         if (isRemoved()) return;
         if (shouldStopFishing()) { remove(); return; }
-        if (isStuck()) {
-            if (++stuckTicks >= TickScaler.duration(GROUND_DESPAWN_TICKS, ProjectileSystem.KEY)) { remove(); return; }
+        // 26.1 despawns a resting (non-stuck) bobber after 1200 grounded ticks (life); 1.8's counter is dead code.
+        // A hookStick bobber is frozen-stuck instead - the stuck lifecycle owns its removal (unstick on block break).
+        if (modernOrder && !isStuck() && isOnGround()) {
+            if (++groundTicks >= TickScaler.duration(GROUND_DESPAWN_TICKS, ProjectileSystem.KEY)) { remove(); return; }
         } else {
-            stuckTicks = 0;
+            groundTicks = 0;
         }
         // pin at end-of-tick, past the hit tick's halt - the hook packets reach a predicting client that's already
         // ahead by its latency, so the pin must ride the SAME tick as the hook or it reads as a fly-through
@@ -307,11 +346,15 @@ public class FishingBobberEntity extends ManagedProjectile {
         Vec delta = toAngler.mul(rodPull.factor())
                 .add(0, Math.sqrt(toAngler.length()) * rodPull.yBoost(), 0);
         if (hooked instanceof Player player) {
-            // fold onto the client's tracked motion; the knockback wire owns quantize + the legacy-exact bridge (b/s)
-            Vec out = MotionTracker.positionDelta(player).add(delta).mul(ServerFlag.SERVER_TICKS_PER_SECOND);
+            Vec folded = MotionTracker.positionDelta(player).add(delta); // b/t: current motion + pull
+            if (!rodPull.wireVelocity()) {
+                MotionTracker.foldDelivered(player, folded); // 1.8: server-tracked only, surfaces in the next hit's KB
+                return;
+            }
+            Vec out = folded.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
             Services s = services();
             KnockbackSystem kb = s != null ? s.knockback() : null;
-            if (kb != null) kb.deliver(player, out);
+            if (kb != null) kb.deliver(player, out); // the knockback wire owns quantize + the legacy-exact bridge (b/s)
             else player.setVelocity(out);
         } else {
             hooked.setVelocity(hooked.getVelocity().add(delta.mul(ServerFlag.SERVER_TICKS_PER_SECOND)));

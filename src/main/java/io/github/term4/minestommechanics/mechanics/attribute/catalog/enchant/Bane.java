@@ -45,7 +45,9 @@ public final class Bane {
         @Override public void onHit(HitContext ctx) {
             if (ctx.level() <= 0 || !MonsterTypes.isArthropod(ctx.victim())) return;
             int ticks = 20 + ThreadLocalRandom.current().nextInt(10 * ctx.level()); // 1.8 EnchantmentWeaponDamage.a
-            ctx.victim().addEffect(new Potion(PotionEffect.SLOWNESS, SLOWNESS_AMPLIFIER, ticks));
+            // vanilla slowness shows its swirl + icon (default MobEffectInstance); flags 0 would hide both
+            ctx.victim().addEffect(new Potion(PotionEffect.SLOWNESS, SLOWNESS_AMPLIFIER, ticks,
+                    (byte) (Potion.PARTICLES_FLAG | Potion.ICON_FLAG)));
         }
     }
 }

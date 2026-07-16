@@ -136,6 +136,16 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
     @Nullable public final BoundsRule boundsRule;
     /** The full pipeline stage list ({@link KnockbackPipeline#vanilla()} to seed edits); {@code null} = vanilla order. */
     @Nullable public final List<KnockbackPipeline.Stage> stages;
+    /**
+     * <b>Experimental.</b> Source the look-weighted knockback direction ({@link #yawWeight} / {@link #extraYawWeight} -
+     * e.g. the vanilla sprint / Knockback-enchant extra) from the attacker's CLICK look instead of the one-packet-stale
+     * server look. The attack packet carries no rotation and lands a beat before the same-tick flying packet on EVERY
+     * client version (modern included), so that component normally fires along the previous tick's look; enabling this
+     * applies only that tick's look before the attack, leaving the position-delta base untouched. NOT vanilla (real
+     * servers keep the lag), so no preset sets it. {@code null}/false = off. Read context-free at the packet layer
+     * (implemented by {@code AttackAimSync}).
+     */
+    @Nullable public final Boolean experimentalAimSync;
 
     private KnockbackConfig(Builder b) {
         super(b.subConfig);
@@ -169,6 +179,7 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
         combineRule = b.combineRule;
         boundsRule = b.boundsRule;
         stages = b.stages;
+        experimentalAimSync = b.experimentalAimSync;
     }
 
     /** Merges this config over base. */
@@ -181,6 +192,7 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
         b.combineRule(combineRule != null ? combineRule : base.combineRule);
         b.boundsRule(boundsRule != null ? boundsRule : base.boundsRule);
         b.stages(stages != null ? stages : base.stages);
+        b.experimentalAimSync = experimentalAimSync != null ? experimentalAimSync : base.experimentalAimSync;
         return b.build();
     }
 
@@ -206,6 +218,7 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
         private CombineRule combineRule;
         private BoundsRule boundsRule;
         private List<KnockbackPipeline.Stage> stages;
+        private @Nullable Boolean experimentalAimSync;
 
         Builder() {}
 
@@ -217,6 +230,7 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
             combineRule = c.combineRule;
             boundsRule = c.boundsRule;
             stages = c.stages;
+            experimentalAimSync = c.experimentalAimSync;
         }
 
         public Builder subConfig(Function<KnockbackContext, KnockbackConfig> fn) { subConfig = fn; return this; }
@@ -236,6 +250,8 @@ public final class KnockbackConfig extends Config<KnockbackContext, KnockbackCon
         public Builder boundsRule(BoundsRule v) { boundsRule = v; return this; }
         /** Replaces the whole stage list (order included); seed from {@link KnockbackPipeline#vanilla()}. */
         public Builder stages(List<KnockbackPipeline.Stage> v) { stages = v; return this; }
+        /** <b>Experimental</b>, off by default: source the look-weighted knockback from the click look (see the field doc). */
+        public Builder experimentalAimSync(boolean v) { experimentalAimSync = v; return this; }
         Builder customComponents(List<KnockbackComponent> v) { customComponents = v; return this; }
 
         public KnockbackConfig build() {

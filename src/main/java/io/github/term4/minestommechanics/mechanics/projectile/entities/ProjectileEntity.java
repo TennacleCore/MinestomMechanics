@@ -308,6 +308,12 @@ public abstract class ProjectileEntity extends Entity {
         // 26.1 applies drag/gravity before the move (1.8 after)
         if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_BEFORE_MOVE) applyDragGravity();
         PhysicsResult physics = world.sweepLoaded(collisionBox(), position, velocityBt, previousPhysicsResult, true);
+        boolean blockContact = physics.hasCollision() && stickOnBlockContact();
+        BoundingBox moveBox = moveBox();
+        if (moveBox != collisionBox() && !blockContact) {
+            // dual model (vanilla hook): the sweep above is the contact RAY, the real box clips the move
+            physics = world.sweepLoaded(moveBox, position, velocityBt, physics, true);
+        }
         this.previousPhysicsResult = physics;
         // Minestom caps even a non-colliding swept move at (1 - EPSILON)*v; a 1e-6-high detonation center shifts
         // the explosion KB by a wire unit, so restore the full move when nothing was hit
@@ -346,7 +352,7 @@ public abstract class ProjectileEntity extends Entity {
         if (!world.isChunkLoaded(newPosition)) return;
 
         this.justBecameStuck = false;
-        if (physics.hasCollision()) {
+        if (blockContact) {
             for (int axis = 0; axis < 3; axis++) {
                 if (physics.collisionShapes()[axis] instanceof ShapeImpl) {
                     Point hitPoint = physics.collisionPoints()[axis];
@@ -356,6 +362,11 @@ public abstract class ProjectileEntity extends Entity {
                     break;
                 }
             }
+        } else if (physics.hasCollision()) {
+            // clipped move without contact: vanilla move() semantics - collided axes zero, the slide keeps the rest
+            velocityBt = physics.newVelocity();
+            this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
+            onBlockClip(physics);
         }
 
         // 1.8 applies drag + gravity after the move (skip on the stick tick - velocity is already zeroed + frozen).
@@ -468,6 +479,17 @@ public abstract class ProjectileEntity extends Entity {
     /** Block-contact response: {@code true} (default) = the frozen stuck state (arrow). {@code false} = halt in place
      *  this tick but stay live with velocity kept - the 1.8 bobber's contact, which damp-settles instead of freezing. */
     protected boolean freezeOnStick() { return true; }
+
+    /** Box for the block-clipped move; default = {@link #collisionBox()}. The bobber's vanilla dual model: contact
+     *  detection stays the point ray while the real 0.25 box clips the move. */
+    protected BoundingBox moveBox() { return collisionBox(); }
+
+    /** Whether a block collision of the contact sweep {@link #stick sticks}; {@code false} = contact never sticks and
+     *  the clipped move responds via {@link #onBlockClip} (the 26.1 hook has no stuck state at all). */
+    protected boolean stickOnBlockContact() { return true; }
+
+    /** The move clipped a block without sticking: collided axes are already zeroed, the slide kept. */
+    protected void onBlockClip(PhysicsResult physics) {}
 
     /** Where the projectile rests on stick: the physics-resolved position pulled back {@link #stickPullback} along
      *  flight so the tip pokes out of the block face (vanilla arrow). The bobber overrides it - 1.8 freezes it pre-move. */

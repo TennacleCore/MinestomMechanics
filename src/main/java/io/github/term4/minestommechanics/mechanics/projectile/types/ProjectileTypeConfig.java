@@ -72,12 +72,14 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
 
     /**
      * Rod retrieve pull on the hooked entity: {@code motion += (angler - bobber) * factor}, plus
-     * {@code sqrt(dist) * yBoost} on Y. {@code pullPlayers} gates player victims.
+     * {@code sqrt(dist) * yBoost} on Y. {@code pullPlayers} gates player victims. {@code wireVelocity}: send the
+     * pull to a hooked player - 1.8 never did (no {@code velocityChanged}; the pull lives in server-tracked motion
+     * and folds into the next hit), 26.1 makes the victim's client apply it via entity event 31.
      */
-    public record RodPull(double factor, double yBoost, boolean pullPlayers) {
-        public static final RodPull VANILLA_1_8 = new RodPull(0.1, 0.08, true);
+    public record RodPull(double factor, double yBoost, boolean pullPlayers, boolean wireVelocity) {
+        public static final RodPull VANILLA_1_8 = new RodPull(0.1, 0.08, true, false);
         /** 26.1 dropped the sqrt-distance Y boost. */
-        public static final RodPull MODERN = new RodPull(0.1, 0.0, true);
+        public static final RodPull MODERN = new RodPull(0.1, 0.0, true, true);
     }
 
     /** Rod durability cost on retrieve: a hooked {@code entity}, or stuck in {@code ground}. */
@@ -149,6 +151,8 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
     public final @Nullable FieldValue<ProjectileContext, Double> explosionPower;
     /** Full-draw crit chance the bow rolls ({@code [0,1]}); vanilla {@code 1.0} = always. Arrow-launcher knob. */
     public final @Nullable FieldValue<ProjectileContext, Double> critChance;
+    /** Fall damage dealt to a player shooter when the ender pearl lands (vanilla {@code 5}); {@code 0} = none. Ender-pearl only. */
+    public final @Nullable FieldValue<ProjectileContext, Double> teleportDamage;
     /** Pluggable {@link ProjectileBehavior} layered over the built-in effects (no subclassing). Default {@link ProjectileBehavior#NONE}. */
     public final @Nullable FieldValue<ProjectileContext, ProjectileBehavior> behavior;
     /** Splash-potion particle palette for MODERN viewers: {@code true} = the 1.8 liquid colors, {@code false} (default) = modern. Legacy viewers always get the raw 1.8 potion value (their client picks its own colors). */
@@ -165,6 +169,15 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
      *  A 1.8 server through Via never emits it (no such metadata in 1.8); {@code false} = the authentic vanilla18 look,
      *  hook mechanics unchanged (the pin position is the 1.8 visual). Fishing-bobber only. */
     public final @Nullable FieldValue<ProjectileContext, Boolean> hookedMetadata;
+    /** Halt + zero the bobber on the hook tick. Default follows the physics order: 26.1 {@code true} (FLYING ->
+     *  HOOKED_IN_ENTITY sets deltaMovement ZERO), 1.8 {@code false} (the hook tick's move completes THROUGH the
+     *  victim, motion kept; the pin starts next tick on the normal sync). mmc18 opts in (silent-wire glued flash).
+     *  Fishing-bobber only. */
+    public final @Nullable FieldValue<ProjectileContext, Boolean> hookHalt;
+    /** Freeze the bobber INTO the block it hits (arrow-like) instead of the vanilla slide/damp. Default {@code false}
+     *  (vanilla: 1.8 ray-holds + damps down the face, 26.1 stops dead + falls); {@code true} = a server that wants
+     *  rods to stick in walls. Fishing-bobber only. */
+    public final @Nullable FieldValue<ProjectileContext, Boolean> hookStick;
     public final @Nullable FieldValue<ProjectileContext, KnockbackConfig> knockback;
     public final @Nullable FieldValue<ProjectileContext, KnockbackSource> knockbackSource;
     public final @Nullable FieldValue<ProjectileContext, Double> damage;
@@ -209,6 +222,7 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
         shakeTicks = b.shakeTicks;
         explosionPower = b.explosionPower;
         critChance = b.critChance;
+        teleportDamage = b.teleportDamage;
         behavior = b.behavior;
         legacyPotionColors = b.legacyPotionColors;
         modernSplash = b.modernSplash;
@@ -216,6 +230,8 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
         rodDurability = b.rodDurability;
         lineSnapDistance = b.lineSnapDistance;
         hookedMetadata = b.hookedMetadata;
+        hookHalt = b.hookHalt;
+        hookStick = b.hookStick;
         knockback = b.knockback;
         knockbackSource = b.knockbackSource;
         damage = b.damage;

@@ -8,6 +8,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.types.FishingBobbe
 import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.util.tick.TickScalingConfig;
 import net.minestom.server.MinecraftServer;
@@ -25,6 +26,7 @@ import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.network.packet.server.ServerPacket;
 import net.minestom.server.network.packet.server.play.EntityTeleportPacket;
+import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
 import net.minestom.server.network.packet.server.play.SpawnEntityPacket;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -190,6 +192,170 @@ class FishingBobberTest extends HeadlessServerTest {
         assertEquals(expected.z(), victim.getVelocity().z(), 1e-9);
         shooter.remove();
         victim.remove();
+    }
+
+    /** A wall hit never sticks: 1.8 ray-holds + damps then falls along the face; 26.1 stops dead then falls from rest. */
+    @Test
+    void wallContactSlidesDownInsteadOfSticking() {
+        for (int y = 70; y <= 90; y++)
+            for (int x = 38; x <= 42; x++)
+                instance.setBlock(x, y, 12, Block.STONE);
+        LivingEntity shooter = angler(new Pos(40.5, 80, 6.5, 0.0f, 0.0f));
+        try {
+            FishingBobberEntity legacy = (FishingBobberEntity) launch(Vanilla18.projectiles(), shooter);
+            for (int tick = 1; tick <= 120 && !legacy.isRemoved(); tick++) legacy.tick(tick * 50L);
+            assertTrue(legacy.getPosition().z() < 12, "1.8: never crosses the wall plane: " + legacy.getPosition());
+            assertTrue(legacy.getPosition().y() < 66, "1.8: falls the whole face to the ground: " + legacy.getPosition());
+            legacy.remove();
+
+            FishingBobberEntity modern = (FishingBobberEntity) launch(
+                    io.github.term4.minestommechanics.mechanics.vanilla.Projectiles.config(), shooter);
+            for (int tick = 1; tick <= 120 && !modern.isRemoved(); tick++) modern.tick(tick * 50L);
+            assertFalse(modern.isStuck(), "26.1 has no stuck state");
+            assertTrue(modern.getPosition().z() < 12, "26.1: never crosses the wall plane: " + modern.getPosition());
+            assertTrue(modern.getPosition().y() < 66, "26.1: stops dead then falls from rest to the ground: " + modern.getPosition());
+            modern.remove();
+        } finally {
+            shooter.remove();
+            for (int y = 70; y <= 90; y++)
+                for (int x = 38; x <= 42; x++)
+                    instance.setBlock(x, y, 12, Block.AIR);
+        }
+    }
+
+    /** hookStick(true) makes the bobber freeze into the wall (arrow-like) instead of the vanilla slide - the config seam. */
+    @Test
+    void hookStickFreezesTheBobberIntoTheWall() {
+        for (int y = 60; y <= 80; y++)
+            for (int x = 58; x <= 62; x++)
+                instance.setBlock(x, y, 12, Block.STONE);
+        LivingEntity shooter = angler(new Pos(60.5, 70, 6.5, 0.0f, 0.0f));
+        var config = io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig.builder(Vanilla18.projectiles())
+                .typeConfigs(io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig
+                        .builder(Vanilla18.projectiles().typeConfig(FishingBobber.KEY))
+                        .hookStick(true).build())
+                .build();
+        FishingBobberEntity bobber = (FishingBobberEntity) launch(config, shooter);
+        try {
+            for (int tick = 1; tick <= 120 && !bobber.isStuck(); tick++) bobber.tick(tick * 50L);
+            assertTrue(bobber.isStuck(), "hookStick freezes into the block");
+            double stuckY = bobber.getPosition().y();
+            for (int tick = 121; tick <= 200; tick++) bobber.tick(tick * 50L);
+            assertTrue(bobber.isStuck(), "stays stuck (no fall/despawn while the block is there)");
+            assertEquals(stuckY, bobber.getPosition().y(), 1e-9, "frozen in place, doesn't slide down the face");
+            assertTrue(bobber.getPosition().z() < 12, "stuck short of the wall plane: " + bobber.getPosition());
+        } finally {
+            bobber.remove();
+            shooter.remove();
+            for (int y = 60; y <= 80; y++)
+                for (int x = 58; x <= 62; x++)
+                    instance.setBlock(x, y, 12, Block.AIR);
+        }
+    }
+
+    /** 1.8 hooks fly through: the hook tick's move completes and motion is kept (no halt/zero); mmc18 opts into the halt. */
+    @Test
+    void vanilla18HookKeepsFlyingWhileMmc18Halts() {
+        LivingEntity shooter = angler(new Pos(96.5, 64, 8.5, 0.0f, 0.0f));
+        LivingEntity victim = zombie(new Pos(96.5, 64, 12.5));
+        FishingBobberEntity bobber = (FishingBobberEntity) launch(Vanilla18.projectiles(), shooter);
+        try {
+            for (int tick = 1; tick <= 10 && bobber.getHookedEntity() == null; tick++) bobber.tick(tick * 50L);
+            assertEquals(victim, bobber.getHookedEntity());
+            assertTrue(bobber.velocityBt().lengthSquared() > 1e-6, "1.8 keeps the motion on hook (stale until release)");
+        } finally {
+            bobber.remove();
+            shooter.remove();
+            victim.remove();
+        }
+
+        LivingEntity shooter2 = angler(new Pos(104.5, 64, 8.5, 0.0f, 0.0f));
+        LivingEntity victim2 = zombie(new Pos(104.5, 64, 12.5));
+        FishingBobberEntity halted = (FishingBobberEntity) launch(test.presets.mmc18.Projectiles.config(), shooter2);
+        try {
+            for (int tick = 1; tick <= 10 && halted.getHookedEntity() == null; tick++) halted.tick(tick * 50L);
+            assertEquals(victim2, halted.getHookedEntity());
+            assertEquals(0.0, halted.velocityBt().lengthSquared(), 1e-12, "mmc18 hookHalt zeroes on the hook tick");
+        } finally {
+            halted.remove();
+            shooter2.remove();
+            victim2.remove();
+        }
+    }
+
+    /** mmc18 bobber synchronizes differently hooked vs flying: flight is fully client-predicted (silent wire), but the
+     *  hook pin broadcasts an explicit teleport on the same silent wire (event-driven, only when the pin moves). */
+    @Test
+    void mmc18BobberSyncsTheHookButNotTheFlight() {
+        var config = test.presets.mmc18.Projectiles.config();
+        // flight: client-predicted, no position sync on the wire (loaded flight area = chunks x 0-7, z 0-2)
+        LivingEntity flightShooter = angler(new Pos(110.5, 90, 40.5, 0.0f, -30.0f));
+        FakePlayer flightViewer = FakePlayer.connect(instance, new Pos(110.5, 90, 38.5), "MmFlightView");
+        FishingBobberEntity flying = (FishingBobberEntity) launch(config, flightShooter);
+        try {
+            flightViewer.sent.clear();
+            for (int t = 1; t <= 6; t++) flying.tick(t * 50L);
+            assertEquals(0, bobberTeleports(flightViewer, flying), "mmc18 flight is client-predicted (no position sync)");
+        } finally {
+            flying.remove();
+            flightShooter.remove();
+            flightViewer.player.remove();
+        }
+
+        // hook: the pin broadcasts (differs from silent flight). Viewer sits BESIDE the shooter (out of the +z flight
+        // path, else the bobber would hook the viewer instead of the zombie).
+        LivingEntity shooter = angler(new Pos(116.5, 64, 8.5, 0.0f, 0.0f));
+        FakePlayer viewer = FakePlayer.connect(instance, new Pos(113.5, 64, 8.5), "MmHookView");
+        LivingEntity victim = zombie(new Pos(116.5, 64, 12.5));
+        FishingBobberEntity hooker = (FishingBobberEntity) launch(config, shooter);
+        try {
+            for (int t = 1; t <= 10 && hooker.getHookedEntity() == null; t++) hooker.tick(t * 50L);
+            assertEquals(victim, hooker.getHookedEntity(), "mmc18 bobber hooks the victim");
+            viewer.sent.clear();
+            for (int t = 11; t <= 20; t++) { // drag the hooked victim: each pin move broadcasts
+                victim.teleport(new Pos(116.5, 64, 12.5 + (t - 10) * 0.3)).join();
+                hooker.tick(t * 50L);
+            }
+            assertTrue(bobberTeleports(viewer, hooker) > 0, "the hook pin broadcasts on the wire (syncs differently than flight)");
+        } finally {
+            hooker.remove();
+            shooter.remove();
+            viewer.player.remove();
+            victim.remove();
+        }
+    }
+
+    private static long bobberTeleports(FakePlayer viewer, FishingBobberEntity bobber) {
+        return viewer.sent.stream()
+                .map(sp -> net.minestom.server.network.packet.server.SendablePacket
+                        .extractServerPacket(net.minestom.server.network.ConnectionState.PLAY, sp))
+                .filter(pk -> pk instanceof EntityTeleportPacket tp && tp.entityId() == bobber.getEntityId())
+                .count();
+    }
+
+    /** 1.8 rod pull on a player is wire-silent (no {@code velocityChanged}): the pull only enters the server-tracked motion. */
+    @Test
+    void vanilla18RodPullOnPlayersIsWireSilent() {
+        LivingEntity shooter = angler(new Pos(88.5, 64, 8.5, 0.0f, 0.0f));
+        FakePlayer victim = FakePlayer.connect(instance, new Pos(88.5, 64, 12.5), "RodVictim");
+        FishingBobberEntity bobber = (FishingBobberEntity) launch(Vanilla18.projectiles(), shooter);
+        try {
+            for (int tick = 1; tick <= 10 && bobber.getHookedEntity() == null; tick++) bobber.tick(tick * 50L);
+            assertEquals(victim.player, bobber.getHookedEntity());
+
+            Pos anglerPos = shooter.getPosition();
+            Pos bobberPos = bobber.getPosition();
+            Vec toAngler = new Vec(anglerPos.x() - bobberPos.x(), anglerPos.y() - bobberPos.y(), anglerPos.z() - bobberPos.z());
+            Vec pull = toAngler.mul(0.1).add(0, Math.sqrt(toAngler.length()) * 0.08, 0); // b/t
+            victim.sent.clear();
+            assertEquals(3, bobber.retrieve());
+            assertTrue(victim.sent(EntityVelocityPacket.class).isEmpty(), "no velocity packet reaches the hooked player");
+            Vec tracked = MotionTracker.horizontalMot(victim.player, 0);
+            assertEquals(pull.z(), tracked.z(), 1e-9, "the pull folds into the tracked motion the next hit reads");
+        } finally {
+            shooter.remove();
+            victim.player.remove();
+        }
     }
 
     @Test

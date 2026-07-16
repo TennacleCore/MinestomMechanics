@@ -7,6 +7,7 @@ import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigRe
 import io.github.term4.minestommechanics.mechanics.damage.types.magic.HealOrHarm;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
 import net.kyori.adventure.key.Key;
+import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
 import net.minestom.server.item.Material;
 import net.minestom.server.potion.CustomPotionEffect;
@@ -47,6 +48,30 @@ public final class VanillaConsumables {
     /** The vanilla consumable types to register on the system ({@code ConsumableSystem.install(mm, cfg, VanillaConsumables.types())}). */
     public static Consumable[] types() {
         return new Consumable[]{GOLDEN_APPLE, ENCHANTED_GOLDEN_APPLE, MILK_BUCKET, POTION};
+    }
+
+    /**
+     * 1.8 {@code EntityPlayer.canEat} for a food item: {@code (alwaysEdible || hungry) && !invulnerable}. Creative /
+     * spectator ({@code disableDamage}) can NEVER start eating in 1.8 - the {@code canConsume} gate for the vanilla18
+     * food consumables. Drinks (potion / milk) don't call this ({@code setItemInUse} is unconditional there).
+     */
+    public static boolean legacyCanEat(ConsumableContext ctx, boolean alwaysEdible) {
+        Player u = ctx.user();
+        return (alwaysEdible || u.getFood() < 20) && !invulnerable(u);
+    }
+
+    /**
+     * 26.1 {@code Player.canEat}: {@code invulnerable || alwaysEdible || hungry}. Creative / spectator ALWAYS eat in
+     * 26 (they just don't lose the item) - the difference from {@link #legacyCanEat} that the preset split encodes.
+     */
+    public static boolean modernCanEat(ConsumableContext ctx, boolean alwaysEdible) {
+        Player u = ctx.user();
+        return invulnerable(u) || alwaysEdible || u.getFood() < 20;
+    }
+
+    /** Vanilla {@code abilities.invulnerable} / {@code disableDamage}: creative and spectator. */
+    private static boolean invulnerable(Player u) {
+        return u.getGameMode() == GameMode.CREATIVE || u.getGameMode() == GameMode.SPECTATOR;
     }
 
     /** One potion effect for {@link #effectFood}: {@code level} is 1-based (level I = amplifier 0), {@code ticks} the duration. */

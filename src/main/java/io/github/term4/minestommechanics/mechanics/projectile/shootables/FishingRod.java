@@ -1,6 +1,8 @@
 package io.github.term4.minestommechanics.mechanics.projectile.shootables;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.effect.EffectContext;
+import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.mechanics.durability.DurabilitySystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
@@ -44,10 +46,12 @@ public final class FishingRod implements Shootable {
         if (active != null && !active.isRemoved()) {
             // same-tick spawn+destroy ghosts on the ViaRewind held-spawn path; ignore a retract under 1 tick old
             if (active.getAliveTicks() < 1) return;
+            Effects.play(system.services(), Effects.ROD_RETRIEVE, EffectContext.of(p));
             damageRod(p, hand, active.retrieve());
         } else {
             var proj = system.launch(ProjectileSnapshot.of(p, bobberType).withItem(item));
             if (proj instanceof FishingBobberEntity bobber) p.setTag(FishingBobberEntity.ACTIVE_BOBBER, bobber);
+            Effects.play(system.services(), Effects.ROD_CAST, EffectContext.of(p));
         }
     }
 

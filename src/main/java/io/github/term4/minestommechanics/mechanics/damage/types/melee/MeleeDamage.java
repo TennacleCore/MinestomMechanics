@@ -66,4 +66,15 @@ public final class MeleeDamage extends DamageType {
 
         return prelim.withAmount(amount);
     }
+
+    /**
+     * Whether the hit carries enchantment ("magic") damage - Sharpness, or Smite/Bane against an applicable target - the
+     * vanilla magic-crit gate ({@code i1 > 0}: {@link Attribute#MELEE_FLAT_ADD} resolved with the target creature fact).
+     */
+    public static boolean enchantCritical(Entity attacker, Entity target, @Nullable ItemStack item, Services services) {
+        AttributeSystem attrs = services != null ? services.attributes() : null;
+        if (attrs == null || !(attacker instanceof LivingEntity le)) return false;
+        ItemStack weapon = item != null ? item : le.getItemInMainHand();
+        return attrs.context(le, weapon).with(CombatFacts.TARGET, target).value(Attribute.MELEE_FLAT_ADD, 0) > 0;
+    }
 }

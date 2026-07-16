@@ -19,22 +19,32 @@ class DeathConfigTest extends HeadlessServerTest {
 
     @Test
     void fromBaseFillsUnsetKnobsFromBase() {
+        DeathConfig.DeathContext ctx = new DeathConfig.DeathContext(looseZombie());
         DeathConfig base = DeathConfig.builder()
                 .clearEffects(true).resetCombatState(true).hideCorpse(true).deathAnimationTicks(20).build();
         DeathConfig merged = DeathConfig.builder().hideCorpse(false).build().fromBase(base);
-        assertEquals(Boolean.TRUE, merged.clearEffects());
-        assertEquals(Boolean.TRUE, merged.resetCombatState());
-        assertEquals(Boolean.FALSE, merged.hideCorpse());
-        assertEquals(Integer.valueOf(20), merged.deathAnimationTicks());
+        assertEquals(Boolean.TRUE, merged.clearEffects(ctx));
+        assertEquals(Boolean.TRUE, merged.resetCombatState(ctx));
+        assertEquals(Boolean.FALSE, merged.hideCorpse(ctx));
+        assertEquals(Integer.valueOf(20), merged.deathAnimationTicks(ctx));
     }
 
     @Test
     void emptyBuilderLeavesEveryKnobUnset() {
+        DeathConfig.DeathContext ctx = new DeathConfig.DeathContext(looseZombie());
         DeathConfig empty = DeathConfig.builder().build();
-        assertNull(empty.clearEffects());
-        assertNull(empty.resetCombatState());
-        assertNull(empty.hideCorpse());
-        assertNull(empty.deathAnimationTicks());
+        assertNull(empty.clearEffects(ctx));
+        assertNull(empty.resetCombatState(ctx));
+        assertNull(empty.hideCorpse(ctx));
+        assertNull(empty.deathAnimationTicks(ctx));
+    }
+
+    @Test
+    void knobsResolvePerVictim() {
+        DeathConfig cfg = DeathConfig.builder()
+                .deathAnimationTicks(ctx -> ctx.victim() instanceof net.minestom.server.entity.Player ? 20 : 0)
+                .build();
+        assertEquals(Integer.valueOf(0), cfg.deathAnimationTicks(new DeathConfig.DeathContext(looseZombie())));
     }
 
     @Test

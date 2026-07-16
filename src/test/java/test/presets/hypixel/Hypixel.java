@@ -2,6 +2,7 @@ package test.presets.hypixel;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
+import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
 
 /**
@@ -22,6 +23,8 @@ public final class Hypixel {
                 .set(MechanicsKeys.VELOCITY, Movement.velocity())
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.PROJECTILES, Projectiles.config())
+                // arrow hit-marker ding to the shooter (mmc18/hypixel/scrims18 enable it; vanilla presets don't)
+                .set(MechanicsKeys.EFFECTS, Effects.vanilla18().register(Effects.ARROW_HIT_PLAYER, Effects.arrowHitMarker()))
                 .build();
     }
 }

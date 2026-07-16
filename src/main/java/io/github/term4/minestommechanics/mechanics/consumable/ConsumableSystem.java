@@ -5,12 +5,18 @@ import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.effect.EffectContext;
+import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigResolver.ConsumableContext;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigResolver.ResolvedConsumable;
+import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
+import io.github.term4.minestommechanics.platform.fixes.client.LegacyConsumeFixConfig;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
+import net.kyori.adventure.key.Key;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.EntityStatuses;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.PlayerHand;
@@ -22,6 +28,8 @@ import net.minestom.server.event.player.PlayerUseItemEvent;
 import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
+import net.minestom.server.network.packet.server.play.EntityStatusPacket;
+import net.minestom.server.utils.inventory.PlayerInventoryUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -81,8 +89,22 @@ public final class ConsumableSystem implements MechanicsModule {
     private record Resolution(ConsumableContext ctx, ResolvedConsumable resolved) {}
 
     private void onUse(PlayerUseItemEvent e) {
-        Resolution r = resolve(e.getPlayer(), e.getHand(), e.getItemStack());
+        Player p = e.getPlayer();
+        Resolution r = resolve(p, e.getHand(), e.getItemStack());
         if (r == null || !r.resolved.enabled()) return;
+        // canConsume gate (1.8 creative can't eat food): zero the item's NATIVE consumable duration, else Minestom
+        // starts the use anyway and viewers see the hand-active bit as an eating animation
+        if (!r.resolved.canConsume()) {
+            e.setItemUseTime(0);
+            return;
+        }
+        // Legacy re-use gate: a 1.8 client (unlike 1.13.2+, which waits for the server to confirm the last consume
+        // ended) spam-restarts a use under lag and double-eats. Refuse a fresh consume while already mid-use; the hand
+        // frees on release / finish / slot-switch, so switching items is a fresh use.
+        if (legacyConsumeEnabled(p) && p.getItemUseHand() != null) {
+            e.setItemUseTime(0);
+            return;
+        }
         // Protocol fix: drive the duration ourselves so the finish fires regardless of the item's component / client version.
         e.setItemUseTime(r.resolved.consumeTicks());
         r.resolved.behavior().onStart(r.ctx);
@@ -95,23 +117,45 @@ public final class ConsumableSystem implements MechanicsModule {
         Resolution r = resolve(p, hand, item);
         if (r == null || !r.resolved.enabled()) return;
         r.resolved.behavior().onFinish(r.ctx);
+        // food burps on finish (vanilla ItemFood.onFoodEaten); drinks don't. The chew sound + eating particles are
+        // client-driven off the hand-active metadata, so the burp is the only server-sent eating effect.
+        if (item.get(DataComponents.FOOD) != null) Effects.play(services, Effects.BURP, EffectContext.of(p));
         if (p.getGameMode() == GameMode.CREATIVE) return;
-        // Consume one: the client already predicted the decrement, so changing the stack confirms it (Minestom refreshes
-        // the slot only when the item is unchanged). Remainder (potion -> bottle, stew -> bowl) = the type's explicit one,
-        // else the item's USE_REMAINDER: replaces the stack on the last item, else added alongside the decremented stack (vanilla).
+        // Remainder = the type's explicit one (potion -> bottle, stew -> bowl), else USE_REMAINDER.
         Material remMat = r.ctx.consumable().remainder();
         ItemStack remainder = remMat != null ? ItemStack.of(remMat) : item.get(DataComponents.USE_REMAINDER);
         int left = item.amount() - 1;
-        if (remainder != null && !remainder.isAir()) {
-            if (left <= 0) {
-                p.setItemInHand(hand, remainder);
-            } else {
-                p.setItemInHand(hand, item.withAmount(left));
-                p.getInventory().addItemStack(remainder);
-            }
+        boolean legacy = legacyConsumeEnabled(p);
+        if (remainder != null && !remainder.isAir() && left <= 0) {
+            p.setItemInHand(hand, remainder); // last unit -> bottle/bowl: a genuine item change (echoed) either way
         } else {
-            p.setItemInHand(hand, left <= 0 ? ItemStack.AIR : item.withAmount(left));
+            ItemStack held = left <= 0 ? ItemStack.AIR : item.withAmount(left);
+            // Legacy decrements SILENTLY - a 1.8 client self-decrements from entity_status 9, and an echoed set_slot
+            // would clear the eat before status 9 lands. A modern client predicts its own consume, so a plain echo matches.
+            if (legacy) consumeHeld(p, hand, held);
+            else p.setItemInHand(hand, held);
+            if (remainder != null && !remainder.isAir()) p.getInventory().addItemStack(remainder); // extra bottle alongside: not predicted
         }
+        // Legacy count pacing: Minemen locks a laggy 1.8 client's count with status 9 THEN a window_items confirm, same
+        // tick. Minestom fires its own status 9 after this event, so we fire ours (self-only) first and confirm right
+        // behind it - Minestom's then no-ops. status-9-first clears the client's use so the confirm sticks and wins any race.
+        if (legacy) {
+            p.sendPacket(new EntityStatusPacket(p.getEntityId(), (byte) EntityStatuses.Player.MARK_ITEM_FINISHED));
+            p.getInventory().update(p);
+        }
+    }
+
+    /** Applies the eaten-item count to the held slot without a slot echo - the 1.8 client decrements it itself from {@code entity_status 9}. */
+    private static void consumeHeld(Player p, PlayerHand hand, ItemStack item) {
+        int slot = hand == PlayerHand.OFF ? PlayerInventoryUtils.OFFHAND_SLOT : p.getHeldSlot();
+        p.getInventory().setItemStack(slot, item, false);
+    }
+
+    /** Whether the legacy consume fix ({@link FixesConfig#legacyConsume()}) applies to {@code p}: enabled in its scope AND a legacy client. */
+    private boolean legacyConsumeEnabled(Player p) {
+        FixesConfig fixes = mm.profiles().resolve(p, MechanicsKeys.FIXES);
+        LegacyConsumeFixConfig c = fixes != null ? fixes.legacyConsume() : null;
+        return c != null && Boolean.TRUE.equals(c.enabled()) && mm.clientInfo().isLegacy(p);
     }
 
     private void onCancel(PlayerCancelItemUseEvent e) {
@@ -130,7 +174,20 @@ public final class ConsumableSystem implements MechanicsModule {
             if (r == null || !r.resolved.enabled()) continue;
             int remaining = r.resolved.consumeTicks() - (int) p.getCurrentItemUseTime();
             r.resolved.behavior().onUsing(r.ctx, Math.max(0, remaining));
+            emitConsumeSound(r, remaining);
         }
+    }
+
+    /**
+     * The chew / drink sound on the vanilla cadence ({@code Consumable.shouldEmitParticlesAndSounds}: after 21.875% of
+     * the use elapses, then every 4 ticks). Routed through the effect registry as {@link Effects#EAT} (food) or
+     * {@link Effects#DRINK} - the chew sound Minestom never plays. Food vs drink follows the {@code FOOD} component, as the burp does.
+     */
+    private void emitConsumeSound(Resolution r, int remaining) {
+        int consumeTicks = r.resolved.consumeTicks();
+        if (remaining < 0 || remaining % 4 != 0 || consumeTicks - remaining <= (int) (consumeTicks * 0.21875f)) return;
+        Key sound = r.ctx.item().get(DataComponents.FOOD) != null ? Effects.EAT : Effects.DRINK;
+        Effects.play(services, sound, EffectContext.of(r.ctx.user()));
     }
 
     /** Installs reading the GLOBAL profile's {@link ConsumableConfig}: its {@code types} (the consumable identities) register up front. Set the profile before installing. */

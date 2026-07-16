@@ -85,10 +85,11 @@ public final class Projectiles {
                 .spread(0.0)
                 .syncInterval(0).velocitySyncInterval(0)
                 .behavior(ctx -> new PseudoHook())
+                .hookHalt(true) // the glued flash needs the same-tick halt + pin on the silent wire
                 .selfHit(ProjectileTypeConfig.HitResponse.PASS_THROUGH)
                 .knockback(Knockback.rod())
                 .knockbackSource(ProjectileTypeConfig.KnockbackSource.PROJECTILE)
-                .rodPull(new ProjectileTypeConfig.RodPull(0.1, 0.08, false))
+                .rodPull(new ProjectileTypeConfig.RodPull(0.1, 0.08, false, false))
                 .build();
         // capture 2026-07-06: vanilla launch/flight, zero spread + the 0.05 wire vy floor (potions/hook exempt;
         // arrows unmeasured, left vanilla)

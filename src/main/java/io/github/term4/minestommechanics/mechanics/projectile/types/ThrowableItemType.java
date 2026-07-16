@@ -2,6 +2,8 @@ package io.github.term4.minestommechanics.mechanics.projectile.types;
 
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.effect.EffectContext;
+import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import net.kyori.adventure.key.Key;
@@ -35,6 +37,10 @@ public abstract class ThrowableItemType extends ProjectileType {
     private final boolean blockAction;
     private @Nullable EventNode<@NotNull PlayerEvent> node;
     private @Nullable ProjectileSystem system;
+    private @Nullable MinestomMechanics mm;
+
+    /** This throwable's launch-sound effect key ({@link Effects#THROW_SNOWBALL} etc.), or null for none. Emitted to the thrower's audience on each throw. */
+    protected @Nullable Key throwSound() { return null; }
 
     protected ThrowableItemType(Key key, String name, EntityType entityType, Material material) {
         this(key, name, entityType, material, false);
@@ -51,6 +57,7 @@ public abstract class ThrowableItemType extends ProjectileType {
     @Override
     public void enable(ProjectileSystem system, MinestomMechanics mm) {
         this.system = system;
+        this.mm = mm;
         EventNode<@NotNull PlayerEvent> n = EventNode.type("mm:" + key().value(), EventFilter.PLAYER);
         // use_item ONLY for a plain throwable: aimed at a block in reach, the client sends use_item_on_block FOLLOWED
         // by use_item (its useOn passes client-side), and vanilla throws from the latter alone - handling both threw twice
@@ -68,6 +75,8 @@ public abstract class ThrowableItemType extends ProjectileType {
         Long last = p.getTag(LAST_THROW_AGE);
         if (last != null && last == age) return; // the same click's second packet
         p.setTag(LAST_THROW_AGE, age);
+        Key sound = throwSound();
+        if (sound != null && mm != null) Effects.play(mm.services(), sound, EffectContext.of(p));
         system.launch(ProjectileSnapshot.of(p, this).withItem(item));
         if (p.getGameMode() != GameMode.CREATIVE) {
             p.setItemInHand(hand, item.withAmount(item.amount() - 1));

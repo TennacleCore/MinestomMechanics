@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.projectile.shootables;
 
+import io.github.term4.minestommechanics.effect.EffectContext;
+import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
@@ -62,6 +64,7 @@ public final class Bow implements Shootable {
         if (!keepArrow && slot >= 0) p.getInventory().setItemStack(slot, arrowItem.withAmount(arrowItem.amount() - 1));
         ProjectileSnapshot snap = ProjectileSnapshot.of(p, arrowType).withPower(power).withItem(e.getItemStack());
         ProjectileEntity proj = system.launch(snap);
+        Effects.play(system.services(), Effects.BOW_SHOOT, EffectContext.of(p));
         if (proj instanceof ArrowEntity arrow) {
             arrow.setCritical(power >= 1f && rollCrit(system.resolveFlight(snap).critChance()));
             // A consumed (survival) shot -> ALLOWED (collector keeps the arrow); a kept shot (creative / Infinity) -> CREATIVE_ONLY (no pickup).

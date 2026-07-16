@@ -22,6 +22,25 @@ class ItemMergeGateTest extends HeadlessServerTest {
     }
 
     @Test
+    void freshDropsMergeInsidePickupDelay() {
+        Pos pos = new Pos(14.5, 66, 14.5);
+        var a = new DroppedItemEntity(ItemStack.of(Material.STONE, 4), DroppedItemEntity.Model.LEGACY);
+        var b = new DroppedItemEntity(ItemStack.of(Material.STONE, 4), DroppedItemEntity.Model.LEGACY);
+        a.setPickupDelay(40, net.minestom.server.utils.time.TimeUnit.SERVER_TICK);
+        b.setPickupDelay(40, net.minestom.server.utils.time.TimeUnit.SERVER_TICK);
+        a.setInstance(instance, pos).join();
+        b.setInstance(instance, pos).join();
+        try {
+            assertFalse(a.isPickable(), "inside the 40t pickup delay");
+            a.update(System.currentTimeMillis());
+            assertTrue(b.isRemoved(), "vanilla: the merge scan is not gated on the pickup delay");
+            assertEquals(8, a.getItemStack().amount());
+        } finally {
+            for (ItemEntity e : new ItemEntity[]{a, b}) if (!e.isRemoved()) e.remove();
+        }
+    }
+
+    @Test
     void mergingStaysWithinAWorld() {
         Pos pos = new Pos(10.5, 66, 10.5);
         ItemEntity bound = new ItemEntity(ItemStack.of(Material.STONE, 4));

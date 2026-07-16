@@ -7,6 +7,7 @@ import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.death.DeathConfig;
 import io.github.term4.minestommechanics.mechanics.durability.DurabilityConfig;
+import io.github.term4.minestommechanics.effect.EffectRegistry;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
@@ -36,6 +37,7 @@ public final class MechanicsKeys {
     public static final ConfigKey<DurabilityConfig> DURABILITY = ConfigKey.of("mm:durability");
     public static final ConfigKey<HungerConfig> HUNGER = ConfigKey.of("mm:hunger");
     public static final ConfigKey<ConsumableConfig> CONSUMABLES = ConfigKey.of("mm:consumables");
+    public static final ConfigKey<EffectRegistry> EFFECTS = ConfigKey.of("mm:effects");
     public static final ConfigKey<BlockingConfig> BLOCKING = ConfigKey.of("mm:blocking");
     /** Environment physics for dropped items ({@code vri.DroppedItemEntity.Model}): 1.8 sink vs 26.1 float. */
     public static final ConfigKey<io.github.term4.minestommechanics.vri.DroppedItemEntity.Model> ITEM_PHYSICS = ConfigKey.of("mm:item-physics");

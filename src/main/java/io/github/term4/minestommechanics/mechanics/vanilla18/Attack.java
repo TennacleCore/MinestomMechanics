@@ -2,6 +2,8 @@ package io.github.term4.minestommechanics.mechanics.vanilla18;
 
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.effect.EffectContext;
+import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.item.Enchants;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Knockback;
@@ -47,6 +49,14 @@ public final class Attack {
                 DamageSnapshot snap = MeleeDamage.INSTANCE.snapshot(
                         event.attacker(), event.target(), event.critical(), event.item(), services);
                 result = dmg.apply(snap);
+                // crit + magic-crit sparkle on a landed fresh hit (vanilla onCriticalHit / onEnchantmentCritical, independent)
+                if (result == DamageSystem.DamageOutcome.FRESH_DAMAGE) {
+                    EffectContext fx = EffectContext.of(event.attacker(), event.target());
+                    if (event.critical()) Effects.play(services, Effects.CRIT, fx);
+                    if (MeleeDamage.enchantCritical(event.attacker(), event.target(), event.item(), services)) {
+                        Effects.play(services, Effects.MAGIC_CRIT, fx);
+                    }
+                }
             }
             // Knockback enchant feeds the extra-knockback level (the weapon actually used, frozen for buffered hits; +1 for a sprint hit added in the calculator)
             KnockbackSystem kb = services.knockback();

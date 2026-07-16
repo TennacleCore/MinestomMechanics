@@ -2,6 +2,8 @@ package io.github.term4.minestommechanics.mechanics.projectile.entities.arrow;
 
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.world.WorldPolicy;
+import io.github.term4.minestommechanics.effect.EffectContext;
+import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Flame;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedHit;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.VanillaPotions;
@@ -118,7 +120,10 @@ public class ArrowEntity extends ManagedProjectile {
     /** On a living hit: adds one "stuck arrow" (vanilla cosmetic arrows in the body; see {@link StuckArrows}), ignites with Flame, and applies any tipped-arrow effects. Block hits are ignored. */
     @Override
     protected void onImpact(@Nullable Entity hitEntity) {
+        if (hitEntity != null) Effects.play(services(), Effects.ARROW_HIT, EffectContext.of(this)); // the thunk (block hits go through onStuck)
         if (!(hitEntity instanceof LivingEntity le)) return;
+        // hit-marker "ding" to the shooter (registry-gated: on for PvP presets, off for vanilla); a real target, not a self-hit
+        if (shooter instanceof Player && shooter != le) Effects.play(services(), Effects.ARROW_HIT_PLAYER, EffectContext.of(shooter, le));
         StuckArrows.add(le, 1);
         // Flame: ignite the struck entity (vanilla fixed 5s; fire ticks decrement at server TPS, so scale it)
         if (flameLevel() > 0) le.setFireTicks(TickScaler.duration(Flame.FIRE_TICKS, ProjectileSystem.KEY));
@@ -146,6 +151,7 @@ public class ArrowEntity extends ManagedProjectile {
     protected boolean onStuck() {
         shake = TickScaler.duration(shakeTicks, ProjectileSystem.KEY); // pickup cooldown decrements per server tick, so scale it
         if (getEntityMeta() instanceof AbstractArrowMeta meta) meta.setInGround(true);
+        Effects.play(services(), Effects.ARROW_HIT, EffectContext.of(this)); // the thunk on sticking in a block
         return super.onStuck();
     }
 
@@ -174,17 +180,19 @@ public class ArrowEntity extends ManagedProjectile {
         Player p = collected[0];
         if (p == null) return;
         // ALLOWED gives a survival collector the arrow item; a full inventory means no pickup (vanilla EntityArrow.d gates
-        // on inventory.pickup succeeding). Creative takes none. TODO: offhand, pop sound
+        // on inventory.pickup succeeding). Creative takes none. TODO: offhand
         if (pickup == Pickup.ALLOWED && p.getGameMode() != GameMode.CREATIVE
                 && !p.getInventory().addItemStack(ItemStack.of(Material.ARROW))) return; // inventory full -> arrow stays stuck
         // pickup animation: the arrow flies into the collector before remove() sends the destroy
+        Effects.play(services(), Effects.ITEM_PICKUP, EffectContext.of(this)); // the pickup pop (vanilla Player.take)
         sendPacketToViewersAndSelf(new CollectItemPacket(getEntityId(), p.getEntityId(), 1));
         remove();
     }
 
     /** Whether {@code p} may collect this arrow given its {@link Pickup} mode (vanilla {@code EntityArrow.d} gate). */
     private boolean canCollect(Player p) {
-        if (p.getGameMode() == GameMode.SPECTATOR) return false;
+        // dead players collide with nothing (1.8 EntityPlayer.onUpdate gates the sweep on health > 0)
+        if (p.isDead() || p.getGameMode() == GameMode.SPECTATOR) return false;
         return switch (pickup) {
             case DISALLOWED -> false;
             case ALLOWED -> true;

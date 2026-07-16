@@ -58,6 +58,7 @@ public final class ConsumableConfigResolver {
         ConsumableTypeConfig tc = ctx.typeConfig(cfg);
         return new ResolvedConsumable(
                 or(resolve(tc.enabled, ctx), Boolean.TRUE),
+                or(resolve(tc.canConsume, ctx), Boolean.TRUE),
                 or(resolve(tc.consumeTicks, ctx), Consumable.VANILLA_CONSUME_TICKS),
                 or(resolve(tc.behavior, ctx), ConsumableBehavior.NONE));
     }
@@ -68,6 +69,6 @@ public final class ConsumableConfigResolver {
         return fv != null ? fv.resolve(ctx) : null;
     }
 
-    /** Resolved per-consume values: whether it consumes, how long it takes, and the behavior. */
-    public record ResolvedConsumable(boolean enabled, int consumeTicks, ConsumableBehavior behavior) {}
+    /** Resolved per-consume values: whether it's active, whether the user may start it now, how long it takes, and the behavior. */
+    public record ResolvedConsumable(boolean enabled, boolean canConsume, int consumeTicks, ConsumableBehavior behavior) {}
 }
