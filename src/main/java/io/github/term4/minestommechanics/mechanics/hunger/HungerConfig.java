@@ -1,26 +1,79 @@
 package io.github.term4.minestommechanics.mechanics.hunger;
 
+import net.kyori.adventure.key.Key;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Config for the hunger subsystem (food / saturation / exhaustion, natural regen, starvation). Assigned per scope via
- * the {@link io.github.term4.minestommechanics.MechanicsProfile} {@code hunger} member.
+ * the {@link io.github.term4.minestommechanics.MechanicsProfile} {@code hunger} member. Unset regen values default to
+ * MODERN vanilla; the presets set both shapes explicitly.
  *
- * <p><b>Stub.</b> Only {@link #enabled} exists today; exhaustion costs, the saturation/regen cadence, and starvation
- * damage land with the hunger logic (and feed the consumables eat-&gt;effect flow).
+ * <p>Every exhaustion cost - vanilla and custom alike - flows through {@link HungerSystem#exhaust} under a source
+ * {@link Key} with its quantity; the source's {@link ExhaustionCost} entry maps quantity to cost (no entry =
+ * {@link ExhaustionCost#dynamic()}), and the global {@code exhaustionScale} multiplies the result (0 = hunger never
+ * depletes while regen keeps healing - the BedWars shape). The PRESETS declare every lib cost - nothing is baked into
+ * call sites (1.8 regen = {@code flat(3)}, modern = {@code flat(6)} + spent-saturation {@code dynamic()}).
+ *
+ * <p>Vanilla action costs (sprint, jump, combat) and starvation land with the depletion logic.
  */
 public final class HungerConfig {
 
     private final @Nullable Boolean enabled;
+    private final @Nullable Boolean naturalRegen;
+    private final @Nullable Integer regenFoodThreshold;
+    private final @Nullable Integer regenInterval;
+    private final @Nullable Boolean saturationRegen;
+    private final @Nullable Float exhaustionScale;
+    /** Per-source cost rules, keyed by the {@link HungerSystem#exhaust} source (e.g. {@link HungerSystem#REGEN_COST}). */
+    public final Map<Key, ExhaustionCost> exhaustionCosts;
 
-    private HungerConfig(Builder b) { this.enabled = b.enabled; }
+    private HungerConfig(Builder b) {
+        this.enabled = b.enabled;
+        this.naturalRegen = b.naturalRegen;
+        this.regenFoodThreshold = b.regenFoodThreshold;
+        this.regenInterval = b.regenInterval;
+        this.saturationRegen = b.saturationRegen;
+        this.exhaustionScale = b.exhaustionScale;
+        this.exhaustionCosts = Map.copyOf(b.exhaustionCosts);
+    }
 
     /** Whether hunger is simulated (unset = active; set {@code false} to disable). */
     public @Nullable Boolean enabled() { return enabled; }
 
-    /** Merges this config over {@code base} (this if set, else base). */
+    /** The {@code naturalRegeneration} gamerule analog (unset = on). */
+    public @Nullable Boolean naturalRegen() { return naturalRegen; }
+
+    /** Food level required to regenerate (vanilla 18, both versions). */
+    public @Nullable Integer regenFoodThreshold() { return regenFoodThreshold; }
+
+    /** Ticks between regen heals (vanilla 80, both versions). */
+    public @Nullable Integer regenInterval() { return regenInterval; }
+
+    /** Modern saturation fast regen: at food 20 with saturation left, heal {@code min(sat,6)/6} every 10 ticks (1.9+; 1.8 has none). */
+    public @Nullable Boolean saturationRegen() { return saturationRegen; }
+
+    /** Global multiplier on every exhaustion cost (unset = 1; 0 = hunger never depletes, regen still heals). */
+    public @Nullable Float exhaustionScale() { return exhaustionScale; }
+
+    /** The cost rule for {@code source}, or null = {@link ExhaustionCost#dynamic()}. */
+    public @Nullable ExhaustionCost exhaustionCost(Key source) { return exhaustionCosts.get(source); }
+
+    /** Merges this config over {@code base} (this if set, else base; per-source costs overlay entry-wise). */
     public HungerConfig fromBase(HungerConfig base) {
-        return new Builder().enabled(enabled != null ? enabled : base.enabled).build();
+        Map<Key, ExhaustionCost> mergedCosts = new LinkedHashMap<>(base.exhaustionCosts);
+        mergedCosts.putAll(exhaustionCosts);
+        return new Builder()
+                .enabled(enabled != null ? enabled : base.enabled)
+                .naturalRegen(naturalRegen != null ? naturalRegen : base.naturalRegen)
+                .regenFoodThreshold(regenFoodThreshold != null ? regenFoodThreshold : base.regenFoodThreshold)
+                .regenInterval(regenInterval != null ? regenInterval : base.regenInterval)
+                .saturationRegen(saturationRegen != null ? saturationRegen : base.saturationRegen)
+                .exhaustionScale(exhaustionScale != null ? exhaustionScale : base.exhaustionScale)
+                .exhaustionCosts(mergedCosts)
+                .build();
     }
 
     public Builder toBuilder() { return new Builder(this); }
@@ -29,11 +82,32 @@ public final class HungerConfig {
 
     public static final class Builder {
         private @Nullable Boolean enabled;
+        private @Nullable Boolean naturalRegen;
+        private @Nullable Integer regenFoodThreshold;
+        private @Nullable Integer regenInterval;
+        private @Nullable Boolean saturationRegen;
+        private @Nullable Float exhaustionScale;
+        private final Map<Key, ExhaustionCost> exhaustionCosts = new LinkedHashMap<>();
 
         Builder() {}
-        Builder(HungerConfig c) { enabled = c.enabled; }
+        Builder(HungerConfig c) {
+            enabled = c.enabled;
+            naturalRegen = c.naturalRegen;
+            regenFoodThreshold = c.regenFoodThreshold;
+            regenInterval = c.regenInterval;
+            saturationRegen = c.saturationRegen;
+            exhaustionScale = c.exhaustionScale;
+            exhaustionCosts.putAll(c.exhaustionCosts);
+        }
 
         public Builder enabled(@Nullable Boolean v) { this.enabled = v; return this; }
+        public Builder naturalRegen(@Nullable Boolean v) { this.naturalRegen = v; return this; }
+        public Builder regenFoodThreshold(@Nullable Integer v) { this.regenFoodThreshold = v; return this; }
+        public Builder regenInterval(@Nullable Integer v) { this.regenInterval = v; return this; }
+        public Builder saturationRegen(@Nullable Boolean v) { this.saturationRegen = v; return this; }
+        public Builder exhaustionScale(@Nullable Float v) { this.exhaustionScale = v; return this; }
+        public Builder exhaustionCost(Key source, ExhaustionCost cost) { exhaustionCosts.put(source, cost); return this; }
+        Builder exhaustionCosts(Map<Key, ExhaustionCost> costs) { exhaustionCosts.putAll(costs); return this; }
 
         public HungerConfig build() { return new HungerConfig(this); }
     }

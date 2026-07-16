@@ -17,6 +17,7 @@ import io.github.term4.minestommechanics.platform.fixes.Fixes18;
 import io.github.term4.minestommechanics.platform.compatibility.Compat18;
 import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableSystem;
+import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
 import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
 import io.github.term4.minestommechanics.mechanics.blocking.catalog.VanillaBlocking;
 
@@ -98,6 +99,7 @@ public class ExampleServer {
         AttributeSystem.install(mm);
         ConsumableSystem.install(mm);
         BlockingSystem.install(mm);
+        HungerSystem.install(mm);
         FixesSystem.install(mm);
         Vri.install(mm, VriConfig.all());
         ExplosionSystem explosions = ExplosionSystem.install(mm); // explosion config comes from the profile (EXPLOSION key)

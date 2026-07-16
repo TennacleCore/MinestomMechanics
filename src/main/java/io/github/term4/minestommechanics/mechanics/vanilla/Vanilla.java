@@ -27,6 +27,7 @@ public final class Vanilla {
                 .set(MechanicsKeys.VELOCITY, Movement.velocity())
                 .set(MechanicsKeys.ITEM_PHYSICS, io.github.term4.minestommechanics.vri.DroppedItemEntity.Model.MODERN)
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
+                .set(MechanicsKeys.HUNGER, Hunger.config())
                 .set(MechanicsKeys.ITEMS, Items.registry())
                 .set(MechanicsKeys.EFFECTS, Effects.modern())
                 .build();

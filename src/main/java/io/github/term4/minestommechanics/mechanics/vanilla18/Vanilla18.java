@@ -8,6 +8,7 @@ import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.death.DeathConfig;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
+import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
@@ -39,6 +40,7 @@ public final class Vanilla18 {
                 .set(MechanicsKeys.CONSUMABLES, Consumables.config())
                 .set(MechanicsKeys.BLOCKING, Blocking.config())
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
+                .set(MechanicsKeys.HUNGER, Hunger.config())
                 .set(MechanicsKeys.ITEMS, Items.registry())
                 .set(MechanicsKeys.EFFECTS, Effects.vanilla18())
                 .build();
@@ -53,5 +55,6 @@ public final class Vanilla18 {
     public static KnockbackConfig knockback() { return Knockback.melee(); }
     public static PlayerConfig player() { return Player.config(); }
     public static ExplosionConfig explosion() { return Explosion.config(); }
+    public static HungerConfig hunger() { return Hunger.config(); }
     public static ProjectileConfig projectiles() { return Projectiles.config(); }
 }
