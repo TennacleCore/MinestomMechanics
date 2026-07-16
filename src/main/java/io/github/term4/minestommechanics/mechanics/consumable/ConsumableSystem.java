@@ -136,9 +136,10 @@ public final class ConsumableSystem implements MechanicsModule {
             else p.setItemInHand(hand, held);
             if (remainder != null && !remainder.isAir()) p.getInventory().addItemStack(remainder); // extra bottle alongside: not predicted
         }
-        // Legacy count pacing: Minemen locks a laggy 1.8 client's count with status 9 THEN a window_items confirm, same
-        // tick. Minestom fires its own status 9 after this event, so we fire ours (self-only) first and confirm right
-        // behind it - Minestom's then no-ops. status-9-first clears the client's use so the confirm sticks and wins any race.
+        // Legacy count pacing: status 9 (self) makes the client decrement + clear its use, then a window_items confirm
+        // right behind it re-anchors the count. status-9-first is required so the confirm isn't cleared early; Minestom's
+        // own status 9 (fired after this event) then no-ops. Full-inventory confirm on purpose - a targeted single-slot
+        // re-anchor paces noticeably worse in-game despite touching the same slot.
         if (legacy) {
             p.sendPacket(new EntityStatusPacket(p.getEntityId(), (byte) EntityStatuses.Player.MARK_ITEM_FINISHED));
             p.getInventory().update(p);
