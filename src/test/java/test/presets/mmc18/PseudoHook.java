@@ -5,6 +5,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.FishingBobberEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
 import io.github.term4.minestommechanics.mechanics.projectile.shootables.Shootable;
+import io.github.term4.minestommechanics.world.WorldPolicy;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
@@ -16,8 +17,8 @@ import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * MineMen pseudo-hook (the old lib's bobberFix LEGACY): a player hit lands once and only FLASHES the hook for
@@ -60,7 +61,7 @@ public final class PseudoHook implements ProjectileBehavior {
         if (victim != null || !(hit instanceof Player player)) return; // non-players keep the vanilla hook
         victim = player;
         Set<PseudoHook> set = player.getTag(HOOKED_BY);
-        if (set == null) set = new HashSet<>();
+        if (set == null) set = ConcurrentHashMap.newKeySet(); // victim-thread rehook can overlap a bobber-thread detach
         set.add(this);
         player.setTag(HOOKED_BY, set);
         pinTicksLeft = DISPLAY_TICKS; // the entity hooked vanilla-style; the countdown below turns it into a flash
@@ -69,7 +70,13 @@ public final class PseudoHook implements ProjectileBehavior {
     @Override
     public void onTick(ManagedProjectile projectile, long time) {
         if (victim == null || bobber == null) return;
-        if (victim.isRemoved()) { detach(); return; }
+        // re-gate every tick: a victim who left the shard mid-rod must release (the hook would otherwise keep driving
+        // an entity another domain owns)
+        if (victim.isRemoved() || !WorldPolicy.canAffect(bobber, victim)) {
+            if (bobber.getHookedEntity() == victim) bobber.setHookedEntity(null);
+            detach();
+            return;
+        }
         if (bobber.getHookedEntity() == victim) {
             if (pinTicksLeft-- <= 0) bobber.setHookedEntity(null); // flash over: the bobber falls from the victim
             return;
@@ -103,6 +110,7 @@ public final class PseudoHook implements ProjectileBehavior {
     /** Re-flashes the hook (the victim's position move); the entity's pin broadcast draws the 1.8 line. */
     private void rehook() {
         if (bobber == null || bobber.isRemoved() || victim == null || victim.isRemoved()) return;
+        if (!WorldPolicy.canAffect(bobber, victim)) return; // left the shard: the bobber's own tick detaches
         if (bobber.getHookedEntity() != victim) bobber.setHookedEntity(victim); // still pinned: just extend the flash
         pinTicksLeft = DISPLAY_TICKS;
     }

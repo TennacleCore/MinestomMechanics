@@ -1,13 +1,16 @@
 package io.github.term4.minestommechanics.platform.fixes.client;
 
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import net.minestom.server.entity.GameMode;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.network.packet.client.play.ClientClickWindowPacket;
 import net.minestom.server.network.packet.client.play.ClientClickWindowPacket.ClickType;
+import net.minestom.server.network.packet.server.play.RespawnPacket;
 import net.minestom.server.network.packet.server.play.SetCursorItemPacket;
 import net.minestom.server.network.packet.server.play.SetPlayerInventorySlotPacket;
 import net.minestom.server.network.packet.server.play.WindowItemsPacket;
+import net.minestom.server.network.packet.server.play.data.PlayerSpawnInfo;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -66,6 +69,20 @@ class InventorySyncTest extends HeadlessServerTest {
         sync.onClick(click(ClickType.PICKUP, 9, 0)); // left-click again: place it back
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(9, APPLES)), "slot refilled - predicted");
         assertNull(sync.filter(new SetCursorItemPacket(ItemStack.AIR)), "cursor cleared - predicted");
+    }
+
+    @Test
+    void respawnPacketForgetsTheMirrorSoTheResendPasses() {
+        InventorySync sync = new InventorySync();
+        assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, APPLES)), "anchor: hotbar 0 holds the apples");
+        assertNull(sync.filter(new SetPlayerInventorySlotPacket(0, APPLES)), "match -> dropped");
+
+        // any client-rebuild packet (respawn, dimension change, reconfiguration) makes the client forget its inventory
+        assertNotNull(sync.filter(new RespawnPacket(
+                new PlayerSpawnInfo(0, "minestom:world", 0, GameMode.SURVIVAL, GameMode.SURVIVAL,
+                        false, false, null, 0, 63), (byte) RespawnPacket.COPY_ALL)), "respawn passes through");
+        assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, APPLES)),
+                "identical contents must be SENT after a respawn - the rebuilt client shows nothing");
     }
 
     @Test

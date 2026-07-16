@@ -22,6 +22,7 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.entity.EntityDeathEvent;
+import net.minestom.server.event.entity.EntityTeleportEvent;
 import net.minestom.server.event.entity.EntityTickEvent;
 import net.minestom.server.event.player.PlayerMoveEvent;
 import net.minestom.server.event.player.PlayerSpawnEvent;
@@ -39,7 +40,8 @@ import java.util.Set;
  *
  * <p>Self-driven: players are tracked off their own move packets (with a per-tick poll for status-only onGround
  * packets); other living entities per tick. Creative/spectator/flying are exempt; (re)spawn resets. A plain teleport does
- * NOT reset (vanilla 1.8/26 leave fall distance on teleport - the pearl zeroes it explicitly); callers reset via {@link #resetFallDistance}.
+ * NOT reset (vanilla 1.8/26 leave fall distance on teleport - the pearl zeroes it explicitly) but does re-anchor the
+ * y-baseline, so the jump itself never accrues; callers reset via {@link #resetFallDistance}.
  */
 public final class FallDamage extends DamageType {
 
@@ -75,6 +77,11 @@ public final class FallDamage extends DamageType {
         // reset on death too: Minestom reuses the Player across respawn (vanilla makes a fresh entity), so a fall in progress
         // at death would otherwise carry its distance to the respawn and land as phantom fall damage.
         n.addListener(EntityDeathEvent.class, e -> { if (e.getEntity() instanceof LivingEntity le) resetFallDistance(le); });
+        // teleport keeps the DISTANCE but never yields a fall delta: vanilla also accrues players from per-packet
+        // position deltas (1.8 PlayerConnection:459 player.a(locY - d10), 26.1 doCheckFallDamage(clientDeltaMovement))
+        // and excludes teleports by re-anchoring its reference position while moves await the client's confirm
+        // (1.8 checkMovement, 26.1 awaitingPositionFromClient/lastGood). Dropping the baseline IS that re-anchor.
+        n.addListener(EntityTeleportEvent.class, e -> e.getEntity().removeTag(PREV));
         system.node().addChild(n);
         node = n;
         // fallback poll a tick behind onMove: catches status-only onGround landings (no PlayerMoveEvent)

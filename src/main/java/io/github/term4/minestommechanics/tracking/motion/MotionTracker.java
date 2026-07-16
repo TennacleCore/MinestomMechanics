@@ -23,11 +23,11 @@ import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.vehicle.PlayerInputs;
-import net.minestom.server.event.EventFilter;
+import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.event.entity.EntityTeleportEvent;
 import net.minestom.server.event.player.PlayerMoveEvent;
 import net.minestom.server.event.player.PlayerSpawnEvent;
-import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.potion.PotionEffect;
@@ -180,12 +180,16 @@ public final class MotionTracker implements Tracker {
 
     /** Listener anchoring the air clock + move-delta to the client's own move packets (ping-invariant). */
     @Override
-    public EventNode<@NotNull PlayerEvent> node() {
-        EventNode<@NotNull PlayerEvent> node = EventNode.type("mm:motion-tracker", EventFilter.PLAYER);
+    public EventNode<@NotNull Event> node() {
+        EventNode<@NotNull Event> node = EventNode.all("mm:motion-tracker");
         node.addListener(PlayerMoveEvent.class, this::onMove);
         // Instance change jumps position and switches per-instance clocks, so wipe the whole tracked-motion timeline;
         // it reseeds from the next move packet.
         node.addListener(PlayerSpawnEvent.class, e -> clearTransient(e.getPlayer()));
+        // Same-instance teleport (pearl, /tp, shard hop): drop ONLY the position anchor - the first post-teleport move
+        // would otherwise reconstruct the jump as one huge velocity. The client keeps its real motion through a
+        // teleport, so the rest of the timeline stays valid.
+        node.addListener(EntityTeleportEvent.class, e -> { if (e.getEntity() instanceof Player p) p.removeTag(MOVE_PREV); });
         return node;
     }
 

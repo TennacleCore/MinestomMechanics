@@ -3,8 +3,10 @@ package io.github.term4.minestommechanics.platform.fixes.client;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.entity.EquipmentSlot;
+import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerPacketEvent;
+import net.minestom.server.event.player.PlayerRespawnEvent;
 import net.minestom.server.inventory.PlayerInventory;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.component.Equippable;
@@ -12,9 +14,12 @@ import net.minestom.server.network.ConnectionState;
 import net.minestom.server.network.packet.client.play.ClientClickWindowPacket;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.ServerPacket;
+import net.minestom.server.network.packet.server.play.JoinGamePacket;
+import net.minestom.server.network.packet.server.play.RespawnPacket;
 import net.minestom.server.network.packet.server.play.SetCursorItemPacket;
 import net.minestom.server.network.packet.server.play.SetPlayerInventorySlotPacket;
 import net.minestom.server.network.packet.server.play.SetSlotPacket;
+import net.minestom.server.network.packet.server.play.StartConfigurationPacket;
 import net.minestom.server.network.packet.server.play.WindowItemsPacket;
 import net.minestom.server.utils.inventory.PlayerInventoryUtils;
 import org.jetbrains.annotations.Nullable;
@@ -49,12 +54,16 @@ public final class InventorySync {
     public static boolean enabled() { return enabled; }
 
     /** Arms the fix and registers the click-prediction listener; call once from {@code FixesSystem.install}. */
-    public static void install(EventNode<? super PlayerPacketEvent> node) {
+    public static void install(EventNode<? super Event> node) {
         enabled = true;
         node.addListener(PlayerPacketEvent.class, e -> {
             if (!enabled || !(e.getPacket() instanceof ClientClickWindowPacket click)) return;
             if (e.getPlayer() instanceof OptimizedPlayer op) op.inventorySync().onClick(click);
         });
+        // Minestom resends the inventory after every client-rebuild flow (dimension change, skin, first spawn) EXCEPT
+        // the death respawn - fill that gap. The RespawnPacket precedes this event and already forgot the mirror
+        // ({@code filter}), so this update passes.
+        node.addListener(PlayerRespawnEvent.class, e -> e.getPlayer().getInventory().update(e.getPlayer()));
     }
 
     /** The client's believed slot contents, Minestom slot indexing (0-8 hotbar, 9-35 main, 36-40 craft, 41-44 armor, 45 offhand). */
@@ -66,6 +75,14 @@ public final class InventorySync {
     private final Object lock = new Object();
 
     public InventorySync() { Arrays.fill(believed, ItemStack.AIR); }
+
+    /** Forgets the mirror; call under {@link #lock}. The client just rebuilt its play state and shows nothing. */
+    private void forget() {
+        Arrays.fill(believed, ItemStack.AIR);
+        believedCursor = ItemStack.AIR;
+        leftDrag.clear();
+        rightDrag.clear();
+    }
 
     // ------------------------------------------------------------------ incoming: replay the client's prediction
 
@@ -281,6 +298,12 @@ public final class InventorySync {
                     baseline(p);
                     yield packet;
                 }
+                // the client rebuilds its play state on these (death respawn, dimension change, skin change,
+                // (re)configuration) and forgets its inventory - forget the mirror with it, so the flow's follow-up
+                // resend passes instead of being dropped as a mirror match
+                case RespawnPacket ignored -> { forget(); yield packet; }
+                case JoinGamePacket ignored -> { forget(); yield packet; }
+                case StartConfigurationPacket ignored -> { forget(); yield packet; }
                 default -> packet;
             };
         }

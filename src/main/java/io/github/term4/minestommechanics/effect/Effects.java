@@ -124,10 +124,11 @@ public final class Effects {
 
     /**
      * The arrow hit-marker "ding" a PvP preset registers under {@link #ARROW_HIT_PLAYER} (off in {@link #vanilla18()}/{@link #modern()}):
-     * a sound to the SHOOTER only when their arrow strikes a target. {@code random.orb} is a working placeholder - override with the preset's real ding.
+     * a sound to the SHOOTER only when their arrow hits a player. Vanilla (26.1): {@code entity.arrow.hit_player} vol 0.18 pitch 0.45,
+     * which ViaVersion maps to 1.8 {@code random.successful_hit}. Vanilla 1.8 has none; mmc18/hypixel backport it - capture to confirm their pitch.
      */
     public static @NotNull Effect arrowHitMarker() {
-        return ctx -> ctx.sourceSound(SoundEvent.ENTITY_EXPERIENCE_ORB_PICKUP, Sound.Source.PLAYER, 1.0f, 1.0f);
+        return ctx -> ctx.sourceSound(SoundEvent.ENTITY_ARROW_HIT_PLAYER, Sound.Source.PLAYER, 0.18f, 0.45f);
     }
 
     private static float eatVolume() { return ThreadLocalRandom.current().nextBoolean() ? 0.5f : 1.0f; }

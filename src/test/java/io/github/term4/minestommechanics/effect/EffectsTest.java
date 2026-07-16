@@ -213,12 +213,12 @@ class EffectsTest extends HeadlessServerTest {
         try {
             useRegistry(Effects.vanilla18()); // ARROW_HIT_PLAYER unregistered -> the ding is off
             Effects.play(services, Effects.ARROW_HIT_PLAYER, EffectContext.of(shooter.player, bystander.player));
-            assertEquals(0, sounds(shooter, SoundEvent.ENTITY_EXPERIENCE_ORB_PICKUP), "vanilla does not ding");
+            assertEquals(0, sounds(shooter, SoundEvent.ENTITY_ARROW_HIT_PLAYER), "vanilla does not ding");
 
             useRegistry(Effects.vanilla18().register(Effects.ARROW_HIT_PLAYER, Effects.arrowHitMarker())); // a PvP preset enables it
             Effects.play(services, Effects.ARROW_HIT_PLAYER, EffectContext.of(shooter.player, bystander.player));
-            assertEquals(1, sounds(shooter, SoundEvent.ENTITY_EXPERIENCE_ORB_PICKUP), "the shooter hears the ding");
-            assertEquals(0, sounds(bystander, SoundEvent.ENTITY_EXPERIENCE_ORB_PICKUP), "only the shooter, not a bystander");
+            assertEquals(1, sounds(shooter, SoundEvent.ENTITY_ARROW_HIT_PLAYER), "the shooter hears the ding");
+            assertEquals(0, sounds(bystander, SoundEvent.ENTITY_ARROW_HIT_PLAYER), "only the shooter, not a bystander");
         } finally {
             shooter.player.remove();
             bystander.player.remove();
