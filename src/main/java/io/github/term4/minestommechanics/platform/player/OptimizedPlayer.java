@@ -47,6 +47,8 @@ public class OptimizedPlayer extends Player {
         super(connection, gameProfile);
         // vanilla scans item pickups every tick; Minestom's default 5-tick cooldown adds up to 250ms of pickup lag
         this.itemPickupCooldown = new net.minestom.server.utils.time.Cooldown(java.time.Duration.ZERO);
+        // slot refreshes must reach sendPacket bare or the per-client item rewrite skips them (see PerViewerInventory)
+        this.inventory = new PerViewerInventory();
     }
 
     // @ApiStatus.Internal override: super is exactly this field write + dispatcher().updateElement (verified
@@ -118,10 +120,10 @@ public class OptimizedPlayer extends Player {
     /** This player's inventory echo suppressor (the remote-slot mirror); inert until {@code FixesSystem} arms {@link InventorySync}. */
     public @NotNull InventorySync inventorySync() { return inventorySync; }
 
-    /** Outgoing transforms: {@code attack_range} stamped onto seen items + empty equipment slots stripped, then redundant inventory slot echoes dropped. All no-op when off. */
+    /** Outgoing transforms: seen items rewritten (attack-range stamp, throwable reskin), empty equipment slots stripped, then redundant inventory slot echoes dropped. All no-op when off. */
     @Override
     public void sendPacket(@NotNull SendablePacket packet) {
-        SendablePacket p = LegacyEquipmentFix.rewrite(compat.stampAttackRange(packet));
+        SendablePacket p = LegacyEquipmentFix.rewrite(compat.rewriteItems(packet));
         if (InventorySync.enabled()) {
             p = inventorySync.filter(p);
             if (p == null) return; // redundant slot echo: the client already shows it

@@ -3,10 +3,11 @@ package io.github.term4.minestommechanics.platform.compatibility;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.item.ItemStack;
+import net.minestom.server.item.Material;
 import net.minestom.server.item.component.AttackRange;
 import io.github.term4.minestommechanics.platform.PacketShapes;
 import net.minestom.server.network.packet.server.SendablePacket;
-import net.minestom.server.network.packet.server.ServerPacket;
+import net.minestom.server.network.packet.server.play.SetCursorItemPacket;
 import net.minestom.server.network.packet.server.play.SetPlayerInventorySlotPacket;
 import net.minestom.server.network.packet.server.play.SetSlotPacket;
 import net.minestom.server.network.packet.server.play.WindowItemsPacket;
@@ -24,6 +25,9 @@ public final class CompatState {
 
     /** All-off policy (a modern client left untouched). */
     private static final CompatConfig OFF = CompatConfig.builder().build();
+
+    /** Throwables a modern client swings on using; {@link #reskinThrowable} shows them as {@code PAPER} instead. */
+    private static final Set<Material> THROW_ON_USE = Set.of(Material.SNOWBALL, Material.EGG, Material.ENDER_PEARL);
 
     private @NotNull CompatConfig policy = OFF;
     private boolean attackCooldownRemoved = false;
@@ -131,30 +135,44 @@ public final class CompatState {
         return policy.attackHitboxMargin != null && !legacyClient && !handlesNatively(AnimatiumFeature.PICK_INFLATION);
     }
 
+    /** Whether this client gets the throwable reskin - so it's also the only client that can echo it back through creative ({@link #sanitizeInboundItem}). */
+    public boolean suppressesThrowSwing() {
+        return on(policy.suppressThrowSwing) && !legacyClient;
+    }
+
     /**
-     * Stamps {@code attack_range} (the configured margin + reach) onto the client's VIEW of its items - the server items
-     * stay clean; bare-hand keeps the client's hardcoded 0. Must cover all three item-carrying packets or a slot update
-     * (pickup, held swap) reaches the client unstamped until the next full {@link WindowItemsPacket}. Skipped when the
-     * client grows the attack box natively ({@link AnimatiumFeature#PICK_INFLATION}).
+     * Applies this client's view-only item rewrites - the {@code attack_range} stamp and the throwable reskin - to an
+     * outgoing packet; server items stay clean. Must cover every item-carrying packet or a slot/cursor update (pickup,
+     * held swap, drag) reaches the client unrewritten until the next full {@link WindowItemsPacket}.
      */
-    public @NotNull SendablePacket stampAttackRange(@NotNull SendablePacket packet) {
-        if (!stampsAttackRange()) return packet;
-        ServerPacket sp = PacketShapes.unwrapStateless(packet);
-        return switch (sp) {
-            case SetSlotPacket p -> new SetSlotPacket(p.windowId(), p.stateId(), p.slot(), withAttackRange(p.itemStack()));
-            case SetPlayerInventorySlotPacket p -> new SetPlayerInventorySlotPacket(p.slot(), withAttackRange(p.itemStack()));
-            case WindowItemsPacket p -> new WindowItemsPacket(p.windowId(), p.stateId(), p.items().stream().map(this::withAttackRange).toList(), withAttackRange(p.carriedItem()));
+    public @NotNull SendablePacket rewriteItems(@NotNull SendablePacket packet) {
+        boolean stamp = stampsAttackRange(), reskin = suppressesThrowSwing();
+        if (!stamp && !reskin) return packet;
+        return switch (PacketShapes.unwrapStateless(packet)) {
+            case SetSlotPacket p -> new SetSlotPacket(p.windowId(), p.stateId(), p.slot(), rewrite(p.itemStack(), stamp, reskin));
+            case SetPlayerInventorySlotPacket p -> new SetPlayerInventorySlotPacket(p.slot(), rewrite(p.itemStack(), stamp, reskin));
+            case WindowItemsPacket p -> new WindowItemsPacket(p.windowId(), p.stateId(), p.items().stream().map(i -> rewrite(i, stamp, reskin)).toList(), rewrite(p.carriedItem(), stamp, reskin));
+            case SetCursorItemPacket p -> new SetCursorItemPacket(rewrite(p.itemStack(), stamp, reskin));
             case null, default -> packet;
         };
     }
 
     /**
-     * Inbound counterpart to {@link #stampAttackRange}: for a stamped client, drops any {@code attack_range} it echoes
-     * back through creative (client-authoritative slots), so the client-view stamp never becomes server state - from
-     * where it would spread to drops and other viewers. Non-stamped clients and already-clean items pass through.
+     * Inbound counterpart to {@link #rewriteItems}: undoes what an affected client echoes back through creative
+     * (client-authoritative slots), so a view-only rewrite never becomes server state - from where it would spread to
+     * drops and other viewers.
      */
     public @NotNull ItemStack sanitizeInboundItem(@NotNull ItemStack item) {
-        return stampsAttackRange() && item.get(DataComponents.ATTACK_RANGE) != null ? item.without(DataComponents.ATTACK_RANGE) : item;
+        ItemStack out = item;
+        if (stampsAttackRange() && out.get(DataComponents.ATTACK_RANGE) != null) out = out.without(DataComponents.ATTACK_RANGE);
+        if (suppressesThrowSwing()) out = restoreThrowable(out);
+        return out;
+    }
+
+    private ItemStack rewrite(ItemStack item, boolean stamp, boolean reskin) {
+        if (stamp) item = withAttackRange(item);
+        if (reskin) item = reskinThrowable(item);
+        return item;
     }
 
     private ItemStack withAttackRange(ItemStack item) {
@@ -163,5 +181,26 @@ public final class CompatState {
         if (item.isAir() || item.get(DataComponents.ATTACK_RANGE) != null) return item;
         float reach = policy.attackReach != null ? policy.attackReach : 3f;
         return item.with(DataComponents.ATTACK_RANGE, new AttackRange(0f, reach, 0f, 5f, policy.attackHitboxMargin, 1f));
+    }
+
+    private ItemStack reskinThrowable(ItemStack item) {
+        Material original = item.material();
+        if (!THROW_ON_USE.contains(original)) return item;
+        // PAPER's use() PASSes -> no client swing, use_item still sent. withMaterial keeps every real component; name and
+        // stack are re-applied as the original's EFFECTIVE values (get() resolves override-or-default) so paper's
+        // "Paper"/64 never show.
+        return item.withMaterial(Material.PAPER)
+                .withItemModel(original.key().asString())
+                .with(DataComponents.ITEM_NAME, item.get(DataComponents.ITEM_NAME))
+                .withMaxStackSize(item.get(DataComponents.MAX_STACK_SIZE));
+    }
+
+    /** Inverse of {@link #reskinThrowable} for a creative echo: the re-applied name/stack equal the true item's defaults, so only the marker needs dropping. */
+    private ItemStack restoreThrowable(ItemStack item) {
+        if (item.material() != Material.PAPER) return item;
+        String model = item.get(DataComponents.ITEM_MODEL);
+        Material original = model != null ? Material.fromKey(model) : null;
+        if (original == null || !THROW_ON_USE.contains(original)) return item;
+        return item.withMaterial(original).without(DataComponents.ITEM_MODEL);
     }
 }

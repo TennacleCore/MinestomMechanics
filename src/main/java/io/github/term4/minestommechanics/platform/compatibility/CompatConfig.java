@@ -40,6 +40,8 @@ public final class CompatConfig {
     public final @Nullable Boolean oldPlacement;
     /** Remove the modern attack cooldown + crosshair indicator (huge {@code ATTACK_SPEED}). Server-side, any client. */
     public final @Nullable Boolean removeAttackCooldown;
+    /** No arm-swing when a modern client throws a projectile (1.8 doesn't swing on use): its inventory VIEW shows a non-usable reskin; the server item stays the real snowball/egg/pearl. */
+    public final @Nullable Boolean suppressThrowSwing;
 
     /** 1.8 water/lava movement (drag/gravity, no swim sprint/buoyancy, no lava current). */
     public final @Nullable Boolean legacyFluids;
@@ -94,6 +96,7 @@ public final class CompatConfig {
         disableEntityPush = b.disableEntityPush;
         oldPlacement = b.oldPlacement;
         removeAttackCooldown = b.removeAttackCooldown;
+        suppressThrowSwing = b.suppressThrowSwing;
         nativeShortVelocity = b.nativeShortVelocity;
         animatiumFeatures = b.animatiumFeatures;
     }
@@ -130,6 +133,7 @@ public final class CompatConfig {
         private @Nullable Boolean disableEntityPush;
         private @Nullable Boolean oldPlacement;
         private @Nullable Boolean removeAttackCooldown;
+        private @Nullable Boolean suppressThrowSwing;
         private @Nullable Boolean nativeShortVelocity;
         private @Nullable Set<AnimatiumFeature> animatiumFeatures;
 
@@ -161,6 +165,7 @@ public final class CompatConfig {
             disableEntityPush = c.disableEntityPush;
             oldPlacement = c.oldPlacement;
             removeAttackCooldown = c.removeAttackCooldown;
+            suppressThrowSwing = c.suppressThrowSwing;
             nativeShortVelocity = c.nativeShortVelocity;
             animatiumFeatures = c.animatiumFeatures;
         }
@@ -191,6 +196,7 @@ public final class CompatConfig {
         public Builder disableEntityPush(@Nullable Boolean v) { disableEntityPush = v; return this; }
         public Builder oldPlacement(@Nullable Boolean v) { oldPlacement = v; return this; }
         public Builder removeAttackCooldown(@Nullable Boolean v) { removeAttackCooldown = v; return this; }
+        public Builder suppressThrowSwing(@Nullable Boolean v) { suppressThrowSwing = v; return this; }
         public Builder nativeShortVelocity(@Nullable Boolean v) { nativeShortVelocity = v; return this; }
         public Builder animatiumFeatures(@Nullable Set<AnimatiumFeature> v) { animatiumFeatures = v != null ? Set.copyOf(v) : null; return this; }
         public Builder animatiumFeatures(AnimatiumFeature... features) { animatiumFeatures = Set.of(features); return this; }

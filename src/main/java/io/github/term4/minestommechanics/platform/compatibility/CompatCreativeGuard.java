@@ -9,12 +9,11 @@ import net.minestom.server.event.trait.PlayerEvent;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Seals the {@code attack_range} stamp against the one path that leaks it into server state. The stamp
- * ({@link CompatState#stampAttackRange}) rewrites only the client's VIEW of held items - the server item stays clean.
- * Creative slots are client-authoritative, so a stamped client echoes the stamped item back
- * ({@link CreativeInventoryActionEvent}) and the server would store the phantom component, from where it spreads to
- * drops and other viewers. Strips it back off ({@link CompatState#sanitizeInboundItem}) on the creative set + drop;
- * inert for clients that aren't stamped. Needs the {@link OptimizedPlayer} provider.
+ * Seals the client-view item rewrites ({@link CompatState#rewriteItems}) against the one path that leaks them into
+ * server state: creative slots are client-authoritative, so an affected client echoes the rewritten item back
+ * ({@link CreativeInventoryActionEvent}) and the server would store the phantom, from where it spreads to drops and
+ * other viewers. {@link CompatState#sanitizeInboundItem} undoes it on the creative set + drop; inert for unaffected
+ * clients. Needs the {@link OptimizedPlayer} provider.
  */
 public final class CompatCreativeGuard {
 
