@@ -23,6 +23,5 @@ public final class ProjectileDamage extends DamageType {
                 DamageTypeConfig.builder(KEY).baseAmount(0.0).build());
     }
 
-    /** Thrown/arrow hits are the Projectile Protection category (plus general Protection). */
     @Override public Set<ProtectionCategory> protectionCategories() { return Set.of(ProtectionCategory.PROJECTILE); }
 }

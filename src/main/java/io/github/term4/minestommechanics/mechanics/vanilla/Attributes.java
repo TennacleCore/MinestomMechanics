@@ -21,7 +21,6 @@ public final class Attributes {
 
     private Attributes() {}
 
-    /** AttributeConfig with modern (26.1) values. */
     public static AttributeConfig config() {
         return AttributeConfig.builder()
                 .sources(Strength.MODERN, Weakness.MODERN, Sharpness.MODERN, Absorption.MODERN) // 26 version variants

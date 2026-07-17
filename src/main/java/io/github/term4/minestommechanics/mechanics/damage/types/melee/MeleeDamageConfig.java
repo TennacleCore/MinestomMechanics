@@ -90,6 +90,8 @@ public final class MeleeDamageConfig extends DamageTypeConfig {
         public Builder bypassImmune(Function<DamageContext, Boolean> fn) { common.bypassImmune(fn); return this; }
         public Builder ownsVelocityBroadcast(Boolean v) { common.ownsVelocityBroadcast(v); return this; }
         public Builder ownsVelocityBroadcast(Function<DamageContext, Boolean> fn) { common.ownsVelocityBroadcast(fn); return this; }
+        public Builder exhaustion(Float v) { common.exhaustion(v); return this; }
+        public Builder exhaustion(Function<DamageContext, Float> fn) { common.exhaustion(fn); return this; }
         public Builder subConfig(Function<DamageContext, DamageTypeConfig> fn) { common.subConfig(fn); return this; }
 
 

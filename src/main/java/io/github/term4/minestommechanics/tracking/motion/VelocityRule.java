@@ -72,6 +72,12 @@ public interface VelocityRule {
         return c != null && c.flowPush();
     }
 
+    /** Whether entity-push is maintained for {@code rule} (default-on: a config-less rule reads it through the context). */
+    static boolean entityPushEnabled(@Nullable VelocityRule rule) {
+        VelocityConfig c = configOf(rule);
+        return c == null || c.entityPush();
+    }
+
     /** The {@link FluidFlow.Model} for {@code rule} ({@code LEGACY} when it carries no config). */
     static FluidFlow.Model flowModel(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);

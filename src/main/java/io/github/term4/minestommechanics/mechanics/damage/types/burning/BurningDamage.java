@@ -23,7 +23,6 @@ public final class BurningDamage extends DamageType {
         super(KEY, "Burning", VanillaTypes.ON_FIRE, BurningConfig.builder().key(KEY).build());
     }
 
-    /** On-fire is a fire source: Fire Protection (plus general Protection) reduces it. */
     @Override public Set<ProtectionCategory> protectionCategories() { return Set.of(ProtectionCategory.FIRE); }
 
     @Override

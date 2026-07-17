@@ -69,6 +69,7 @@ public final class FallDamage extends DamageType {
 
     @Override
     public void enable(DamageSystem system, MinestomMechanics mm) {
+        if (pollHook != null) { pollHook.cancel(); pollHook = null; } // re-enable (fresh registry over the singleton) must not stack the poll
         this.system = system;
         EventNode<@NotNull Event> n = EventNode.all("mm:fall-damage");
         n.addListener(PlayerMoveEvent.class, this::onMove);
@@ -168,7 +169,7 @@ public final class FallDamage extends DamageType {
                 else if (block.compare(Block.LAVA)) contact[1] = true;
                 return contact[0] && contact[1];
             });
-            if (contact[0] || climbing(living)) {
+            if (contact[0] || BlockContact.climbing(living)) {
                 living.removeTag(FALL_DISTANCE);
                 dist = 0f;
             } else if (contact[1] && dist > 0) {
@@ -185,12 +186,6 @@ public final class FallDamage extends DamageType {
         }
     }
 
-    /** Vanilla 1.8 climbable set: ladder or vine at the feet block. */
-    private static boolean climbing(LivingEntity living) {
-        if (living.getInstance() == null) return false;
-        Block feet = MechanicsWorld.viewed(living).getBlock(living.getPosition(), Block.Getter.Condition.TYPE);
-        return feet != null && (feet.compare(Block.LADDER) || feet.compare(Block.VINE));
-    }
 
     /** Slime bounce negates fall damage unless the entity is sneaking - the damage half of the 1.8 {@code BlockSlime} bounce
      *  ({@link io.github.term4.minestommechanics.tracking.motion.MotionTracker} does the velocity half); the block is under the landing feet. */

@@ -5,6 +5,9 @@ import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.api.event.consume.ConsumeAppliedEvent;
+import io.github.term4.minestommechanics.api.event.consume.ConsumeEvent;
+import io.github.term4.minestommechanics.api.event.consume.PreConsumeEvent;
 import io.github.term4.minestommechanics.effect.EffectContext;
 import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigResolver.ConsumableContext;
@@ -20,8 +23,10 @@ import net.minestom.server.entity.EntityStatuses;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.PlayerHand;
+import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.event.ListenerHandle;
 import net.minestom.server.event.item.PlayerCancelItemUseEvent;
 import net.minestom.server.event.item.PlayerFinishItemUseEvent;
 import net.minestom.server.event.player.PlayerUseItemEvent;
@@ -52,8 +57,10 @@ public final class ConsumableSystem implements MechanicsModule {
     private final ConsumableConfig config;
     private final EventNode<@NotNull PlayerEvent> node;
     private final ConsumableRegistry registry = new ConsumableRegistry();
-    /** The "during" tick is installed once for the JVM ({@link TickSystem} has no removal); it reads the live system each tick. */
     private static final AtomicBoolean TICK_HOOK = new AtomicBoolean();
+    // Pre/Applied fire only when listened to; the main ConsumeEvent always fires
+    private static final ListenerHandle<PreConsumeEvent> PRE_CONSUME = EventDispatcher.getHandle(PreConsumeEvent.class);
+    private static final ListenerHandle<ConsumeAppliedEvent> CONSUME_APPLIED = EventDispatcher.getHandle(ConsumeAppliedEvent.class);
 
     public ConsumableSystem(MinestomMechanics mm, ConsumableConfig config) {
         this.mm = mm;
@@ -78,12 +85,17 @@ public final class ConsumableSystem implements MechanicsModule {
         return scoped != null ? scoped : config;
     }
 
-    /** Resolves the effective values for {@code player} consuming {@code item} in {@code hand}, or {@code null} if {@code item} is not a registered consumable. */
+    /** Resolves the effective values for {@code player} consuming {@code item} in {@code hand}, or {@code null} if it's neither a registered consumable nor a component food. */
     private @Nullable Resolution resolve(Player player, PlayerHand hand, ItemStack item) {
+        ConsumableConfig cfg = configFor(player);
         Consumable c = registry.forMaterial(item.material());
-        if (c == null) return null;
+        if (c == null) {
+            // the ComponentFood floor: an unregistered item with a food component eats with its registry values
+            if (Boolean.FALSE.equals(cfg.componentFoods()) || item.get(DataComponents.FOOD) == null) return null;
+            c = ComponentFood.TYPE;
+        }
         ConsumableContext ctx = new ConsumableContext(player, item, hand, c, services);
-        return new Resolution(ctx, ConsumableConfigResolver.resolve(configFor(player), ctx));
+        return new Resolution(ctx, ConsumableConfigResolver.resolve(cfg, ctx));
     }
 
     private record Resolution(ConsumableContext ctx, ResolvedConsumable resolved) {}
@@ -92,6 +104,15 @@ public final class ConsumableSystem implements MechanicsModule {
         Player p = e.getPlayer();
         Resolution r = resolve(p, e.getHand(), e.getItemStack());
         if (r == null || !r.resolved.enabled()) return;
+        if (PRE_CONSUME.hasListener()) {
+            PreConsumeEvent pre = new PreConsumeEvent(r.ctx, services);
+            EventDispatcher.call(pre);
+            if (pre.isCancelled()) {
+                e.setItemUseTime(0);
+                return;
+            }
+            if (pre.finalSnap() != r.ctx) r = new Resolution(pre.finalSnap(), ConsumableConfigResolver.resolve(configFor(p), pre.finalSnap()));
+        }
         // canConsume gate (1.8 creative can't eat food): zero the item's NATIVE consumable duration, else Minestom
         // starts the use anyway and viewers see the hand-active bit as an eating animation
         if (!r.resolved.canConsume()) {
@@ -116,34 +137,42 @@ public final class ConsumableSystem implements MechanicsModule {
         ItemStack item = e.getItemStack();
         Resolution r = resolve(p, hand, item);
         if (r == null || !r.resolved.enabled()) return;
-        r.resolved.behavior().onFinish(r.ctx);
+        ConsumeEvent consume = new ConsumeEvent(r.ctx, services);
+        EventDispatcher.call(consume);
+        if (consume.isCancelled()) {
+            p.getInventory().update(p); // the client already predicted the consume; repaint it
+            return;
+        }
+        (consume.behavior() != null ? consume.behavior() : r.resolved.behavior()).onFinish(consume.finalSnap());
         // food burps on finish (vanilla ItemFood.onFoodEaten); drinks don't. The chew sound + eating particles are
         // client-driven off the hand-active metadata, so the burp is the only server-sent eating effect.
         if (item.get(DataComponents.FOOD) != null) Effects.play(services, Effects.BURP, EffectContext.of(p));
-        if (p.getGameMode() == GameMode.CREATIVE) return;
-        // Remainder = the type's explicit one (potion -> bottle, stew -> bowl), else USE_REMAINDER.
-        Material remMat = r.ctx.consumable().remainder();
-        ItemStack remainder = remMat != null ? ItemStack.of(remMat) : item.get(DataComponents.USE_REMAINDER);
-        int left = item.amount() - 1;
-        boolean legacy = legacyConsumeEnabled(p);
-        if (remainder != null && !remainder.isAir() && left <= 0) {
-            p.setItemInHand(hand, remainder); // last unit -> bottle/bowl: a genuine item change (echoed) either way
-        } else {
-            ItemStack held = left <= 0 ? ItemStack.AIR : item.withAmount(left);
-            // Legacy decrements SILENTLY - a 1.8 client self-decrements from entity_status 9, and an echoed set_slot
-            // would clear the eat before status 9 lands. A modern client predicts its own consume, so a plain echo matches.
-            if (legacy) consumeHeld(p, hand, held);
-            else p.setItemInHand(hand, held);
-            if (remainder != null && !remainder.isAir()) p.getInventory().addItemStack(remainder); // extra bottle alongside: not predicted
+        if (p.getGameMode() != GameMode.CREATIVE) {
+            // Remainder = the type's explicit one (potion -> bottle, stew -> bowl), else USE_REMAINDER.
+            Material remMat = r.ctx.consumable().remainder();
+            ItemStack remainder = remMat != null ? ItemStack.of(remMat) : item.get(DataComponents.USE_REMAINDER);
+            int left = item.amount() - 1;
+            boolean legacy = legacyConsumeEnabled(p);
+            if (remainder != null && !remainder.isAir() && left <= 0) {
+                p.setItemInHand(hand, remainder); // last unit -> bottle/bowl: a genuine item change (echoed) either way
+            } else {
+                ItemStack held = left <= 0 ? ItemStack.AIR : item.withAmount(left);
+                // Legacy decrements SILENTLY - a 1.8 client self-decrements from entity_status 9, and an echoed set_slot
+                // would clear the eat before status 9 lands. A modern client predicts its own consume, so a plain echo matches.
+                if (legacy) consumeHeld(p, hand, held);
+                else p.setItemInHand(hand, held);
+                if (remainder != null && !remainder.isAir()) p.getInventory().addItemStack(remainder); // extra bottle alongside: not predicted
+            }
+            // Legacy count pacing: status 9 (self) makes the client decrement + clear its use, then a window_items confirm
+            // right behind it re-anchors the count. status-9-first is required so the confirm isn't cleared early; Minestom's
+            // own status 9 (fired after this event) then no-ops. Full-inventory confirm on purpose - a targeted single-slot
+            // re-anchor paces noticeably worse in-game despite touching the same slot.
+            if (legacy) {
+                p.sendPacket(new EntityStatusPacket(p.getEntityId(), (byte) EntityStatuses.Player.MARK_ITEM_FINISHED));
+                p.getInventory().update(p);
+            }
         }
-        // Legacy count pacing: status 9 (self) makes the client decrement + clear its use, then a window_items confirm
-        // right behind it re-anchors the count. status-9-first is required so the confirm isn't cleared early; Minestom's
-        // own status 9 (fired after this event) then no-ops. Full-inventory confirm on purpose - a targeted single-slot
-        // re-anchor paces noticeably worse in-game despite touching the same slot.
-        if (legacy) {
-            p.sendPacket(new EntityStatusPacket(p.getEntityId(), (byte) EntityStatuses.Player.MARK_ITEM_FINISHED));
-            p.getInventory().update(p);
-        }
+        if (CONSUME_APPLIED.hasListener()) EventDispatcher.call(new ConsumeAppliedEvent(consume.finalSnap(), services));
     }
 
     /** Applies the eaten-item count to the held slot without a slot echo - the 1.8 client decrements it itself from {@code entity_status 9}. */
@@ -200,7 +229,7 @@ public final class ConsumableSystem implements MechanicsModule {
     /** Installs from an explicit config (the modular path): registers its {@code types}, installs the node, and hooks the shared tick loop once. */
     public static ConsumableSystem install(MinestomMechanics mm, ConsumableConfig cfg) {
         ConsumableSystem system = new ConsumableSystem(mm, cfg);
-        mm.register(system);
+        mm.register(system); // detaches a replaced install's node
         for (Consumable c : cfg.types()) system.register(c);
         mm.install(system.node);
         // Registered once for the JVM (TickSystem has no removal); dispatches through the live registry so a re-install is picked up.

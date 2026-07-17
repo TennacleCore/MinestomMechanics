@@ -4,7 +4,7 @@ import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.api.event.ExplosionEvent;
+import io.github.term4.minestommechanics.api.event.explosion.ExplosionEvent;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
@@ -277,7 +277,9 @@ public final class ExplosionSystem implements MechanicsModule {
     }
 
     public EventNode<@NotNull Event> node() { return node; }
+    public @Nullable ExplosionConfig config() { return config; }
 
+    /** Installs at the global {@code EXPLOSION} profile, else the modern-vanilla baseline (never inert - a null config resolves to vanilla TNT). */
     public static ExplosionSystem install(MinestomMechanics mm) {
         return install(mm, mm.profiles().resolve(null, MechanicsKeys.EXPLOSION));
     }

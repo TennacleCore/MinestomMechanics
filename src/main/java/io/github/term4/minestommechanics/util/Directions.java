@@ -73,8 +73,7 @@ public final class Directions {
 
     /**
      * Snaps a horizontal vector onto whichever cardinal axis carries the larger magnitude, returning a unit vector
-     * with components in {@code {-1, 0, +1}}: e.g. {@code (0.9, 0.1) -> (+1, 0)}, {@code (0.1, -0.9) -> (0, -1)}.
-     * Ties favour x; a zero vector snaps to {@code (0, 0)}.
+     * with components in {@code {-1, 0, +1}}. Ties favour x; a zero vector snaps to {@code (0, 0)}.
      */
     public static Vec snapDominantAxis(Vec v) {
         return Math.abs(v.x()) >= Math.abs(v.z())

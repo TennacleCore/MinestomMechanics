@@ -34,7 +34,6 @@ public final class KnockbackPipeline {
         /** The assembled extra vector (sprint/enchant, already level-scaled), or {@code null} when the level is 0. */
         public final @Nullable Vec extra;
         public final int extraLevel;
-        /** The working knockback vector. */
         public Vec kb;
 
         public State(KnockbackConfigResolver.KnockbackContext ctx, KnockbackConfigResolver.ResolvedKnockbackConfig cfg,

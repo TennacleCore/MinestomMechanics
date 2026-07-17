@@ -10,6 +10,8 @@ import io.github.term4.minestommechanics.mechanics.damage.types.burning.BurningD
 import io.github.term4.minestommechanics.mechanics.damage.types.burning.InFireDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.burning.LavaDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.fall.FallDamageConfig;
+import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamageConfig;
+import io.github.term4.minestommechanics.mechanics.damage.types.starvation.StarvationDamage;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.attribute.Attribute;
 
@@ -18,7 +20,6 @@ public final class Damage {
 
     private Damage() {}
 
-    /** DamageConfig with modern (26.1) values. */
     public static DamageConfig config() {
         return DamageConfig.builder()
                 .typeConfigs(
@@ -27,9 +28,20 @@ public final class Damage {
                         lavaDamage(),
                         burningDamage(),
                         drownDamage(),
-                        suffocationDamage()
+                        suffocationDamage(),
+                        starvationDamage(),
+                        playerAttackDamage()
                 )
                 .build();
+    }
+
+    /** Vanilla starvation: 1.0 per 80 ticks at food 0 (the hunger food tick produces it); starve is in BYPASSES_ARMOR + charges no exhaustion. */
+    private static DamageTypeConfig starvationDamage() {
+        return DamageTypeConfig.builder(StarvationDamage.KEY).baseAmount(1.0).bypassArmor(true).build();
+    }
+
+    private static MeleeDamageConfig playerAttackDamage() {
+        return MeleeDamageConfig.builder().critMultiplier(1.5).exhaustion(0.1f).build(); // vanilla crit x1.5 (both versions)
     }
 
     /** Modern (26) drowning: 2.0 at air {@code <= -20}, air recovers {@code +4}/tick ({@code AirRefill.MODERN}). */
@@ -65,6 +77,7 @@ public final class Damage {
                 .igniteTicks(160)
                 .igniteWarmupInvulMult(3)
                 .contactIntervalTicks(1)
+                .exhaustion(0.1f) // in_fire charges 0.1 (DamageTypes registry); on_fire (burn ticks) is 0.0
                 .build();
     }
 
@@ -75,6 +88,7 @@ public final class Damage {
                 .igniteTicks(300)
                 .igniteWarmupInvulMult(3)
                 .contactIntervalTicks(1)
+                .exhaustion(0.1f)
                 .build();
     }
 

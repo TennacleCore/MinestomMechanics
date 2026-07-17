@@ -5,24 +5,17 @@ import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.kyori.adventure.key.Key;
-import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.instance.InstanceTickEvent;
 import net.minestom.server.instance.Instance;
-import net.minestom.server.instance.block.Block;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/**
- * Natural regen, both vanilla shapes (source: 1.8 {@code FoodMetaData.a}, 26.1 {@code FoodData.tick}). 1.8: heal 1 per
- * 80 ticks at food 18+, 3.0 exhaustion, no saturation fast path. Modern: at food 20 with saturation, heal
- * {@code min(sat,6)/6} every 10 ticks at the spent saturation's cost. Regen exhaustion drains saturation (4 points
- * each), so sustained regen eats the food bar - pinned via the drain test.
- */
+/** Natural regen, both vanilla shapes (1.8 {@code FoodMetaData.a}, 26.1 {@code FoodData.tick}) + the cost-rule config surface. */
 class HungerRegenTest extends HeadlessServerTest {
 
     @BeforeAll
@@ -31,11 +24,7 @@ class HungerRegenTest extends HeadlessServerTest {
     }
 
     private static Instance instance(HungerConfig hunger) {
-        var inst = MinecraftServer.getInstanceManager().createInstanceContainer();
-        inst.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
-        inst.loadChunk(0, 0).join();
-        mm.profiles().setInstance(inst, MechanicsProfile.builder().set(MechanicsKeys.HUNGER, hunger).build());
-        return inst;
+        return flatInstance(MechanicsProfile.builder().set(MechanicsKeys.HUNGER, hunger).build());
     }
 
     private static void tick(Instance inst, int times) {

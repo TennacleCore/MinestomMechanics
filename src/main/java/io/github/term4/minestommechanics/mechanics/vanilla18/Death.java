@@ -10,7 +10,6 @@ public final class Death {
 
     private Death() {}
 
-    /** DeathConfig with vanilla 1.8 defaults. */
     public static DeathConfig config() {
         return DeathConfig.builder()
                 .clearEffects(true)

@@ -12,7 +12,6 @@ public final class Items {
 
     private Items() {}
 
-    /** The vanilla 1.8 item registry (LEGACY weapon stats). */
     public static ItemRegistry registry() {
         return new ItemRegistry(ItemDef.Version.LEGACY, VanillaItems.weapons());
     }

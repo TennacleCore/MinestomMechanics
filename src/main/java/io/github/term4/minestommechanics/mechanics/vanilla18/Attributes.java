@@ -18,7 +18,6 @@ public final class Attributes {
 
     private Attributes() {}
 
-    /** AttributeConfig with vanilla 1.8 values. */
     public static AttributeConfig config() {
         return AttributeConfig.builder()
                 .sources(Strength.LEGACY, Weakness.LEGACY, Sharpness.LEGACY, Absorption.LEGACY) // 1.8 version variants

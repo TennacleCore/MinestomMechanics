@@ -2,7 +2,7 @@ package io.github.term4.minestommechanics.effect;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.api.event.EffectEvent;
+import io.github.term4.minestommechanics.api.event.effect.EffectEvent;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.minestom.server.event.EventDispatcher;

@@ -18,7 +18,6 @@ public abstract class Source {
 
     protected Source(Key key) { this.key = key; }
 
-    /** The vanilla effect/enchant key this source answers to (its registry identity). */
     public Key key() { return key; }
 
     /** The attribute modifiers this contributes at {@code level} (folded via the shared add/multiply math). Empty by default. */

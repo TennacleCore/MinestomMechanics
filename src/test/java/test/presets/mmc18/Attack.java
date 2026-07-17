@@ -3,7 +3,7 @@ package test.presets.mmc18;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.attack.AttackLog;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;

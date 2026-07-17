@@ -12,7 +12,6 @@ public final class Items {
 
     private Items() {}
 
-    /** The modern (26) item registry. */
     public static ItemRegistry registry() {
         return new ItemRegistry(ItemDef.Version.MODERN, VanillaItems.weapons());
     }

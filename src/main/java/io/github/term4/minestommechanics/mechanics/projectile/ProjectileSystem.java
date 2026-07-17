@@ -5,7 +5,7 @@ import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.api.event.ProjectileLaunchEvent;
+import io.github.term4.minestommechanics.api.event.projectile.ProjectileLaunchEvent;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedFlight;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.arrow.ArrowEntity;

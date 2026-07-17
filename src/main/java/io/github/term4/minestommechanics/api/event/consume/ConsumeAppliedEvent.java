@@ -1,0 +1,27 @@
+package io.github.term4.minestommechanics.api.event.consume;
+
+import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.mechanics.consumable.Consumable;
+import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigResolver.ConsumableContext;
+import net.minestom.server.entity.Player;
+import net.minestom.server.event.Event;
+import net.minestom.server.item.ItemStack;
+
+/** Applied: the behavior ran and the item was consumed. Observation only (lazy, like the damage triad's Applied). */
+public final class ConsumeAppliedEvent implements Event {
+
+    private final ConsumableContext snapshot;
+    private final Services services;
+
+    public ConsumeAppliedEvent(ConsumableContext snapshot, Services services) {
+        this.snapshot = snapshot;
+        this.services = services;
+    }
+
+    public ConsumableContext snapshot() { return snapshot; }
+    public Services services() { return services; }
+
+    public Player user() { return snapshot.user(); }
+    public ItemStack item() { return snapshot.item(); }
+    public Consumable consumable() { return snapshot.consumable(); }
+}

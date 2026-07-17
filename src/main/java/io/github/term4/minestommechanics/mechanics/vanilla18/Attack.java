@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.vanilla18;
 
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
 import io.github.term4.minestommechanics.effect.EffectContext;
 import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.item.Enchants;
@@ -26,7 +26,6 @@ public final class Attack {
 
     private Attack() {}
 
-    /** AttackConfig with vanilla 1.8 behavior. */
     public static AttackConfig config() {
         return AttackConfig.builder()
                 .enabled(true)

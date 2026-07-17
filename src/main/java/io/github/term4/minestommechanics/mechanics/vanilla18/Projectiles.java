@@ -27,10 +27,7 @@ public final class Projectiles {
     private static final double GRAVITY_004F = 0.04f;
     private static final double GRAVITY_005F = 0.05f;
 
-    /**
-     * Vanilla 1.8 projectile config: the generic {@link #defaults()} baseline plus per-type entries (presence enables a
-     * type at install). Snowball/egg/pearl are pure baseline - their differences live in the flight entity.
-     */
+    /** Vanilla 1.8 projectiles: the {@link #defaults()} baseline + per-type entries (presence enables a type). */
     public static ProjectileConfig config() {
         return ProjectileConfig.builder()
                 .defaults(defaults())

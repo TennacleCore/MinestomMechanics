@@ -3,6 +3,9 @@ package io.github.term4.minestommechanics.mechanics.hunger;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsModule;
 import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
+import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
+import io.github.term4.minestommechanics.mechanics.damage.types.starvation.StarvationDamage;
 import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
@@ -21,22 +24,41 @@ import org.jetbrains.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Hunger subsystem: natural regen + the exhaustion drain it feeds, per-scope config via {@code HUNGER}. Mirrors
- * vanilla's food tick ({@code FoodMetaData.a} / {@code FoodData.tick}): drain exhaustion first (4 points take a
- * saturation point, else a food point), then regen - the modern saturation fast path (food 20, heal
- * {@code min(sat,6)/6} every 10 ticks at the spent saturation's cost), else 1 heart-half per {@code regenInterval} at
- * {@code regenFoodThreshold}+. Difficulty gates are dropped (Minestom has no server difficulty).
- *
- * <p>Action exhaustion costs (sprint/jump/combat) and starvation land with the depletion logic; until then the only
- * exhaustion source is regen itself, which correctly eats saturation, then food, down to the regen threshold.
+ * Hunger: the vanilla food tick (exhaustion drain, natural regen, starvation - {@code FoodMetaData.a} /
+ * {@code FoodData.tick}) plus every exhaustion source, per-scope config via {@code HUNGER}. Action sources ride
+ * {@link ExhaustionSources}, the hunger effect the attribute catalog; docs/exhaustion-sources.md has the vanilla
+ * catalog. Difficulty gates are dropped (Minestom has no server difficulty).
  */
 public final class HungerSystem implements MechanicsModule {
 
+    /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
     public static final Key KEY = Key.key("mm:hunger");
+    // Source keys, priced per preset. Lib sources charge ONLY when the scope prices them (no entry = inert);
+    // quantities: per-meter sources pass meters, per-event pass 1, damage-taken passes the type's exhaustion value.
     /** The 80-tick regen heal; quantity 1 per heal (1.8 preset: {@code flat(3)}, modern: {@code flat(6)}). */
     public static final Key REGEN_COST = Key.key("mm:regen");
     /** The modern saturation fast-regen heal; quantity = the spent saturation (modern preset: {@code dynamic()}). */
     public static final Key SATURATION_REGEN_COST = Key.key("mm:regen-saturation");
+    /** A damaging hit taken; quantity = the damage type's {@code exhaustion} value (both presets: {@code dynamic()}). */
+    public static final Key DAMAGE_TAKEN_COST = Key.key("mm:damage-taken");
+    /** A landed melee attack, charged to the attacker (1.8: {@code flat(0.3)}, modern: {@code flat(0.1)}). */
+    public static final Key ATTACK_COST = Key.key("mm:attack");
+    /** A jump (1.8: {@code flat(0.2)}, modern: {@code flat(0.05)}). */
+    public static final Key JUMP_COST = Key.key("mm:jump");
+    /** A sprint-jump (1.8: {@code flat(0.8)}, modern: {@code flat(0.2)}). */
+    public static final Key SPRINT_JUMP_COST = Key.key("mm:sprint-jump");
+    /** Eye-underwater movement, quantity = 3D meters (1.8: {@code scaled(0.015)}, modern: {@code scaled(0.01)}). */
+    public static final Key DIVE_COST = Key.key("mm:dive");
+    /** Surface water movement, quantity = horizontal meters (1.8: {@code scaled(0.015)}, modern: {@code scaled(0.01)}). */
+    public static final Key SWIM_COST = Key.key("mm:swim");
+    /** Ground sprint, quantity = horizontal meters ({@code scaled(0.1)} both). */
+    public static final Key SPRINT_COST = Key.key("mm:sprint");
+    /** Ground walk/sneak, quantity = horizontal meters (1.8: {@code scaled(0.01)}; modern free - unpriced). */
+    public static final Key WALK_COST = Key.key("mm:walk");
+    /** A survival block harvest (1.8: {@code flat(0.025)}, modern: {@code flat(0.005)}). */
+    public static final Key BLOCK_BREAK_COST = Key.key("mm:block-break");
+    /** The hunger effect, quantity = amplifier+1 per tick (1.8: {@code scaled(0.025)}, modern: {@code scaled(0.005)}). */
+    public static final Key HUNGER_EFFECT_COST = Key.key("mm:hunger-effect");
 
     /** Accumulated exhaustion (vanilla {@code foodExhaustionLevel}); absent = 0. */
     private static final Tag<Float> EXHAUSTION = Tag.Transient("mm:exhaustion");
@@ -50,7 +72,6 @@ public final class HungerSystem implements MechanicsModule {
     private final MinestomMechanics mm;
     private final HungerConfig config;
     private final EventNode<@NotNull Event> node;
-    /** The per-instance hunger tick is installed once for the JVM ({@link TickSystem} has no removal); it reads the live system each tick. */
     private static final AtomicBoolean TICK_HOOK = new AtomicBoolean();
 
     public HungerSystem(MinestomMechanics mm, HungerConfig config) {
@@ -89,10 +110,9 @@ public final class HungerSystem implements MechanicsModule {
     }
 
     /**
-     * Adds exhaustion from {@code source}: the source's {@link ExhaustionCost} rule maps {@code quantity} to the cost
-     * (no entry = the quantity as-is), and the global {@code exhaustionScale} multiplies the result. Every source -
-     * the lib's and CUSTOM ones alike - goes through here: an ability spends
-     * {@code exhaust(p, Key.key("game:dash"), 2.0f)} and is tunable per scope like any vanilla cost.
+     * Adds exhaustion from {@code source}: its {@link ExhaustionCost} rule maps {@code quantity} to the cost (no entry
+     * = as-is), times the global {@code exhaustionScale}. Custom costs use their own key - {@code exhaust(p,
+     * Key.key("game:dash"), 2.0f)} - and are scope-tunable like the vanilla ones.
      */
     public void exhaust(Player player, Key source, float quantity) {
         if (!enabled(player)) return;
@@ -107,20 +127,25 @@ public final class HungerSystem implements MechanicsModule {
         player.setTag(EXHAUSTION, exhaustion(player) + cost);
     }
 
+    /** Lib-source charge: only when the scope PRICES the key - the presets own the vanilla values, unpriced = inert. */
+    public void chargePriced(Player player, Key source, float quantity) {
+        if (!enabled(player)) return;
+        HungerConfig cfg = configFor(player);
+        if (cfg.exhaustionCost(source) != null) exhaust(player, cfg, source, quantity);
+    }
+
     /** The player's accumulated exhaustion. */
     public static float exhaustion(Player player) {
         Float v = player.getTag(EXHAUSTION);
         return v != null ? v : 0f;
     }
 
-    /** Per-instance hunger pass: exhaustion drain then natural regen, per enabled player. */
+    /** Per-instance hunger pass: exhaustion drain then the food tick (regen/starvation), per enabled player. */
     private void tick(TickContext ctx) {
         for (Player p : ctx.world().players()) {
             if (!ctx.owns(p) || !enabled(p)) continue;
-            HungerConfig cfg = configFor(p);
             drainExhaustion(p);
-            if (!Boolean.FALSE.equals(cfg.naturalRegen())) regen(p, cfg);
-            else p.removeTag(FOOD_TIMER);
+            foodTick(p, configFor(p));
         }
     }
 
@@ -134,30 +159,55 @@ public final class HungerSystem implements MechanicsModule {
         else p.setFood(Math.max(p.getFood() - 1, 0));
     }
 
-    private void regen(Player p, HungerConfig cfg) {
+    /** The vanilla food tick: regen (gated by {@code naturalRegen}), else starvation, on the SHARED timer. */
+    private void foodTick(Player p, HungerConfig cfg) {
         float max = (float) p.getAttributeValue(Attribute.MAX_HEALTH);
         boolean hurt = p.getHealth() < max;
-        var scaling = mm.profiles().resolve(p, MechanicsKeys.TICK_SCALING);
-        if (Boolean.TRUE.equals(cfg.saturationRegen()) && p.getFoodSaturation() > 0 && hurt && p.getFood() >= 20) {
+        boolean regen = !Boolean.FALSE.equals(cfg.naturalRegen());
+        if (regen && Boolean.TRUE.equals(cfg.saturationRegen()) && p.getFoodSaturation() > 0 && hurt && p.getFood() >= 20) {
             int t = timer(p) + 1;
-            if (t >= TickScaler.duration(SATURATION_REGEN_INTERVAL, scaling, KEY)) {
+            if (t >= scaled(p, SATURATION_REGEN_INTERVAL)) {
                 float spent = Math.min(p.getFoodSaturation(), SATURATION_REGEN_CAP);
                 p.setHealth(Math.min(p.getHealth() + spent / 6.0f, max));
                 exhaust(p, cfg, SATURATION_REGEN_COST, spent); // quantity = the spent saturation
                 t = 0;
             }
             p.setTag(FOOD_TIMER, t);
-        } else if (hurt && p.getFood() >= (cfg.regenFoodThreshold() != null ? cfg.regenFoodThreshold() : 18)) {
+        } else if (regen && hurt && p.getFood() >= (cfg.regenFoodThreshold() != null ? cfg.regenFoodThreshold() : 18)) {
             int t = timer(p) + 1;
-            if (t >= TickScaler.duration(cfg.regenInterval() != null ? cfg.regenInterval() : 80, scaling, KEY)) {
+            if (t >= scaled(p, interval(cfg))) {
                 p.setHealth(Math.min(p.getHealth() + 1.0f, max));
                 exhaust(p, cfg, REGEN_COST, 1.0f); // quantity = one heal; the preset's cost rule prices it
                 t = 0;
             }
             p.setTag(FOOD_TIMER, t);
+        } else if (p.getFood() <= 0) {
+            int t = timer(p) + 1;
+            if (t >= scaled(p, interval(cfg))) { // vanilla starves on the same cadence + timer as regen
+                starve(p);
+                t = 0;
+            }
+            p.setTag(FOOD_TIMER, t);
         } else {
-            p.removeTag(FOOD_TIMER); // vanilla resets the shared timer; the starvation branch slots here later
+            p.removeTag(FOOD_TIMER);
         }
+    }
+
+    private static int interval(HungerConfig cfg) {
+        return cfg.regenInterval() != null ? cfg.regenInterval() : 80;
+    }
+
+    private int scaled(Player p, int ticks) {
+        return TickScaler.duration(ticks, mm.profiles().resolve(p, MechanicsKeys.TICK_SCALING), KEY);
+    }
+
+    /** Difficulty floors are EASY 10 / NORMAL 1 / HARD none; no server difficulty, so NORMAL's applies. */
+    private void starve(Player p) {
+        DamageSystem damage = mm.module(DamageSystem.class);
+        if (damage == null || p.getHealth() <= 1.0f) return;
+        DamageSnapshot snap = DamageSnapshot.of(p, StarvationDamage.INSTANCE);
+        var ctx = damage.contextFor(snap);
+        if (ctx.typeConfig().enabled(ctx)) damage.apply(snap);
     }
 
     private static int timer(Player p) {
@@ -181,6 +231,7 @@ public final class HungerSystem implements MechanicsModule {
                 if (live != null) live.tick(ctx);
             });
         }
+        ExhaustionSources.install(mm);
         return system;
     }
 }

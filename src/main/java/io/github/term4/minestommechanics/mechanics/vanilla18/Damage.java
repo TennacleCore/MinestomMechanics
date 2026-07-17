@@ -12,6 +12,7 @@ import io.github.term4.minestommechanics.mechanics.damage.types.burning.LavaDama
 import io.github.term4.minestommechanics.mechanics.damage.types.cactus.CactusDamage;
 import io.github.term4.minestommechanics.mechanics.damage.types.fall.FallDamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamageConfig;
+import io.github.term4.minestommechanics.mechanics.damage.types.starvation.StarvationDamage;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.potion.PotionEffect;
 
@@ -23,7 +24,6 @@ public final class Damage {
 
     private Damage() {}
 
-    /** DamageConfig with vanilla 1.8 values. */
     public static DamageConfig config() {
         return DamageConfig.builder()
                 .invulTicks(10)
@@ -38,6 +38,7 @@ public final class Damage {
                         cactusDamage(),
                         drownDamage(),
                         suffocationDamage(),
+                        starvationDamage(),
                         playerAttackDamage()
                 )
                 .build();
@@ -81,6 +82,7 @@ public final class Damage {
                 .igniteTicks(160)
                 .igniteWarmupInvulMult(2)
                 .contactIntervalTicks(1)
+                .exhaustion(0.3f) // in_fire keeps the 0.3 default; on_fire (burn ticks) is armor-bypassing = free
                 .build();
     }
 
@@ -91,6 +93,7 @@ public final class Damage {
                 .igniteTicks(300)
                 .igniteWarmupInvulMult(2)
                 .contactIntervalTicks(1)
+                .exhaustion(0.3f)
                 .build();
     }
 
@@ -104,10 +107,15 @@ public final class Damage {
     }
 
     private static DamageTypeConfig cactusDamage() {
-        return DamageTypeConfig.builder(CactusDamage.KEY).baseAmount(1.0).build();
+        return DamageTypeConfig.builder(CactusDamage.KEY).baseAmount(1.0).exhaustion(0.3f).build();
+    }
+
+    /** Vanilla starvation: 1.0 per 80 ticks at food 0 (the hunger food tick produces it); STARVE ignores armor + charges no exhaustion. */
+    private static DamageTypeConfig starvationDamage() {
+        return DamageTypeConfig.builder(StarvationDamage.KEY).baseAmount(1.0).bypassArmor(true).build();
     }
 
     private static MeleeDamageConfig playerAttackDamage() {
-        return MeleeDamageConfig.builder().critMultiplier(1.5).build(); // vanilla crit x1.5 (both versions)
+        return MeleeDamageConfig.builder().critMultiplier(1.5).exhaustion(0.3f).build(); // vanilla crit x1.5 (both versions)
     }
 }

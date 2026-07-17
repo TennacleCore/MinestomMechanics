@@ -29,16 +29,22 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
     public final Map<Key, ConsumableTypeConfig> typeConfigs;
     /** Consumable type identities (key + material) this config registers. Read once at install, from the global profile. */
     public final List<Consumable> types;
+    /** The {@link ComponentFood} floor: unregistered items with a {@code food} component consume with their registry values (unset = on). */
+    public final @Nullable Boolean componentFoods;
 
     private ConsumableConfig(Builder b) {
         super(b.subConfig);
         this.defaults = b.defaults;
         this.typeConfigs = Map.copyOf(b.typeConfigs);
         this.types = List.copyOf(b.types);
+        this.componentFoods = b.componentFoods;
     }
 
     /** The generic base config every consumable inherits, or {@code null} if none set. */
     public @Nullable ConsumableTypeConfig defaults() { return defaults; }
+
+    /** Whether the {@link ComponentFood} floor is active (unset = on). */
+    public @Nullable Boolean componentFoods() { return componentFoods; }
 
     /** Per-consumable config for {@code key}, or {@code null} if none registered. */
     public @Nullable ConsumableTypeConfig typeConfig(Key key) { return typeConfigs.get(key); }
@@ -59,6 +65,7 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
                 .defaults(mergedDefaults)
                 .typeConfigs(merged)
                 .types(mergedTypes)
+                .componentFoods(componentFoods != null ? componentFoods : base.componentFoods)
                 .build();
     }
 
@@ -71,13 +78,18 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
         private @Nullable ConsumableTypeConfig defaults;
         private final Map<Key, ConsumableTypeConfig> typeConfigs = new LinkedHashMap<>();
         private final List<Consumable> types = new ArrayList<>();
+        private @Nullable Boolean componentFoods;
 
         Builder() {}
-        Builder(ConsumableConfig c) { subConfig = c.subConfig; defaults = c.defaults; typeConfigs.putAll(c.typeConfigs); types.addAll(c.types); }
+        Builder(ConsumableConfig c) {
+            subConfig = c.subConfig; defaults = c.defaults; typeConfigs.putAll(c.typeConfigs); types.addAll(c.types);
+            componentFoods = c.componentFoods;
+        }
 
         public Builder subConfig(Function<ConsumableContext, ConsumableConfig> fn) { subConfig = fn; return this; }
         /** Sets the generic base config every consumable inherits (its knobs apply unless a per-type entry overrides them). */
         public Builder defaults(@Nullable ConsumableTypeConfig generic) { this.defaults = generic; return this; }
+        public Builder componentFoods(@Nullable Boolean v) { this.componentFoods = v; return this; }
 
         /** Adds per-consumable config overrides, each keyed by its {@link ConsumableTypeConfig#key()}. */
         public Builder typeConfigs(ConsumableTypeConfig... cfgs) {

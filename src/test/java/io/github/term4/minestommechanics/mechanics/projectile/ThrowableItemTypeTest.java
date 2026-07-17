@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.projectile;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.api.event.ProjectileLaunchEvent;
+import io.github.term4.minestommechanics.api.event.projectile.ProjectileLaunchEvent;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Snowball;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;

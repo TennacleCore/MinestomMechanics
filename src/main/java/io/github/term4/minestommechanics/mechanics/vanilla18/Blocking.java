@@ -15,7 +15,6 @@ public final class Blocking {
 
     private Blocking() {}
 
-    /** BlockingConfig with vanilla 1.8 sword block. */
     public static BlockingConfig config() {
         return BlockingConfig.builder()
                 .defaults(BlockingTypeConfig.builder()

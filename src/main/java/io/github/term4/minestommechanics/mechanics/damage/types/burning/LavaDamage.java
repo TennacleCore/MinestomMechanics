@@ -23,7 +23,6 @@ public final class LavaDamage extends DamageType {
         super(KEY, "Lava", VanillaTypes.LAVA, BurningConfig.builder().key(KEY).build());
     }
 
-    /** Lava is a fire source: Fire Protection (plus general Protection) reduces it. */
     @Override public Set<ProtectionCategory> protectionCategories() { return Set.of(ProtectionCategory.FIRE); }
 
     @Override

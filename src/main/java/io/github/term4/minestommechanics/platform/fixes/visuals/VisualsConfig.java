@@ -6,8 +6,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Visual fixes config - the {@code visuals} member of
  * {@link io.github.term4.minestommechanics.platform.fixes.FixesConfig}. Groups the client-visual fixes (papering
- * over how a client renders something, not gameplay). Today the only entry is the 1.8
- * {@link LegacyArrowVisibilityConfig legacy arrow-visibility} fix; more visual fixes will be added as siblings.
+ * over how a client renders something, not gameplay).
  */
 public final class VisualsConfig {
 

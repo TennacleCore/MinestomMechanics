@@ -14,7 +14,7 @@ public final class LegacyEquipmentFixConfig implements FixToggle {
 
     private LegacyEquipmentFixConfig(Builder b) { this.enabled = b.enabled; }
 
-    /** Whether empty equipment slots are stripped from outgoing equipment packets to legacy clients; {@code null} = off. */
+    /** Whether empty equipment slots are stripped from outgoing equipment packets; {@code null} = off. */
     public @Nullable Boolean enabled() { return enabled; }
 
     /** Merges this config over {@code base}: this config's set knob wins, unset falls back to {@code base}. */

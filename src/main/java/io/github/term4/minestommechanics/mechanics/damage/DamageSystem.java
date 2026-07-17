@@ -12,9 +12,9 @@ import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.MitigationRequest;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionCategory;
-import io.github.term4.minestommechanics.api.event.DamageEvent;
-import io.github.term4.minestommechanics.api.event.PreDamageEvent;
-import io.github.term4.minestommechanics.api.event.DamageAppliedEvent;
+import io.github.term4.minestommechanics.api.event.damage.DamageEvent;
+import io.github.term4.minestommechanics.api.event.damage.PreDamageEvent;
+import io.github.term4.minestommechanics.api.event.damage.DamageAppliedEvent;
 import io.github.term4.minestommechanics.mechanics.damage.DamageCalculator.DamageResult;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.ResolvedDamageConfig;
@@ -287,7 +287,6 @@ public final class DamageSystem implements MechanicsModule {
         return DamageOutcome.FRESH_DAMAGE;
     }
 
-    /** Applied (lazy): report the dealt amount + outcome. */
     private void fireDamageApplied(DamageSnapshot snap, float dealt, DamageOutcome outcome) {
         if (DAMAGE_APPLIED.hasListener()) EventDispatcher.call(new DamageAppliedEvent(snap, dealt, outcome, services));
     }
@@ -309,7 +308,6 @@ public final class DamageSystem implements MechanicsModule {
         return MeleeDamage.KEY.equals(type.key()) || ProjectileDamage.KEY.equals(type.key()) || ExplosionDamage.KEY.equals(type.key());
     }
 
-    /** Per-type override when non-null, else the global config value (which may itself be null). */
     private static <T> @Nullable T pick(@Nullable T typeValue, @Nullable T globalValue) {
         return typeValue != null ? typeValue : globalValue;
     }

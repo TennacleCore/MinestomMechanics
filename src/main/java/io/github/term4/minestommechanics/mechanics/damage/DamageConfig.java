@@ -35,7 +35,7 @@ public final class DamageConfig extends Config<DamageContext, DamageConfig> {
     public final Map<Key, DamageTypeConfig> typeConfigs;
 
     /**
-     * Pluggable transforms applied in order after the {@link io.github.term4.minestommechanics.api.event.DamageEvent}
+     * Pluggable transforms applied in order after the {@link io.github.term4.minestommechanics.api.event.damage.DamageEvent}
      * fires; each self-gates and may adjust the amount.
      * TODO(stages): per-stage strategy plan like knockback - let users replace a built-in formula, not just append.
      */

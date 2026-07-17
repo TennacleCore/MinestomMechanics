@@ -1,6 +1,6 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
 import test.presets.mmc18.Attack;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;

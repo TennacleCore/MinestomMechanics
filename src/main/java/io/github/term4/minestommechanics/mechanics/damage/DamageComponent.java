@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage;
 
-import io.github.term4.minestommechanics.api.event.DamageEvent;
+import io.github.term4.minestommechanics.api.event.damage.DamageEvent;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import org.jetbrains.annotations.Nullable;
 

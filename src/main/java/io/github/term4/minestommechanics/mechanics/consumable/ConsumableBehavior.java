@@ -12,13 +12,13 @@ public interface ConsumableBehavior {
     /** A behavior that does nothing (the default). */
     ConsumableBehavior NONE = new ConsumableBehavior() {};
 
-    /** The user started consuming (right-clicked). Pre-consume: stamp state, play a sound, etc. */
+    /** The user started consuming (right-clicked). */
     default void onStart(ConsumableContext ctx) {}
 
-    /** Each tick while consuming, with the ticks left before completion. During-consume: progress particles / staged effects. */
+    /** Each tick while consuming, with the ticks left before completion. */
     default void onUsing(ConsumableContext ctx, int ticksRemaining) {}
 
-    /** The user finished consuming. Post-consume: apply effects / restore hunger / teleport / etc. (the system consumes the item afterward). */
+    /** The user finished consuming; the system consumes the item afterward. */
     default void onFinish(ConsumableContext ctx) {}
 
     /** The user stopped early (released before completion). Vanilla = nothing happens. */

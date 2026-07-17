@@ -2,14 +2,12 @@ package io.github.term4.minestommechanics.tracking.motion;
 
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
-import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.player.PlayerMoveEvent;
 import net.minestom.server.instance.Instance;
-import net.minestom.server.instance.block.Block;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,9 +25,7 @@ class TeleportAnchorTest extends HeadlessServerTest {
 
     @Test
     void teleportNeverReadsAsOneTickOfMotion() {
-        Instance inst = MinecraftServer.getInstanceManager().createInstanceContainer();
-        inst.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
-        inst.loadChunk(0, 0).join();
+        Instance inst = flatInstance(null);
         Player p = FakePlayer.connect(inst, new Pos(8.5, 80, 8.5), "TeleAnchor").player;
 
         move(p, new Pos(8.5, 80, 8.5));                    // baseline

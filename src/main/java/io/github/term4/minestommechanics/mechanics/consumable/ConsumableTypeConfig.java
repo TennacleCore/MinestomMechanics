@@ -22,8 +22,6 @@ public final class ConsumableTypeConfig extends Config<ConsumableContext, Consum
     /**
      * How a consumable's applied effects render: {@link #SHOWN} (vanilla swirl + HUD icon), {@link #HIDDEN} (icon only,
      * no swirl), or {@link #CUSTOM} (no vanilla swirl; reserved for the platform particle system). Read via {@code ctx.particles()}.
-     *
-     * <p><b>Stub:</b> {@link #CUSTOM} suppresses the vanilla swirl like {@link #HIDDEN} for now; custom particle rendering lands with the platform particle system.
      */
     public enum ParticleVisibility {
         SHOWN, HIDDEN, CUSTOM;

@@ -34,7 +34,7 @@ public final class KnockbackCalculator {
 
     /**
      * Resolves the plain values for a snapshot (its config merged over the defaults, against the hit context) - the
-     * exact values {@link #compute} will use. Cheap; backs {@link io.github.term4.minestommechanics.api.event.KnockbackEvent#resolvedConfig()}.
+     * exact values {@link #compute} will use. Cheap; backs {@link io.github.term4.minestommechanics.api.event.knockback.KnockbackEvent#resolvedConfig()}.
      */
     public KnockbackConfigResolver.ResolvedKnockbackConfig resolveConfig(KnockbackSnapshot snap) {
         KnockbackConfig merged = snap.config() != null ? snap.config().fromBase(defaults) : defaults;

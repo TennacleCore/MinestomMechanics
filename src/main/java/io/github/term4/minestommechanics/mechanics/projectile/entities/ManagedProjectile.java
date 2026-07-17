@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.api.event.ProjectileHitEvent;
+import io.github.term4.minestommechanics.api.event.projectile.ProjectileHitEvent;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;

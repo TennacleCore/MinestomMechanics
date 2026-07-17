@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.platform.fixes.client;
 
+import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.platform.PacketShapes;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.entity.EquipmentSlot;
@@ -10,7 +12,6 @@ import net.minestom.server.event.player.PlayerRespawnEvent;
 import net.minestom.server.inventory.PlayerInventory;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.component.Equippable;
-import net.minestom.server.network.ConnectionState;
 import net.minestom.server.network.packet.client.play.ClientClickWindowPacket;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.ServerPacket;
@@ -58,7 +59,8 @@ public final class InventorySync {
         enabled = true;
         node.addListener(PlayerPacketEvent.class, e -> {
             if (!enabled || !(e.getPacket() instanceof ClientClickWindowPacket click)) return;
-            if (e.getPlayer() instanceof OptimizedPlayer op) op.inventorySync().onClick(click);
+            if (e.getPlayer() instanceof OptimizedPlayer op)
+                op.inventorySync().onClick(click, MinestomMechanics.getInstance().clientInfo().isLegacy(e.getPlayer()));
         });
         // Minestom resends the inventory after every client-rebuild flow (dimension change, skin, first spawn) EXCEPT
         // the death respawn - fill that gap. The RespawnPacket precedes this event and already forgot the mirror
@@ -87,12 +89,12 @@ public final class InventorySync {
     // ------------------------------------------------------------------ incoming: replay the client's prediction
 
     /** Advances the mirror by the client's predicted result of {@code click} (player inventory only, supported modes). */
-    void onClick(ClientClickWindowPacket click) {
+    void onClick(ClientClickWindowPacket click, boolean legacyClient) {
         if (click.windowId() != 0) return; // container-window clicks use a different slot space; left to fall through
-        synchronized (lock) { predict(click); }
+        synchronized (lock) { predict(click, legacyClient); }
     }
 
-    private void predict(ClientClickWindowPacket click) {
+    private void predict(ClientClickWindowPacket click, boolean legacyClient) {
         final short wireSlot = click.slot();
         final byte button = click.button();
         switch (click.clickType()) {
@@ -107,6 +109,10 @@ public final class InventorySync {
                 if (slot >= 0 && hotbar >= 0) { ItemStack t = believed[slot]; believed[slot] = believed[hotbar]; believed[hotbar] = t; }
             }
             case THROW -> {
+                // Never predicted for a legacy client: ViaBackwards replays 1.8 hotbar drops as throw-clicks the client
+                // never made (drops are client-predicted only since 1.13.1), so the echo must pass to repaint the count.
+                // A real 1.8 GUI throw then costs one redundant echo - correct either way.
+                if (legacyClient) return;
                 final int slot = slot(wireSlot);
                 if (slot < 0 || believed[slot].isAir()) return;
                 believed[slot] = button == 1 ? ItemStack.AIR : decrement(believed[slot]); // ctrl-Q drops the whole stack
@@ -282,7 +288,9 @@ public final class InventorySync {
 
     /** The outgoing packet, or {@code null} to drop it (the client already shows what it carries). */
     public @Nullable SendablePacket filter(SendablePacket packet) {
-        final ServerPacket server = SendablePacket.extractServerPacket(ConnectionState.PLAY, packet);
+        // stateless unwrap only: extractServerPacket would frame a CachedPacket's shared cache for a hardcoded state
+        // (the poisoned-tags-cache join crash); no inventory packet is ever cached, so nothing is lost
+        final ServerPacket server = PacketShapes.unwrapStateless(packet);
         if (server == null) return packet;
         synchronized (lock) {
             return switch (server) {

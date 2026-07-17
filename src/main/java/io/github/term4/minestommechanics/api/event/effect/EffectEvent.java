@@ -1,5 +1,6 @@
-package io.github.term4.minestommechanics.api.event;
+package io.github.term4.minestommechanics.api.event.effect;
 
+import io.github.term4.minestommechanics.api.event.CancellableMechanicsEvent;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.effect.Effect;
 import io.github.term4.minestommechanics.effect.EffectContext;

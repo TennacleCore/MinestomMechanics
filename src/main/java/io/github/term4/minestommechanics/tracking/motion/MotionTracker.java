@@ -359,8 +359,8 @@ public final class MotionTracker implements Tracker {
             Long lastMove = p.getTag(LAST_MOVE_TICK);
             boolean hold = VelocityRule.motYOnMovePacketEnabled(rule) && (lastMove == null || lastMove < now - 1);
             tickVertSim(p, env, climbModel, modernBlocks, flowModel, hold);
-            // web zeroes everything, push included
-            if (env == Env.WEB) p.removeTag(ENTITY_PUSH);
+            // web zeroes everything, push included; off-rule skips the nearby-entity query entirely
+            if (env == Env.WEB || !VelocityRule.entityPushEnabled(rule)) p.removeTag(ENTITY_PUSH);
             else tickEntityPush(p);
             // flow residual; ticked even out of water so it bleeds out. simulated rules only
             if (VelocityRule.flowPushEnabled(rule))

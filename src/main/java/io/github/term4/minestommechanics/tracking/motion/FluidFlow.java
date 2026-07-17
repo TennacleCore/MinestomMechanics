@@ -259,7 +259,8 @@ public final class FluidFlow {
 
     /** Per-cell unit slope (vanilla {@code BlockFluids.h} / {@code FlowingFluid.getFlow}): neighbour {@code level} gradient + falling down-term, for the given {@code fluid}. */
     private static Vec slopeAt(MechanicsWorld inst, int x, int y, int z, Block fluid) {
-        int i = effLevel(inst, x, y, z, fluid); // this cell's flow level (source/falling -> 0)
+        int raw = rawLevel(inst, x, y, z, fluid);
+        int i = raw >= 8 ? 0 : raw; // this cell's flow level (source/falling -> 0)
         double sx = 0, sz = 0;
         for (int[] dir : HORIZONTAL) {
             int nx = x + dir[0], nz = z + dir[1];
@@ -283,7 +284,7 @@ public final class FluidFlow {
 
         Vec v = new Vec(sx, 0, sz);
         // falling fluid against a solid face adds the (0,-6,0) waterfall pull
-        if (rawLevel(inst, x, y, z, fluid) >= 8) {
+        if (raw >= 8) {
             for (int[] dir : HORIZONTAL) {
                 int nx = x + dir[0], nz = z + dir[1];
                 if (solid(inst, nx, y, nz) || solid(inst, nx, y + 1, nz)) {

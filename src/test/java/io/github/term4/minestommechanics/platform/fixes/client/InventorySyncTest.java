@@ -39,11 +39,11 @@ class InventorySyncTest extends HeadlessServerTest {
         InventorySync sync = new InventorySync();
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, APPLES)), "anchor: hotbar 0 holds the apples");
 
-        sync.onClick(click(ClickType.SWAP, 35, 0)); // swap main slot 35 <-> hotbar 0
+        sync.onClick(click(ClickType.SWAP, 35, 0), false); // swap main slot 35 <-> hotbar 0
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(35, APPLES)), "predicted -> dropped");
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(0, ItemStack.AIR)), "predicted -> dropped");
 
-        sync.onClick(click(ClickType.SWAP, 35, 0)); // swap back - nets zero
+        sync.onClick(click(ClickType.SWAP, 35, 0), false); // swap back - nets zero
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(35, ItemStack.AIR)), "predicted -> dropped");
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(0, APPLES)), "predicted -> dropped");
     }
@@ -62,11 +62,11 @@ class InventorySyncTest extends HeadlessServerTest {
         InventorySync sync = new InventorySync();
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(9, APPLES)), "anchor slot 9");
 
-        sync.onClick(click(ClickType.PICKUP, 9, 0)); // left-click: pick the whole stack up
+        sync.onClick(click(ClickType.PICKUP, 9, 0), false); // left-click: pick the whole stack up
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(9, ItemStack.AIR)), "slot emptied - predicted");
         assertNull(sync.filter(new SetCursorItemPacket(APPLES)), "cursor holds the stack - predicted");
 
-        sync.onClick(click(ClickType.PICKUP, 9, 0)); // left-click again: place it back
+        sync.onClick(click(ClickType.PICKUP, 9, 0), false); // left-click again: place it back
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(9, APPLES)), "slot refilled - predicted");
         assertNull(sync.filter(new SetCursorItemPacket(ItemStack.AIR)), "cursor cleared - predicted");
     }
@@ -89,8 +89,18 @@ class InventorySyncTest extends HeadlessServerTest {
     void throwDecrementsPredictedSlot() {
         InventorySync sync = new InventorySync();
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(9, APPLES)), "anchor slot 9");
-        sync.onClick(click(ClickType.THROW, 9, 0)); // Q: drop one
+        sync.onClick(click(ClickType.THROW, 9, 0), false); // Q: drop one
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(9, APPLES.withAmount(15))), "one dropped - predicted");
+    }
+
+    @Test
+    void legacyThrowIsNeverPredictedSoTheRepaintPasses() {
+        InventorySync sync = new InventorySync();
+        assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(9, APPLES)), "anchor slot 9");
+        // the ViaBackwards drop replay: a throw-click the 1.8 client never made (it doesn't predict drops)
+        sync.onClick(click(ClickType.THROW, 9, 0), true);
+        assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(9, APPLES.withAmount(15))),
+                "the corrective echo must reach the 1.8 client");
     }
 
     @Test
@@ -107,11 +117,11 @@ class InventorySyncTest extends HeadlessServerTest {
         InventorySync sync = new InventorySync();
         ItemStack stone = ItemStack.of(Material.STONE, 64);
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(9, stone)), "anchor slot 9 = 64 stone");
-        sync.onClick(click(ClickType.PICKUP, 9, 0)); // pick the stack onto the cursor
-        sync.onClick(click(ClickType.QUICK_CRAFT, -999, 0)); // drag start (left)
-        sync.onClick(click(ClickType.QUICK_CRAFT, 10, 1));   // add slot 10
-        sync.onClick(click(ClickType.QUICK_CRAFT, 11, 1));   // add slot 11
-        sync.onClick(click(ClickType.QUICK_CRAFT, -999, 2)); // end: 32 into each, cursor drained
+        sync.onClick(click(ClickType.PICKUP, 9, 0), false); // pick the stack onto the cursor
+        sync.onClick(click(ClickType.QUICK_CRAFT, -999, 0), false); // drag start (left)
+        sync.onClick(click(ClickType.QUICK_CRAFT, 10, 1), false);   // add slot 10
+        sync.onClick(click(ClickType.QUICK_CRAFT, 11, 1), false);   // add slot 11
+        sync.onClick(click(ClickType.QUICK_CRAFT, -999, 2), false); // end: 32 into each, cursor drained
 
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(10, stone.withAmount(32))), "slot 10 got 32 - predicted");
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(11, stone.withAmount(32))), "slot 11 got 32 - predicted");
@@ -137,7 +147,7 @@ class InventorySyncTest extends HeadlessServerTest {
         InventorySync sync = new InventorySync();
         ItemStack stick = ItemStack.of(Material.STICK, 1);
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, stick)), "anchor hotbar 0 = stick");
-        sync.onClick(click(ClickType.QUICK_MOVE, 36, 0)); // shift-click hotbar 0 (window slot 36)
+        sync.onClick(click(ClickType.QUICK_MOVE, 36, 0), false); // shift-click hotbar 0 (window slot 36)
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(9, stick)), "moved to first main slot 9 - predicted");
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(0, ItemStack.AIR)), "hotbar 0 emptied - predicted");
     }
@@ -147,7 +157,7 @@ class InventorySyncTest extends HeadlessServerTest {
         InventorySync sync = new InventorySync();
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, ItemStack.of(Material.STONE, 10))), "hotbar 0 = 10 stone");
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(9, ItemStack.of(Material.STONE, 60))), "main 9 = 60 stone");
-        sync.onClick(click(ClickType.QUICK_MOVE, 36, 0)); // shift-click the 10
+        sync.onClick(click(ClickType.QUICK_MOVE, 36, 0), false); // shift-click the 10
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(9, ItemStack.of(Material.STONE, 64))), "topped 60->64 - predicted");
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(10, ItemStack.of(Material.STONE, 6))), "overflow 6 to next slot - predicted");
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(0, ItemStack.AIR)), "source emptied - predicted");
@@ -158,17 +168,30 @@ class InventorySyncTest extends HeadlessServerTest {
         InventorySync sync = new InventorySync();
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(10, ItemStack.of(Material.STONE, 20))), "slot 10 = 20 stone");
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(11, ItemStack.of(Material.STONE, 30))), "slot 11 = 30 stone");
-        sync.onClick(click(ClickType.PICKUP, 10, 0));     // pick up slot 10 -> cursor 20
-        sync.onClick(click(ClickType.PICKUP_ALL, 10, 0)); // double-click: gather more to fill toward 64
+        sync.onClick(click(ClickType.PICKUP, 10, 0), false);     // pick up slot 10 -> cursor 20
+        sync.onClick(click(ClickType.PICKUP_ALL, 10, 0), false); // double-click: gather more to fill toward 64
         assertNull(sync.filter(new SetCursorItemPacket(ItemStack.of(Material.STONE, 50))), "cursor gathered 20+30=50 - predicted");
         assertNull(sync.filter(new SetPlayerInventorySlotPacket(11, ItemStack.AIR)), "slot 11 drained - predicted");
+    }
+
+    @Test
+    void cachedPacketsPassThroughUnframed() {
+        InventorySync sync = new InventorySync();
+        assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, APPLES)), "anchor: hotbar 0");
+        // a shared CachedPacket (registry data / tags) must NOT be unwrapped: framing it for a hardcoded state
+        // poisoned Minestom's config-phase tags cache (play id 134 -> every modern join crashed)
+        var cached = new net.minestom.server.network.packet.server.CachedPacket(
+                () -> new SetPlayerInventorySlotPacket(0, APPLES.withAmount(1)));
+        assertNotNull(sync.filter(cached), "passes through");
+        assertNull(sync.filter(new SetPlayerInventorySlotPacket(0, APPLES)),
+                "mirror untouched by the cached packet's contents");
     }
 
     @Test
     void containerWindowClickLeavesMirrorUntouched() {
         InventorySync sync = new InventorySync();
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, APPLES)), "anchor hotbar 0");
-        sync.onClick(new ClientClickWindowPacket(3, 0, (short) 35, (byte) 0, ClickType.SWAP, Map.of(), ItemStack.Hash.of(ItemStack.AIR)));
+        sync.onClick(new ClientClickWindowPacket(3, 0, (short) 35, (byte) 0, ClickType.SWAP, Map.of(), ItemStack.Hash.of(ItemStack.AIR)), false);
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, ItemStack.AIR)), "no window-0 prediction, so the echo is a real change");
     }
 }

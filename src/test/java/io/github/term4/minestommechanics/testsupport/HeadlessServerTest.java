@@ -57,6 +57,15 @@ public abstract class HeadlessServerTest {
         mm.profiles().setInstance(instance, MechanicsProfile.builder().set(MechanicsKeys.ITEMS, Items.registry()).build());
     }
 
+    /** A fresh loaded stone-floor instance, with {@code profile} scoped onto it when non-null. */
+    protected static InstanceContainer flatInstance(MechanicsProfile profile) {
+        InstanceContainer inst = MinecraftServer.getInstanceManager().createInstanceContainer();
+        inst.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
+        inst.loadChunk(0, 0).join();
+        if (profile != null) mm.profiles().setInstance(inst, profile);
+        return inst;
+    }
+
     /** A stationary zombie placed at {@code pos} (yaw/pitch from the {@link Pos}); non-player, so its tracked velocity is zero. */
     protected static LivingEntity zombie(Pos pos) {
         LivingEntity e = new LivingEntity(EntityType.ZOMBIE);

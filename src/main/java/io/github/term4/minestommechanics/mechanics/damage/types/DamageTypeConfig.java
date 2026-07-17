@@ -32,6 +32,7 @@ public class DamageTypeConfig extends TypeConfig<DamageContext, DamageTypeConfig
     public final @Nullable FieldValue<DamageContext, Boolean> bypassEnchants;
     public final @Nullable FieldValue<DamageContext, Boolean> bypassAll;
     public final @Nullable FieldValue<DamageContext, Boolean> ownsVelocityBroadcast;
+    public final @Nullable FieldValue<DamageContext, Float> exhaustion;
 
     protected DamageTypeConfig(Builder b) {
         super(b.key, b.subConfig);
@@ -49,6 +50,7 @@ public class DamageTypeConfig extends TypeConfig<DamageContext, DamageTypeConfig
         this.bypassEnchants = b.bypassEnchants;
         this.bypassAll = b.bypassAll;
         this.ownsVelocityBroadcast = b.ownsVelocityBroadcast;
+        this.exhaustion = b.exhaustion;
     }
 
     /** Whether this type applies in the resolved scope (default {@code true}); resolved per victim through the config chain. */
@@ -119,6 +121,12 @@ public class DamageTypeConfig extends TypeConfig<DamageContext, DamageTypeConfig
 
     /** Whether this type's knockback owns the hurt-velocity broadcast, so {@code DamageSystem} won't also send the generic one. {@code null} = the built-in default (melee + thrown). */
     public @Nullable Boolean ownsVelocityBroadcast(DamageContext ctx) { return resolve(ownsVelocityBroadcast, ctx); }
+
+    /** Exhaustion charged to a player victim per damaging hit (1.8: 0.3 or 0 for armor-bypass; modern: the per-type registry value). Unset = none. */
+    public float exhaustion(DamageContext ctx) {
+        Float v = resolve(exhaustion, ctx);
+        return v != null ? v : 0f;
+    }
 
     /**
      * Merges this type config over {@code base}: this config's set fields win, unset fields fall back

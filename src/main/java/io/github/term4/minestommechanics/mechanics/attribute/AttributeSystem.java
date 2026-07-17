@@ -92,7 +92,6 @@ public final class AttributeSystem implements MechanicsModule {
         // that clearing fires (which drop the pushed modifiers).
     }
 
-    /** Per-tick lifecycle: effects, armor behavior, and (players only) the equipment reconcile. */
     private void onEntityTick(EntityTickEvent e) {
         if (!(e.getEntity() instanceof LivingEntity le)) return;
         tickEffects(le);
@@ -132,7 +131,7 @@ public final class AttributeSystem implements MechanicsModule {
             if (interval <= 0) continue;
             int scaledInterval = Math.max(1, TickScaler.duration(interval, KEY)); // cadence in server ticks
             int remaining = tp.potion().duration() - (int) (now - tp.startingTicks());
-            if (remaining > 0 && remaining % scaledInterval == 0) source.behavior().onTick(entity, level);
+            if (remaining > 0 && remaining % scaledInterval == 0) source.behavior().onTick(mm.services(), entity, level);
         }
     }
 
@@ -236,7 +235,7 @@ public final class AttributeSystem implements MechanicsModule {
             int interval = source.behavior().tickInterval(e.getValue());
             if (interval <= 0) continue;
             int scaled = Math.max(1, TickScaler.duration(interval, KEY)); // cadence in server ticks
-            if (now % scaled == 0) source.behavior().onTick(entity, e.getValue());
+            if (now % scaled == 0) source.behavior().onTick(mm.services(), entity, e.getValue());
         }
     }
 
@@ -306,7 +305,6 @@ public final class AttributeSystem implements MechanicsModule {
         }
     }
 
-    /** Registers a source (custom enchant/potion); returns this for chaining. */
     public AttributeSystem register(Source source) {
         registry.register(source);
         return this;

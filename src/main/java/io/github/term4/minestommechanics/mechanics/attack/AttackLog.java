@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.attack;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.api.event.PreAttackEvent;
+import io.github.term4.minestommechanics.api.event.attack.PreAttackEvent;
 import io.github.term4.minestommechanics.platform.compatibility.ClientEye;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;

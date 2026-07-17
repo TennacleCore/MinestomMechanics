@@ -81,7 +81,9 @@ public final class MinestomMechanics {
 
     /** Registers an installed system; later retrievable via {@link #module(Class)}. Called from each system's {@code install}. */
     public <M extends MechanicsModule> void register(M module) {
-        modules.put(module.getClass(), module);
+        MechanicsModule previous = modules.put(module.getClass(), module);
+        // a re-install replaces the listeners, not stacks them
+        if (previous != null && previous.node() != null) uninstall(previous.node());
     }
 
     /** The installed system of the given type, or {@code null} if it was not installed. */
@@ -205,6 +207,11 @@ public final class MinestomMechanics {
     public void install(EventNode<? extends @NotNull Event> node) {
         ensureInitialized();
         root.addChild(node);
+    }
+
+    /** Removes a node installed via {@link #install} (a re-installed system detaches its predecessor's). */
+    public void uninstall(EventNode<? extends @NotNull Event> node) {
+        root.removeChild(node);
     }
 
     /** Throws until {@link #init()} has run; guards the public entry points. */

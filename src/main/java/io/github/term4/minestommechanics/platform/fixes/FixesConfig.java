@@ -36,7 +36,7 @@ public final class FixesConfig {
     public @Nullable VisualsConfig visuals() { return visuals; }
     /** The 1.8 self-placement compat fix (place a block into your own body), or {@code null} if unset. */
     public @Nullable SelfPlacementFixConfig selfPlacement() { return selfPlacement; }
-    /** The legacy equipment-slot fix (strip empty slots from equipment packets to legacy clients), or {@code null} if unset. */
+    /** The equipment-slot fix (strip empty slots from equipment packets - 1.8 chestplate parity via ViaBackwards), or {@code null} if unset. */
     public @Nullable LegacyEquipmentFixConfig legacyEquipmentFix() { return legacyEquipmentFix; }
     /** The tab-completion fix (answer command-name completion that Minestom ignores) for legacy clients, or {@code null} if unset. */
     public @Nullable LegacyTabCompleteFixConfig legacyTabCompleteFix() { return legacyTabCompleteFix; }

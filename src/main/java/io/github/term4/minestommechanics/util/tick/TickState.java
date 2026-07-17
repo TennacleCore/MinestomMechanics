@@ -7,7 +7,6 @@ package io.github.term4.minestommechanics.util.tick;
  */
 public record TickState(long eventTick, int duration) {
 
-    /** True if {@code now < eventTick + duration}. */
     public boolean isActive() {
         return isActive(TickSystem.serverTick());
     }

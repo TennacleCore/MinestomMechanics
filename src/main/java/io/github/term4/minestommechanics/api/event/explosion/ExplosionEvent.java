@@ -1,4 +1,4 @@
-package io.github.term4.minestommechanics.api.event;
+package io.github.term4.minestommechanics.api.event.explosion;
 
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.coordinate.Point;

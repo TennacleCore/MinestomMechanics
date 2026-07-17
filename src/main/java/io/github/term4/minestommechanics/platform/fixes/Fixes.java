@@ -16,8 +16,7 @@ public final class Fixes {
     /**
      * The recommended 1.8-client fixes on: the legacy arrow-visibility fix (co-teams players so a 1.8 client
      * stops hiding deflected / passed-through arrows - purely visual, server damage ignores teams). The cosmetic
-     * deflect crit-trail is left off (an opt-in Hypixel-style flourish, not a fix). More 1.8 visual / interaction
-     * fixes will default-on here as they are added.
+     * deflect crit-trail is left off (an opt-in Hypixel-style flourish, not a fix).
      */
     public static FixesConfig legacy18() {
         return FixesConfig.builder()

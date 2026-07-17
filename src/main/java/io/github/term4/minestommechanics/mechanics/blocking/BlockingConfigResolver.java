@@ -32,10 +32,8 @@ public final class BlockingConfigResolver {
     public record BlockingContext(Player defender, ItemStack item, PlayerHand hand, DamageContext damage,
                                   @Nullable Services services) {
 
-        /** The incoming damage type. */
         public DamageType type() { return damage.snap().type(); }
 
-        /** The attacking entity, or {@code null}. */
         public @Nullable Entity attacker() { return damage.snap().source(); }
 
         /** Whether the incoming damage bypasses armor (vanilla {@code ignoresArmor}) - the 1.8 sword's blockable test. */

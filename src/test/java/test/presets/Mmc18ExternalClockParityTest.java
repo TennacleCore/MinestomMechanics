@@ -1,6 +1,6 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import io.github.term4.minestommechanics.util.tick.TickSystem;

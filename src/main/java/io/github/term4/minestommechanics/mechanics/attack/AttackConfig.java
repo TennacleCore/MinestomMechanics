@@ -2,7 +2,7 @@ package io.github.term4.minestommechanics.mechanics.attack;
 
 import io.github.term4.minestommechanics.codegen.GenerateBuilder;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Attack;
-import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
 import io.github.term4.minestommechanics.config.Config;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfigResolver.AttackContext;
@@ -53,7 +53,6 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
     public static Builder builder() { return builder(null); }
     public static Builder builder(@Nullable AttackConfig base) { return base != null ? new Builder(base) : new Builder(); }
 
-    /** Returns a new config with default values. */
     public static AttackConfig defaultConfig() { return builder().build(); }
 
     public static final class Builder extends AttackConfigBuilderBase<Builder> {

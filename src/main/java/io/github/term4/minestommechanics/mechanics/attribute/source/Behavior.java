@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.attribute.source;
 
+import io.github.term4.minestommechanics.Services;
 import net.minestom.server.entity.Entity;
 
 /**
@@ -11,10 +12,8 @@ public interface Behavior {
     /** A behavior that does nothing (the default when a source has none). */
     Behavior NONE = new Behavior() {};
 
-    /** The source became active on {@code entity} at {@code level}. */
     default void onApply(Entity entity, int level) {}
 
-    /** The source (at {@code level}) stopped being active on {@code entity}. */
     default void onRemove(Entity entity, int level) {}
 
     /** How often (ticks) {@link #onTick} fires while active at {@code level}; {@code 0} = never (the default). */
@@ -22,4 +21,7 @@ public interface Behavior {
 
     /** Periodic hook (every {@link #tickInterval}) while the source is active on {@code entity} at {@code level}. */
     default void onTick(Entity entity, int level) {}
+
+    /** {@link #onTick} with the service hub, for behaviors that consume other systems (e.g. Hunger's exhaustion). */
+    default void onTick(Services services, Entity entity, int level) { onTick(entity, level); }
 }

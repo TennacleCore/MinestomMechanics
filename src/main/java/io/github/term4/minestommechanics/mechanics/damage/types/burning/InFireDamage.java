@@ -23,7 +23,6 @@ public final class InFireDamage extends DamageType {
         super(KEY, "In Fire", VanillaTypes.IN_FIRE, BurningConfig.builder().key(KEY).build());
     }
 
-    /** Standing in fire is a fire source: Fire Protection (plus general Protection) reduces it. */
     @Override public Set<ProtectionCategory> protectionCategories() { return Set.of(ProtectionCategory.FIRE); }
 
     @Override

@@ -8,6 +8,7 @@ import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Eff
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.FireAspect;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Smite;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Blindness;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Hunger;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.InstantDamage;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.InstantHealth;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Invisibility;
@@ -34,6 +35,7 @@ public final class VanillaAttributes {
     /** Version-agnostic potion effects: server-side movement/health + client-rendered (Blindness, Night Vision). */
     public static Source[] effects() {
         return new Source[]{Speed.INSTANCE, Slowness.INSTANCE, Invisibility.INSTANCE, Regeneration.INSTANCE,
-                InstantHealth.INSTANCE, InstantDamage.INSTANCE, Blindness.INSTANCE, NightVision.INSTANCE};
+                InstantHealth.INSTANCE, InstantDamage.INSTANCE, Blindness.INSTANCE, NightVision.INSTANCE,
+                Hunger.INSTANCE};
     }
 }

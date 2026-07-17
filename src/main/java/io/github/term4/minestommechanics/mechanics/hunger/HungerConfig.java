@@ -7,17 +7,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Config for the hunger subsystem (food / saturation / exhaustion, natural regen, starvation). Assigned per scope via
- * the {@link io.github.term4.minestommechanics.MechanicsProfile} {@code hunger} member. Unset regen values default to
- * MODERN vanilla; the presets set both shapes explicitly.
- *
- * <p>Every exhaustion cost - vanilla and custom alike - flows through {@link HungerSystem#exhaust} under a source
- * {@link Key} with its quantity; the source's {@link ExhaustionCost} entry maps quantity to cost (no entry =
- * {@link ExhaustionCost#dynamic()}), and the global {@code exhaustionScale} multiplies the result (0 = hunger never
- * depletes while regen keeps healing - the BedWars shape). The PRESETS declare every lib cost - nothing is baked into
- * call sites (1.8 regen = {@code flat(3)}, modern = {@code flat(6)} + spent-saturation {@code dynamic()}).
- *
- * <p>Vanilla action costs (sprint, jump, combat) and starvation land with the depletion logic.
+ * Config for the hunger subsystem, assigned per scope via the {@code hunger} profile member. The PRESETS declare
+ * every cost: each source charges through its {@link ExhaustionCost} entry (no entry = {@link ExhaustionCost#dynamic()}
+ * for custom keys, inert for lib keys), times the global {@code exhaustionScale} - 0 freezes all depletion while
+ * regen keeps healing.
  */
 public final class HungerConfig {
 

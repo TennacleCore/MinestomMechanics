@@ -27,6 +27,13 @@ public final class BlockContact {
 
     private BlockContact() {}
 
+    /** Vanilla 1.8 climbable set: ladder or vine at the feet block. */
+    public static boolean climbing(Entity entity) {
+        if (entity.getInstance() == null) return false;
+        Block feet = MechanicsWorld.viewed(entity).getBlock(entity.getPosition(), Block.Getter.Condition.TYPE);
+        return feet != null && (feet.compare(Block.LADDER) || feet.compare(Block.VINE));
+    }
+
     // cell occupancy (fluids, fire)
 
     /** True when any overlapped cell matches (vanilla inset). */
@@ -239,7 +246,7 @@ public final class BlockContact {
         return true;
     }
 
-    /** Whether an entity can occupy {@code block}'s space - the inverse of Minecraft's {@code blocksMotion} (ladders, vines, cobwebs, plants, carpets pass; full cubes, stairs, slabs, fences do not). */
+    /** Whether an entity can occupy {@code block}'s space - the inverse of Minecraft's {@code blocksMotion}. */
     public static boolean isPassable(Block block) {
         return !block.blocksMotion();
     }

@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.explosion;
 
-import io.github.term4.minestommechanics.api.event.ExplosionEvent;
+import io.github.term4.minestommechanics.api.event.explosion.ExplosionEvent;
 import io.github.term4.minestommechanics.mechanics.vanilla18.Explosion;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.MinecraftServer;

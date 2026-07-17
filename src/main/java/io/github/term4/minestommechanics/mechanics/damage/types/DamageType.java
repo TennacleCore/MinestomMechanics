@@ -31,7 +31,6 @@ public abstract class DamageType {
         this.defaultConfig = defaultConfig;
     }
 
-    /** Unique identity for this damage type (registry key). */
     public Key key() { return key; }
 
     /** Human-readable label for this damage type (debug, death messages). */

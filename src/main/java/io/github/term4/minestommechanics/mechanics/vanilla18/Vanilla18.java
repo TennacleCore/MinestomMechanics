@@ -2,7 +2,7 @@ package io.github.term4.minestommechanics.mechanics.vanilla18;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
-import io.github.term4.minestommechanics.api.event.AttackEvent;
+import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
 import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
@@ -25,7 +25,6 @@ public final class Vanilla18 {
 
     private Vanilla18() {}
 
-    /** The vanilla 1.8 mechanics profile. */
     public static MechanicsProfile profile() {
         return MechanicsProfile.builder()
                 .set(MechanicsKeys.ATTACK, Attack.config())

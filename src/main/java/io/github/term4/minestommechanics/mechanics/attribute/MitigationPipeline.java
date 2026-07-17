@@ -32,7 +32,6 @@ public final class MitigationPipeline {
         public final LivingEntity victim;
         public final MitigationRequest request;
         public final AttributeConfig cfg;
-        /** The working damage. */
         public float damage;
 
         public State(AttributeSystem system, LivingEntity victim, MitigationRequest request, AttributeConfig cfg, float damage) {

@@ -24,6 +24,5 @@ public final class Scrims18 {
                 .build();
     }
 
-    /** The scrims 1.8 projectile config (for layering deltas). */
     public static ProjectileConfig projectiles() { return Projectiles.config(); }
 }

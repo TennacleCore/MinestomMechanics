@@ -108,6 +108,8 @@ public final class BurningConfig extends DamageTypeConfig {
         public Builder bypassImmune(Function<DamageContext, Boolean> fn) { common.bypassImmune(fn); return this; }
         public Builder bypassArmor(Boolean v) { common.bypassArmor(v); return this; }
         public Builder bypassArmor(Function<DamageContext, Boolean> fn) { common.bypassArmor(fn); return this; }
+        public Builder exhaustion(Float v) { common.exhaustion(v); return this; }
+        public Builder exhaustion(Function<DamageContext, Float> fn) { common.exhaustion(fn); return this; }
         public Builder bypassEffects(Boolean v) { common.bypassEffects(v); return this; }
         public Builder bypassEffects(Function<DamageContext, Boolean> fn) { common.bypassEffects(fn); return this; }
         public Builder bypassEnchants(Boolean v) { common.bypassEnchants(v); return this; }

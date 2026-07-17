@@ -4,14 +4,12 @@ import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
-import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.instance.InstanceTickEvent;
 import net.minestom.server.event.player.PlayerMoveEvent;
 import net.minestom.server.instance.Instance;
-import net.minestom.server.instance.block.Block;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,13 +25,6 @@ class MotYMovePacketGateTest extends HeadlessServerTest {
     private static final double G = 0.08, D = 0.98;
     private static final double SEED = VelocityConfig.JUMP_VELOCITY;
 
-    private static Instance airInstance(MechanicsProfile profile) {
-        var inst = MinecraftServer.getInstanceManager().createInstanceContainer();
-        inst.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
-        inst.loadChunk(0, 0).join();
-        if (profile != null) mm.profiles().setInstance(inst, profile);
-        return inst;
-    }
 
     private static void tick(Instance inst) { EventDispatcher.call(new InstanceTickEvent(inst, 0, 0)); }
 
@@ -56,7 +47,7 @@ class MotYMovePacketGateTest extends HeadlessServerTest {
 
     @Test
     void movePacketGateHoldsWithoutMovesAndResumesOnTheNext() {
-        var inst = airInstance(MechanicsProfile.builder()
+        var inst = flatInstance(MechanicsProfile.builder()
                 .set(MechanicsKeys.VELOCITY, VelocityRule.simulated(
                         VelocityConfig.builder().motYOnMovePacket(true).build()))
                 .build());
@@ -75,7 +66,7 @@ class MotYMovePacketGateTest extends HeadlessServerTest {
 
     @Test
     void defaultAdvancesEveryTick() {
-        var inst = airInstance(null);  // no VELOCITY profile -> default gate (every tick)
+        var inst = flatInstance(null);  // no VELOCITY profile -> default gate (every tick)
         Player p = FakePlayer.connect(inst, new Pos(8.5, 80, 8.5), "MotYTick").player;
 
         double v = launch(inst, p);

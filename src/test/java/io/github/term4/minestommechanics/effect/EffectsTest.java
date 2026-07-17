@@ -3,7 +3,7 @@ package io.github.term4.minestommechanics.effect;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.api.event.EffectEvent;
+import io.github.term4.minestommechanics.api.event.effect.EffectEvent;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.MinecraftServer;

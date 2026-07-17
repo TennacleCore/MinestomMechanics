@@ -36,8 +36,7 @@ public interface BlockingBehavior {
 
     /**
      * Modern shield block: active only after the use-delay, blocks within a frontal arc, and skips damage types the item
-     * is bypassed by; otherwise reduced by {@link #reduced} (default full block). Disable-on-axe / durability / sounds are
-     * follow-ups.
+     * is bypassed by; otherwise reduced by {@link #reduced} (default full block).
      */
     BlockingBehavior SHIELD = (ctx, cfg, amount) -> {
         if (ctx.useTicks() < cfg.blockDelayTicks()) return amount;
