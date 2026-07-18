@@ -71,7 +71,8 @@ public final class WorldSounds {
 
     private static void step(MinestomMechanics mm, Player p, Point at) {
         if (p.getInstance() == null) return;
-        Block below = p.getInstance().getBlock(at.withY(at.y() - 0.2)); // the block the feet rest on
+        // viewed world: on a virtual world the feet rest on the OVERLAY block, not the base map's
+        Block below = MechanicsWorld.viewed(p).getBlock(at.withY(at.y() - 0.2));
         if (below.isAir()) return;
         BlockSoundType st = below.registry().getBlockSoundType();
         if (st == null || st.stepSound() == null) return;
