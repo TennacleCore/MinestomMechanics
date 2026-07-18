@@ -15,6 +15,7 @@ import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.tracking.SprintTracker;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
+import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 
@@ -50,10 +51,11 @@ public final class Attack {
                 result = dmg.apply(snap);
                 // crit + magic-crit sparkle on a landed fresh hit (vanilla onCriticalHit / onEnchantmentCritical, independent)
                 if (result == DamageSystem.DamageOutcome.FRESH_DAMAGE) {
+                    boolean fake = event.finalSnap().aim() != null;
                     EffectContext fx = EffectContext.of(event.attacker(), event.target());
-                    if (event.critical()) Effects.play(services, Effects.CRIT, fx);
+                    if (event.critical()) Effects.play(services, fake ? Effects.FAKE_CRIT : Effects.CRIT, fx);
                     if (MeleeDamage.enchantCritical(event.attacker(), event.target(), event.item(), services)) {
-                        Effects.play(services, Effects.MAGIC_CRIT, fx);
+                        Effects.play(services, fake ? Effects.FAKE_MAGIC_CRIT : Effects.MAGIC_CRIT, fx);
                     }
                 }
             }
@@ -61,7 +63,9 @@ public final class Attack {
             KnockbackSystem kb = services.knockback();
             if (result == DamageSystem.DamageOutcome.FRESH_DAMAGE && kb != null) {
                 int extra = Enchants.level(event.item(), Knockback.KEY);
-                var kbSnap = new KnockbackSnapshot(event.target(), true, event.attacker(), null, null, null, extra);
+                Pos aim = event.finalSnap().aim(); // swing-filled hit: KB follows the intersecting ray, not the attacker's live look
+                var kbSnap = new KnockbackSnapshot(event.target(), true, event.attacker(), null,
+                        aim != null ? aim.direction() : null, null, extra);
                 kb.apply(kbSnap);
             }
             // attacker self-effects on a landed sprint/enchant hit: scale own horizontal velocity by fullHitScale (vanilla 0.6) + clear sprint; a non-sprinting hit does neither

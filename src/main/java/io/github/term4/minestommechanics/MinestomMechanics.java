@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics;
 
+import io.github.term4.minestommechanics.mechanics.attack.FakeHits;
 import io.github.term4.minestommechanics.platform.compatibility.CompatAnimatium;
 import io.github.term4.minestommechanics.platform.compatibility.CompatCreativeGuard;
 import io.github.term4.minestommechanics.platform.compatibility.CompatMovement;
@@ -120,6 +121,8 @@ public final class MinestomMechanics {
             // seal the attack_range stamp: strip it from a stamped client's creative-echoed items (never becomes server state)
             CompatCreativeGuard.install(this);
         }
+        // swing fake-hit fill (inert unless a scope arms AttackConfig.fakeHits or compat gates CompatConfig.fistRayHits)
+        FakeHits.install(this);
         // block-place + footstep sounds Minestom doesn't emit (broadcast to everyone; any client)
         WorldSounds.install(this);
         // global scaling drives physics + static-context durations; refresh on any profile change

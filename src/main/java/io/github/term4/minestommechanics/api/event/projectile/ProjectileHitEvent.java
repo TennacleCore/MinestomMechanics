@@ -15,8 +15,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired when a projectile hits an entity or block, before effects apply. Same shape as {@link DamageEvent} /
- * {@link KnockbackEvent}: a {@link #snapshot()}, a {@link #resolvedHit()} preview, and per-hit overrides (each unset =
+ * Fired when a projectile hits an entity or block, before effects apply. Same shape as {@code DamageEvent} /
+ * {@code KnockbackEvent}: a {@link #snapshot()}, a {@link #resolvedHit()} preview, and per-hit overrides (each unset =
  * use resolved). Cancel suppresses everything (the projectile keeps flying); {@link #target()} is {@code null} for a block hit.
  */
 public class ProjectileHitEvent implements CancellableEvent {

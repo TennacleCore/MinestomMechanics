@@ -1,9 +1,9 @@
-package test.presets.mmc18;
+package io.github.term4.minestommechanics.presets.mmc18;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.instance.Instance;
-import test.presets.customItems.PrimedTnt;
+import io.github.term4.minestommechanics.presets.PrimedTnt;
 
 /**
  * MineMen TNT: fuse 52, feet detonation, the MINEMEN wire shape (see {@link PrimedTnt}), and a ~1.1 push on TNT victims.

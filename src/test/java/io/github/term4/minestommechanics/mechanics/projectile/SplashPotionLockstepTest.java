@@ -100,7 +100,7 @@ class SplashPotionLockstepTest extends HeadlessServerTest {
 
     @Test
     void mmc18SimMatchesThe18ClientBitForBit() {
-        ProjectileEntity potion = launch(test.presets.mmc18.Projectiles.config(),
+        ProjectileEntity potion = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(),
                 new Pos(8.5, 150, 8.5, 37.0f, 12.5f));
         Pos spawn = potion.getSpawnPosition();
         assertNotNull(spawn);

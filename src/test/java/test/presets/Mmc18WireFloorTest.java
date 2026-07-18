@@ -41,7 +41,7 @@ class Mmc18WireFloorTest extends HeadlessServerTest {
     void flatThrowWireFloorsUpSimStaysTrue() {
         var viewer = FakePlayer.connect(instance, new Pos(4.5, 200, 4.5), "WireFloor");
         viewer.sent.clear();
-        ProjectileEntity e = launch(test.presets.mmc18.Projectiles.config(), 0.0f);
+        ProjectileEntity e = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), 0.0f);
         assertEquals(0.0, e.velocityBt().y(), 1e-12, "sim launch unclamped");
 
         SpawnEntityPacket spawn = (SpawnEntityPacket) viewer.packetsFor(e.getEntityId()).getFirst();
@@ -60,7 +60,7 @@ class Mmc18WireFloorTest extends HeadlessServerTest {
 
     @Test
     void steeperAimIsUnclamped() {
-        ProjectileEntity e = launch(test.presets.mmc18.Projectiles.config(), 10.0f);
+        ProjectileEntity e = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), 10.0f);
         assertEquals(-Math.sin(Math.toRadians(10.0f)) * 1.5, e.velocityBt().y(), 1e-9);
         e.remove();
     }

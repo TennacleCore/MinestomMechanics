@@ -56,8 +56,8 @@ import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.potion.PotionType;
 import net.minestom.server.timer.TaskSchedule;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
-import test.presets.Preset;
-import test.presets.customItems.PrimedTnt;
+import io.github.term4.minestommechanics.presets.Preset;
+import io.github.term4.minestommechanics.presets.PrimedTnt;
 
 public class ExampleServer {
 

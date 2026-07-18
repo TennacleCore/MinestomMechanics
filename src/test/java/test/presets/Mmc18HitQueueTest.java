@@ -2,7 +2,7 @@ package test.presets;
 
 import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
-import test.presets.mmc18.Attack;
+import io.github.term4.minestommechanics.presets.mmc18.Attack;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage;

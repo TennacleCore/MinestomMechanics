@@ -1,4 +1,4 @@
-package test.presets.mmc18;
+package io.github.term4.minestommechanics.presets.mmc18;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;

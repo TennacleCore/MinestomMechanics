@@ -1,4 +1,4 @@
-package test.presets.mmc18;
+package io.github.term4.minestommechanics.presets.mmc18;
 
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfigResolver.KnockbackContext;
@@ -45,14 +45,41 @@ public final class Knockback {
     }
 
     /**
-     * MineMen rod hit, bobber-relative (the preset sets {@code knockbackSource(PROJECTILE)}): the old lib's tuned
-     * values - H 0.525, V 0.365 capped 0.45 - on the vanilla 1.8 fold. Pending capture confirmation.
+     * MineMen projectile hit (bow/snowball/egg/pearl): the non-sprint melee profile - constant {@code B} horizontal (a
+     * sprinting shooter gets no bonus), same vertical model - with Punch at +0.6/level (measured: 0.5274 -> 1.1274 -> 1.7274)
+     * summed along the base's shooter-relative direction. Self-hit direction pending capture (bow = pure yaw; snowball/rod TBD).
+     */
+    public static KnockbackConfig projectile() {
+        return projectileBase()
+                .addCustomComponent(Knockback::selfHitBlend)
+                .build();
+    }
+
+    /** The bow's arrows: same non-sprint profile, but a SELF shot pushes 100% along the live look ({@link #selfHitLook}). */
+    public static KnockbackConfig arrow() {
+        return projectileBase()
+                .addCustomComponent(Knockback::selfHitLook)
+                .build();
+    }
+
+    private static KnockbackConfig.Builder projectileBase() {
+        return KnockbackConfig.builder(melee())
+                .horizontal(HORIZONTAL_BASE)
+                .extraHorizontal(0.6)
+                .extraYawWeight(0.0)
+                .yawWeight(0.0);
+    }
+
+    /**
+     * MineMen rod hit, SHOOTER-relative (like vanilla - 1.8 {@code damageEntity} reads the indirect source, the angler):
+     * the old lib's tuned values - H 0.525, V 0.365 capped 0.45 - on the vanilla 1.8 fold. Pending capture confirmation.
      */
     public static KnockbackConfig rod() {
         return KnockbackConfig.builder(Vanilla18.knockback())
                 .horizontal(0.525)
                 .vertical(0.365)
                 .verticalBounds(null, 0.45)
+                .addCustomComponent(Knockback::selfHitBlend)
                 .build();
     }
 
@@ -150,12 +177,13 @@ public final class Knockback {
                 e, TickScaler.duration(SPRINT_BUFFER, KnockbackSystem.KEY));
     }
 
-    // point-blank fallback (explosion only)
-    private static final Vec POINT_BLANK_DIAGONAL = new Vec(-1, 0, -1).normalize();
+    // MineMen's fixed degenerate-direction diagonal (yaw 135): the position stand-in whenever the real relative
+    // position is meaningless - point-blank explosions AND projectile self-hits
+    private static final Vec DEGENERATE_DIAGONAL = new Vec(-1, 0, -1).normalize();
 
     /**
      * MineMen's degenerate-direction fallback: damager horizontally on top of the victim (every self-fireball; vanilla's
-     * {@code d0*d0+d1*d1 < 1e-4} threshold) -> a fixed world diagonal at full {@code B}, replacing vanilla's random pick.
+     * {@code d0*d0+d1*d1 < 1e-4} threshold) -> the fixed world diagonal at full {@code B}, replacing vanilla's random pick.
      * Verified yaw/position-independent, always (-2983,-2983) shorts.
      */
     @Nullable
@@ -167,7 +195,40 @@ public final class Knockback {
         double dx = target.getPosition().x() - source.getPosition().x();
         double dz = target.getPosition().z() - source.getPosition().z();
         if (dx * dx + dz * dz >= 1.0e-4) return null;
-        return new Vec(POINT_BLANK_DIAGONAL.x() * HORIZONTAL_BASE, kb.y(), POINT_BLANK_DIAGONAL.z() * HORIZONTAL_BASE);
+        return new Vec(DEGENERATE_DIAGONAL.x() * HORIZONTAL_BASE, kb.y(), DEGENERATE_DIAGONAL.z() * HORIZONTAL_BASE);
+    }
+
+    /** Self-hit strength: base + Punch's 0.6/level. Priced inside the self components because the pipeline folds the
+     *  extra BEFORE components run - the horizontal replace would wipe it (and its direction is degenerate on self). */
+    private static double selfStrength(KnockbackContext ctx) {
+        return HORIZONTAL_BASE + 0.6 * ctx.snap().extraKnockback();
+    }
+
+    /**
+     * Projectile SELF-hit horizontal: {@code (B/2)(diagonal + look)} - the melee 50/50 position+look blend with the
+     * position half falling back to the fixed diagonal (attacker == victim). Capture-solved (snowball+rod selfhit
+     * sessions 2026-07-17, 30 hits): kbYaw = the bisector of yaw-135 and the live look, |h| = B*cos(delta/2) to +-0.002,
+     * vertical stays the melee cap.
+     */
+    @Nullable
+    private static Vec selfHitBlend(KnockbackContext ctx, Vec kb) {
+        var snap = ctx.snap();
+        Entity source = snap.source();
+        if (source == null || source != snap.target()) return null;
+        Vec look = Directions.fromYaw(source.getPosition().yaw());
+        double h = selfStrength(ctx) / 2;
+        return new Vec((DEGENERATE_DIAGONAL.x() + look.x()) * h, kb.y(), (DEGENERATE_DIAGONAL.z() + look.z()) * h);
+    }
+
+    /** Bow SELF-hit horizontal: the full strength 100% along the live look (user-verified on MineMen). */
+    @Nullable
+    private static Vec selfHitLook(KnockbackContext ctx, Vec kb) {
+        var snap = ctx.snap();
+        Entity source = snap.source();
+        if (source == null || source != snap.target()) return null;
+        Vec look = Directions.fromYaw(source.getPosition().yaw());
+        double h = selfStrength(ctx);
+        return new Vec(look.x() * h, kb.y(), look.z() * h);
     }
 
     /** Victim's CLIENT-side sprint buffer (what the client reports, even if the server disagrees) - the victim gate for axial. */

@@ -1,9 +1,10 @@
-package test.presets.mmc18;
+package io.github.term4.minestommechanics.presets.mmc18;
 
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileBehavior;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
+import io.github.term4.minestommechanics.mechanics.projectile.types.Arrow;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Egg;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.FishingBobber;
@@ -86,21 +87,24 @@ public final class Projectiles {
                 .syncInterval(0).velocitySyncInterval(0)
                 .behavior(ctx -> new PseudoHook())
                 .hookHalt(true) // the glued flash needs the same-tick halt + pin on the silent wire
-                .selfHit(ProjectileTypeConfig.HitResponse.PASS_THROUGH)
+                .selfHit(ProjectileTypeConfig.HitResponse.HIT) // MineMen: you CAN hook yourself (vanilla can't)
                 .knockback(Knockback.rod())
-                .knockbackSource(ProjectileTypeConfig.KnockbackSource.PROJECTILE)
+                // SHOOTER-relative like vanilla (1.8 EntityLiving.damageEntity reads the indirect source = the angler)
+                .knockbackSource(ProjectileTypeConfig.KnockbackSource.SHOOTER)
                 .rodPull(new ProjectileTypeConfig.RodPull(0.1, 0.08, false, false))
                 .build();
         // capture 2026-07-06: vanilla launch/flight, zero spread + the 0.05 wire vy floor (potions/hook exempt;
         // arrows unmeasured, left vanilla)
         ProjectileTypeConfig snowball = ProjectileTypeConfig.builder(Snowball.KEY)
-                .spread(0.0).wireMotYFloor(0.05).build();
+                .spread(0.0).wireMotYFloor(0.05).knockback(Knockback.projectile()).build();
         ProjectileTypeConfig egg = ProjectileTypeConfig.builder(Egg.KEY)
-                .spread(0.0).wireMotYFloor(0.05).build();
+                .spread(0.0).wireMotYFloor(0.05).knockback(Knockback.projectile()).build();
         ProjectileTypeConfig pearl = ProjectileTypeConfig.builder(base.typeConfig(Pearl.KEY))
-                .spread(0.0).wireMotYFloor(0.05).build();
+                .spread(0.0).wireMotYFloor(0.05).knockback(Knockback.projectile()).build();
+        ProjectileTypeConfig arrow = ProjectileTypeConfig.builder(base.typeConfig(Arrow.KEY))
+                .knockback(Knockback.arrow()).build();
         return ProjectileConfig.builder(base)
-                .typeConfigs(fireball, splash, bobber, snowball, egg, pearl)
+                .typeConfigs(fireball, splash, bobber, snowball, egg, pearl, arrow)
                 .shootables(new PseudoHook.Installer()) // the re-flash-on-move listener
                 .useItemAimSync(true) // MineMen launches on the CLICK-time aim (in-game: flick-throws never desync)
                 .build();

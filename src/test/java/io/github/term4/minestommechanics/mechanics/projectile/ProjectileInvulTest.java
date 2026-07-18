@@ -45,7 +45,7 @@ class ProjectileInvulTest extends HeadlessServerTest {
         LivingEntity shooter = zombie(new Pos(9.5, 64, 9.5, 0.0f, 0.0f));
         var victim = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance,
                 new Pos(9.5, 64, 13.5), "Mmc18Victim");
-        var config = test.presets.mmc18.Projectiles.config();
+        var config = io.github.term4.minestommechanics.presets.mmc18.Projectiles.config();
         var snap = ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config);
         ProjectileEntity ball = new ProjectileSystem(MinestomMechanics.getInstance(), config).launch(snap);
         assertNotNull(ball);

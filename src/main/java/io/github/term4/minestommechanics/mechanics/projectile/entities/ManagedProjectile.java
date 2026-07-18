@@ -197,7 +197,9 @@ public class ManagedProjectile extends ProjectileEntity {
 
     /** Hit-knockback snapshot for the {@link ProjectileTypeConfig.KnockbackSource}; {@link #punchLevel()} rides as the extra-KB level (vanilla's {@code i}, the melee Knockback-enchant channel), {@code 0} = inert. */
     private KnockbackSnapshot buildKnockback(@NotNull Entity target, ProjectileTypeConfig.KnockbackSource source, KnockbackConfig kb) {
-        if (shooter != null && source == ProjectileTypeConfig.KnockbackSource.SHOOTER) {
+        // a SELF hit always rides the shooter-source form, whatever the mode: the projectile-relative frame is
+        // degenerate (the projectile is on the victim), and a preset's self-hit rule needs source == target to detect
+        if (shooter != null && (target == shooter || source == ProjectileTypeConfig.KnockbackSource.SHOOTER)) {
             // shooter source (like melee): the calculator reads the shooter's position + look (yawWeight picks aim vs direction)
             return new KnockbackSnapshot(target, false, shooter, null, null, kb, punchLevel());
         }

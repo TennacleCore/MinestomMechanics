@@ -109,4 +109,16 @@ class CompatStateTest extends HeadlessServerTest {
         assertEquals(Material.SNOWBALL, slotItem(s, ItemStack.of(Material.SNOWBALL)).material(),
                 "a modern client without the fix keeps the real snowball (and its vanilla throw swing)");
     }
+
+    /** An Animatium client takes the 1.8 set natively (feature push) - none of the client-view compensations apply. */
+    @Test
+    void animatiumClientIsExcludedFromAllCompensations() {
+        CompatState s = new CompatState();
+        s.apply(Compat18.config());
+        s.setAnimatiumClient(true);
+        assertFalse(s.stampsAttackRange());
+        assertFalse(s.suppressesThrowSwing());
+        assertFalse(s.fistRayHits());
+        assertEquals(Material.SNOWBALL, slotItem(s, ItemStack.of(Material.SNOWBALL)).material());
+    }
 }

@@ -42,6 +42,8 @@ public final class CompatConfig {
     public final @Nullable Boolean removeAttackCooldown;
     /** No arm-swing when a modern client throws a projectile (1.8 doesn't swing on use): its inventory VIEW shows a non-usable reskin; the server item stays the real snowball/egg/pearl. */
     public final @Nullable Boolean suppressThrowSwing;
+    /** Server-side ray fill for a modern client's bare-fist swings: {@link #attackHitboxMargin} only rides items, so an empty hand still picks with margin 0 - a swing that missed by the margin lands on the last player they hit. */
+    public final @Nullable Boolean fistRayHits;
 
     /** 1.8 water/lava movement (drag/gravity, no swim sprint/buoyancy, no lava current). */
     public final @Nullable Boolean legacyFluids;
@@ -97,6 +99,7 @@ public final class CompatConfig {
         oldPlacement = b.oldPlacement;
         removeAttackCooldown = b.removeAttackCooldown;
         suppressThrowSwing = b.suppressThrowSwing;
+        fistRayHits = b.fistRayHits;
         nativeShortVelocity = b.nativeShortVelocity;
         animatiumFeatures = b.animatiumFeatures;
     }
@@ -134,6 +137,7 @@ public final class CompatConfig {
         private @Nullable Boolean oldPlacement;
         private @Nullable Boolean removeAttackCooldown;
         private @Nullable Boolean suppressThrowSwing;
+        private @Nullable Boolean fistRayHits;
         private @Nullable Boolean nativeShortVelocity;
         private @Nullable Set<AnimatiumFeature> animatiumFeatures;
 
@@ -166,6 +170,7 @@ public final class CompatConfig {
             oldPlacement = c.oldPlacement;
             removeAttackCooldown = c.removeAttackCooldown;
             suppressThrowSwing = c.suppressThrowSwing;
+            fistRayHits = c.fistRayHits;
             nativeShortVelocity = c.nativeShortVelocity;
             animatiumFeatures = c.animatiumFeatures;
         }
@@ -197,6 +202,7 @@ public final class CompatConfig {
         public Builder oldPlacement(@Nullable Boolean v) { oldPlacement = v; return this; }
         public Builder removeAttackCooldown(@Nullable Boolean v) { removeAttackCooldown = v; return this; }
         public Builder suppressThrowSwing(@Nullable Boolean v) { suppressThrowSwing = v; return this; }
+        public Builder fistRayHits(@Nullable Boolean v) { fistRayHits = v; return this; }
         public Builder nativeShortVelocity(@Nullable Boolean v) { nativeShortVelocity = v; return this; }
         public Builder animatiumFeatures(@Nullable Set<AnimatiumFeature> v) { animatiumFeatures = v != null ? Set.copyOf(v) : null; return this; }
         public Builder animatiumFeatures(AnimatiumFeature... features) { animatiumFeatures = Set.of(features); return this; }

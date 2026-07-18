@@ -35,9 +35,14 @@ public interface Effect {
         return ctx -> ctx.entityAnimation(animation);
     }
 
-    /** A hit animation on the context target (the vanilla crit / magic-crit sparkle), to the source's viewers + itself. */
+    /** A hit animation on the context target (the vanilla crit / magic-crit sparkle), to the source's viewers - not the source (it predicts its own). */
     static @NotNull Effect hitAnimation(EntityAnimationPacket.@NotNull Animation animation) {
         return ctx -> ctx.hitAnimation(animation);
+    }
+
+    /** {@link #hitAnimation} including the source - for a server-filled hit its client predicted nothing. */
+    static @NotNull Effect hitAnimationAll(EntityAnimationPacket.@NotNull Animation animation) {
+        return ctx -> ctx.hitAnimationAll(animation);
     }
 
     /** This effect, then {@code next} (compose several plays into one). */

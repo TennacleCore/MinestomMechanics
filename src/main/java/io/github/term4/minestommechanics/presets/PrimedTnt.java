@@ -1,4 +1,4 @@
-package test.presets.customItems;
+package io.github.term4.minestommechanics.presets;
 
 import io.github.term4.minestommechanics.api.event.explosion.ExplosionEvent;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionCalculator;

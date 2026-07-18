@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * An immutable registry of {@link Effect}s by {@link Key} - the {@code MechanicsKeys.EFFECTS} profile value, resolved
  * per scope like {@link io.github.term4.minestommechanics.item.ItemRegistry}. A preset provides one
- * ({@link Effects#vanilla()}); {@link #register} returns a NEW registry (copy-on-write) so overrides compose without
+ * ({@link Effects#vanilla18()}); {@link #register} returns a NEW registry (copy-on-write) so overrides compose without
  * mutation, and {@link Effect#NONE} silences one effect. Mechanics play through {@link Effects#play} - customize the
  * registry, not event listeners.
  */

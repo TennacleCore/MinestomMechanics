@@ -35,6 +35,7 @@ public final class Compat18 {
                 .nativeShortVelocity(true) // Animatium clients only: byte-exact 1.8 velocity wire (gated on the advertised decoder)
                 .removeAttackCooldown(true) // server-side (any client): no modern attack cooldown / crosshair indicator (1.8 full hits)
                 .suppressThrowSwing(true)  // modern clients only: no arm-swing on projectile throw (1.8 doesn't swing on use)
+                .fistRayHits(true)         // modern clients only: bare-fist swings ray-fill the attack-box margin (attack_range can't ride an empty hand)
                 .build();
     }
 
@@ -64,6 +65,7 @@ public final class Compat18 {
                 .nativeShortVelocity(false)
                 .removeAttackCooldown(false)
                 .suppressThrowSwing(false)
+                .fistRayHits(false)
                 .build();
     }
 }

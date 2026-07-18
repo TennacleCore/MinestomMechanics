@@ -11,9 +11,9 @@ import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import org.junit.jupiter.api.Test;
-import test.presets.mmc18.Explosion;
-import test.presets.customItems.PrimedTnt;
-import test.presets.mmc18.Tnt;
+import io.github.term4.minestommechanics.presets.mmc18.Explosion;
+import io.github.term4.minestommechanics.presets.PrimedTnt;
+import io.github.term4.minestommechanics.presets.mmc18.Tnt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

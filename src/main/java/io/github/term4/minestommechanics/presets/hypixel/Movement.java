@@ -1,4 +1,4 @@
-package test.presets.hypixel;
+package io.github.term4.minestommechanics.presets.hypixel;
 
 import io.github.term4.minestommechanics.tracking.motion.ClimbModel;
 import io.github.term4.minestommechanics.tracking.motion.FluidFlow;

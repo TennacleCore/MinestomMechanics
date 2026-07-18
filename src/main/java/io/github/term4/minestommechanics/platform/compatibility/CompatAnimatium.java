@@ -41,6 +41,8 @@ public final class CompatAnimatium {
         op.compat().setAnimatiumClient(true);
         op.compat().setSupportedFeatures(parseSupportedFeatures(info));
         applyFeatures(mm, player);
+        // items sent in the join window (before the handshake) carried the stamp/reskin this client no longer gets
+        player.getInventory().update(player);
     }
 
     /**

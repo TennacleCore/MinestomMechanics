@@ -130,14 +130,24 @@ public final class CompatState {
         return legacyHitbox() && pose == EntityPose.SNEAKING ? ClientEye.LEGACY_SNEAKING : nativeEye;
     }
 
-    /** Whether this client receives the {@code attack_range} stamp - so it's also the only client that can echo it back through creative ({@link #sanitizeInboundItem}). */
+    /** Whether this client receives the {@code attack_range} stamp (echo counterpart: {@link #sanitizeInboundItem}). Animatium clients take the 1.8 set natively - the stamp would double it. */
     public boolean stampsAttackRange() {
-        return policy.attackHitboxMargin != null && !legacyClient && !handlesNatively(AnimatiumFeature.PICK_INFLATION);
+        return policy.attackHitboxMargin != null && !legacyClient && !animatiumClient;
     }
 
-    /** Whether this client gets the throwable reskin - so it's also the only client that can echo it back through creative ({@link #sanitizeInboundItem}). */
+    /** Whether this client gets the throwable reskin (echo counterpart: {@link #sanitizeInboundItem}). Excluded for Animatium: its native 1.8 animations key off the real item. */
     public boolean suppressesThrowSwing() {
-        return on(policy.suppressThrowSwing) && !legacyClient;
+        return on(policy.suppressThrowSwing) && !legacyClient && !animatiumClient;
+    }
+
+    /** Whether this client's bare-fist swings get the {@code FakeHits} ray fill - the empty-hand half of the attack-box, so it follows the stamp's gating. */
+    public boolean fistRayHits() {
+        return on(policy.fistRayHits) && stampsAttackRange();
+    }
+
+    /** The melee reach the attack-box advertises (stamped on items, used by the bare-fist ray); {@code null} policy = 3 (1.8). */
+    public float attackReach() {
+        return policy.attackReach != null ? policy.attackReach : 3f;
     }
 
     /**
@@ -179,8 +189,7 @@ public final class CompatState {
         // respect an item's own attack_range (minigame weapon, spear); vanilla non-spear items ship none, so 1.8-parity
         // items still get the compat box. Also keeps a creative-echoed stamp from being re-stamped onto itself.
         if (item.isAir() || item.get(DataComponents.ATTACK_RANGE) != null) return item;
-        float reach = policy.attackReach != null ? policy.attackReach : 3f;
-        return item.with(DataComponents.ATTACK_RANGE, new AttackRange(0f, reach, 0f, 5f, policy.attackHitboxMargin, 1f));
+        return item.with(DataComponents.ATTACK_RANGE, new AttackRange(0f, attackReach(), 0f, 5f, policy.attackHitboxMargin, 1f));
     }
 
     private ItemStack reskinThrowable(ItemStack item) {

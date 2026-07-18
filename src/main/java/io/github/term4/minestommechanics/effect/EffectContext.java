@@ -101,4 +101,14 @@ public final class EffectContext {
             source.sendPacketToViewers(new EntityAnimationPacket(target.getEntityId(), animation));
         }
     }
+
+    /**
+     * {@link #hitAnimation} including the source itself: a server-filled (fake) hit never registered on the attacker's
+     * client, so it predicts nothing and must be sent the sparkle too. No-op without both a source and a target.
+     */
+    public void hitAnimationAll(EntityAnimationPacket.@NotNull Animation animation) {
+        if (source != null && target != null) {
+            source.sendPacketToViewersAndSelf(new EntityAnimationPacket(target.getEntityId(), animation));
+        }
+    }
 }

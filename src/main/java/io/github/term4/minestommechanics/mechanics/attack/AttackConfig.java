@@ -23,6 +23,8 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
     public final FieldValue<AttackContext, Boolean> enabled;
     public final FieldValue<AttackContext, AttackEvent.AttackRule.Ruleset> ruleset;
     public final AttackEvent.CriticalRule criticalRule;
+    /** Arms the {@link FakeHits} swing fill for attackers in this scope; {@code null} = off (the compat layer may still fill bare fists). */
+    public final @Nullable FakeHitConfig fakeHits;
     /**
      * Attacker self-slowdown applied to the attacker's own tracked horizontal velocity on a landed sprint/enchant hit
      * (vanilla {@code motX/motZ *= 0.6}). Affects only their next knockback's friction fold, never the damage/KB dealt.
@@ -35,6 +37,7 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
         enabled = b.enabled;
         ruleset = b.ruleset;
         criticalRule = b.criticalRule;
+        fakeHits = b.fakeHits;
         fullHitScale = b.fullHitScale;
     }
 
@@ -45,6 +48,7 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
         return b
                 .subConfig(subConfig != null ? subConfig : base.subConfig)
                 .criticalRule(criticalRule != null ? criticalRule : base.criticalRule)
+                .fakeHits(fakeHits != null ? fakeHits : base.fakeHits)
                 .build();
     }
 
@@ -60,6 +64,7 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
         @Override protected Builder self() { return this; }
         private Function<AttackContext, AttackConfig> subConfig;
         private AttackEvent.CriticalRule criticalRule;
+        private FakeHitConfig fakeHits;
 
         Builder() {
             enabled = FieldValue.constant(true);
@@ -72,11 +77,14 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
             super(c);
             subConfig = c.subConfig;
             criticalRule = c.criticalRule;
+            fakeHits = c.fakeHits;
         }
 
         public Builder subConfig(Function<AttackContext, AttackConfig> fn) { subConfig = fn; return this; }
 
         public Builder criticalRule(AttackEvent.CriticalRule v) { criticalRule = v; return this; }
+
+        public Builder fakeHits(@Nullable FakeHitConfig v) { fakeHits = v; return this; }
 
         public AttackConfig build() { return new AttackConfig(this); }
     }

@@ -1,4 +1,4 @@
-package test.presets.hypixel;
+package io.github.term4.minestommechanics.presets.hypixel;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;

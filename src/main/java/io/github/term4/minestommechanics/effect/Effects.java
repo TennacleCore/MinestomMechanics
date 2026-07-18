@@ -32,6 +32,10 @@ public final class Effects {
     public static final Key CRIT = Key.key("mm:crit");
     /** Enchantment ("magic") critical: the magic-crit sparkle. */
     public static final Key MAGIC_CRIT = Key.key("mm:magic_crit");
+    /** {@link #CRIT} on a server-filled swing hit: the attacker's client never saw the hit (predicts nothing), so the default includes it. */
+    public static final Key FAKE_CRIT = Key.key("mm:fake_crit");
+    /** {@link #MAGIC_CRIT} on a server-filled swing hit. */
+    public static final Key FAKE_MAGIC_CRIT = Key.key("mm:fake_magic_crit");
     /** Food chewed this tick - on the vanilla eating cadence (every 4 ticks). */
     public static final Key EAT = Key.key("mm:eat");
     /** Drink sipped this tick. */
@@ -91,6 +95,8 @@ public final class Effects {
         return EffectRegistry.empty()
                 .register(CRIT, Effect.hitAnimation(EntityAnimationPacket.Animation.CRITICAL_EFFECT))
                 .register(MAGIC_CRIT, Effect.hitAnimation(EntityAnimationPacket.Animation.MAGICAL_CRITICAL_EFFECT))
+                .register(FAKE_CRIT, Effect.hitAnimationAll(EntityAnimationPacket.Animation.CRITICAL_EFFECT))
+                .register(FAKE_MAGIC_CRIT, Effect.hitAnimationAll(EntityAnimationPacket.Animation.MAGICAL_CRITICAL_EFFECT))
                 // viewers only: the client self-predicts its own chew from the eating metadata, so echoing it back would double
                 .register(EAT, ctx -> ctx.viewerSound(SoundEvent.ENTITY_GENERIC_EAT, Sound.Source.PLAYER, eatVolume(), eatPitch()))
                 .register(DRINK, ctx -> ctx.viewerSound(SoundEvent.ENTITY_GENERIC_DRINK, Sound.Source.PLAYER, 0.5f, drinkPitch()))

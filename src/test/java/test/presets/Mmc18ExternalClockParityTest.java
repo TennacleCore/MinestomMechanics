@@ -14,7 +14,7 @@ import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import org.junit.jupiter.api.Test;
-import test.presets.mmc18.Attack;
+import io.github.term4.minestommechanics.presets.mmc18.Attack;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;

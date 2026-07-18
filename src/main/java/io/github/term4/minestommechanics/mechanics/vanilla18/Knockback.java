@@ -42,10 +42,12 @@ public final class Knockback {
 
     /**
      * Projectile knockback: in 1.8 a thrown projectile uses the thrower's {@link #melee() melee knockback}, as a non-melee
-     * hit (no sprint bonus). A separate method so a preset can tune it independently of melee.
+     * hit (no sprint bonus). Punch is 0.6/level (EntityArrow), not melee Knockback's 0.5.
      */
     public static KnockbackConfig projectile() {
-        return melee();
+        return KnockbackConfig.builder(melee())
+                .extraHorizontal(0.6)
+                .build();
     }
 
     /**
