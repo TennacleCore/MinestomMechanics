@@ -2,7 +2,7 @@ package io.github.term4.minestommechanics.mechanics;
 
 import io.github.term4.minestommechanics.mechanics.attribute.AttributeConfig;
 import io.github.term4.minestommechanics.mechanics.attribute.source.Source;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Attributes;
+import io.github.term4.minestommechanics.presets.vanilla18.Attributes;
 import net.kyori.adventure.key.Key;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +37,7 @@ class PresetAttributesTest {
 
     @Test
     void modernCatalogHasTheFullRequestedSet() {
-        Set<Key> keys = keys(io.github.term4.minestommechanics.mechanics.vanilla.Attributes.config());
+        Set<Key> keys = keys(io.github.term4.minestommechanics.presets.vanilla.Attributes.config());
         for (String id : new String[]{"strength", "weakness", "sharpness", "speed", "invisibility",
                 "regeneration", "instant_health", "absorption", "haste", "mining_fatigue", "jump_boost"}) {
             assertTrue(keys.contains(k(id)), "modern catalog missing " + id);

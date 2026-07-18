@@ -3,6 +3,7 @@ package io.github.term4.minestommechanics.platform.compatibility;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
+import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.entity.Player;
 import net.minestom.server.network.NetworkBuffer;
@@ -15,7 +16,7 @@ import java.util.Set;
 /**
  * Animatium integration: an Animatium client applies 1.8 behaviour natively, so instead of server-side hacks we tell it
  * which features to apply and skip those hacks. Detection is the {@code animatium:info} plugin message on join (routed by
- * {@link io.github.term4.minestommechanics.tracking.ClientInfoTracker}); on receipt we resolve the feature set for the
+ * {@link ClientInfoTracker}); on receipt we resolve the feature set for the
  * player's {@link CompatConfig}, send {@code animatium:set_server_features}, and record it on {@link CompatState} so the enforcers gate off for it.
  *
  * <p>The set is <em>derived</em> from the compat knobs ({@link #derive}) or overridden by {@code CompatConfig.animatiumFeatures}.
@@ -30,7 +31,7 @@ public final class CompatAnimatium {
 
     private CompatAnimatium() {}
 
-    /** Routes the {@code animatium:info} handshake through {@link io.github.term4.minestommechanics.tracking.ClientInfoTracker}. Needs the player provider (the feature set is recorded on {@code OptimizedPlayer.compat()}). */
+    /** Routes the {@code animatium:info} handshake through {@link ClientInfoTracker}. Needs the player provider (the feature set is recorded on {@code OptimizedPlayer.compat()}). */
     public static void install(MinestomMechanics mm) {
         mm.clientInfo().onPluginMessage(INFO_CHANNEL, (player, data) -> onInfo(mm, player, data));
     }

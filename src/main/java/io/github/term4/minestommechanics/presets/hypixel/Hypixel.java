@@ -3,7 +3,7 @@ package io.github.term4.minestommechanics.presets.hypixel;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.effect.Effects;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 
 /**
  * <b>Hypixel</b> preset - the vanilla 1.8 baseline ({@link Vanilla18}) with Hypixel's velocity/damage/knockback/explosion

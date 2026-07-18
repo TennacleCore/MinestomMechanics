@@ -4,6 +4,8 @@ import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
 import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
+import io.github.term4.minestommechanics.presets.vanilla18.Hunger;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.BlockVec;
@@ -43,8 +45,8 @@ class ExhaustionSourcesTest extends HeadlessServerTest {
 
     private static Instance legacyInstance() {
         return flatInstance(MechanicsProfile.builder()
-                .set(MechanicsKeys.HUNGER, io.github.term4.minestommechanics.mechanics.vanilla18.Hunger.config())
-                .set(MechanicsKeys.ATTACK, io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18.attack())
+                .set(MechanicsKeys.HUNGER, Hunger.config())
+                .set(MechanicsKeys.ATTACK, Vanilla18.attack())
                 .build());
     }
 
@@ -69,7 +71,7 @@ class ExhaustionSourcesTest extends HeadlessServerTest {
         assertEquals(0.05f, HungerSystem.exhaustion(legacy), 1e-6, "1.8 walking: 0.01/m");
 
         var modern = flatInstance(MechanicsProfile.builder()
-                .set(MechanicsKeys.HUNGER, io.github.term4.minestommechanics.mechanics.vanilla.Hunger.config()).build());
+                .set(MechanicsKeys.HUNGER, io.github.term4.minestommechanics.presets.vanilla.Hunger.config()).build());
         Player p = player(modern, "WalkerModern");
         move(p, 5, 0, 0, true);
         assertEquals(0f, HungerSystem.exhaustion(p), 1e-6, "modern walking is free (unpriced key)");

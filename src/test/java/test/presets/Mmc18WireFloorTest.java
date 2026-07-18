@@ -6,6 +6,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Snowball;
+import io.github.term4.minestommechanics.presets.mmc18.Projectiles;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.Pos;
@@ -41,7 +42,7 @@ class Mmc18WireFloorTest extends HeadlessServerTest {
     void flatThrowWireFloorsUpSimStaysTrue() {
         var viewer = FakePlayer.connect(instance, new Pos(4.5, 200, 4.5), "WireFloor");
         viewer.sent.clear();
-        ProjectileEntity e = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), 0.0f);
+        ProjectileEntity e = launch(Projectiles.config(), 0.0f);
         assertEquals(0.0, e.velocityBt().y(), 1e-12, "sim launch unclamped");
 
         SpawnEntityPacket spawn = (SpawnEntityPacket) viewer.packetsFor(e.getEntityId()).getFirst();
@@ -60,7 +61,7 @@ class Mmc18WireFloorTest extends HeadlessServerTest {
 
     @Test
     void steeperAimIsUnclamped() {
-        ProjectileEntity e = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), 10.0f);
+        ProjectileEntity e = launch(Projectiles.config(), 10.0f);
         assertEquals(-Math.sin(Math.toRadians(10.0f)) * 1.5, e.velocityBt().y(), 1e-9);
         e.remove();
     }

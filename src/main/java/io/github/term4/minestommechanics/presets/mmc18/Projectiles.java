@@ -12,7 +12,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.types.Pearl;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Snowball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.SplashPotion;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;

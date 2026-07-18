@@ -30,6 +30,16 @@ public final class ConfigBuilderProcessor extends AbstractProcessor {
 
     private record Knob(String type, String name) {}
 
+    /** AST scan for a {@code super(...)} / {@code copyKnobs} / {@code mergeKnobs} call - parsed identifiers, so comments can't satisfy it. */
+    private static final class CopyCallScanner extends com.sun.source.util.TreeScanner<Boolean, Void> {
+        @Override public Boolean visitMethodInvocation(com.sun.source.tree.MethodInvocationTree node, Void p) {
+            String select = node.getMethodSelect().toString();
+            if (select.equals("super") || select.endsWith("copyKnobs") || select.endsWith("mergeKnobs")) return true;
+            return super.visitMethodInvocation(node, p);
+        }
+        @Override public Boolean reduce(Boolean a, Boolean b) { return Boolean.TRUE.equals(a) || Boolean.TRUE.equals(b); }
+    }
+
     private Trees trees; // javac-only AST access for the copy-ctor check; null under other compilers
 
     @Override
@@ -68,8 +78,8 @@ public final class ConfigBuilderProcessor extends AbstractProcessor {
                         .anyMatch(p -> processingEnv.getTypeUtils().isSameType(p.asType(), config.asType()));
                 if (!takesConfig) continue;
                 var tree = trees.getTree(ex);
-                String body = tree != null && tree.getBody() != null ? tree.getBody().toString() : "";
-                if (!body.contains("super(") && !body.contains("copyKnobs(") && !body.contains("mergeKnobs(")) {
+                if (tree != null && tree.getBody() != null
+                        && !Boolean.TRUE.equals(new CopyCallScanner().scan(tree.getBody(), null))) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
                             "Builder copy-constructor must call super(c) - the generated knobs reset to defaults otherwise", ctor);
                 }

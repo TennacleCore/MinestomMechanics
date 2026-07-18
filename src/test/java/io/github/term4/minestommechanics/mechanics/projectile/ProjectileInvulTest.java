@@ -6,7 +6,9 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Snowball;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
+import io.github.term4.minestommechanics.presets.mmc18.Projectiles;
+import io.github.term4.minestommechanics.testsupport.FakePlayer;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.LivingEntity;
@@ -22,7 +24,7 @@ class ProjectileInvulTest extends HeadlessServerTest {
     @Test
     void thrownHitOpensTheInvulWindowOnPlayers() {
         LivingEntity shooter = zombie(new Pos(12.5, 64, 9.5, 0.0f, 0.0f));
-        var victim = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance,
+        var victim = FakePlayer.connect(instance,
                 new Pos(12.5, 64, 13.5), "InvulVictim");
         var config = Vanilla18.projectiles();
         var snap = ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config);
@@ -43,9 +45,9 @@ class ProjectileInvulTest extends HeadlessServerTest {
     @Test
     void mmc18ThrownHitOpensTheInvulWindow() {
         LivingEntity shooter = zombie(new Pos(9.5, 64, 9.5, 0.0f, 0.0f));
-        var victim = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance,
+        var victim = FakePlayer.connect(instance,
                 new Pos(9.5, 64, 13.5), "Mmc18Victim");
-        var config = io.github.term4.minestommechanics.presets.mmc18.Projectiles.config();
+        var config = Projectiles.config();
         var snap = ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config);
         ProjectileEntity ball = new ProjectileSystem(MinestomMechanics.getInstance(), config).launch(snap);
         assertNotNull(ball);

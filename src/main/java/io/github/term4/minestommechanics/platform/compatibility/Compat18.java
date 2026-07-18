@@ -30,12 +30,14 @@ public final class Compat18 {
                 .leftClickItemUsage(true)  // Animatium clients only: can use an item while mining (1.8; modern blocks use-item mid-destroy)
                 .disableAutoSneak(true)    // Animatium clients only: no auto-crouch-to-fit under a low ceiling (1.8 sneak is shift-only)
                 .oldPhysics(true)          // Animatium clients only: 1.8 movement/block physics (momentum threshold, no bed bounce, no honey/bubble)
-                .disableEntityPush(true)   // Animatium clients only: not shoved by entity collision (preference; pair w/ server-side push disable)
+                .disableEntityPush(true)   // all clients: the shared no-push collision team (+ Animatium natively); disable if the app runs its own teams
                 .oldPlacement(true)        // Animatium clients only: 1.8 placement (no same-tick break+place refill / floating block)
                 .nativeShortVelocity(true) // Animatium clients only: byte-exact 1.8 velocity wire (gated on the advertised decoder)
                 .removeAttackCooldown(true) // server-side (any client): no modern attack cooldown / crosshair indicator (1.8 full hits)
                 .suppressThrowSwing(true)  // modern clients only: no arm-swing on projectile throw (1.8 doesn't swing on use)
                 .fistRayHits(true)         // modern clients only: bare-fist swings ray-fill the attack-box margin (attack_range can't ride an empty hand)
+                .swordBlockingPose(true)   // modern clients only: swords show the native block pose (blocks_attacks view stamp)
+                .removeUseCooldowns(true)  // modern clients only: no self-applied item cooldowns (1.8 has none - pearls spam-throw)
                 .build();
     }
 
@@ -66,6 +68,8 @@ public final class Compat18 {
                 .removeAttackCooldown(false)
                 .suppressThrowSwing(false)
                 .fistRayHits(false)
+                .swordBlockingPose(false)
+                .removeUseCooldowns(false)
                 .build();
     }
 }

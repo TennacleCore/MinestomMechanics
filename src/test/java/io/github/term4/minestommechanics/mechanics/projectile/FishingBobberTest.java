@@ -5,7 +5,10 @@ import io.github.term4.minestommechanics.mechanics.projectile.entities.FishingBo
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.shootables.FishingRod;
 import io.github.term4.minestommechanics.mechanics.projectile.types.FishingBobber;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
+import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
+import io.github.term4.minestommechanics.presets.mmc18.Projectiles;
+import io.github.term4.minestommechanics.presets.mmc18.PseudoHook;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;
@@ -109,7 +112,7 @@ class FishingBobberTest extends HeadlessServerTest {
     void modernFlightMatchesThe26Integration() {
         LivingEntity shooter = angler(new Pos(104.5, 150, 8.5, 37.0f, 12.5f));
         ProjectileEntity bobber = launch(
-                io.github.term4.minestommechanics.mechanics.vanilla.Projectiles.config(), shooter);
+                io.github.term4.minestommechanics.presets.vanilla.Projectiles.config(), shooter);
         Pos spawn = bobber.getSpawnPosition();
         assertNotNull(spawn);
         Vec v = bobber.velocityBt();
@@ -209,7 +212,7 @@ class FishingBobberTest extends HeadlessServerTest {
             legacy.remove();
 
             FishingBobberEntity modern = (FishingBobberEntity) launch(
-                    io.github.term4.minestommechanics.mechanics.vanilla.Projectiles.config(), shooter);
+                    io.github.term4.minestommechanics.presets.vanilla.Projectiles.config(), shooter);
             for (int tick = 1; tick <= 120 && !modern.isRemoved(); tick++) modern.tick(tick * 50L);
             assertFalse(modern.isStuck(), "26.1 has no stuck state");
             assertTrue(modern.getPosition().z() < 12, "26.1: never crosses the wall plane: " + modern.getPosition());
@@ -230,8 +233,8 @@ class FishingBobberTest extends HeadlessServerTest {
             for (int x = 58; x <= 62; x++)
                 instance.setBlock(x, y, 12, Block.STONE);
         LivingEntity shooter = angler(new Pos(60.5, 70, 6.5, 0.0f, 0.0f));
-        var config = io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig.builder(Vanilla18.projectiles())
-                .typeConfigs(io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig
+        var config = ProjectileConfig.builder(Vanilla18.projectiles())
+                .typeConfigs(ProjectileTypeConfig
                         .builder(Vanilla18.projectiles().typeConfig(FishingBobber.KEY))
                         .hookStick(true).build())
                 .build();
@@ -271,7 +274,7 @@ class FishingBobberTest extends HeadlessServerTest {
 
         LivingEntity shooter2 = angler(new Pos(104.5, 64, 8.5, 0.0f, 0.0f));
         LivingEntity victim2 = zombie(new Pos(104.5, 64, 12.5));
-        FishingBobberEntity halted = (FishingBobberEntity) launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), shooter2);
+        FishingBobberEntity halted = (FishingBobberEntity) launch(Projectiles.config(), shooter2);
         try {
             for (int tick = 1; tick <= 10 && halted.getHookedEntity() == null; tick++) halted.tick(tick * 50L);
             assertEquals(victim2, halted.getHookedEntity());
@@ -287,7 +290,7 @@ class FishingBobberTest extends HeadlessServerTest {
      *  hook pin broadcasts an explicit teleport on the same silent wire (event-driven, only when the pin moves). */
     @Test
     void mmc18BobberSyncsTheHookButNotTheFlight() {
-        var config = io.github.term4.minestommechanics.presets.mmc18.Projectiles.config();
+        var config = Projectiles.config();
         // flight: client-predicted, no position sync on the wire (loaded flight area = chunks x 0-7, z 0-2)
         LivingEntity flightShooter = angler(new Pos(110.5, 90, 40.5, 0.0f, -30.0f));
         FakePlayer flightViewer = FakePlayer.connect(instance, new Pos(110.5, 90, 38.5), "MmFlightView");
@@ -391,7 +394,7 @@ class FishingBobberTest extends HeadlessServerTest {
         LivingEntity shooter = angler(new Pos(48.5, 64, 40.5, 0.0f, 0.0f));
         LivingEntity victim = zombie(new Pos(48.5, 64, 44.5));
         FishingBobberEntity bobber = (FishingBobberEntity) launch(
-                io.github.term4.minestommechanics.mechanics.vanilla.Projectiles.config(), shooter);
+                io.github.term4.minestommechanics.presets.vanilla.Projectiles.config(), shooter);
         for (int tick = 1; tick <= 10 && bobber.getHookedEntity() == null; tick++) bobber.tick(tick * 50L);
         assertEquals(victim, bobber.getHookedEntity());
         assertEquals(victim, ((FishingHookMeta) bobber.getEntityMeta()).getHookedEntity());
@@ -510,7 +513,7 @@ class FishingBobberTest extends HeadlessServerTest {
         var viewer = FakePlayer.connect(instance, new Pos(120.5, 150, 8.5), "SilentWire");
         LivingEntity shooter = angler(new Pos(120.5, 150, 10.5, 37.0f, 12.5f));
         viewer.sent.clear();
-        ProjectileEntity bobber = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), shooter);
+        ProjectileEntity bobber = launch(Projectiles.config(), shooter);
         Pos spawn = bobber.getSpawnPosition();
         assertNotNull(spawn);
         assertEquals((int) (spawn.x() * 32) / 32.0, spawn.x());
@@ -539,7 +542,7 @@ class FishingBobberTest extends HeadlessServerTest {
 
     @Test
     void pseudoHookFlashesReflashesAndFallsAway() {
-        var config = io.github.term4.minestommechanics.presets.mmc18.Projectiles.config();
+        var config = Projectiles.config();
         var system = new ProjectileSystem(MinestomMechanics.getInstance(), config);
         config.shootables().forEach(s -> s.install(system.node(), system)); // incl. the PseudoHook re-flash listener
         MinecraftServer.getGlobalEventHandler().addChild(system.node());
@@ -551,7 +554,7 @@ class FishingBobberTest extends HeadlessServerTest {
             int tick = 1;
             for (; tick <= 10 && bobber.getHookedEntity() == null; tick++) bobber.tick(tick * 50L);
             assertEquals(victim, bobber.getHookedEntity(), "the pseudo-hook flashes on the victim");
-            var tagged = victim.getTag(io.github.term4.minestommechanics.presets.mmc18.PseudoHook.HOOKED_BY);
+            var tagged = victim.getTag(PseudoHook.HOOKED_BY);
             assertNotNull(tagged);
             assertFalse(tagged.isEmpty());
 
@@ -585,7 +588,7 @@ class FishingBobberTest extends HeadlessServerTest {
             assertEquals(-0.02, fall.y(), 1e-9);
 
             assertEquals(0, bobber.retrieve(), "nothing hooked at retract");
-            assertNull(victim.getTag(io.github.term4.minestommechanics.presets.mmc18.PseudoHook.HOOKED_BY), "retract clears the pseudo tag");
+            assertNull(victim.getTag(PseudoHook.HOOKED_BY), "retract clears the pseudo tag");
             victim.remove();
             shooter.remove();
         } finally {

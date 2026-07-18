@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.presets.hypixel;
 
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 
 /** Hypixel damage: the vanilla 1.8 base with silent overdamage and a 9-tick invul window. */
 public final class Damage {

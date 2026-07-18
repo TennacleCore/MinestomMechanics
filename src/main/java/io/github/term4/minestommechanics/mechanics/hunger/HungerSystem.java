@@ -123,7 +123,7 @@ public final class HungerSystem implements MechanicsModule {
         ExhaustionCost rule = cfg.exhaustionCost(source);
         float global = cfg.exhaustionScale() != null ? cfg.exhaustionScale() : 1f;
         float cost = (rule != null ? rule.cost(quantity) : quantity) * global;
-        if (cost <= 0) return;
+        if (!(cost > 0)) return; // negated form: a NaN cost (bad rule/scale) must not poison the accumulator
         player.setTag(EXHAUSTION, exhaustion(player) + cost);
     }
 
@@ -198,7 +198,8 @@ public final class HungerSystem implements MechanicsModule {
     }
 
     private int scaled(Player p, int ticks) {
-        return TickScaler.duration(ticks, mm.profiles().resolve(p, MechanicsKeys.TICK_SCALING), KEY);
+        // floor 1: a non-positive interval (misconfig / extreme scaling) would otherwise fire every tick
+        return Math.max(1, TickScaler.duration(ticks, mm.profiles().resolve(p, MechanicsKeys.TICK_SCALING), KEY));
     }
 
     /** Difficulty floors are EASY 10 / NORMAL 1 / HARD none; no server difficulty, so NORMAL's applies. */

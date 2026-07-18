@@ -56,8 +56,14 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
     static @NotNull MechanicsWorld of(@NotNull Instance instance) {
         MechanicsWorld world = instance.getTag(TAG);
         if (world == null) {
-            world = new InstanceWorld(instance);
-            instance.setTag(TAG, world); // benign race: duplicates delegate to the same instance
+            // locked: TickContext.owns() compares wrappers by IDENTITY, so a racy duplicate is not benign
+            synchronized (Resolver.class) {
+                world = instance.getTag(TAG);
+                if (world == null) {
+                    world = new InstanceWorld(instance);
+                    instance.setTag(TAG, world);
+                }
+            }
         }
         return world;
     }
@@ -144,9 +150,11 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
         Resolver DEFAULT = entity -> entity.getTag(ENTITY_TAG);
     }
 
-    /** Installs the binding resolver server-wide (see {@link Resolver}). */
-    static void resolver(@NotNull Resolver resolver) {
+    /** Installs the binding resolver server-wide (see {@link Resolver}); returns the previous one so a wrapper can delegate to it. */
+    static @NotNull Resolver resolver(@NotNull Resolver resolver) {
+        Resolver previous = Holder.RESOLVER;
         Holder.RESOLVER = resolver;
+        return previous;
     }
 
     final class Holder {

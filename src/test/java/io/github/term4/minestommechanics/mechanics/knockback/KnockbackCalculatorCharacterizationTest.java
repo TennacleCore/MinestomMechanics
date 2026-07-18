@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.knockback;
 
-import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
+import io.github.term4.minestommechanics.presets.vanilla18.Knockback;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;

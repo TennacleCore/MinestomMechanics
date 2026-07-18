@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.mechanics.hunger;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
+import io.github.term4.minestommechanics.presets.vanilla18.Hunger;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.kyori.adventure.key.Key;
@@ -33,7 +34,7 @@ class HungerRegenTest extends HeadlessServerTest {
 
     @Test
     void legacyHealsOnePerEightyTicks() {
-        Instance inst = instance(io.github.term4.minestommechanics.mechanics.vanilla18.Hunger.config());
+        Instance inst = instance(Hunger.config());
         Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "LegacyRegen").player;
         p.setHealth(10f);
 
@@ -46,7 +47,7 @@ class HungerRegenTest extends HeadlessServerTest {
 
     @Test
     void modernSaturationFastRegenHealsEveryTenTicks() {
-        Instance inst = instance(io.github.term4.minestommechanics.mechanics.vanilla.Hunger.config());
+        Instance inst = instance(io.github.term4.minestommechanics.presets.vanilla.Hunger.config());
         Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "ModernRegen").player;
         p.setHealth(10f);
         // defaults: food 20, saturation 5 -> fast path heals min(5,6)/6 on the 10th tick at 5.0 exhaustion
@@ -59,7 +60,7 @@ class HungerRegenTest extends HeadlessServerTest {
 
     @Test
     void belowThresholdNeverRegens() {
-        Instance inst = instance(io.github.term4.minestommechanics.mechanics.vanilla18.Hunger.config());
+        Instance inst = instance(Hunger.config());
         Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "NoFood").player;
         p.setHealth(10f);
         p.setFood(17);
@@ -70,7 +71,7 @@ class HungerRegenTest extends HeadlessServerTest {
     @Test
     void naturalRegenToggleOff() {
         Instance inst = instance(HungerConfig.builder(
-                io.github.term4.minestommechanics.mechanics.vanilla18.Hunger.config()).naturalRegen(false).build());
+                Hunger.config()).naturalRegen(false).build());
         Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "NoRegen").player;
         p.setHealth(10f);
         tick(inst, 200);
@@ -79,7 +80,7 @@ class HungerRegenTest extends HeadlessServerTest {
 
     @Test
     void exhaustionDrainsSaturationThenFood() {
-        Instance inst = instance(io.github.term4.minestommechanics.mechanics.vanilla18.Hunger.config());
+        Instance inst = instance(Hunger.config());
         Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "Drain").player;
         HungerSystem hunger = mm.module(HungerSystem.class);
         p.setFoodSaturation(1f);
@@ -95,7 +96,7 @@ class HungerRegenTest extends HeadlessServerTest {
     @Test
     void globalScaleZeroRegensWithoutEverDepleting() { // the BedWars shape
         Instance inst = instance(HungerConfig.builder(
-                io.github.term4.minestommechanics.mechanics.vanilla18.Hunger.config()).exhaustionScale(0f).build());
+                Hunger.config()).exhaustionScale(0f).build());
         Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "BedWars").player;
         p.setHealth(1f);
         tick(inst, 160);
@@ -107,7 +108,7 @@ class HungerRegenTest extends HeadlessServerTest {
 
     @Test
     void perSourceCostRuleAffectsOnlyThatSource() {
-        Instance inst = instance(HungerConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla18.Hunger.config())
+        Instance inst = instance(HungerConfig.builder(Hunger.config())
                 .exhaustionCost(HungerSystem.REGEN_COST, ExhaustionCost.free()).build());
         Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "FreeRegen").player;
         p.setHealth(10f);
@@ -120,7 +121,7 @@ class HungerRegenTest extends HeadlessServerTest {
 
     @Test
     void scaledRuleKeepsTheFastPathDynamic() {
-        Instance inst = instance(HungerConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla.Hunger.config())
+        Instance inst = instance(HungerConfig.builder(io.github.term4.minestommechanics.presets.vanilla.Hunger.config())
                 .exhaustionCost(HungerSystem.SATURATION_REGEN_COST, ExhaustionCost.scaled(0.5f)).build());
         Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "HalfCost").player;
         p.setHealth(10f);
@@ -131,7 +132,7 @@ class HungerRegenTest extends HeadlessServerTest {
 
     @Test
     void restoreCapsFoodAndSaturation() {
-        Instance inst = instance(io.github.term4.minestommechanics.mechanics.vanilla18.Hunger.config());
+        Instance inst = instance(Hunger.config());
         Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "Restore").player;
         p.setFood(14);
         p.setFoodSaturation(0f);

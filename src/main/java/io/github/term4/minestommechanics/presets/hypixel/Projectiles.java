@@ -7,13 +7,13 @@ import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedPr
 import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Pearl;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.instance.Instance;
 
 /**
- * Hypixel projectiles: the 1.8 throwables/bow ({@link io.github.term4.minestommechanics.mechanics.vanilla18.Projectiles})
+ * Hypixel projectiles: the 1.8 throwables/bow ({@link io.github.term4.minestommechanics.presets.vanilla18.Projectiles})
  * plus the measured BedWars fireball ({@code bwFireball}: a {@code FIRE_CHARGE} self-propelled, no gravity, detonates on
  * contact at power 2). Only the fireball is BedWars-measured; the rest are inherited. Other modes (skyblock/duels/...) would
  * add their own {@code <mode>Fireball} configs here.

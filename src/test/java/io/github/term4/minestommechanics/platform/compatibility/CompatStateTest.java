@@ -110,15 +110,65 @@ class CompatStateTest extends HeadlessServerTest {
                 "a modern client without the fix keeps the real snowball (and its vanilla throw swing)");
     }
 
-    /** An Animatium client takes the 1.8 set natively (feature push) - none of the client-view compensations apply. */
+    /** An Animatium client takes the 1.8 set natively (feature push): compensations that would double or conflict with
+     *  its item-keyed behavior are excluded; harmless strips stay on (belt against a spoofed handshake). */
     @Test
-    void animatiumClientIsExcludedFromAllCompensations() {
+    void animatiumClientExclusionsFollowTheHarmLine() {
         CompatState s = new CompatState();
         s.apply(Compat18.config());
         s.setAnimatiumClient(true);
         assertFalse(s.stampsAttackRange());
         assertFalse(s.suppressesThrowSwing());
         assertFalse(s.fistRayHits());
+        assertFalse(s.swordBlockingPose());
         assertEquals(Material.SNOWBALL, slotItem(s, ItemStack.of(Material.SNOWBALL)).material());
+        // NOT excluded - harmless doubled: use_cooldown isn't an Animatium feature, the glider strip matches its native disable
+        assertTrue(s.stripsUseCooldowns());
+        assertNull(slotItem(s, ItemStack.of(Material.ENDER_PEARL)).get(DataComponents.USE_COOLDOWN));
+        assertTrue(s.stripsGlider());
+        assertNull(slotItem(s, ItemStack.of(Material.ELYTRA)).get(DataComponents.GLIDER));
+    }
+
+    /** Elytra lose {@code glider} in the client's view (no client-side glide attempt); the creative echo gets it back. */
+    @Test
+    void gliderStrippedFromViewAndRestoredOnEcho() {
+        CompatState s = new CompatState();
+        s.apply(Compat18.config()); // disableElytraFlight on
+        ItemStack shown = slotItem(s, ItemStack.of(Material.ELYTRA));
+        assertNull(shown.get(DataComponents.GLIDER), "the view carries no glider");
+        assertEquals(Material.ELYTRA, shown.material(), "still an elytra (worn/rendered normally)");
+        ItemStack restored = s.sanitizeInboundItem(shown);
+        assertNotNull(restored.get(DataComponents.GLIDER), "an echoed strip never becomes a truly glide-less server item");
+    }
+
+    /** The self-applied modern item cooldown ({@code use_cooldown}) is stripped from the view and restored on echo. */
+    @Test
+    void useCooldownStrippedFromViewAndRestoredOnEcho() {
+        assertNotNull(ItemStack.of(Material.ENDER_PEARL).get(DataComponents.USE_COOLDOWN),
+                "precondition: the pinned Minestom pearl prototype carries use_cooldown");
+        CompatState s = new CompatState();
+        s.apply(Compat18.config()); // removeUseCooldowns on
+        ItemStack shown = slotItem(s, ItemStack.of(Material.ENDER_PEARL));
+        assertNull(shown.get(DataComponents.USE_COOLDOWN), "no client-self-applied cooldown (1.8 pearls spam-throw)");
+        assertNotNull(s.sanitizeInboundItem(shown).get(DataComponents.USE_COOLDOWN), "the echo restores the prototype cooldown");
+    }
+
+    /** Wind charges are in the reskin set too (modern-only item, but the swing suppression is universal). */
+    @Test
+    void windChargeIsReskinned() {
+        CompatState s = new CompatState();
+        s.apply(Compat18.config());
+        assertEquals(Material.PAPER, slotItem(s, ItemStack.of(Material.WIND_CHARGE)).material());
+    }
+
+    /** Swords get {@code blocks_attacks} in the view (the native 1.8 block pose); the creative echo is stripped back. */
+    @Test
+    void swordBlockPoseStampedAndStrippedOnEcho() {
+        CompatState s = new CompatState();
+        s.apply(Compat18.config()); // swordBlockingPose on
+        ItemStack shown = slotItem(s, ItemStack.of(Material.DIAMOND_SWORD));
+        assertNotNull(shown.get(DataComponents.BLOCKS_ATTACKS), "the client sees a blockable sword");
+        assertNull(slotItem(s, ItemStack.of(Material.STONE)).get(DataComponents.BLOCKS_ATTACKS), "only swords");
+        assertNull(s.sanitizeInboundItem(shown).get(DataComponents.BLOCKS_ATTACKS), "the echo never becomes server state");
     }
 }

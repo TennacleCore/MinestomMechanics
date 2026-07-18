@@ -10,7 +10,7 @@ import io.github.term4.minestommechanics.util.tick.TickContext;
 import io.github.term4.minestommechanics.util.tick.TickPhase;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.util.tick.TickSystem;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.LivingEntity;
 
@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * mmc18 attack: the vanilla 1.8 attack ({@link io.github.term4.minestommechanics.mechanics.vanilla18.Attack}) behind a
+ * mmc18 attack: the vanilla 1.8 attack ({@link io.github.term4.minestommechanics.presets.vanilla18.Attack}) behind a
  * 1-tick hit queue against the damage-invul window, with {@code fullHitScale(1.0)} (no attacker self-slowdown) and the
  * library's swing fake-hits armed for every client ({@code fakeHits}).
  */

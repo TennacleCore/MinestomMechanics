@@ -5,13 +5,13 @@ import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.types.melee.MeleeDamage;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * mmc18 damage: the vanilla 1.8 damage ({@link io.github.term4.minestommechanics.mechanics.vanilla18.Damage}) with
+ * mmc18 damage: the vanilla 1.8 damage ({@link io.github.term4.minestommechanics.presets.vanilla18.Damage}) with
  * silent overdamage, no hurt-tick knockback, and the same-weapon overdamage block below.
  */
 public final class Damage {

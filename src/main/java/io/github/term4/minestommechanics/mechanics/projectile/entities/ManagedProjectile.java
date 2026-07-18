@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
+import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.projectile.ProjectileHitEvent;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
@@ -211,7 +212,7 @@ public class ManagedProjectile extends ProjectileEntity {
 
     /** Live services lookup (the systems are install-time singletons); null-tolerant if none installed. */
     protected @Nullable Services services() {
-        var mm = io.github.term4.minestommechanics.MinestomMechanics.getInstance();
+        var mm = MinestomMechanics.getInstance();
         return mm.isInitialized() ? mm.services() : null;
     }
 }

@@ -5,6 +5,8 @@ import net.minestom.server.entity.EntityPose;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.item.component.AttackRange;
+import net.minestom.server.item.component.BlocksAttacks;
+import net.minestom.server.utils.Unit;
 import io.github.term4.minestommechanics.platform.PacketShapes;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.play.SetCursorItemPacket;
@@ -14,7 +16,9 @@ import net.minestom.server.network.packet.server.play.WindowItemsPacket;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Per-player cross-version compat state plus the pose/hitbox/eye/attack-box logic it drives. The policy is the held
@@ -26,11 +30,23 @@ public final class CompatState {
     /** All-off policy (a modern client left untouched). */
     private static final CompatConfig OFF = CompatConfig.builder().build();
 
-    /** Throwables a modern client swings on using; {@link #reskinThrowable} shows them as {@code PAPER} instead. */
-    private static final Set<Material> THROW_ON_USE = Set.of(Material.SNOWBALL, Material.EGG, Material.ENDER_PEARL);
+    /** Every vanilla throwable whose modern client-side {@code use()} returns {@code SUCCESS} (source-verified) - i.e.
+     *  swings; {@link #reskinThrowable} shows them as {@code PAPER} instead. A CLIENT-behavior fact, deliberately NOT
+     *  derived from the projectile system's registered types (those are per-scope preset config; the swing happens
+     *  client-side whether or not the preset throws the item). */
+    private static final Set<Material> THROW_ON_USE = Set.of(Material.SNOWBALL, Material.EGG, Material.ENDER_PEARL,
+            Material.WIND_CHARGE, Material.SPLASH_POTION, Material.LINGERING_POTION, Material.EXPERIENCE_BOTTLE);
+
+    /** Swords by registry key; the {@link #swordBlockingPose()} stamp target. */
+    private static final Set<Material> SWORDS = Material.values().stream()
+            .filter(m -> m.key().value().endsWith("_sword")).collect(Collectors.toUnmodifiableSet());
+
+    /** View-only {@code blocks_attacks}: grants the client the BLOCK use animation; every gameplay field inert (the server's blocking system owns the damage). */
+    private static final BlocksAttacks BLOCK_POSE = new BlocksAttacks(0f, 1f, List.of(), BlocksAttacks.ItemDamageFunction.DEFAULT, null, null, null);
 
     private @NotNull CompatConfig policy = OFF;
     private boolean attackCooldownRemoved = false;
+    private double savedAttackSpeedBase = 4.0; // vanilla generic.attack_speed default until a removal captures the real base
     private boolean sprintStripped = false;
     private @Nullable EntityPose interceptedPose;
     private @NotNull Set<AnimatiumFeature> nativeFeatures = Set.of();
@@ -69,9 +85,13 @@ public final class CompatState {
 
     private static boolean on(@Nullable Boolean v) { return Boolean.TRUE.equals(v); }
 
-    /** Whether compat removed the modern attack cooldown; tracked so a profile swap restores the default base only on a real change. */
+    /** Whether compat removed the modern attack cooldown; tracked so a profile swap restores the saved base only on a real change. */
     public boolean attackCooldownRemoved() { return attackCooldownRemoved; }
     public void setAttackCooldownRemoved(boolean v) { this.attackCooldownRemoved = v; }
+
+    /** The {@code ATTACK_SPEED} base captured before the cooldown removal - restored on switch-off so an app-set base survives. */
+    public double savedAttackSpeedBase() { return savedAttackSpeedBase; }
+    public void setSavedAttackSpeedBase(double v) { this.savedAttackSpeedBase = v; }
 
     /** Whether any speed restriction is enabled (lets {@code CompatMovement} skip players with none). */
     public boolean anySpeedRestriction() { return restrictSprintSneak() || restrictSprintUse() || restrictSwimSpeed(); }
@@ -145,6 +165,28 @@ public final class CompatState {
         return on(policy.fistRayHits) && stampsAttackRange();
     }
 
+    /** Whether this client's swords get the {@code blocks_attacks} view stamp (the 1.8 block pose). Animatium shows the old animation natively; 1.8 clients block natively. */
+    public boolean swordBlockingPose() {
+        return on(policy.swordBlockingPose) && !legacyClient && !animatiumClient;
+    }
+
+    /** Whether this client's item view has {@code glider} stripped (no client-side glide attempt; 1.8 has no elytra).
+     *  Animatium disables the glide natively too - the strip is harmless doubled, and covers a spoofed handshake. */
+    public boolean stripsGlider() {
+        return on(policy.disableElytraFlight) && !legacyClient;
+    }
+
+    /** Whether this client's item view has {@code use_cooldown} stripped - the modern client self-applies it (ender
+     *  pearl 1s etc.) even without server packets; 1.8 has no item cooldowns. NOT Animatium-excluded (not one of its features). */
+    public boolean stripsUseCooldowns() {
+        return on(policy.removeUseCooldowns) && !legacyClient;
+    }
+
+    /** Whether this player joins the shared lib team for no-push ({@code SharedTeam}); every client version enrolls - the OTHER side of a pair predicts its own push. */
+    public boolean noEntityPush() {
+        return on(policy.disableEntityPush);
+    }
+
     /** The melee reach the attack-box advertises (stamped on items, used by the bare-fist ray); {@code null} policy = 3 (1.8). */
     public float attackReach() {
         return policy.attackReach != null ? policy.attackReach : 3f;
@@ -156,13 +198,12 @@ public final class CompatState {
      * held swap, drag) reaches the client unrewritten until the next full {@link WindowItemsPacket}.
      */
     public @NotNull SendablePacket rewriteItems(@NotNull SendablePacket packet) {
-        boolean stamp = stampsAttackRange(), reskin = suppressesThrowSwing();
-        if (!stamp && !reskin) return packet;
+        if (!stampsAttackRange() && !suppressesThrowSwing() && !swordBlockingPose() && !stripsGlider() && !stripsUseCooldowns()) return packet;
         return switch (PacketShapes.unwrapStateless(packet)) {
-            case SetSlotPacket p -> new SetSlotPacket(p.windowId(), p.stateId(), p.slot(), rewrite(p.itemStack(), stamp, reskin));
-            case SetPlayerInventorySlotPacket p -> new SetPlayerInventorySlotPacket(p.slot(), rewrite(p.itemStack(), stamp, reskin));
-            case WindowItemsPacket p -> new WindowItemsPacket(p.windowId(), p.stateId(), p.items().stream().map(i -> rewrite(i, stamp, reskin)).toList(), rewrite(p.carriedItem(), stamp, reskin));
-            case SetCursorItemPacket p -> new SetCursorItemPacket(rewrite(p.itemStack(), stamp, reskin));
+            case SetSlotPacket p -> new SetSlotPacket(p.windowId(), p.stateId(), p.slot(), rewrite(p.itemStack()));
+            case SetPlayerInventorySlotPacket p -> new SetPlayerInventorySlotPacket(p.slot(), rewrite(p.itemStack()));
+            case WindowItemsPacket p -> new WindowItemsPacket(p.windowId(), p.stateId(), p.items().stream().map(this::rewrite).toList(), rewrite(p.carriedItem()));
+            case SetCursorItemPacket p -> new SetCursorItemPacket(rewrite(p.itemStack()));
             case null, default -> packet;
         };
     }
@@ -176,12 +217,26 @@ public final class CompatState {
         ItemStack out = item;
         if (stampsAttackRange() && out.get(DataComponents.ATTACK_RANGE) != null) out = out.without(DataComponents.ATTACK_RANGE);
         if (suppressesThrowSwing()) out = restoreThrowable(out);
+        if (swordBlockingPose() && SWORDS.contains(out.material())) out = out.without(DataComponents.BLOCKS_ATTACKS);
+        // an echoed strip must not become a truly component-less server item: re-add the material's own default
+        if (stripsGlider() && out.get(DataComponents.GLIDER) == null && ItemStack.of(out.material()).get(DataComponents.GLIDER) != null) {
+            out = out.with(DataComponents.GLIDER, Unit.INSTANCE);
+        }
+        if (stripsUseCooldowns() && out.get(DataComponents.USE_COOLDOWN) == null) {
+            var prototype = ItemStack.of(out.material()).get(DataComponents.USE_COOLDOWN);
+            if (prototype != null) out = out.with(DataComponents.USE_COOLDOWN, prototype);
+        }
         return out;
     }
 
-    private ItemStack rewrite(ItemStack item, boolean stamp, boolean reskin) {
-        if (stamp) item = withAttackRange(item);
-        if (reskin) item = reskinThrowable(item);
+    private ItemStack rewrite(ItemStack item) {
+        if (stampsAttackRange()) item = withAttackRange(item);
+        if (suppressesThrowSwing()) item = reskinThrowable(item);
+        if (swordBlockingPose() && SWORDS.contains(item.material()) && item.get(DataComponents.BLOCKS_ATTACKS) == null) {
+            item = item.with(DataComponents.BLOCKS_ATTACKS, BLOCK_POSE);
+        }
+        if (stripsGlider() && item.get(DataComponents.GLIDER) != null) item = item.without(DataComponents.GLIDER);
+        if (stripsUseCooldowns() && item.get(DataComponents.USE_COOLDOWN) != null) item = item.without(DataComponents.USE_COOLDOWN);
         return item;
     }
 

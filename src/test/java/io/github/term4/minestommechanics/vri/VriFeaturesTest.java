@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.vri;
 
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import java.util.concurrent.atomic.AtomicReference;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.BlockVec;
 import net.minestom.server.coordinate.Pos;
@@ -268,7 +269,7 @@ class VriFeaturesTest extends HeadlessServerTest {
 
     @Test
     void itemSpawnEventFiresAndCancels() {
-        var seen = new java.util.concurrent.atomic.AtomicReference<ItemSpawnEvent>();
+        var seen = new AtomicReference<ItemSpawnEvent>();
         var listener = net.minestom.server.event.EventListener.of(ItemSpawnEvent.class, e -> {
             if (e.item().getItemStack().material() != Material.FEATHER) return;
             seen.set(e);

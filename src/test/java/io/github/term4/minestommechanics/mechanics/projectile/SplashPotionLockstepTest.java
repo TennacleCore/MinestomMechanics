@@ -5,7 +5,8 @@ import io.github.term4.minestommechanics.mechanics.projectile.entities.Projectil
 import io.github.term4.minestommechanics.mechanics.projectile.types.SplashPotion;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Vanilla18;
+import io.github.term4.minestommechanics.presets.vanilla.Projectiles;
+import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
@@ -132,8 +133,8 @@ class SplashPotionLockstepTest extends HeadlessServerTest {
     @Test
     void modernSimMatchesThe26ClientBitForBit() {
         // the modern splash on silent flight (the knob; the vanilla preset itself ships the tracker wire)
-        ProjectileConfig config = ProjectileConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla.Projectiles.config())
-                .typeConfigs(io.github.term4.minestommechanics.mechanics.vanilla.Projectiles.splashPotion().toBuilder()
+        ProjectileConfig config = ProjectileConfig.builder(Projectiles.config())
+                .typeConfigs(Projectiles.splashPotion().toBuilder()
                         .velocitySyncInterval(0).build())
                 .build();
         ProjectileEntity potion = launch(config, new Pos(40.5, 150, 8.5, 37.0f, 12.5f));

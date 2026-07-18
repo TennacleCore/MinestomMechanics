@@ -12,6 +12,8 @@ import net.minestom.server.event.trait.InstanceEvent;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.timer.TaskSchedule;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -31,6 +33,8 @@ import java.util.function.Consumer;
  * gated by interval. {@link #start()} once at init.
  */
 public final class TickSystem {
+
+    private static final Logger LOG = LoggerFactory.getLogger(TickSystem.class);
 
     private TickSystem() {}
 
@@ -80,9 +84,10 @@ public final class TickSystem {
 
     private static final List<Consumer<Entity>> CLOCK_CHANGE = new CopyOnWriteArrayList<>();
 
-    /** Registers a reset for tick-stamped entity state (i-frames, sprint windows, motion clocks); run by {@link #clockChanged}. */
-    public static void onClockChange(Consumer<Entity> reset) {
+    /** Registers a reset for tick-stamped entity state (i-frames, sprint windows, motion clocks); run by {@link #clockChanged}. Returns the removal handle. */
+    public static Runnable onClockChange(Consumer<Entity> reset) {
         CLOCK_CHANGE.add(reset);
+        return () -> CLOCK_CHANGE.remove(reset);
     }
 
     /**
@@ -90,7 +95,13 @@ public final class TickSystem {
      * against the new one, so every registered reset runs. World bridges call this on ownership changes.
      */
     public static void clockChanged(Entity entity) {
-        for (Consumer<Entity> reset : CLOCK_CHANGE) reset.accept(entity);
+        for (Consumer<Entity> reset : CLOCK_CHANGE) {
+            try {
+                reset.accept(entity);
+            } catch (Throwable e) {
+                LOG.error("clock-change reset threw for {}", entity, e);
+            }
+        }
     }
 
     /** A registered {@link Tickable}'s handle; {@link #cancel()} removes it (safe mid-dispatch - the phase lists are copy-on-write). */
@@ -130,7 +141,14 @@ public final class TickSystem {
         for (TickPhase phase : PHASES) {
             for (Tickable t : BY_PHASE.get(phase)) {
                 int iv = t.interval();
-                if (iv <= 1 || ctx.tick() % iv == 0) t.tick(ctx);
+                // isolated: one broken tickable must not starve every later system of its tick
+                if (iv <= 1 || ctx.tick() % iv == 0) {
+                    try {
+                        t.tick(ctx);
+                    } catch (Throwable e) {
+                        LOG.error("tickable {} threw (phase {})", t.getClass().getName(), phase, e);
+                    }
+                }
             }
         }
     }

@@ -6,6 +6,7 @@ import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigResolver.ConsumableContext;
 import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyConsumeFixConfig;
+import io.github.term4.minestommechanics.presets.vanilla18.Consumables;
 import io.github.term4.minestommechanics.mechanics.consumable.catalog.VanillaConsumables;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
@@ -38,10 +39,10 @@ class ConsumableGateTest extends HeadlessServerTest {
     @BeforeAll
     static void connectAndInstall() {
         player = FakePlayer.connect(instance, new Pos(50.5, 64, 50.5), "Eater");
-        ConsumableSystem.install(mm, io.github.term4.minestommechanics.mechanics.vanilla18.Consumables.config());
+        ConsumableSystem.install(mm, Consumables.config());
     }
 
-    private static boolean canConsume(net.minestom.server.item.Material material, io.github.term4.minestommechanics.mechanics.consumable.Consumable type,
+    private static boolean canConsume(Material material, Consumable type,
                                       ConsumableConfig cfg) {
         ConsumableContext ctx = new ConsumableContext(player.player, ItemStack.of(material), PlayerHand.MAIN, type, services);
         return ConsumableConfigResolver.resolve(cfg, ctx).canConsume();
@@ -49,7 +50,7 @@ class ConsumableGateTest extends HeadlessServerTest {
 
     @Test
     void legacyBlocksCreativeFoodButNotDrink() {
-        var cfg = io.github.term4.minestommechanics.mechanics.vanilla18.Consumables.config();
+        var cfg = Consumables.config();
         player.player.setGameMode(GameMode.SURVIVAL);
         assertTrue(canConsume(Material.GOLDEN_APPLE, VanillaConsumables.GOLDEN_APPLE, cfg), "survival can eat a golden apple");
 
@@ -63,7 +64,7 @@ class ConsumableGateTest extends HeadlessServerTest {
 
     @Test
     void modernAllowsCreativeFood() {
-        var cfg = io.github.term4.minestommechanics.mechanics.vanilla.Consumables.config();
+        var cfg = io.github.term4.minestommechanics.presets.vanilla.Consumables.config();
         player.player.setGameMode(GameMode.CREATIVE);
         assertTrue(canConsume(Material.GOLDEN_APPLE, VanillaConsumables.GOLDEN_APPLE, cfg), "26 creative eats (no item loss) - the version difference");
         player.player.setGameMode(GameMode.SURVIVAL);

@@ -1,6 +1,7 @@
 package io.github.term4.minestommechanics;
 
 import io.github.term4.minestommechanics.world.MechanicsWorld;
+import java.util.function.Consumer;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
@@ -27,33 +28,33 @@ public final class MechanicsProfiles {
     private static final Tag<MechanicsProfile> PROFILE = Tag.Transient("mm:profile");
 
     private volatile @Nullable MechanicsProfile global;
-    /** Notified after any assignment changes; init registers the player platform config push here. */
-    private volatile @Nullable Runnable changeHook;
+    /** Notified after an assignment changes with the affected player, or {@code null} for a wider scope (global/world/instance). */
+    private volatile @Nullable Consumer<@Nullable Player> changeHook;
 
     MechanicsProfiles() {}
 
-    void onChange(Runnable hook) { this.changeHook = hook; }
+    void onChange(Consumer<@Nullable Player> hook) { this.changeHook = hook; }
 
-    private void changed() {
-        Runnable hook = changeHook;
-        if (hook != null) hook.run();
+    private void changed(@Nullable Player player) {
+        var hook = changeHook;
+        if (hook != null) hook.accept(player);
     }
 
     /** Sets (or with {@code null} clears) the server-wide fallback profile. */
     public void setGlobal(@Nullable MechanicsProfile profile) {
         this.global = profile;
-        changed();
+        changed(null);
     }
     public @Nullable MechanicsProfile global() { return global; }
 
     /** Re-fires the change hook (the player platform push) - call after moving a player between worlds. */
-    public void refresh() { changed(); }
+    public void refresh() { changed(null); }
 
     /** Sets (or with {@code null} clears) the profile for a world - per-game mechanics (above instance scope). */
     public void setWorld(MechanicsWorld world, @Nullable MechanicsProfile profile) {
         if (profile == null) world.removeTag(PROFILE);
         else world.setTag(PROFILE, profile);
-        changed();
+        changed(null);
     }
     public @Nullable MechanicsProfile world(MechanicsWorld world) { return world.getTag(PROFILE); }
 
@@ -61,7 +62,7 @@ public final class MechanicsProfiles {
     public void setInstance(Instance instance, @Nullable MechanicsProfile profile) {
         if (profile == null) instance.removeTag(PROFILE);
         else instance.setTag(PROFILE, profile);
-        changed();
+        changed(null);
     }
     public @Nullable MechanicsProfile instance(Instance instance) { return instance.getTag(PROFILE); }
 
@@ -69,7 +70,7 @@ public final class MechanicsProfiles {
     public void setPlayer(Player player, @Nullable MechanicsProfile profile) {
         if (profile == null) player.removeTag(PROFILE);
         else player.setTag(PROFILE, profile);
-        changed();
+        changed(player);
     }
     public @Nullable MechanicsProfile player(Player player) { return player.getTag(PROFILE); }
 

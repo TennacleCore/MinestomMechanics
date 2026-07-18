@@ -3,8 +3,10 @@ package io.github.term4.minestommechanics.platform.player;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfiles;
 import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.platform.SharedTeam;
 import io.github.term4.minestommechanics.platform.compatibility.CompatAnimatium;
 import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
+import java.util.Objects;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.attribute.Attribute;
@@ -25,8 +27,6 @@ public final class PlayerConfigApplier {
 
     /** Attack-speed base used to remove the modern cooldown: huge, so the cooldown is always full (no indicator, 1.8-style hits). */
     private static final double REMOVED_ATTACK_COOLDOWN_SPEED = 1024.0;
-    /** Vanilla generic.attack_speed base, restored when compat stops removing the cooldown. */
-    private static final double DEFAULT_ATTACK_SPEED = 4.0;
 
     private PlayerConfigApplier() {}
 
@@ -60,15 +60,25 @@ public final class PlayerConfigApplier {
         state.apply(compat);
         // Re-send items only when the attack_range stamp actually changed (margin set / cleared / retuned) - the join inventory
         // is sent before this applies, so a change wouldn't reach the client until the next inventory packet otherwise.
-        if (!java.util.Objects.equals(prevMargin, state.attackHitboxMargin())) op.getInventory().update();
+        if (!Objects.equals(prevMargin, state.attackHitboxMargin())) op.getInventory().update();
         // Attack cooldown: a huge ATTACK_SPEED removes the modern cooldown (1.8-style, hits never weaken). Touch the attribute
         // only on a real change, so a non-compat server's attack speed is never clobbered; restore the default base on switch-off.
         boolean nowCooldownRemoved = compat != null && Boolean.TRUE.equals(compat.removeAttackCooldown);
         if (nowCooldownRemoved != prevCooldownRemoved) {
             var attackSpeed = op.getAttribute(Attribute.ATTACK_SPEED);
-            if (attackSpeed != null) attackSpeed.setBaseValue(nowCooldownRemoved ? REMOVED_ATTACK_COOLDOWN_SPEED : DEFAULT_ATTACK_SPEED);
+            if (attackSpeed != null) {
+                // restore the base the app had set, not a hardcoded vanilla 4.0
+                if (nowCooldownRemoved) {
+                    state.setSavedAttackSpeedBase(attackSpeed.getBaseValue());
+                    attackSpeed.setBaseValue(REMOVED_ATTACK_COOLDOWN_SPEED);
+                } else {
+                    attackSpeed.setBaseValue(state.savedAttackSpeedBase());
+                }
+            }
             state.setAttackCooldownRemoved(nowCooldownRemoved);
         }
+        // no-push collision team membership follows the policy (join on enable, leave on disable)
+        SharedTeam.set(op, SharedTeam.Reason.NO_PUSH, state.noEntityPush());
         // Re-push the Animatium feature set on every apply - the client handshakes only once on join, so a kit/profile swap or
         // instance/world change (this also runs on PlayerSpawnEvent) must re-send it. No-op for non-Animatium clients, and runs
         // even when compat is null so a profile that drops compat clears the client's features.

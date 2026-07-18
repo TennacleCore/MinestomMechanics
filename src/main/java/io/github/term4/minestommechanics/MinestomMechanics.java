@@ -1,6 +1,7 @@
 package io.github.term4.minestommechanics;
 
 import io.github.term4.minestommechanics.mechanics.attack.FakeHits;
+import io.github.term4.minestommechanics.platform.SharedTeam;
 import io.github.term4.minestommechanics.platform.compatibility.CompatAnimatium;
 import io.github.term4.minestommechanics.platform.compatibility.CompatCreativeGuard;
 import io.github.term4.minestommechanics.platform.compatibility.CompatMovement;
@@ -73,7 +74,7 @@ public final class MinestomMechanics {
     /** Installed systems, keyed by concrete type. Populated at install (boot); read during gameplay. */
     private final Map<Class<? extends MechanicsModule>, MechanicsModule> modules = new ConcurrentHashMap<>();
 
-    private boolean initialized = false;
+    private volatile boolean initialized = false;
 
     private MinestomMechanics() {}
 
@@ -95,11 +96,22 @@ public final class MinestomMechanics {
     public @Nullable SprintTracker sprintTracker() { return sprintTracker; }
     public @Nullable MotionTracker motionTracker() { return motionTracker; }
 
-    /** Initialize with current options (or defaults if no options specified) */
-    public void init() {
+    /**
+     * Initialize with current options (or defaults if no options specified). Synchronized (a concurrent caller waits
+     * for the full install), and a failed init resets the flag instead of latching a partial installation.
+     */
+    public synchronized void init() {
         if (initialized) return;
-        initialized = true;
+        initialized = true; // inside the lock; the internal mounts assert it
+        try {
+            doInit();
+        } catch (RuntimeException | Error e) {
+            initialized = false;
+            throw e;
+        }
+    }
 
+    private void doInit() {
         TickSystem.start();
 
         if (metaFix && !installPlayerProvider) {
@@ -121,12 +133,18 @@ public final class MinestomMechanics {
             // seal the attack_range stamp: strip it from a stamped client's creative-echoed items (never becomes server state)
             CompatCreativeGuard.install(this);
         }
+        // the one lib scoreboard team (no-push + arrow-visibility roster); features enroll, this cleans up on disconnect
+        SharedTeam.install(this);
         // swing fake-hit fill (inert unless a scope arms AttackConfig.fakeHits or compat gates CompatConfig.fistRayHits)
         FakeHits.install(this);
         // block-place + footstep sounds Minestom doesn't emit (broadcast to everyone; any client)
         WorldSounds.install(this);
-        // global scaling drives physics + static-context durations; refresh on any profile change
-        profiles.onChange(() -> {
+        // global scaling drives physics + static-context durations; a player-scoped change re-applies to that player only
+        profiles.onChange(changed -> {
+            if (changed != null) {
+                if (installPlayerProvider) PlayerConfigApplier.apply(this, changed);
+                return;
+            }
             refreshGlobalScaling();
             if (installPlayerProvider) PlayerConfigApplier.applyAll(this);
         });

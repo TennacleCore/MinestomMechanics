@@ -10,6 +10,7 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,7 +43,10 @@ public abstract class ProjectileType {
         this.name = name;
         this.entityType = entityType;
         this.defaultConfig = defaultConfig;
-        REGISTRY.put(key, this);
+        ProjectileType previous = REGISTRY.put(key, this);
+        // last-in wins for saves revived through byKey - surfaced so a key collision isn't a silent identity swap
+        if (previous != null) LoggerFactory.getLogger(ProjectileType.class)
+                .warn("projectile type {} re-registered ({} replaces {})", key, getClass().getName(), previous.getClass().getName());
     }
 
     private static final Map<Key, ProjectileType> REGISTRY = new ConcurrentHashMap<>();

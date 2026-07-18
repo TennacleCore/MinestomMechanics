@@ -54,8 +54,12 @@ public interface WorldPolicy {
 
     static @NotNull WorldPolicy get() { return Holder.POLICY; }
 
-    /** Replaces the rules server-wide. */
-    static void set(@NotNull WorldPolicy policy) { Holder.POLICY = policy; }
+    /** Replaces the rules server-wide; returns the previous policy so a wrapper can delegate to it. */
+    static @NotNull WorldPolicy set(@NotNull WorldPolicy policy) {
+        WorldPolicy previous = Holder.POLICY;
+        Holder.POLICY = policy;
+        return previous;
+    }
 
     final class Holder {
         private static volatile WorldPolicy POLICY = SAME_WORLD;

@@ -25,6 +25,8 @@ import net.minestom.server.network.player.PlayerConnection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Duration;
+import net.minestom.server.utils.time.Cooldown;
 import java.util.Map;
 
 /**
@@ -46,7 +48,7 @@ public class OptimizedPlayer extends Player {
     public OptimizedPlayer(PlayerConnection connection, GameProfile gameProfile) {
         super(connection, gameProfile);
         // vanilla scans item pickups every tick; Minestom's default 5-tick cooldown adds up to 250ms of pickup lag
-        this.itemPickupCooldown = new net.minestom.server.utils.time.Cooldown(java.time.Duration.ZERO);
+        this.itemPickupCooldown = new Cooldown(Duration.ZERO);
         // slot refreshes must reach sendPacket bare or the per-client item rewrite skips them (see PerViewerInventory)
         this.inventory = new PerViewerInventory();
     }

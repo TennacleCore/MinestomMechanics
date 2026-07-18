@@ -1,5 +1,6 @@
 package test.presets;
 
+import io.github.term4.minestommechanics.presets.mmc18.Explosion;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
@@ -45,7 +46,7 @@ class SlabExposureTest extends HeadlessServerTest {
 
     @Test
     void flatGroundReadsFullEverywhere() {
-        float[] e = exposures(new ExplosionSystem(mm, io.github.term4.minestommechanics.presets.mmc18.Explosion.config()), false);
+        float[] e = exposures(new ExplosionSystem(mm, Explosion.config()), false);
         assertEquals(1.0, e[0], 1e-6, "vanilla-1.8 (shape-aware) full on flat");
         assertEquals(1.0, e[1], 1e-6, "server full-cube full on flat");
         assertEquals(1.0, e[2], 1e-6, "modern full on flat");
@@ -53,7 +54,7 @@ class SlabExposureTest extends HeadlessServerTest {
 
     @Test
     void slabPushesUnderRealShapeButServerGatesFullCube() {
-        float[] e = exposures(new ExplosionSystem(mm, io.github.term4.minestommechanics.presets.mmc18.Explosion.config()), true);
+        float[] e = exposures(new ExplosionSystem(mm, Explosion.config()), true);
         assertTrue(e[0] > 0.0, "vanilla-1.8 real half-slab shape lets rays over the slab -> pushes (matches singleplayer 1.8): " + e[0]);
         assertEquals(0.0, e[1], 1e-6, "server full-cube fully occludes a slab -> gates the push (matches Hypixel/MineMen live)");
         assertTrue(e[2] > 0.0, "modern real shape -> pushes, like 26.1: " + e[2]);

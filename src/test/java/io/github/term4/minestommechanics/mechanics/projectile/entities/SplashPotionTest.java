@@ -1,6 +1,9 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
+import io.github.term4.minestommechanics.MinestomMechanics;
+import io.github.term4.minestommechanics.mechanics.attribute.catalog.VanillaPotions;
+import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.types.SplashPotion;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
@@ -111,9 +114,9 @@ class SplashPotionTest extends HeadlessServerTest {
     @Test
     void splashEventSplitsPerViewerProtocol() {
         Pos at = BASE.add(64, 0, 64);
-        var mm = io.github.term4.minestommechanics.MinestomMechanics.getInstance();
-        var legacyViewer = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance, at.add(3, 0, 0), "LegacyView");
-        var modernViewer = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance, at.add(-3, 0, 0), "ModernView");
+        var mm = MinestomMechanics.getInstance();
+        var legacyViewer = FakePlayer.connect(instance, at.add(3, 0, 0), "LegacyView");
+        var modernViewer = FakePlayer.connect(instance, at.add(-3, 0, 0), "ModernView");
         mm.clientInfo().setProxyDetails(legacyViewer.player, "{\"version\": 47}");   // 1.8
         mm.clientInfo().setProxyDetails(modernViewer.player, "{\"version\": 774}");  // modern
 
@@ -143,7 +146,7 @@ class SplashPotionTest extends HeadlessServerTest {
         Pos at = BASE.add(96, 0, 0);
         LivingEntity target = zombie(at.add(1, 0, 0));
         // strong swiftness (amp 1, 1800t) first, then a plain splash (amp 0, scaled 3600t): must NOT downgrade
-        io.github.term4.minestommechanics.mechanics.attribute.catalog.VanillaPotions.addEffect(target,
+        VanillaPotions.addEffect(target,
                 new net.minestom.server.potion.Potion(PotionEffect.SPEED, (byte) 1, 1800));
         SplashPotionEntity potion = potionAt(at, PotionType.SWIFTNESS);
         potion.onImpact(target);
@@ -151,7 +154,7 @@ class SplashPotionTest extends HeadlessServerTest {
         assertEquals(1, kept.amplifier(), "amp II must survive a splash of amp I");
         assertEquals(1800, kept.duration());
         // same amplifier, longer duration: extends
-        io.github.term4.minestommechanics.mechanics.attribute.catalog.VanillaPotions.addEffect(target,
+        VanillaPotions.addEffect(target,
                 new net.minestom.server.potion.Potion(PotionEffect.SPEED, (byte) 1, 6000));
         assertEquals(6000, effect(target, PotionEffect.SPEED).orElseThrow().potion().duration());
         target.remove();
@@ -179,8 +182,8 @@ class SplashPotionTest extends HeadlessServerTest {
     @Test
     void modernInstantSplashUses2007ForModernViewers() {
         Pos at = BASE.add(96, 0, 0);
-        var mm = io.github.term4.minestommechanics.MinestomMechanics.getInstance();
-        var modernViewer = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance, at.add(-3, 0, 0), "ModernV2007");
+        var mm = MinestomMechanics.getInstance();
+        var modernViewer = FakePlayer.connect(instance, at.add(-3, 0, 0), "ModernV2007");
         mm.clientInfo().setProxyDetails(modernViewer.player, "{\"version\": 774}");
 
         ItemStack item = ItemStack.of(Material.SPLASH_POTION)

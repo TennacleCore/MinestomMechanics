@@ -4,6 +4,7 @@ import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.effect.EffectContext;
 import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.mechanics.cooldown.CooldownSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
 import net.kyori.adventure.key.Key;
@@ -74,6 +75,9 @@ public abstract class ThrowableItemType extends ProjectileType {
         long age = instance != null ? MechanicsWorld.of(p).worldAge() : 0;
         Long last = p.getTag(LAST_THROW_AGE);
         if (last != null && last == age) return; // the same click's second packet
+        // server-authoritative cooldown (the client's own overlay is prediction-only and spammable)
+        CooldownSystem cooldowns = mm != null ? mm.module(CooldownSystem.class) : null;
+        if (cooldowns != null && !cooldowns.tryUse(p, material)) return;
         p.setTag(LAST_THROW_AGE, age);
         Key sound = throwSound();
         if (sound != null && mm != null) Effects.play(mm.services(), sound, EffectContext.of(p));

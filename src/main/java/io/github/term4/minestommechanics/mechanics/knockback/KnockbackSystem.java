@@ -8,7 +8,7 @@ import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.knockback.KnockbackEvent;
 import io.github.term4.minestommechanics.api.event.knockback.PreKnockbackEvent;
 import io.github.term4.minestommechanics.api.event.knockback.KnockbackAppliedEvent;
-import io.github.term4.minestommechanics.mechanics.vanilla18.Knockback;
+import io.github.term4.minestommechanics.presets.vanilla18.Knockback;
 import io.github.term4.minestommechanics.platform.compatibility.LegacyVelocityBridge;
 import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
 import io.github.term4.minestommechanics.tracking.motion.MotionTracker;

@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage;
 
-import io.github.term4.minestommechanics.mechanics.vanilla18.Attributes;
+import io.github.term4.minestommechanics.presets.vanilla18.Attributes;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.ProtectionEnchant;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
 import io.github.term4.minestommechanics.mechanics.attribute.defense.MitigationRequest;
@@ -184,7 +184,7 @@ class ProtectionStageTest extends HeadlessServerTest {
     @Test
     void presetsWireTheFormula() {
         assertEquals(Formula.LEGACY_RANDOMIZED, Attributes.config().protection.formula());
-        assertEquals(Formula.MODERN_LINEAR, io.github.term4.minestommechanics.mechanics.vanilla.Attributes.config().protection.formula());
+        assertEquals(Formula.MODERN_LINEAR, io.github.term4.minestommechanics.presets.vanilla.Attributes.config().protection.formula());
     }
 
     @Test

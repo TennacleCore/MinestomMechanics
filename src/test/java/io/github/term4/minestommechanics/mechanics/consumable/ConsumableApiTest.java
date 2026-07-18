@@ -3,6 +3,7 @@ package io.github.term4.minestommechanics.mechanics.consumable;
 import io.github.term4.minestommechanics.api.event.consume.ConsumeAppliedEvent;
 import io.github.term4.minestommechanics.api.event.consume.ConsumeEvent;
 import io.github.term4.minestommechanics.api.event.consume.PreConsumeEvent;
+import io.github.term4.minestommechanics.presets.vanilla18.Consumables;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
@@ -40,7 +41,7 @@ class ConsumableApiTest extends HeadlessServerTest {
     @BeforeAll
     static void setup() {
         HungerSystem.install(mm);
-        ConsumableSystem.install(mm, io.github.term4.minestommechanics.mechanics.vanilla18.Consumables.config());
+        ConsumableSystem.install(mm, Consumables.config());
         p = FakePlayer.connect(instance, new Pos(52.5, 64, 50.5), "ApiEater").player;
     }
 
@@ -74,7 +75,7 @@ class ConsumableApiTest extends HeadlessServerTest {
 
     @Test
     void componentFloorCanBeDisabled() {
-        var cfg = ConsumableConfig.builder(io.github.term4.minestommechanics.mechanics.vanilla18.Consumables.config())
+        var cfg = ConsumableConfig.builder(Consumables.config())
                 .componentFoods(false).build();
         ConsumableSystem.install(mm, cfg);
         try {
@@ -82,7 +83,7 @@ class ConsumableApiTest extends HeadlessServerTest {
             finish(Material.BREAD);
             assertEquals(10, p.getFood(), "floor off: bread is not a consumable");
         } finally {
-            ConsumableSystem.install(mm, io.github.term4.minestommechanics.mechanics.vanilla18.Consumables.config());
+            ConsumableSystem.install(mm, Consumables.config());
         }
     }
 
@@ -129,12 +130,12 @@ class ConsumableApiTest extends HeadlessServerTest {
         assertEquals(3, p.getEffect(PotionEffect.POISON).potion().amplifier(), "1.8: Poison IV");
         p.clearEffects();
 
-        ConsumableSystem.install(mm, io.github.term4.minestommechanics.mechanics.vanilla.Consumables.config());
+        ConsumableSystem.install(mm, io.github.term4.minestommechanics.presets.vanilla.Consumables.config());
         try {
             finish(Material.PUFFERFISH);
             assertEquals(1, p.getEffect(PotionEffect.POISON).potion().amplifier(), "modern: Poison II");
         } finally {
-            ConsumableSystem.install(mm, io.github.term4.minestommechanics.mechanics.vanilla18.Consumables.config());
+            ConsumableSystem.install(mm, Consumables.config());
         }
     }
 

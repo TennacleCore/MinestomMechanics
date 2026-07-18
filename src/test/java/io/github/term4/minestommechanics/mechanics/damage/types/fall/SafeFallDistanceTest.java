@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.fall;
 
-import io.github.term4.minestommechanics.mechanics.vanilla18.Damage;
+import io.github.term4.minestommechanics.presets.vanilla18.Damage;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
@@ -26,7 +26,7 @@ class SafeFallDistanceTest extends HeadlessServerTest {
 
     /** The real modern fall config (Vanilla preset), so this guards the actual wiring not a copy. */
     private static FallDamageConfig modernFall() {
-        return (FallDamageConfig) io.github.term4.minestommechanics.mechanics.vanilla.Damage.config().typeConfig(FallDamage.KEY);
+        return (FallDamageConfig) io.github.term4.minestommechanics.presets.vanilla.Damage.config().typeConfig(FallDamage.KEY);
     }
 
     /** The real 1.8 fall config (Vanilla18 preset). */

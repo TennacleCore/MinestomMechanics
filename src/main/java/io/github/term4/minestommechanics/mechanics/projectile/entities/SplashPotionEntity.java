@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
+import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.config.FieldValue;
@@ -88,7 +89,7 @@ public class SplashPotionEntity extends ManagedProjectile {
         int color = legacyPalette ? PotionColors.legacyColor(contents, payload) : PotionColors.color(contents, payload);
         int legacyValue = VanillaPotions.legacySplashValue(contents != null ? contents.potion() : null);
         int event = modernModel && hasInstantPotion(contents) ? SPLASH_LEVEL_EVENT_INSTANT : SPLASH_LEVEL_EVENT;
-        var mm = io.github.term4.minestommechanics.MinestomMechanics.getInstance();
+        var mm = MinestomMechanics.getInstance();
         var clientInfo = mm.isInitialized() ? mm.clientInfo() : null;
         for (Player viewer : getViewers()) {
             boolean legacy = clientInfo != null && clientInfo.isLegacy(viewer);

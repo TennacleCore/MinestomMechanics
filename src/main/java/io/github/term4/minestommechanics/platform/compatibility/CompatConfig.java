@@ -44,10 +44,14 @@ public final class CompatConfig {
     public final @Nullable Boolean suppressThrowSwing;
     /** Server-side ray fill for a modern client's bare-fist swings: {@link #attackHitboxMargin} only rides items, so an empty hand still picks with margin 0 - a swing that missed by the margin lands on the last player they hit. */
     public final @Nullable Boolean fistRayHits;
+    /** 1.8 sword-block pose for modern clients: {@code blocks_attacks} stamped on swords in the client's VIEW, so a right-click hold shows the native block animation; the server's blocking system stays damage-authoritative. */
+    public final @Nullable Boolean swordBlockingPose;
+    /** No item cooldowns (1.8 has none): {@code use_cooldown} stripped from a modern client's item VIEW - the client self-applies it (ender pearl 1s) even without server packets. */
+    public final @Nullable Boolean removeUseCooldowns;
 
     /** 1.8 water/lava movement (drag/gravity, no swim sprint/buoyancy, no lava current). */
     public final @Nullable Boolean legacyFluids;
-    /** No elytra glide (1.8 has no elytra; they just fall). */
+    /** No elytra glide (1.8 has no elytra): every modern client gets {@code glider} stripped from its item VIEW, so the client never attempts it (Animatium also disables natively - harmless doubled). */
     public final @Nullable Boolean disableElytraFlight;
     /** 1.8 creative/spectator flight (sneaking while flying slows horizontal). */
     public final @Nullable Boolean oldFlight;
@@ -65,7 +69,7 @@ public final class CompatConfig {
     public final @Nullable Boolean disableHoneyPhysics;
     /** No bubble-column push; {@code null} follows {@link #oldPhysics}. */
     public final @Nullable Boolean disableBubbleColumn;
-    /** No entity-collision shove (NOT 1.8 parity - a preference; pair with a server-side push disable). */
+    /** No entity-collision shove: the shared no-push collision TEAM for any modern client + the Animatium native feature. NOT 1.8 parity (1.8 has no push) - a preference. An app running its own teams must disable this and set collisionRule NEVER on its teams. */
     public final @Nullable Boolean disableEntityPush;
     /** Byte-exact 1.8 velocity (3 shorts) for clients advertising {@code SHORTS_VELOCITY}; never sent to clients without the decoder. */
     public final @Nullable Boolean nativeShortVelocity;
@@ -100,6 +104,8 @@ public final class CompatConfig {
         removeAttackCooldown = b.removeAttackCooldown;
         suppressThrowSwing = b.suppressThrowSwing;
         fistRayHits = b.fistRayHits;
+        swordBlockingPose = b.swordBlockingPose;
+        removeUseCooldowns = b.removeUseCooldowns;
         nativeShortVelocity = b.nativeShortVelocity;
         animatiumFeatures = b.animatiumFeatures;
     }
@@ -138,6 +144,8 @@ public final class CompatConfig {
         private @Nullable Boolean removeAttackCooldown;
         private @Nullable Boolean suppressThrowSwing;
         private @Nullable Boolean fistRayHits;
+        private @Nullable Boolean swordBlockingPose;
+        private @Nullable Boolean removeUseCooldowns;
         private @Nullable Boolean nativeShortVelocity;
         private @Nullable Set<AnimatiumFeature> animatiumFeatures;
 
@@ -171,6 +179,8 @@ public final class CompatConfig {
             removeAttackCooldown = c.removeAttackCooldown;
             suppressThrowSwing = c.suppressThrowSwing;
             fistRayHits = c.fistRayHits;
+            swordBlockingPose = c.swordBlockingPose;
+            removeUseCooldowns = c.removeUseCooldowns;
             nativeShortVelocity = c.nativeShortVelocity;
             animatiumFeatures = c.animatiumFeatures;
         }
@@ -203,6 +213,8 @@ public final class CompatConfig {
         public Builder removeAttackCooldown(@Nullable Boolean v) { removeAttackCooldown = v; return this; }
         public Builder suppressThrowSwing(@Nullable Boolean v) { suppressThrowSwing = v; return this; }
         public Builder fistRayHits(@Nullable Boolean v) { fistRayHits = v; return this; }
+        public Builder swordBlockingPose(@Nullable Boolean v) { swordBlockingPose = v; return this; }
+        public Builder removeUseCooldowns(@Nullable Boolean v) { removeUseCooldowns = v; return this; }
         public Builder nativeShortVelocity(@Nullable Boolean v) { nativeShortVelocity = v; return this; }
         public Builder animatiumFeatures(@Nullable Set<AnimatiumFeature> v) { animatiumFeatures = v != null ? Set.copyOf(v) : null; return this; }
         public Builder animatiumFeatures(AnimatiumFeature... features) { animatiumFeatures = Set.of(features); return this; }

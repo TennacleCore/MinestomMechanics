@@ -2,6 +2,7 @@ package test.presets;
 
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
@@ -26,7 +27,7 @@ class Mmc18SelfHitKbTest extends HeadlessServerTest {
         return selfHitBt(yaw, tag, Knockback.projectile(), 0);
     }
 
-    private static double[] selfHitBt(float yaw, String tag, io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig kb, int punch) {
+    private static double[] selfHitBt(float yaw, String tag, KnockbackConfig kb, int punch) {
         FakePlayer p = FakePlayer.connect(instance, new Pos(8.5, 64, 8.5, yaw, 0f), "Self" + tag);
         p.sent.clear();
         services.knockback().apply(new KnockbackSnapshot(p.player, false, p.player, null, null, kb, punch));
@@ -94,7 +95,7 @@ class Mmc18SelfHitKbTest extends HeadlessServerTest {
     @Test
     void vanillaSelfHitIsRandomDirectionAtFullStrength() {
         double[] v = selfHitBt(0f, "H",
-                io.github.term4.minestommechanics.mechanics.vanilla18.Knockback.projectile(), 0);
+                io.github.term4.minestommechanics.presets.vanilla18.Knockback.projectile(), 0);
         assertEquals(0.4, Math.hypot(v[0], v[2]), 1e-3, "full base strength in some horizontal direction");
         assertTrue(v[1] > 0.3, "vanilla vertical (minus the estimated-velocity gravity fold)");
     }
