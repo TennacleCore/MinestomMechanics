@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -159,6 +160,22 @@ class CompatStateTest extends HeadlessServerTest {
         CompatState s = new CompatState();
         s.apply(Compat18.config());
         assertEquals(Material.PAPER, slotItem(s, ItemStack.of(Material.WIND_CHARGE)).material());
+    }
+
+    /** The applier re-sends the inventory on any view-rewrite change - a swap differing only in a same-margin knob must still flip the key. */
+    @Test
+    void itemViewKeyTracksEveryViewRewrite() {
+        CompatState s = new CompatState();
+        s.apply(Compat18.config());
+        var full = s.itemViewKey();
+        s.apply(Compat18.config().toBuilder().swordBlockingPose(false).build());
+        assertNotEquals(full, s.itemViewKey(), "same margin, different sword pose -> re-send");
+        s.apply(Compat18.config().toBuilder().removeUseCooldowns(false).build());
+        assertNotEquals(full, s.itemViewKey(), "same margin, different cooldown strip -> re-send");
+        s.apply(Compat18.config());
+        assertEquals(full, s.itemViewKey(), "identical policy -> no re-send");
+        s.apply(null);
+        assertNotEquals(full, s.itemViewKey(), "compat dropped -> re-send (views revert)");
     }
 
     /** Swords get {@code blocks_attacks} in the view (the native 1.8 block pose); the creative echo is stripped back. */

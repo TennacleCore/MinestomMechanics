@@ -6,7 +6,6 @@ import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.platform.SharedTeam;
 import io.github.term4.minestommechanics.platform.compatibility.CompatAnimatium;
 import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
-import java.util.Objects;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.attribute.Attribute;
@@ -55,12 +54,12 @@ public final class PlayerConfigApplier {
         // mode SWITCH - the previous mode's state never sticks. Operational/identity state (Animatium features) is untouched.
         CompatConfig compat = profile.get(MechanicsKeys.COMPAT);
         var state = op.compat();
-        Float prevMargin = state.attackHitboxMargin();
+        var prevView = state.itemViewKey();
         boolean prevCooldownRemoved = state.attackCooldownRemoved();
         state.apply(compat);
-        // Re-send items only when the attack_range stamp actually changed (margin set / cleared / retuned) - the join inventory
-        // is sent before this applies, so a change wouldn't reach the client until the next inventory packet otherwise.
-        if (!Objects.equals(prevMargin, state.attackHitboxMargin())) op.getInventory().update();
+        // Re-send items only when a client-view rewrite actually changed (stamp margin/reach, reskin, pose, strips) - the
+        // join inventory is sent before this applies, so a change wouldn't reach the client until the next packet otherwise.
+        if (!prevView.equals(state.itemViewKey())) op.getInventory().update();
         // Attack cooldown: a huge ATTACK_SPEED removes the modern cooldown (1.8-style, hits never weaken). Touch the attribute
         // only on a real change, so a non-compat server's attack speed is never clobbered; restore the default base on switch-off.
         boolean nowCooldownRemoved = compat != null && Boolean.TRUE.equals(compat.removeAttackCooldown);

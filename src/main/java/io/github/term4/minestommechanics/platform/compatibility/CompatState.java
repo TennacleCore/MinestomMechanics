@@ -16,6 +16,7 @@ import net.minestom.server.network.packet.server.play.WindowItemsPacket;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -190,6 +191,18 @@ public final class CompatState {
     /** The melee reach the attack-box advertises (stamped on items, used by the bare-fist ray); {@code null} policy = 3 (1.8). */
     public float attackReach() {
         return policy.attackReach != null ? policy.attackReach : 3f;
+    }
+
+    /**
+     * Everything that decides how {@link #rewriteItems} renders this client's items. The config applier compares it
+     * across a policy swap and re-sends the inventory on any change - comparing just the margin would leave stale views
+     * when only a reskin/pose/strip knob differs.
+     */
+    public @NotNull List<Object> itemViewKey() {
+        return Arrays.asList(
+                stampsAttackRange() ? attackHitboxMargin() : null,
+                stampsAttackRange() ? attackReach() : null,
+                suppressesThrowSwing(), swordBlockingPose(), stripsGlider(), stripsUseCooldowns());
     }
 
     /**
