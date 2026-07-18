@@ -30,7 +30,14 @@ public final class SelfPlacementFix {
     /** Installs {@code delegate} wrapped with the exclusion - the composition seam for replaced placement listeners. */
     public static void install(@NotNull BiConsumer<ClientPlayerBlockPlacementPacket, Player> delegate) {
         MinecraftServer.getPacketListenerManager().setPlayListener(ClientPlayerBlockPlacementPacket.class,
-                (packet, player) -> wrapped(delegate, packet, player));
+                wrap(delegate)::accept);
+    }
+
+    /** {@code delegate} wrapped with the exclusion, uninstalled - for hosts that own the listener slot (a shard
+     *  library's placement-decorator seam), where registration order must not matter. */
+    public static @NotNull BiConsumer<ClientPlayerBlockPlacementPacket, Player> wrap(
+            @NotNull BiConsumer<ClientPlayerBlockPlacementPacket, Player> delegate) {
+        return (packet, player) -> wrapped(delegate, packet, player);
     }
 
     /** Arms {@link OptimizedPlayer#setSelfPlacing} for a passable block placement, then delegates (try/finally, like {@code MetaFix.wrapListener}). */
