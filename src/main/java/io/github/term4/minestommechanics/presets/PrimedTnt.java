@@ -5,6 +5,10 @@ import io.github.term4.minestommechanics.mechanics.explosion.ExplosionCalculator
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
+import net.kyori.adventure.nbt.BinaryTagTypes;
+import net.kyori.adventure.nbt.CompoundBinaryTag;
+import net.kyori.adventure.nbt.DoubleBinaryTag;
+import net.kyori.adventure.nbt.ListBinaryTag;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.collision.Aerodynamics;
@@ -12,6 +16,7 @@ import net.minestom.server.collision.PhysicsResult;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
+import net.minestom.server.entity.metadata.other.PrimedTntMeta;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.instance.Instance;
@@ -74,6 +79,21 @@ public final class PrimedTnt extends Entity {
             copy.motion = motion;
             return copy;
         });
+        setTag(MechanicsWorld.ENTITY_SAVE, () -> {
+            CompoundBinaryTag.Builder out = CompoundBinaryTag.builder().putString("id", "mm:tnt")
+                    .putInt("fuse", fuse)
+                    .putInt("fuseTicks", config.fuseTicks())
+                    .putFloat("power", config.power())
+                    .putBoolean("feet", config.detonateAtFeet())
+                    .putString("wire", config.wire().name())
+                    .putBoolean("bounce", config.bounce())
+                    .put("vel", ListBinaryTag.builder(BinaryTagTypes.DOUBLE)
+                            .add(DoubleBinaryTag.doubleBinaryTag(motion.x()))
+                            .add(DoubleBinaryTag.doubleBinaryTag(motion.y()))
+                            .add(DoubleBinaryTag.doubleBinaryTag(motion.z())).build());
+            if (config.tntVictimScale() != null) out.putDouble("victimScale", config.tntVictimScale());
+            return out.build();
+        });
         installRetune();
         setTag(ProjectileEntity.PROJECTILE_COLLIDABLE, true); // fireballs detonate on it, arrows deflect off
         // sync is hand-sent in update(); Minestom's scheduled sync would re-send forever at rest and flip the
@@ -96,6 +116,30 @@ public final class PrimedTnt extends Entity {
         return new SpawnEntityPacket(getEntityId(), getUuid(), getEntityType(), position, position.yaw(), 1, getVelocityForPacket());
     }
 
+    /** The load-side reviver for {@code "mm:tnt"} descriptors: remaining fuse + motion + preset knobs.
+     *  A revived twin runs the REAL physics and hand wire - the live bounce look on every client. */
+    public static PrimedTnt fromSave(ExplosionSystem explosion, CompoundBinaryTag data) {
+        Config config = new Config(data.getInt("fuseTicks"), data.getFloat("power"), data.getBoolean("feet"),
+                Wire.valueOf(data.getString("wire")), data.getBoolean("bounce"),
+                data.get("victimScale") != null ? data.getDouble("victimScale") : null);
+        PrimedTnt tnt = new PrimedTnt(explosion, config);
+        tnt.fuse = data.getInt("fuse");
+        ListBinaryTag vel = data.getList("vel", BinaryTagTypes.DOUBLE);
+        if (vel.size() == 3) tnt.motion = new Vec(vel.getDouble(0), vel.getDouble(1), vel.getDouble(2));
+        tnt.velocity = tnt.motion.mul(TPS);
+        ((PrimedTntMeta) tnt.getEntityMeta()).setFuseTime(tnt.fuse);
+        return tnt;
+    }
+
+    /** A replay twin never detonates: the recording's REMOVE + FX carry the explosion (client fuse untouched). */
+    public void sterilize() {
+        fuse = Integer.MAX_VALUE;
+    }
+
+    private boolean isParked() {
+        return Boolean.TRUE.equals(getTag(MechanicsWorld.REPLAY_PARKED));
+    }
+
     /** Spawns at the block's {@code +0.5,+0.5,+0.5} (measured) with the vanilla kick. */
     public static PrimedTnt spawn(ExplosionSystem explosion, Instance instance, Point tntBlock, Config config) {
         return spawn(explosion, MechanicsWorld.of(instance), tntBlock, config);
@@ -116,7 +160,7 @@ public final class PrimedTnt extends Entity {
     public void setVelocity(@NotNull Vec velocity) {
         this.motion = velocity.div(TPS);
         flipPending = isOnGround() && motion.y() < 0; // a downward impulse into a grounded TNT bounces at any magnitude
-        if (config.wire() == Wire.HYPIXEL && getInstance() != null) {
+        if (config.wire() == Wire.HYPIXEL && !isParked() && getInstance() != null) {
             pushed = true;
         } else {
             rawBroadcast = true; // MineMen: raw, unfloored on-blast send
@@ -138,6 +182,7 @@ public final class PrimedTnt extends Entity {
 
     @Override
     protected void movementTick() {
+        if (isParked()) return; // update()'s leg integration is the whole parked motion
         this.gravityTickCount = onGround ? 0 : gravityTickCount + 1;
         if (vehicle != null) return;
         Instance in = getInstance();
@@ -159,6 +204,11 @@ public final class PrimedTnt extends Entity {
 
     @Override
     public void update(long time) {
+        if (isParked()) { // a replay leg drives it: no fuse, no wire, no ground logic - integrate the leg only
+            Vec leg = getVelocity().div(TPS);
+            if (!leg.isZero()) refreshPosition(getPosition().add(leg), false, false);
+            return;
+        }
         // 1.8 TNT tick on our own motion: gravity before the move, drag, then the grounded ×0.7 friction + bounce.
         Aerodynamics aero = getAerodynamics();
         double vy = (motion.y() - aero.gravity()) * aero.verticalAirResistance();
@@ -169,6 +219,7 @@ public final class PrimedTnt extends Entity {
         motion = new Vec(motion.x() * hDrag, vy, motion.z() * hDrag);
         this.velocity = moveVector();
 
+        if (wireSyncedAt == null) wireSyncedAt = getPosition(); // a revived twin skips spawn()'s wire init
         if (pushed) { // vanilla broadcasts a blast impulse post-friction (its tracker phase), replacing this tick's cadence send
             pushed = false;
             sendPacketToViewersAndSelf(getVelocityPacket());

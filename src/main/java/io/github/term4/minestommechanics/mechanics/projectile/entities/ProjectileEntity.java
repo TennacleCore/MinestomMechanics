@@ -6,6 +6,7 @@ import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.util.Directions;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
+import io.github.term4.minestommechanics.tracking.motion.FluidFlow;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.collision.CollisionUtils;
@@ -93,6 +94,10 @@ public abstract class ProjectileEntity extends Entity {
     private double wireMotYFloor;
     /** Velocity in blocks/tick (library convention; {@code super.velocity} mirrors b/s). */
     protected Vec velocityBt = Vec.ZERO;
+    private double waterDrag = 1.0;
+    private double waterPush;
+    private ProjectileTypeConfig.WaterModel waterModel = ProjectileTypeConfig.WaterModel.LEGACY;
+    private boolean inWater;
     /** Constant per-tick acceleration added before drag (vanilla fireball {@code mot += dir; mot *= drag}); ZERO for ballistic projectiles. */
     protected Vec acceleration = Vec.ZERO;
     /** Shooter position + view at launch, for knockback origin (vanilla uses the shooter, not the projectile). */
@@ -195,6 +200,10 @@ public abstract class ProjectileEntity extends Entity {
 
     public boolean isStuck() { return collisionDirection != null; }
 
+    /** Replay-parked (a track drives this twin): its own sim must not stick, hit, or unstick - each stick
+     *  replays the hit sound and fights the track. */
+    protected boolean isParked() { return Boolean.TRUE.equals(getTag(MechanicsWorld.REPLAY_PARKED)); }
+
     /** Where the projectile entered the world (its wire-grid spawn position), or {@code null} before launch. */
     public @Nullable Pos getSpawnPosition() { return spawnPosition; }
     public void setSpawnPosition(@NotNull Pos pos) { this.spawnPosition = pos; }
@@ -223,6 +232,13 @@ public abstract class ProjectileEntity extends Entity {
     public void setEntityHitGrow(double grow) { this.entityHitGrow = grow; }
 
     public void setVelocitySyncInterval(int interval) { this.velocitySyncInterval = interval; }
+
+    /** Water behavior: {@code drag} replaces both air drags while in water ({@code 1} = unchanged), {@code push} = the per-tick current impulse. */
+    public void setWaterPhysics(double drag, double push, ProjectileTypeConfig.WaterModel model) {
+        this.waterDrag = drag;
+        this.waterPush = push;
+        this.waterModel = model;
+    }
 
     public void setBroadcastMovement(boolean v) { this.broadcastMovement = v; }
 
@@ -266,19 +282,44 @@ public abstract class ProjectileEntity extends Entity {
     public void setVelocity(@NotNull Vec velocity) {
         this.velocityBt = velocity.div(ServerFlag.SERVER_TICKS_PER_SECOND);
         this.velocity = velocity;
+        // re-aiming a stuck projectile re-launches it (an explosion boost, or a replay flying an arrow
+        // back out of its wall): clear the stuck state, the client's inGround freeze included. A LIVE
+        // re-launch falls again (stick set no-gravity); a parked twin's driver keeps it
+        if (isStuck() && !velocityBt.isZero()) {
+            EventDispatcher.call(new ProjectileUncollideEvent(this));
+            collisionDirection = null;
+            stuckCollisionPoint = null;
+            if (!isParked()) setNoGravity(false);
+            onUnstuck();
+        }
         if (!isStuck()) sendVelocityToViewers(getVelocityForPacket());
     }
 
     @Override
     public void tick(long time) {
         if (!MechanicsWorld.ownsCurrentTick(this)) return;
+        // parked (a replay leg drives it): integrate the leg ONLY - no mm physics (its gravity would keep
+        // evolving velocityBt into garbage the per-tick velocity wire then broadcasts against the driver's
+        // aims: the capture's chaotic slow-mo legs), no stuck resyncs, no collisions
+        if (isParked()) {
+            Vec leg = velocityBt;
+            if (!leg.isZero()) {
+                float yaw = lerpRotation(prevYaw, Directions.yaw(leg));
+                float pitch = lerpRotation(prevPitch, Directions.pitch(leg));
+                this.prevYaw = yaw;
+                this.prevPitch = pitch;
+                refreshPosition(getPosition().add(leg).withView(yaw, pitch), false, false);
+            }
+            return;
+        }
         if (isStuck()) {
             if (isRemoved()) return;
             // frozen but not radio-silent: a periodic teleport re-asserts pos + rotation so a mispredicted 1.8 stuck arrow self-heals
             updateProjectile(time);
             if (isRemoved()) return;
             if (stuckSyncCounter++ % Math.max(1L, getSynchronizationTicks()) == 0) resyncStuck();
-            if (shouldUnstuck()) unstick();
+            // parked: a replayed explosion's block ops must not drop the arrow out of its wall
+            if (shouldUnstuck() && !isParked()) unstick();
             return;
         }
         super.tick(time);
@@ -296,6 +337,31 @@ public abstract class ProjectileEntity extends Entity {
         if (world.isInVoid(position)) {
             pendingRemove = true;
             return;
+        }
+
+        // water sensing runs in the base update, BEFORE the motion step (both eras): contact sets the
+        // water drag and shoves along the current. The box is the VANILLA entity box (the physics box is
+        // a point, which would invert the 1.8 Y-inset and never detect)
+        if (waterDrag < 1.0 || waterPush > 0) {
+            if (waterModel == ProjectileTypeConfig.WaterModel.MODERN) {
+                var sample = FluidFlow.itemModernSample(world, position, getEntityType().registry().boundingBox(),
+                        net.minestom.server.instance.block.Block.WATER);
+                inWater = sample.height() > 0;
+                if (inWater && waterPush > 0) {
+                    Vec cur = sample.current(TickScaler.gravityPerTick(waterPush), velocityBt.x(), velocityBt.z());
+                    if (!cur.isZero()) {
+                        velocityBt = velocityBt.add(cur);
+                        this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
+                    }
+                }
+            } else {
+                Vec flow = FluidFlow.waterContact(world, position, getEntityType().registry().boundingBox());
+                inWater = flow != null;
+                if (inWater && waterPush > 0 && !flow.isZero()) {
+                    velocityBt = velocityBt.add(flow.mul(TickScaler.gravityPerTick(waterPush)));
+                    this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
+                }
+            }
         }
 
         // seed the render rotation at the launch direction on the first moving tick (vanilla onUpdate first-tick snap)
@@ -320,7 +386,7 @@ public abstract class ProjectileEntity extends Entity {
         Pos resolved = physics.hasCollision() ? physics.newPosition() : position.add(velocityBt);
         Pos newPosition = CollisionUtils.applyWorldBorder(world.worldBorder(), position, resolved);
         // shooter immunity: 26.1 = until the projectile leaves the shooter's box, 1.8 = fixed ticks
-        if (entityHits) {
+        if (entityHits && !isParked()) {
             if (leftOwnerImmunity && !leftOwner && shooter != null && !withinShooterBox(position)) leftOwner = true;
             boolean shooterImmune = (leftOwnerImmunity ? (shooter != null && !leftOwner)
                     : getAliveTicks() < shooterImmunityTicks) || getAliveTicks() < shooterImmuneUntilAlive;
@@ -352,7 +418,7 @@ public abstract class ProjectileEntity extends Entity {
         if (!world.isChunkLoaded(newPosition)) return;
 
         this.justBecameStuck = false;
-        if (blockContact) {
+        if (blockContact && !isParked()) {
             for (int axis = 0; axis < 3; axis++) {
                 if (physics.collisionShapes()[axis] instanceof ShapeImpl) {
                     Point hitPoint = physics.collisionPoints()[axis];
@@ -404,8 +470,9 @@ public abstract class ProjectileEntity extends Entity {
     private void applyDragGravity() {
         Aerodynamics aero = getAerodynamics();
         // TPS scaling (velocityBt is blocks/tick): drag^(clientTps/serverTps), gravity × (clientTps/serverTps)². Identity at 20.
-        double hDrag = TickScaler.dragPerTick(aero.horizontalAirResistance());
-        double vDrag = TickScaler.dragPerTick(aero.verticalAirResistance());
+        boolean wet = inWater && waterDrag < 1.0;
+        double hDrag = TickScaler.dragPerTick(wet ? waterDrag : aero.horizontalAirResistance());
+        double vDrag = TickScaler.dragPerTick(wet ? waterDrag : aero.verticalAirResistance());
         double gravity = hasNoGravity() ? 0 : TickScaler.gravityPerTick(aero.gravity());
         Vec accel = acceleration.mul(TickScaler.gravityPerTick(1.0)); // a per-tick thrust scales like gravity
         velocityBt = physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_BEFORE_MOVE
@@ -540,12 +607,20 @@ public abstract class ProjectileEntity extends Entity {
     // every updateInterval, client predicts the arc between.
     @Override
     protected void synchronizePosition() {
+        if (pendingRemove) return; // hit this tick and about to be removed: no final position/velocity broadcast
+        // externally driven (a replay parks it: no gravity, zero own velocity - stuck included): the driver
+        // moves it through refreshPosition, whose sends flow only while the base schedule is armed; the
+        // interval-0 silent wire never rearms it, so without the super call every relative move swallows
+        if (hasNoGravity() && velocityBt.isZero()) {
+            if (getSynchronizationTicks() <= 1) setSynchronizationTicks(ServerFlag.ENTITY_SYNCHRONIZATION_TICKS);
+            super.synchronizePosition();
+            return;
+        }
         // while stuck, resyncStuck() owns the broadcast; don't send on the stick tick (the resync's next teleport is the correction)
         if (isStuck()) {
             this.lastSyncedPosition = getPosition();
             return;
         }
-        if (pendingRemove) return; // hit this tick and about to be removed: no final position/velocity broadcast
         if (getSynchronizationTicks() <= 0) return; // silent wire (syncInterval 0): spawn-predicted, event-driven broadcasts only
         // throttle to syncInterval (a per-tick teleport shakes both clients - it fights their interpolation/prediction)
         if (flightSyncCounter++ % Math.max(1L, getSynchronizationTicks()) != 0) return;
@@ -593,6 +668,8 @@ public abstract class ProjectileEntity extends Entity {
     public void sendPacketToViewers(@NotNull SendablePacket packet) {
         if (packet instanceof EntityVelocityPacket && !allowVelocityPacket) {
             if (pendingRemove) return;             // being removed this tick: no final velocity broadcast
+            // externally driven (see synchronizePosition): fully silent except deliberate broadcasts
+            if (hasNoGravity() && velocityBt.isZero()) return;
             if (velocitySyncInterval <= 0) return; // vanilla arrow: no per-tick velocity, client predicts from spawn
             if (autoVelocityCounter++ % velocitySyncInterval != 0) return; // else every velocitySyncInterval ticks
             // after the counter: the eaten send still consumes its slot

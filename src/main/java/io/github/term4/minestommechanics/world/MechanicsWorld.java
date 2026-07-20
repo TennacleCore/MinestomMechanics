@@ -52,6 +52,10 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
     /** {@link #ENTITY_COPY}'s disk twin: an NBT descriptor for world saves; {@code "id"} names its reviver. */
     Tag<Supplier<CompoundBinaryTag>> ENTITY_SAVE = Tag.Transient("mm:entity-save");
 
+    /** Replay-parked marker (name-shared with the replay lib): a parked twin's own sim must not act -
+     *  no sticking, no hits, no fuse, no wire; the track drives it. */
+    Tag<Boolean> REPLAY_PARKED = Tag.Transient("replay:parked");
+
     /** The world wrapping {@code instance} (cached on the instance itself). */
     static @NotNull MechanicsWorld of(@NotNull Instance instance) {
         MechanicsWorld world = instance.getTag(TAG);

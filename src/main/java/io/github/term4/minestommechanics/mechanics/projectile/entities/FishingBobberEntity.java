@@ -64,6 +64,9 @@ public class FishingBobberEntity extends ManagedProjectile {
     private final double lineSnapDistanceSq;
     private final boolean hookedMetadata;
     private final @Nullable Boolean hookHalt;
+    private final boolean hookWater;
+    private @Nullable Pos waterSyncedAt;
+    private boolean waterDense;
     private final boolean hookStick;
 
     private @Nullable Entity hooked;
@@ -94,6 +97,8 @@ public class FishingBobberEntity extends ManagedProjectile {
         this.lineSnapDistanceSq = lineSnap * lineSnap;
         this.hookedMetadata = FieldValue.resolve(effectiveConfig.hookedMetadata, ctx, Boolean.TRUE);
         this.hookHalt = effectiveConfig.hookHalt != null ? effectiveConfig.hookHalt.resolve(ctx) : null;
+        this.hookWater = FieldValue.resolve(effectiveConfig.hookWater, ctx, Boolean.TRUE);
+
         this.hookStick = FieldValue.resolve(effectiveConfig.hookStick, ctx, Boolean.FALSE);
     }
 
@@ -158,7 +163,7 @@ public class FishingBobberEntity extends ManagedProjectile {
     /** 1.8: {@code motY += 0.04 * (2*coverage - 1)} (buoyant when submerged) rides the acceleration channel so it
      *  lands before drag; in water drag tightens to {@code 0.92*0.9} with an extra {@code 0.8} vertical. */
     private void tickLegacyWater() {
-        double coverage = waterCoverage();
+        double coverage = hookWater ? waterCoverage() : 0;
         wet = coverage > 0;
         float f2 = 0.92f;
         double verticalExtra = 1.0;
@@ -175,7 +180,7 @@ public class FishingBobberEntity extends ManagedProjectile {
     private boolean tickModernWater() {
         Pos pos = getPosition();
         int blockY = (int) Math.floor(pos.y());
-        double liquidHeight = Math.max(0, waterSurface(pos.x(), pos.y(), pos.z()) - blockY);
+        double liquidHeight = hookWater ? Math.max(0, waterSurface(pos.x(), pos.y(), pos.z()) - blockY) : 0;
         boolean inWater = liquidHeight > 0;
         if (!bobbing && inWater) {
             velocityBt = velocityBt.mul(0.3, 0.2, 0.3);
@@ -194,6 +199,14 @@ public class FishingBobberEntity extends ManagedProjectile {
         if (!inWater && !isOnGround()) velocityBt = velocityBt.sub(0, TickScaler.gravityPerTick(gravityBt), 0);
         this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
         return false;
+    }
+
+    private boolean touchesWater(net.minestom.server.coordinate.Point p) {
+        if (getInstance() == null) return false;
+        MechanicsWorld world = MechanicsWorld.of(this);
+        int x = (int) Math.floor(p.x()), z = (int) Math.floor(p.z());
+        if (!world.isChunkLoaded(x >> 4, z >> 4)) return false;
+        return world.getBlock(x, (int) Math.floor(p.y()), z).compare(Block.WATER);
     }
 
     /** 1.8 water coverage: the 0.25 bobber box in 5 slabs, each counting when the water surface is above its bottom. */
@@ -304,6 +317,38 @@ public class FishingBobberEntity extends ManagedProjectile {
         // ahead by its latency, so the pin must ride the SAME tick as the hook or it reads as a fly-through
         if (hooked != null && hookedValid()) {
             pinTo(hooked.getPosition().add(0, hooked.getBoundingBox().height() * 0.8, 0));
+        }
+        // a COMPAT display fix, not preset wire: prediction is generation-correct, so a silent wire only
+        // breaks for viewers whose client generation cannot predict THIS hook's water physics - hookWater
+        // off = no generation predicts a sail-through (1.8 EntityFishHook buoys client-side, MCP-919
+        // l.476; 26.1 latches BOBBING at first contact); hookWater on = only the mismatched generation.
+        // Those viewers ride a dense server escort through the water window; the air stays silent
+        // (ballistics are the shared prediction)
+        if (hooked == null && velocitySyncInterval <= 0 && getSynchronizationTicks() <= 0) {
+            if (!waterDense) {
+                Pos pos = getPosition();
+                waterDense = touchesWater(pos) || touchesWater(pos.add(velocityBt.mul(2)));
+            }
+            if (waterDense) {
+                Pos pos = getPosition();
+                if (waterSyncedAt == null || pos.distanceSquared(waterSyncedAt) > 1.0e-8) {
+                    waterSyncedAt = pos;
+                    var clientInfo = io.github.term4.minestommechanics.MinestomMechanics.getInstance().clientInfo();
+                    var sync = new net.minestom.server.network.packet.server.play.EntityPositionSyncPacket(
+                            getEntityId(), pos, Vec.ZERO, pos.yaw(), pos.pitch(), isOnGround());
+                    var vel = new net.minestom.server.network.packet.server.play.EntityVelocityPacket(
+                            getEntityId(), getVelocityForPacket());
+                    for (Player viewer : getViewers()) {
+                        if (hookWater && clientInfo != null && clientInfo.isLegacy(viewer) == !modernOrder) {
+                            continue; // their generation predicts this physics
+                        }
+                        if (viewer instanceof io.github.term4.minestommechanics.platform.player.OptimizedPlayer op
+                                && !op.compat().hookPredictionEscort()) continue;
+                        viewer.sendPacket(sync);
+                        viewer.sendPacket(vel);
+                    }
+                }
+            }
         }
     }
 

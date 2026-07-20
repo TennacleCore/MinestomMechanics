@@ -100,6 +100,7 @@ public final class Projectiles {
     public static ProjectileTypeConfig fishingBobber() {
         return ProjectileTypeConfig.builder(FishingBobber.KEY)
                 .gravity(GRAVITY_004F).horizontalDrag(DRAG_092F).verticalDrag(DRAG_092F)
+                .waterDrag(1.0).waterPush(0.0) // the bobber entity owns its water model
                 .syncInterval(5).velocitySyncInterval(5)
                 .wireLockstep(true)
                 .hookedMetadata(false) // 1.8 has no hooked metadata; modern viewers see the pin position, like real 1.8-through-Via
@@ -116,7 +117,7 @@ public final class Projectiles {
      */
     public static ProjectileTypeConfig arrow() {
         return ProjectileTypeConfig.builder(Arrow.KEY)
-                .gravity(GRAVITY_005F).speed(3.0)
+                .gravity(GRAVITY_005F).speed(3.0).waterDrag(0.6)
                 // 1.8 tracker arrow row (64, 20, false): no velocity updates, the client predicts from spawn
                 .syncInterval(20).velocitySyncInterval(0)
                 .damage(2.0).damageType(ProjectileDamage.INSTANCE)

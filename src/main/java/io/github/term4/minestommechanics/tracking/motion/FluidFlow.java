@@ -5,6 +5,7 @@ import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.instance.block.Block;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Vanilla fluid <b>flow</b> direction - the current that shoves an entity downstream. Pure geometry over the world's
@@ -115,29 +116,44 @@ public final class FluidFlow {
      */
     private static Vec legacyFlow(MechanicsWorld inst, Point pos, BoundingBox box, Block fluid) {
         // Vanilla water push box
-        return legacyScan(inst,
+        Vec flow = legacyScan(inst,
                 pos.x() + box.minX() + INSET, pos.y() + box.minY() + Y_SHRINK + INSET, pos.z() + box.minZ() + INSET,
                 pos.x() + box.maxX() - INSET, pos.y() + box.maxY() - Y_SHRINK - INSET, pos.z() + box.maxZ() - INSET,
                 fluid);
+        return flow == null ? Vec.ZERO : flow;
     }
 
     /** 1.8 item water current: {@code EntityItem} scans the RAW box (the player Y-inset would invert a 0.25-tall box and scan nothing). Unit direction or ZERO. */
     public static Vec itemLegacyFlow(MechanicsWorld inst, Point pos, BoundingBox box) {
-        return legacyScan(inst,
+        Vec flow = legacyScan(inst,
                 pos.x() + box.minX(), pos.y() + box.minY(), pos.z() + box.minZ(),
                 pos.x() + box.maxX(), pos.y() + box.maxY(), pos.z() + box.maxZ(), Block.WATER);
+        return flow == null ? Vec.ZERO : flow;
     }
 
-    private static Vec legacyScan(MechanicsWorld inst, double ax, double ay, double az, double dx, double dy, double dz, Block fluid) {
+    /** 1.8 {@code Entity.W()} water contact ({@code bb.grow(0,-0.4,0).shrink(0.001)} - the box every non-item
+     *  entity checks, quirks included: it inverts on short boxes, so detection flickers with height exactly like
+     *  vanilla). {@code box} is the VANILLA entity box, not the physics box. {@code null} = dry; otherwise the
+     *  unit current ({@link Vec#ZERO} in still water). */
+    public static @Nullable Vec waterContact(MechanicsWorld inst, Point pos, BoundingBox box) {
+        return legacyScan(inst,
+                pos.x() + box.minX() + INSET, pos.y() + box.minY() + Y_SHRINK + INSET, pos.z() + box.minZ() + INSET,
+                pos.x() + box.maxX() - INSET, pos.y() + box.maxY() - Y_SHRINK - INSET, pos.z() + box.maxZ() - INSET,
+                Block.WATER);
+    }
+
+    private static @Nullable Vec legacyScan(MechanicsWorld inst, double ax, double ay, double az, double dx, double dy, double dz, Block fluid) {
         int xi = floor(ax), xj = floor(dx + 1.0);
         int yi = floor(ay), yj = floor(dy + 1.0);
         int zi = floor(az), zj = floor(dz + 1.0);
 
+        boolean touched = false;
         double fx = 0, fy = 0, fz = 0;
         for (int x = xi; x < xj; x++) {
             for (int y = yi; y < yj; y++) {
                 for (int z = zi; z < zj; z++) {
                     if (effLevel(inst, x, y, z, fluid) < 0) continue; // not this fluid
+                    touched = true;
                     Vec slope = slopeAt(inst, x, y, z, fluid);
                     fx += slope.x();
                     fy += slope.y();
@@ -145,6 +161,7 @@ public final class FluidFlow {
                 }
             }
         }
+        if (!touched) return null;
         Vec sum = new Vec(fx, fy, fz);
         return sum.isZero() ? Vec.ZERO : sum.normalize();
     }

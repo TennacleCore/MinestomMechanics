@@ -103,6 +103,16 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
     public final @Nullable FieldValue<ProjectileContext, Double> gravity;
     public final @Nullable FieldValue<ProjectileContext, Double> horizontalDrag;
     public final @Nullable FieldValue<ProjectileContext, Double> verticalDrag;
+    /** Per-tick drag while in water, all axes, replacing the air drags (1.8/26.1: arrow {@code 0.6}, others {@code 0.8}); {@code 1} = unchanged. */
+    public final @Nullable FieldValue<ProjectileContext, Double> waterDrag;
+    /** Water-current impulse per tick along the flow (vanilla {@code 0.014}); {@code 0} = off. */
+    public final @Nullable FieldValue<ProjectileContext, Double> waterPush;
+    /** How water is sensed ({@link WaterModel}): 1.8's inset box (inverts on short entities - detection
+     *  flickers with height, vanilla-exact) vs 26.1's fluid-height sampling (no flicker, height-scaled flow). */
+    public final @Nullable FieldValue<ProjectileContext, WaterModel> waterModel;
+
+    /** 1.8 {@code Entity.W()} inset-box sensing vs 26.1 {@code EntityFluidInteraction} height sampling. */
+    public enum WaterModel { LEGACY, MODERN }
     /** Forward spawn offset along the shooter's look direction (blocks). */
     public final @Nullable FieldValue<ProjectileContext, Double> spawnOffsetForward;
     /** Vertical spawn offset from the shooter's eye height (blocks). */
@@ -174,6 +184,10 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
      *  victim, motion kept; the pin starts next tick on the normal sync). mmc18 opts in (silent-wire glued flash).
      *  Fishing-bobber only. */
     public final @Nullable FieldValue<ProjectileContext, Boolean> hookHalt;
+    /** Whether the bobber senses water at all ({@code false} = hooks ignore it entirely - NOT a vanilla or
+     *  MineMen behavior; thin-water punch-through is plain 1.8 momentum). Default on. */
+    public final @Nullable FieldValue<ProjectileContext, Boolean> hookWater;
+
     /** Freeze the bobber INTO the block it hits (arrow-like) instead of the vanilla slide/damp. Default {@code false}
      *  (vanilla: 1.8 ray-holds + damps down the face, 26.1 stops dead + falls); {@code true} = a server that wants
      *  rods to stick in walls. Fishing-bobber only. */
@@ -198,6 +212,9 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
         gravity = b.gravity;
         horizontalDrag = b.horizontalDrag;
         verticalDrag = b.verticalDrag;
+        waterDrag = b.waterDrag;
+        waterPush = b.waterPush;
+        waterModel = b.waterModel;
         spawnOffsetForward = b.spawnOffsetForward;
         spawnOffsetVertical = b.spawnOffsetVertical;
         spawnOffsetSideways = b.spawnOffsetSideways;
@@ -231,6 +248,7 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
         lineSnapDistance = b.lineSnapDistance;
         hookedMetadata = b.hookedMetadata;
         hookHalt = b.hookHalt;
+        hookWater = b.hookWater;
         hookStick = b.hookStick;
         knockback = b.knockback;
         knockbackSource = b.knockbackSource;

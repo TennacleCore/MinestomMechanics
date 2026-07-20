@@ -86,6 +86,9 @@ public final class CompatState {
 
     private static boolean on(@Nullable Boolean v) { return Boolean.TRUE.equals(v); }
 
+    /** Default ON (a display fix): unset means escorted. */
+    public boolean hookPredictionEscort() { return policy.hookPredictionEscort == null || policy.hookPredictionEscort; }
+
     /** Whether compat removed the modern attack cooldown; tracked so a profile swap restores the saved base only on a real change. */
     public boolean attackCooldownRemoved() { return attackCooldownRemoved; }
     public void setAttackCooldownRemoved(boolean v) { this.attackCooldownRemoved = v; }

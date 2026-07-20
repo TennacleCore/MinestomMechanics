@@ -105,6 +105,7 @@ public final class Projectiles {
     /** Applies the shared 1.8 -&gt; 26.1 projectile deltas onto {@code b} (over a 1.8 base). */
     private static ProjectileTypeConfig.Builder modernDeltas(ProjectileTypeConfig.Builder b) {
         return b
+                .waterModel(ProjectileTypeConfig.WaterModel.MODERN) // fluid-height sensing: no 1.8 inset flicker
                 .spawnOffsetSideways(0.0)
                 .momentumHorizontal(1.0)
                 // 26.1 momentum = the shooter's client motion, read at launch

@@ -46,6 +46,7 @@ import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.entity.EntityAttackEvent;
+import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.network.NetworkBuffer;
@@ -82,7 +83,10 @@ public final class ProjectileSystem implements MechanicsModule {
         this.node = EventNode.all("mm:projectile");
         // melee/left-click deflection: attacking a deflectable projectile (a fireball) redirects it along the attacker's look
         node.addListener(EntityAttackEvent.class, e -> {
-            if (e.getTarget() instanceof ProjectileEntity target) target.deflectBy(e.getEntity());
+            if (!(e.getTarget() instanceof ProjectileEntity target)) return;
+            // viewing is not being (DamageProducers doctrine): a spectator's punch must not steer what it only watches
+            if (e.getEntity() instanceof Player p && MechanicsWorld.viewed(p) != MechanicsWorld.of(p)) return;
+            target.deflectBy(e.getEntity());
         });
     }
 
@@ -240,6 +244,7 @@ public final class ProjectileSystem implements MechanicsModule {
     private static void stampFlight(ProjectileEntity entity, ResolvedFlight flight, ProjectileSnapshot snap) {
         entity.setBoundingBox(flight.boundingBox().width(), flight.boundingBox().height(), flight.boundingBox().depth());
         entity.setAerodynamics(new Aerodynamics(flight.gravity(), flight.horizontalDrag(), flight.verticalDrag()));
+        entity.setWaterPhysics(flight.waterDrag(), flight.waterPush(), flight.waterModel());
         entity.setBroadcastMovement(flight.broadcastMovement());
         entity.setSynchronizationTicks(TickScaler.duration(flight.syncInterval(), KEY));
         entity.setVelocitySyncInterval(TickScaler.duration(flight.velocitySyncInterval(), KEY));

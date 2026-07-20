@@ -53,6 +53,9 @@ public final class CompatConfig {
     public final @Nullable Boolean legacyFluids;
     /** No elytra glide (1.8 has no elytra): every modern client gets {@code glider} stripped from its item VIEW, so the client never attempts it (Animatium also disables natively - harmless doubled). */
     public final @Nullable Boolean disableElytraFlight;
+    /** Opt-out for the hook prediction escort (default ON): on a silent hook wire, a viewer whose client
+     *  generation cannot predict the hook's water physics gets a dense server wire through the water window. */
+    public final @Nullable Boolean hookPredictionEscort;
     /** 1.8 creative/spectator flight (sneaking while flying slows horizontal). */
     public final @Nullable Boolean oldFlight;
     /** Allow starting an item use while mining (modern MC blocks use-item during destroy; 1.8 doesn't). */
@@ -75,6 +78,8 @@ public final class CompatConfig {
     public final @Nullable Boolean nativeShortVelocity;
     /** Explicit override for the {@link AnimatiumFeature} set sent; {@code null} = derive from the knobs above. */
     public final @Nullable Set<AnimatiumFeature> animatiumFeatures;
+    /** Chat-message the player each time their {@code set_server_features} payload is sent (mod-dev debugging). */
+    public final @Nullable Boolean animatiumDebug;
 
     private CompatConfig(Builder b) {
         disabledPoses = b.disabledPoses;
@@ -91,6 +96,7 @@ public final class CompatConfig {
         blockPlaceReach = b.blockPlaceReach;
         legacyFluids = b.legacyFluids;
         disableElytraFlight = b.disableElytraFlight;
+        hookPredictionEscort = b.hookPredictionEscort;
         oldFlight = b.oldFlight;
         leftClickItemUsage = b.leftClickItemUsage;
         disableAutoSneak = b.disableAutoSneak;
@@ -108,6 +114,7 @@ public final class CompatConfig {
         removeUseCooldowns = b.removeUseCooldowns;
         nativeShortVelocity = b.nativeShortVelocity;
         animatiumFeatures = b.animatiumFeatures;
+        animatiumDebug = b.animatiumDebug;
     }
 
     public Builder toBuilder() { return new Builder(this); }
@@ -131,6 +138,7 @@ public final class CompatConfig {
         private @Nullable Double blockPlaceReach;
         private @Nullable Boolean legacyFluids;
         private @Nullable Boolean disableElytraFlight;
+        private @Nullable Boolean hookPredictionEscort;
         private @Nullable Boolean oldFlight;
         private @Nullable Boolean leftClickItemUsage;
         private @Nullable Boolean disableAutoSneak;
@@ -148,6 +156,7 @@ public final class CompatConfig {
         private @Nullable Boolean removeUseCooldowns;
         private @Nullable Boolean nativeShortVelocity;
         private @Nullable Set<AnimatiumFeature> animatiumFeatures;
+        private @Nullable Boolean animatiumDebug;
 
         Builder() {}
 
@@ -182,6 +191,7 @@ public final class CompatConfig {
             swordBlockingPose = c.swordBlockingPose;
             removeUseCooldowns = c.removeUseCooldowns;
             nativeShortVelocity = c.nativeShortVelocity;
+            animatiumDebug = c.animatiumDebug;
             animatiumFeatures = c.animatiumFeatures;
         }
 
@@ -200,6 +210,7 @@ public final class CompatConfig {
         public Builder blockPlaceReach(@Nullable Double v) { blockPlaceReach = v; return this; }
         public Builder legacyFluids(@Nullable Boolean v) { legacyFluids = v; return this; }
         public Builder disableElytraFlight(@Nullable Boolean v) { disableElytraFlight = v; return this; }
+        public Builder hookPredictionEscort(@Nullable Boolean v) { hookPredictionEscort = v; return this; }
         public Builder oldFlight(@Nullable Boolean v) { oldFlight = v; return this; }
         public Builder leftClickItemUsage(@Nullable Boolean v) { leftClickItemUsage = v; return this; }
         public Builder disableAutoSneak(@Nullable Boolean v) { disableAutoSneak = v; return this; }
@@ -218,6 +229,7 @@ public final class CompatConfig {
         public Builder nativeShortVelocity(@Nullable Boolean v) { nativeShortVelocity = v; return this; }
         public Builder animatiumFeatures(@Nullable Set<AnimatiumFeature> v) { animatiumFeatures = v != null ? Set.copyOf(v) : null; return this; }
         public Builder animatiumFeatures(AnimatiumFeature... features) { animatiumFeatures = Set.of(features); return this; }
+        public Builder animatiumDebug(@Nullable Boolean v) { animatiumDebug = v; return this; }
 
         public CompatConfig build() { return new CompatConfig(this); }
     }

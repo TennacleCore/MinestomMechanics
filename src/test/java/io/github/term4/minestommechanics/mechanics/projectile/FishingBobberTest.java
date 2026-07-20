@@ -511,6 +511,9 @@ class FishingBobberTest extends HeadlessServerTest {
     @Test
     void mmc18SilentWireIsFullyClientPredicted() {
         var viewer = FakePlayer.connect(instance, new Pos(120.5, 150, 8.5), "SilentWire");
+        // the silent contract is the 1.8 viewer's (modern viewers ride hookModernSync - see
+        // silentWireSyncsModernViewersOnly)
+        MinestomMechanics.getInstance().clientInfo().setProxyDetails(viewer.player, "{\"version\":47}");
         LivingEntity shooter = angler(new Pos(120.5, 150, 10.5, 37.0f, 12.5f));
         viewer.sent.clear();
         ProjectileEntity bobber = launch(Projectiles.config(), shooter);
@@ -615,5 +618,91 @@ class FishingBobberTest extends HeadlessServerTest {
         bobber.remove();
         shooter.remove();
     }
+    private static long countSyncs(io.github.term4.minestommechanics.testsupport.FakePlayer viewer, int id) {
+        return viewer.sent.stream()
+                .map(pk -> net.minestom.server.network.packet.server.SendablePacket
+                        .extractServerPacket(net.minestom.server.network.ConnectionState.PLAY, pk))
+                .filter(pk -> pk instanceof net.minestom.server.network.packet.server.play.EntityPositionSyncPacket sp
+                        && sp.entityId() == id)
+                .count();
+    }
 
+    /** 1.8 hooks keep their momentum in water (paper EntityFishingHook: buoyancy + gradual drag, NO entry
+     *  damp): a fast cast punches THROUGH a thin wall, yet floats in a deep pool. mmc18 inherits this. */
+    @Test
+    void legacyHookPunchesThinWaterButFloatsInPools() {
+        for (int x = 55; x <= 58; x++)
+            for (int z = 8; z <= 12; z++) instance.loadChunk(x, z).join();
+        // a thin standing wall of water across the cast line (2 thick), nothing behind it
+        for (int x = 895; x <= 905; x++)
+            for (int y = 130; y <= 140; y++)
+                for (int z = 146; z <= 147; z++)
+                    instance.setBlock(x, y, z, net.minestom.server.instance.block.Block.WATER);
+        LivingEntity thinAngler = angler(new Pos(900.5, 135, 140.5, 0, 0));
+        ProjectileEntity thin = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), thinAngler);
+        double maxZ = 0;
+        for (int t = 1; t <= 30 && !thin.isRemoved(); t++) {
+            thin.tick(t * 50L);
+            maxZ = Math.max(maxZ, thin.getPosition().z());
+        }
+
+        // the deep pool: the same physics runs out of momentum and floats up
+        for (int x = 890; x <= 930; x++)
+            for (int y = 58; y <= 64; y++)
+                for (int z = 140; z <= 180; z++)
+                    instance.setBlock(x, y, z, net.minestom.server.instance.block.Block.WATER);
+        LivingEntity poolAngler = angler(new Pos(910.5, 66, 150.5, 0, 10));
+        ProjectileEntity pool = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), poolAngler);
+        double poolEndY = 0;
+        for (int t = 1; t <= 60 && !pool.isRemoved(); t++) {
+            pool.tick(t * 50L);
+            poolEndY = pool.getPosition().y();
+        }
+        System.out.println("[hook-water] thin maxZ=" + String.format("%.2f", maxZ)
+                + " pool endY=" + String.format("%.2f", poolEndY));
+        assertTrue(maxZ > 149.0, "momentum carries the hook through a 2-thick wall (maxZ " + maxZ + ")");
+        assertTrue(poolEndY > 64.2, "the same hook floats in a deep pool (endY " + poolEndY + ")");
+        if (!thin.isRemoved()) thin.remove();
+        if (!pool.isRemoved()) pool.remove();
+        thinAngler.remove();
+        poolAngler.remove();
+    }
+
+    /** The silent mmc18 wire trusts client prediction; the hook runs 1.8 water physics, which a 1.8
+     *  viewer predicts EXACTLY (silence holds even in water) - only MODERN viewers mismatch (their client
+     *  stops dead at entry and floats, 26.1 FishingHook) and ride the water-window escort. */
+    @Test
+    void waterWindowEscortsOnlyMismatchedGenerations() {
+        // own pool: test-method ordering must not decide whether the water exists
+        for (int x = 900; x <= 910; x++)
+            for (int y = 60; y <= 64; y++)
+                for (int z = 148; z <= 162; z++)
+                    instance.setBlock(x, y, z, net.minestom.server.instance.block.Block.WATER);
+        var modern = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance,
+                new Pos(905.5, 70, 143.5), "ModernRodViewer");
+        var legacy = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance,
+                new Pos(905.5, 70, 141.5), "LegacyRodViewer");
+        MinestomMechanics.getInstance().clientInfo().setProxyDetails(legacy.player, "{\"version\":47}");
+
+        // cast DOWN into the hook-water pool (y 58..64): air first, water contact within a few ticks
+        LivingEntity shooter = angler(new Pos(905.5, 70, 145.5, 0, 35));
+        ProjectileEntity bobber = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), shooter);
+        int id = bobber.getEntityId();
+        modern.sent.clear();
+        legacy.sent.clear();
+        bobber.tick(50L); // first flight tick: still in the air
+        long airSyncs = countSyncs(modern, id);
+        for (int t = 2; t <= 14 && !bobber.isRemoved(); t++) bobber.tick(t * 50L);
+        long modernSyncs = countSyncs(modern, id);
+        long legacySyncs = countSyncs(legacy, id);
+        System.out.println("[hook-wire] airSyncs=" + airSyncs + " modernSyncs=" + modernSyncs
+                + " legacySyncs=" + legacySyncs);
+        assertTrue(airSyncs == 0, "the air flight stays on the silent contract for everyone (" + airSyncs + ")");
+        assertTrue(modernSyncs >= 3, "modern viewers ride the escort from the water window (" + modernSyncs + ")");
+        assertTrue(legacySyncs == 0, "1.8 viewers predict this physics exactly - never escorted (" + legacySyncs + ")");
+        if (!bobber.isRemoved()) bobber.remove();
+        shooter.remove();
+        modern.player.remove();
+        legacy.player.remove();
+    }
 }

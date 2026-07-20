@@ -17,9 +17,9 @@ public enum AnimatiumFeature {
     CLIENTSIDE_ENTITIES(7),
     FIX_SPRINT_ITEM_USE(8),
     FIX_SPRINT_SNEAKING(9),
-    DISABLE_SWIM_POSE(10),   // suppress the swim STATE client-side (Pose.SWIMMING via isSwimming + the modern swim physics/crouch-block)
-    DISABLE_CRAWL_POSE(11),  // squeeze-to-fit crawl (Pose.SWIMMING via the fit fallback) - reserved; not yet wired (collision concern)
-    DISABLE_ELYTRA_POSE(12), // elytra (Pose.FALL_FLYING)
+    DISABLE_SWIM_POSE(10),
+    DISABLE_CRAWL_POSE(11),
+    DISABLE_ELYTRA_POSE(12),
     OLD_FLUID_PHYSICS(13),
     DISABLE_ELYTRA_FLIGHT(14),
     OLD_FLIGHT(15),
@@ -28,11 +28,9 @@ public enum AnimatiumFeature {
     OLD_MOMENTUM(18),
     DISABLE_ENTITY_PUSH(19),
     OLD_PLACEMENT(20),
-    DISABLE_BED_BOUNCE(21),     // 1.8 beds don't bounce
-    DISABLE_HONEY_PHYSICS(22),  // honey acts like a plain block (no slide, no jump/walk slowdown)
-    DISABLE_BUBBLE_COLUMN(23),  // no bubble-column push
-    // WIRE-FORMAT, not just a toggle (byte-exact 1.8 shorts for SET_ENTITY_MOTION instead of lossy LpVec3):
-    // sent to a client that can't decode it, it corrupts the stream - confirm native support first
+    DISABLE_BED_BOUNCE(21),
+    DISABLE_HONEY_PHYSICS(22),
+    DISABLE_BUBBLE_COLUMN(23),
     SHORTS_VELOCITY(24);
 
     /** Bit index in the {@code set_server_features} BitSet payload (= Animatium's {@code ServerFeature} id). */

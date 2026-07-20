@@ -4,12 +4,15 @@ import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.tracking.ClientInfoTracker;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.minestom.server.entity.EntityPose;
 import net.minestom.server.entity.Player;
 import net.minestom.server.network.NetworkBuffer;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.BitSet;
+import java.util.stream.Collectors;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -53,12 +56,25 @@ public final class CompatAnimatium {
      * the set itself. No-op for non-Animatium clients (so a vanilla client is never wrongly marked as handling features natively).
      */
     public static void applyFeatures(MinestomMechanics mm, Player player) {
-        if (!(player instanceof OptimizedPlayer op) || !op.compat().isAnimatiumClient()) return;
+        if (!(player instanceof OptimizedPlayer op)) return;
         CompatConfig cfg = mm.profiles().resolve(player, MechanicsKeys.COMPAT);
+        boolean debug = cfg != null && Boolean.TRUE.equals(cfg.animatiumDebug);
+        if (!op.compat().isAnimatiumClient()) {
+            // the debug knob's other answer: WHY nothing was sent. On join one skip line is NORMAL even for
+            // an Animatium client - the first config apply precedes the mod's handshake, which then re-applies
+            if (debug) player.sendMessage(Component.text(
+                    "[animatium] skipped: no animatium:info from this client (yet)", NamedTextColor.GRAY));
+            return;
+        }
         Set<AnimatiumFeature> features = cfg == null ? Set.of() : resolve(cfg);
         features = gateWireFeatures(features, op.compat());
         op.compat().setNativeFeatures(features);
         player.sendPluginMessage(SET_FEATURES_CHANNEL, encode(features));
+        if (debug) {
+            player.sendMessage(Component.text("[animatium] sent " + features.size() + " feature(s): "
+                    + features.stream().sorted().map(Enum::name).collect(Collectors.joining(", ")),
+                    NamedTextColor.GRAY));
+        }
     }
 
     /** The features to send: the explicit {@code animatiumFeatures} override if set, else the knob-derived set. */

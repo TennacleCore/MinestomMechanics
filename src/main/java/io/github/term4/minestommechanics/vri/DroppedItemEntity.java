@@ -140,10 +140,19 @@ public class DroppedItemEntity extends ItemEntity {
         return item;
     }
 
+    private boolean isParked() {
+        return Boolean.TRUE.equals(getTag(MechanicsWorld.REPLAY_PARKED));
+    }
+
     // Minestom's movementTick collides against the backing instance only; a drop in a diff world would fall through
     // placed blocks server-side. Same step, world block view.
     @Override
     public void movementTick() {
+        if (isParked()) { // a replay leg drives it: integrate the leg only
+            Vec leg = velocity.div(TPS);
+            if (!leg.isZero()) refreshPosition(getPosition().add(leg), false, false);
+            return;
+        }
         this.gravityTickCount = onGround ? 0 : gravityTickCount + 1;
         if (vehicle == null && getInstance() != null) {
             MechanicsWorld world = MechanicsWorld.of(this, getInstance());
@@ -166,6 +175,7 @@ public class DroppedItemEntity extends ItemEntity {
 
     @Override
     public void update(long time) {
+        if (isParked()) return; // no merges, no fluid pushes
         Instance instance = getInstance();
         if (instance == null || isRemoved()) return;
         mergeScan(time);

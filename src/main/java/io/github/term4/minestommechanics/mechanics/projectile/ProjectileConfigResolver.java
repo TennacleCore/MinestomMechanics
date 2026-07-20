@@ -77,6 +77,9 @@ public final class ProjectileConfigResolver {
                 or(resolve(tc.gravity, ctx), 0.03),
                 or(resolve(tc.horizontalDrag, ctx), 0.99),
                 or(resolve(tc.verticalDrag, ctx), 0.99),
+                or(resolve(tc.waterDrag, ctx), 0.8), // vanilla throwable/fireball; arrows override 0.6
+                or(resolve(tc.waterPush, ctx), 0.014), // 1.8 Entity.W() current
+                or(resolve(tc.waterModel, ctx), ProjectileTypeConfig.WaterModel.LEGACY),
                 or(resolve(tc.spawnOffsetForward, ctx), 0.0),
                 or(resolve(tc.spawnOffsetVertical, ctx), 0.0),
                 or(resolve(tc.spawnOffsetSideways, ctx), 0.0),
@@ -134,6 +137,9 @@ public final class ProjectileConfigResolver {
             double gravity,
             double horizontalDrag,
             double verticalDrag,
+            double waterDrag,
+            double waterPush,
+            ProjectileTypeConfig.WaterModel waterModel,
             double spawnOffsetForward,
             double spawnOffsetVertical,
             double spawnOffsetSideways,
