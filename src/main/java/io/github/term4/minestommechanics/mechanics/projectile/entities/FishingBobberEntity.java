@@ -213,9 +213,16 @@ public class FishingBobberEntity extends ManagedProjectile {
     private double waterCoverage() {
         Pos pos = getPosition();
         double coverage = 0;
+        int lastBy = Integer.MIN_VALUE;
+        double surface = Double.NEGATIVE_INFINITY;
         for (int slab = 0; slab < 5; slab++) {
             double slabMin = pos.y() + BOX_HEIGHT * slab / 5;
-            if (waterSurface(pos.x(), slabMin, pos.z()) > slabMin) coverage += 1.0 / 5;
+            int by = (int) Math.floor(slabMin);
+            if (by != lastBy) { // the surface is per-block: the 0.2-tall span hits at most two
+                lastBy = by;
+                surface = waterSurface(pos.x(), slabMin, pos.z());
+            }
+            if (surface > slabMin) coverage += 1.0 / 5;
         }
         return coverage;
     }

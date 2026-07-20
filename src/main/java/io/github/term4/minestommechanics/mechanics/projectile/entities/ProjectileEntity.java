@@ -324,7 +324,12 @@ public abstract class ProjectileEntity extends Entity {
         }
         super.tick(time);
         // Apply a removal requested during movementTick now that touchTick has run (instance still valid through it).
-        if (pendingRemove) { pendingRemove = false; remove(); return; }
+        if (pendingRemove) {
+            pendingRemove = false;
+            breakParticles();
+            remove();
+            return;
+        }
         if (!isRemoved()) updateProjectile(time);
     }
 
@@ -689,4 +694,39 @@ public abstract class ProjectileEntity extends Entity {
         // no spawn velocity dup: the Via chain already re-emits it as the 1.8 S12
     }
 
+
+    // vanilla impact poof, the 1.8-server way: REAL particle packets (EntitySnowball.onImpact spawns
+    // 8; pearls 32 PORTAL) - both client generations render them, and they record as replay FX.
+    // 26.1 uses entity event 3 instead, which 1.8 clients ignore
+    private void breakParticles() {
+        var type = getEntityType();
+        var pos = getPosition();
+        net.minestom.server.network.packet.server.play.ParticlePacket packet;
+        if (type == net.minestom.server.entity.EntityType.SNOWBALL) {
+            packet = new net.minestom.server.network.packet.server.play.ParticlePacket(
+                    net.minestom.server.particle.Particle.ITEM_SNOWBALL,
+                    pos.x(), pos.y(), pos.z(), 0f, 0f, 0f, 0f, 8);
+        } else if (type == net.minestom.server.entity.EntityType.EGG) {
+            packet = new net.minestom.server.network.packet.server.play.ParticlePacket(
+                    net.minestom.server.particle.Particle.ITEM.withItem(
+                            net.minestom.server.item.ItemStack.of(net.minestom.server.item.Material.EGG)),
+                    pos.x(), pos.y(), pos.z(), 0f, 0f, 0f, 0.05f, 8);
+        } else if (type == net.minestom.server.entity.EntityType.ENDER_PEARL) {
+            packet = new net.minestom.server.network.packet.server.play.ParticlePacket(
+                    net.minestom.server.particle.Particle.PORTAL,
+                    pos.x(), pos.y(), pos.z(), 0f, 0f, 0f, 0.5f, 32);
+        } else {
+            return;
+        }
+        // 1.8-line sims self-predict the poof (1.8 onImpact particles are not isRemote-gated, and
+        // Animatium's 1.8 mechanics do the same) - packets would double them. Replays are unaffected:
+        // recorded FX re-broadcasts reach twins, whose starved sims never collide
+        var clientInfo = io.github.term4.minestommechanics.MinestomMechanics.getInstance().clientInfo();
+        for (var viewer : getViewers()) {
+            if (clientInfo.isLegacy(viewer)) continue;
+            if (viewer instanceof io.github.term4.minestommechanics.platform.player.OptimizedPlayer op
+                    && op.compat().isAnimatiumClient()) continue;
+            viewer.sendPacket(packet);
+        }
+    }
 }

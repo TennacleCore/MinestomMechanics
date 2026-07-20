@@ -320,18 +320,37 @@ public final class FluidFlow {
         return raw >= 8 ? 0 : raw;
     }
 
+    // level by state id, parsed once: the string property lookup + parseInt ran per cell in the
+    // innermost primitive of every fluid scan
+    private static final int WATER_BASE = minStateId(Block.WATER), LAVA_BASE = minStateId(Block.LAVA);
+    private static final byte[] WATER_LEVELS = levelTable(Block.WATER), LAVA_LEVELS = levelTable(Block.LAVA);
+
+    private static int minStateId(Block fluid) {
+        int min = Integer.MAX_VALUE;
+        for (Block state : fluid.possibleStates()) min = Math.min(min, state.stateId());
+        return min;
+    }
+
+    private static byte[] levelTable(Block fluid) {
+        var states = fluid.possibleStates();
+        byte[] table = new byte[states.size()];
+        int base = minStateId(fluid);
+        for (Block state : states) {
+            String level = state.getProperty("level");
+            table[state.stateId() - base] = level == null ? 0 : Byte.parseByte(level);
+        }
+        return table;
+    }
+
     /** The {@code fluid}'s {@code level} property (0 source, 1-7 flowing, 8-15 falling), or -1 when the cell is not that fluid. */
     private static int rawLevel(MechanicsWorld inst, int x, int y, int z, Block fluid) {
         if (!inst.isChunkLoaded(x >> 4, z >> 4)) return -1; // unloaded -> not fluid
         Block block = inst.getBlock(x, y, z); // full state so the level property is present
         if (block == null || !block.compare(fluid)) return -1; // by id: matches every fluid level
-        String level = block.getProperty("level");
-        if (level == null) return 0;
-        try {
-            return Integer.parseInt(level);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
+        int base = fluid.compare(Block.WATER) ? WATER_BASE : LAVA_BASE;
+        byte[] table = fluid.compare(Block.WATER) ? WATER_LEVELS : LAVA_LEVELS;
+        int idx = block.stateId() - base;
+        return idx >= 0 && idx < table.length ? table[idx] : 0;
     }
 
     /** Approximates vanilla's {@code material.isSolid()} / face-occlusion test with the registry solid flag. */
