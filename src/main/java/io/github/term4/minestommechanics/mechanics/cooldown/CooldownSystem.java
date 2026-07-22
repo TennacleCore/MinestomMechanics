@@ -13,6 +13,7 @@ import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Map;
 
 /**
@@ -44,9 +45,15 @@ public final class CooldownSystem implements MechanicsModule {
 
     public static CooldownSystem install(MinestomMechanics mm, @Nullable CooldownConfig config) {
         CooldownSystem system = new CooldownSystem(mm, config);
+        if (CLOCK_RESET.compareAndSet(false, true)) {
+            // no future-guard on the expiry: against a new clock a stale stamp never expires
+            TickSystem.onClockChange(e -> { if (e instanceof Player p) p.removeTag(ACTIVE); });
+        }
         mm.register(system);
         return system;
     }
+
+    private static final AtomicBoolean CLOCK_RESET = new AtomicBoolean();
 
     public boolean isOnCooldown(Player player, Material material) {
         Map<String, Long> active = player.getTag(ACTIVE);

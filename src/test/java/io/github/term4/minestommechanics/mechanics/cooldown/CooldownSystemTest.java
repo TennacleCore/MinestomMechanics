@@ -50,6 +50,29 @@ class CooldownSystemTest extends HeadlessServerTest {
         assertTrue(system.tryUse(p.player, Material.ENDER_PEARL), "re-allowed at expiry");
     }
 
+    /** Against a clock counting from zero the old expiry is unreachable, and nothing else clears it. */
+    @Test
+    void aClockChangeDropsCooldownsInsteadOfStrandingThem() {
+        Instance inst = flatInstance(MechanicsProfile.builder()
+                .set(MechanicsKeys.COOLDOWNS, CooldownConfig.builder().cooldown(Material.ENDER_PEARL, 20).build())
+                .build());
+        FakePlayer p = FakePlayer.connect(inst, new Pos(12.5, 64, 12.5), "ClockHop");
+        try {
+            setCombatTick(inst, 10_000); // armed deep into the old clock
+            assertTrue(system.tryUse(p.player, Material.ENDER_PEARL));
+            assertTrue(system.isOnCooldown(p.player, Material.ENDER_PEARL));
+
+            setCombatTick(inst, 0); // the new clock counts from zero
+            assertTrue(system.isOnCooldown(p.player, Material.ENDER_PEARL), "stale stamp still reads as active");
+
+            TickSystem.clockChanged(p.player);
+            assertFalse(system.isOnCooldown(p.player, Material.ENDER_PEARL),
+                    "a cooldown never survives a clock change - a stranded one has no way to expire");
+        } finally {
+            p.player.remove();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static void setCombatTick(Instance inst, long value) {
         try {

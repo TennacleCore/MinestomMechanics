@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Swing fake-hits: an arm-swing whose attack packet missed still lands on the LAST player the attacker hit, if the
@@ -59,11 +60,16 @@ public final class FakeHits {
     }
     /** An entry exists only for armed attackers with recorded combat, so the listeners are inert for everyone else. */
     private static final Map<Player, Swing> swings = new ConcurrentHashMap<>();
+    private static final AtomicBoolean CLOCK_RESET = new AtomicBoolean();
 
     private FakeHits() {}
 
     public static void install(MinestomMechanics mm) {
         AttackLog.installDigTracking(mm);
+        if (CLOCK_RESET.compareAndSet(false, true)) {
+            // a window stamped on the old clock never expires, so it re-rays on every move packet
+            TickSystem.onClockChange(e -> { if (e instanceof Player p) swings.remove(p); });
+        }
         EventNode<@NotNull Event> node = EventNode.all("mm:fake-hits");
         // off the damage pipeline, not the attack events, so hits landing outside AttackSystem.apply (a preset's
         // queued-hit flush) still re-arm

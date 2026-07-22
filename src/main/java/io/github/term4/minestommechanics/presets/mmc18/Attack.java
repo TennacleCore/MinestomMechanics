@@ -83,6 +83,8 @@ public final class Attack {
     private static void ensureFlushListener() {
         if (!flushListenerStarted.compareAndSet(false, true)) return;
         TickSystem.register(TickPhase.PRE_DISPATCH, Attack::flushExpired);
+        // a deadline on the old clock fires once the new one counts up to it - a minutes-late phantom hit
+        TickSystem.onClockChange(e -> { if (e instanceof LivingEntity le) pendingHit.remove(le); });
     }
 
     // victim's own pass only: shards share the base instance, so a foreign pass would run the hit on the wrong
