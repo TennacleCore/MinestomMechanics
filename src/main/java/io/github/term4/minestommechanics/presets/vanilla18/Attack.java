@@ -19,10 +19,7 @@ import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 
-/**
- * Vanilla 1.8 attack config + the legacy (pre-1.9) combat ruleset. The canonical 1.8 values, consumed both by the
- * {@link Vanilla18} preset profile and by {@code AttackConfig}/{@code AttackConfigResolver} as their fallback ruleset.
- */
+/** Vanilla 1.8 attack config + the legacy (pre-1.9) combat ruleset; also the {@code AttackConfigResolver} fallback. */
 public final class Attack {
 
     private Attack() {}
@@ -35,12 +32,10 @@ public final class Attack {
                 .build();
     }
 
-    /** Legacy (pre-1.9) attack ruleset: applies melee damage, knockback, and resets attacker sprint. */
     public static AttackEvent.AttackRule.Ruleset ruleset() {
         return LegacyAttack::new;
     }
 
-    /** Handles legacy (pre-1.9) combat attacks (damage, knockback, sprint reset). */
     private record LegacyAttack(Services services) implements AttackEvent.AttackRule {
         @Override public void processAttack(AttackEvent event) {
             DamageSystem.DamageOutcome result = DamageSystem.DamageOutcome.FRESH_DAMAGE; // no damage system -> nothing absorbs the hit
@@ -49,7 +44,7 @@ public final class Attack {
                 DamageSnapshot snap = MeleeDamage.INSTANCE.snapshot(
                         event.attacker(), event.target(), event.critical(), event.item(), services);
                 result = dmg.apply(snap);
-                // crit + magic-crit sparkle on a landed fresh hit (vanilla onCriticalHit / onEnchantmentCritical, independent)
+                // vanilla onCriticalHit / onEnchantmentCritical, independent
                 if (result == DamageSystem.DamageOutcome.FRESH_DAMAGE) {
                     boolean fake = event.finalSnap().aim() != null;
                     EffectContext fx = EffectContext.of(event.attacker(), event.target());
@@ -59,16 +54,15 @@ public final class Attack {
                     }
                 }
             }
-            // Knockback enchant feeds the extra-knockback level (the weapon actually used, frozen for buffered hits; +1 for a sprint hit added in the calculator)
+            // weapon frozen for buffered hits; the sprint +1 is added in the calculator
             KnockbackSystem kb = services.knockback();
             if (result == DamageSystem.DamageOutcome.FRESH_DAMAGE && kb != null) {
                 int extra = Enchants.level(event.item(), Knockback.KEY);
-                Pos aim = event.finalSnap().aim(); // swing-filled hit: KB follows the intersecting ray, not the attacker's live look
+                Pos aim = event.finalSnap().aim(); // swing-filled hit: KB follows the intersecting ray, not the live look
                 var kbSnap = new KnockbackSnapshot(event.target(), true, event.attacker(), null,
                         aim != null ? aim.direction() : null, null, extra);
                 kb.apply(kbSnap);
             }
-            // attacker self-effects on a landed sprint/enchant hit: scale own horizontal velocity by fullHitScale (vanilla 0.6) + clear sprint; a non-sprinting hit does neither
             if (result.landed() && event.attacker() instanceof LivingEntity le) {
                 double scale = event.resolvedConfig().fullHitScale();
                 if (scale != 1.0 && sprintingForKb(le)) MotionTracker.scaleHorizontalResidual(le, scale);
@@ -80,7 +74,7 @@ public final class Attack {
             }
         }
 
-        /** Whether the attacker had the sprint knockback bonus (vanilla's {@code i > 0} gate). */
+        /** Vanilla's {@code i > 0} sprint-KB gate. */
         private boolean sprintingForKb(LivingEntity le) {
             if (!(le instanceof Player p)) return false;
             return services.sprintTracker() != null

@@ -5,10 +5,9 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The legacy 1.8/Via consume fix (eating under lag). Unlike a 1.13.2+ client, a 1.8 client neither gates its own
- * consumption nor learns the eaten count from the server: a laggy one spam-restarts a use (double-eats) and races the
- * held-stack count. When on, {@code ConsumableSystem} refuses a re-use while already mid-use, decrements the held slot
- * silently, and paces the count with an {@code entity_status 9} + {@code window_items} confirm each finish. Legacy
- * clients only - a modern client handles its own consumption, so it never touches one.
+ * consumption nor learns the eaten count from the server: a laggy one spam-restarts a use and races the held-stack
+ * count. When on, {@code ConsumableSystem} refuses a re-use while mid-use, decrements the held slot silently, and
+ * paces the count with an {@code entity_status 9} + {@code window_items} confirm each finish. Legacy clients only.
  */
 public final class LegacyConsumeFixConfig implements FixToggle {
 
@@ -16,7 +15,6 @@ public final class LegacyConsumeFixConfig implements FixToggle {
 
     private LegacyConsumeFixConfig(Builder b) { this.enabled = b.enabled; }
 
-    /** Whether the legacy consume fix is applied to legacy clients; {@code null} = off. */
     public @Nullable Boolean enabled() { return enabled; }
 
     /** Merges this config over {@code base}: this config's set knob wins, unset falls back to {@code base}. */

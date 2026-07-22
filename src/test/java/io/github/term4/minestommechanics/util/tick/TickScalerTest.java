@@ -29,8 +29,8 @@ class TickScalerTest {
                 .referenceTps(100)                       // default feel baseline
                 .referenceTps(KnockbackSystem.KEY, 20)   // knockback pinned to vanilla
                 .build();
-        assertEquals(20, cfg.referenceTps(KnockbackSystem.KEY)); // module override
-        assertEquals(100, cfg.referenceTps(DamageSystem.KEY));   // falls back to the default
+        assertEquals(20, cfg.referenceTps(KnockbackSystem.KEY));
+        assertEquals(100, cfg.referenceTps(DamageSystem.KEY));
     }
 
     @Test
@@ -38,8 +38,8 @@ class TickScalerTest {
         // both baselines default to the SERVER_TPS sentinel: track the server TPS, so nothing scales
         assertEquals(TickScalingConfig.SERVER_TPS, TickScalingConfig.DEFAULTS.clientTps());
         assertEquals(TickScalingConfig.SERVER_TPS, TickScalingConfig.DEFAULTS.referenceTps(DamageSystem.KEY));
-        // resolving the sentinel to the live server TPS leaves durations literal at any rate (referenceTps == serverTps)
-        assertEquals(10, TickScaler.scaleDuration(10, 1000, 1000)); // 1000 TPS, no scaling -> literal ticks
-        assertEquals(10, TickScaler.scaleDuration(10, 20, 20));     // 20 TPS, no scaling -> literal ticks
+        // the sentinel resolves to the live server TPS, so durations stay literal at any rate
+        assertEquals(10, TickScaler.scaleDuration(10, 1000, 1000));
+        assertEquals(10, TickScaler.scaleDuration(10, 20, 20));
     }
 }

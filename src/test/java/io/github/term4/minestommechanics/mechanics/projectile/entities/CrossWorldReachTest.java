@@ -18,12 +18,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Stale cross-world reach-backs: a pearl/rod relationship established in one world never yanks across worlds. */
 class CrossWorldReachTest extends HeadlessServerTest {
 
-    @Test
-    void pearlDoesNotTeleportAShooterWhoLeftItsWorld() throws InterruptedException {
-        LivingEntity shooter = zombie(new Pos(5.5, 65, 5.5));
+    private static PearlEntity pearlAt(LivingEntity shooter) {
         PearlEntity pearl = new PearlEntity(shooter, EntityType.ENDER_PEARL,
                 ProjectileSnapshot.of(shooter, Pearl.INSTANCE), ProjectileTypeConfig.builder().build());
         pearl.setInstance(instance, new Pos(10.5, 65, 10.5)).join();
+        return pearl;
+    }
+
+    private static FishingBobberEntity bobberAt(LivingEntity angler) {
+        FishingBobberEntity bobber = new FishingBobberEntity(angler, EntityType.FISHING_BOBBER,
+                ProjectileSnapshot.of(angler, FishingBobber.INSTANCE), ProjectileTypeConfig.builder().build());
+        bobber.setInstance(instance, new Pos(9.5, 65, 9.5)).join();
+        return bobber;
+    }
+
+    @Test
+    void pearlDoesNotTeleportAShooterWhoLeftItsWorld() throws InterruptedException {
+        LivingEntity shooter = zombie(new Pos(5.5, 65, 5.5));
+        PearlEntity pearl = pearlAt(shooter);
         pearl.setTag(MechanicsWorld.ENTITY_TAG, MechanicsWorld.of(instance)); // pearl in a game world, shooter unbound
         try {
             pearl.onImpact(null);
@@ -38,9 +50,7 @@ class CrossWorldReachTest extends HeadlessServerTest {
     @Test
     void pearlTeleportsWithinItsWorld() {
         LivingEntity shooter = zombie(new Pos(5.5, 65, 5.5));
-        PearlEntity pearl = new PearlEntity(shooter, EntityType.ENDER_PEARL,
-                ProjectileSnapshot.of(shooter, Pearl.INSTANCE), ProjectileTypeConfig.builder().build());
-        pearl.setInstance(instance, new Pos(10.5, 65, 10.5)).join();
+        PearlEntity pearl = pearlAt(shooter);
         try {
             pearl.onImpact(null);
             long deadline = System.currentTimeMillis() + 2000;
@@ -55,9 +65,7 @@ class CrossWorldReachTest extends HeadlessServerTest {
     @Test
     void reelReleasesAHookedTargetThatLeftTheWorld() {
         LivingEntity angler = zombie(new Pos(5.5, 65, 5.5));
-        FishingBobberEntity bobber = new FishingBobberEntity(angler, EntityType.FISHING_BOBBER,
-                ProjectileSnapshot.of(angler, FishingBobber.INSTANCE), ProjectileTypeConfig.builder().build());
-        bobber.setInstance(instance, new Pos(9.5, 65, 9.5)).join();
+        FishingBobberEntity bobber = bobberAt(angler);
         LivingEntity hooked = zombie(new Pos(9.5, 65, 9.5));
         hooked.setTag(MechanicsWorld.ENTITY_TAG, MechanicsWorld.of(instance)); // hooked entity now in a game world
         bobber.setHookedEntity(hooked);
@@ -73,9 +81,7 @@ class CrossWorldReachTest extends HeadlessServerTest {
     @Test
     void reelPullsWithinItsWorld() {
         LivingEntity angler = zombie(new Pos(5.5, 65, 5.5));
-        FishingBobberEntity bobber = new FishingBobberEntity(angler, EntityType.FISHING_BOBBER,
-                ProjectileSnapshot.of(angler, FishingBobber.INSTANCE), ProjectileTypeConfig.builder().build());
-        bobber.setInstance(instance, new Pos(9.5, 65, 9.5)).join();
+        FishingBobberEntity bobber = bobberAt(angler);
         LivingEntity hooked = zombie(new Pos(9.5, 65, 9.5));
         bobber.setHookedEntity(hooked);
         try {

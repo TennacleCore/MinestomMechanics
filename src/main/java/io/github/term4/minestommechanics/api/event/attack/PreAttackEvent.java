@@ -11,7 +11,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The pre-attack gate: fired the moment a hit is detected, <em>before</em> config resolution, the {@link AttackEvent},
  * and the ruleset. Cancel to drop the hit before any processing, or redirect inputs (target / config) via
- * {@link #finalSnap}. Observe-only today (reach logging; a future anticheat can veto here).
+ * {@link #finalSnap}.
  */
 public final class PreAttackEvent extends CancellableMechanicsEvent<AttackSnapshot> {
 

@@ -15,12 +15,9 @@ import io.github.term4.minestommechanics.platform.player.PlayerConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 
 /**
- * Vanilla 1.8 preset - the composed, pure-mechanics {@link MechanicsProfile}. The individual 1.8 configs live in the
- * {@code presets.vanilla18} subpackage ({@link Attack}, {@link Damage}, {@link Knockback}, {@link Explosion},
- * {@link Projectiles}, {@link Attributes}, {@link Consumables}, {@link Blocking}, {@link Movement}, {@link Player}, and
- * {@code Items}), which are also the canonical defaults the systems fall back to. Assign with {@code mm.profiles().setGlobal(Vanilla18.profile())}.
- *
- * <p>Carries mechanics only - no compat or fixes (those install separately). Includes the item registry ({@link Items}).
+ * Vanilla 1.8 preset - the composed, pure-mechanics {@link MechanicsProfile}; the per-system configs in this package are
+ * also the canonical defaults the systems fall back to. Mechanics only - no compat or fixes (those install separately).
+ * Assign with {@code mm.profiles().setGlobal(Vanilla18.profile())}.
  */
 public final class Vanilla18 {
 
@@ -46,8 +43,8 @@ public final class Vanilla18 {
                 .build();
     }
 
-    // Individual 1.8 base configs, for presets layering deltas on top - their classes share simple names with the
-    // preset's own, so this facade is the importable seam.
+    // Base configs for presets layering deltas on top: the classes share simple names with a layering preset's own,
+    // so this facade is the importable seam.
     public static AttackConfig attack() { return Attack.config(); }
     public static AttackEvent.AttackRule.Ruleset attackRuleset() { return Attack.ruleset(); }
     public static DamageConfig damage() { return Damage.config(); }

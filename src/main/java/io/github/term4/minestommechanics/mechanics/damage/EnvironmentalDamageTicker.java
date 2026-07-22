@@ -14,8 +14,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Dispatcher for self-driven environmental damage producers (cactus, burning): one per-instance {@link TickSystem} hook
  * (installed on first {@link #bind}, once for the JVM since {@link TickSystem} has no removal) runs every registered
- * {@link EnvironmentalTickProducer} against each living, non-exempt entity - the shared guards producers used to repeat.
- * Producers {@link #register}/{@link #unregister} as their types enable/disable; inert when none remain.
+ * {@link EnvironmentalTickProducer} against each living, non-exempt entity. Producers {@link #register}/{@link #unregister}
+ * as their types enable/disable; inert when none remain.
  */
 public final class EnvironmentalDamageTicker {
 

@@ -60,7 +60,8 @@ public final class FallDamageConfig extends DamageTypeConfig {
         Float distance = fallDistance(ctx);
         if (distance == null || distance <= 0f) return 0.0;
 
-        double safe = threshold(ctx) != null ? threshold(ctx) : 3.0;
+        Double safeFall = threshold(ctx);
+        double safe = safeFall != null ? safeFall : 3.0;
         Formula mode = formula(ctx);
         if (mode == null) mode = Formula.LEGACY_CEIL;
 
@@ -68,7 +69,8 @@ public final class FallDamageConfig extends DamageTypeConfig {
             case LEGACY_CEIL -> Math.max(0.0, Math.ceil(distance - safe));
             case MODERN_FLOOR -> {
                 double mod = effectiveDamageModifier(ctx);
-                double mult = fallDamageMultiplier(ctx) != null ? fallDamageMultiplier(ctx) : 1.0;
+                Double multiplier = fallDamageMultiplier(ctx);
+                double mult = multiplier != null ? multiplier : 1.0;
                 double power = distance + MODERN_EPSILON - safe;
                 yield Math.max(0.0, Math.floor(power * mod * mult));
             }

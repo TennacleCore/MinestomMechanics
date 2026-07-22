@@ -24,11 +24,7 @@ public final class Projectiles {
 
     private static final ProjectileConfig BASE_18 = Vanilla18.projectiles();
 
-    /**
-     * Modern (26.1) projectile config: the {@link #defaults()} baseline plus per-type entries. The pearl keeps its
-     * self-pass-through; the arrow ({@link #arrow()}), splash potion ({@link #splashPotion()}), and fishing bobber
-     * ({@link #fishingBobber()}) override physics. Snowball and egg are pure baseline.
-     */
+    /** A type entry's presence enables that type. */
     public static ProjectileConfig config() {
         return ProjectileConfig.builder()
                 .defaults(defaults())
@@ -43,12 +39,7 @@ public final class Projectiles {
                 .build();
     }
 
-    /**
-     * The 26.1 throwable baseline: the 1.8 baseline with the deltas - no throwing-hand lateral, full shooter-momentum
-     * inheritance (vertical only when airborne), reverse-damp deflection ({@code motion *= -0.5} + a cosmetic +-10-degree
-     * yaw), gravity + drag before the move, shooter immunity until the projectile clears the shooter's box, spawn state
-     * on the modern wire. Else matches 1.8.
-     */
+    /** The 26.1 throwable baseline: the 1.8 baseline with the shared modern deltas. */
     public static ProjectileTypeConfig defaults() {
         return modernDeltas(ProjectileTypeConfig.builder(BASE_18.defaults()))
                 .gravity(0.03) // 26.1 getDefaultGravity is a plain double (the 1.8 0.03F widens differently)
@@ -56,9 +47,8 @@ public final class Projectiles {
     }
 
     /**
-     * Vanilla 26.1 arrow: the 1.8 arrow (speed 3.0, gravity 0.05, velocity-based damage, sticks in blocks) with the same
-     * 26.1 deltas as {@link #defaults()}, plus {@code invulnHit(DEFLECT)} - 26.1 deflects a rejected hit for both the
-     * creative-target and invul-window cases (no creative pass-through, unlike 1.8).
+     * The 1.8 arrow with the 26.1 deltas: {@code DEFLECT} covers both the creative-target and invul-window rejects (no
+     * creative pass-through, unlike 1.8).
      */
     public static ProjectileTypeConfig arrow() {
         return modernDeltas(ProjectileTypeConfig.builder(BASE_18.typeConfig(Arrow.KEY)))
@@ -68,8 +58,6 @@ public final class Projectiles {
                 .build();
     }
 
-    /** Vanilla 26.1 splash potion: the 1.8 splash (speed 0.5, pitch -20, vanilla tracker wire) with the 26.1 deltas
-     *  plus the 26.1 impact model and modern particle palette. */
     public static ProjectileTypeConfig splashPotion() {
         return modernDeltas(ProjectileTypeConfig.builder(BASE_18.typeConfig(SplashPotion.KEY)))
                 .gravity(0.05)
@@ -79,10 +67,9 @@ public final class Projectiles {
     }
 
     /**
-     * Vanilla 26.1 fishing bobber: the 1.8 bobber with the 26.1 deltas plus its own launch shape ({@code FishingHook}
-     * ctor: 0.3 forward yaw-only at eye height, speed {@code 0.6 + 0.5/cos(pitch)} along the aim - tan clamped ±5 -
-     * no shooter momentum), plain-double 0.03/0.92 physics ({@code DRAG_BEFORE_MOVE} = gravity-before-move), and the
-     * 26.1 retrieve (no sqrt Y boost, durability 5/2). Spread approximates 26.1's per-axis triangle(0.0103365).
+     * The 1.8 bobber with the 26.1 deltas plus its own launch shape ({@code FishingHook} ctor: 0.3 forward yaw-only at
+     * eye height, speed {@code 0.6 + 0.5/cos(pitch)} along the aim - tan clamped ±5 - no shooter momentum) and the 26.1
+     * retrieve (no sqrt Y boost, durability 5/2). Spread approximates 26.1's per-axis triangle(0.0103365).
      */
     public static ProjectileTypeConfig fishingBobber() {
         return modernDeltas(ProjectileTypeConfig.builder(BASE_18.typeConfig(FishingBobber.KEY)))
@@ -102,14 +89,14 @@ public final class Projectiles {
                 .build();
     }
 
-    /** Applies the shared 1.8 -&gt; 26.1 projectile deltas onto {@code b} (over a 1.8 base). */
+    /** The shared 1.8 -&gt; 26.1 deltas, applied over a 1.8 base. */
     private static ProjectileTypeConfig.Builder modernDeltas(ProjectileTypeConfig.Builder b) {
         return b
                 .waterModel(ProjectileTypeConfig.WaterModel.MODERN) // fluid-height sensing: no 1.8 inset flicker
                 .spawnOffsetSideways(0.0)
                 .momentumHorizontal(1.0)
-                // 26.1 momentum = the shooter's client motion, read at launch
-                .momentumVertical(ctx -> ctx.shooter().isOnGround() ? 0.0 : 1.0) // 26.1 folds vertical only when airborne
+                // momentum = the shooter's client motion, read at launch
+                .momentumVertical(ctx -> ctx.shooter().isOnGround() ? 0.0 : 1.0)
                 .deflect(-0.5, 0, -10, 10)
                 .physicsOrder(PhysicsOrder.DRAG_BEFORE_MOVE)
                 .wireGrid(WireGrid.MODERN)

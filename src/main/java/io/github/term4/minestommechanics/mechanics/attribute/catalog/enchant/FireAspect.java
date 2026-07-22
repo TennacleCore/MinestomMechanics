@@ -11,14 +11,12 @@ import net.kyori.adventure.key.Key;
 import java.util.List;
 
 /**
- * Fire Aspect (enchant) - ignites the victim on a melee hit. Vanilla (1.8 + 26 identical): {@code level × 4} seconds of
- * fire ({@code EntityHuman.attack} {@code setOnFire(level*4)}). An {@link ItemSource} with no modifiers - an {@link OnHit}
- * side effect; the burn is the existing {@code on_fire} damage type once the victim is alight.
+ * Fire Aspect - {@code level × 4} seconds of fire on a melee hit ({@code EntityHuman.attack}, identical 1.8/26). An
+ * {@link ItemSource} with no modifiers, pure {@link OnHit}; the burn itself is the existing {@code on_fire} damage type.
  */
 public final class FireAspect {
 
     public static final Key KEY = Key.key("minecraft:fire_aspect");
-    /** Fire ticks per enchant level: 4 seconds × 20 ticks. */
     private static final int TICKS_PER_LEVEL = 4 * 20;
 
     public static final Source INSTANCE = new FireAspectSource();
@@ -32,8 +30,8 @@ public final class FireAspect {
 
         @Override public void onHit(HitContext ctx) {
             if (ctx.level() <= 0) return;
-            // fire duration is real-time; Minestom decrements fireTicks at server TPS, so scale it (identity at 20)
-            ctx.victim().setFireTicks(TickScaler.duration(ctx.level() * TICKS_PER_LEVEL, DamageSystem.KEY));
+            // real-time duration: Minestom decrements fireTicks at server TPS
+            ctx.victim().setFireTicks(TickScaler.duration(ctx.victim(), ctx.level() * TICKS_PER_LEVEL, DamageSystem.KEY));
         }
     }
 }

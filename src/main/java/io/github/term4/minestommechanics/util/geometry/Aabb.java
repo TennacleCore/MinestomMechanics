@@ -3,10 +3,7 @@ package io.github.term4.minestommechanics.util.geometry;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Point;
 
-/**
- * An axis-aligned box in world space with the point/ray tests reach and hit detection share - pure geometry, no world
- * or entity access.
- */
+/** An axis-aligned box in world space with the point/ray tests reach and hit detection share. */
 public record Aabb(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
 
     /** {@code bb} placed at {@code pos}, grown {@code pad} on every side (an attacker's client-perceived target box). */

@@ -8,7 +8,7 @@ public final class Damage {
 
     private Damage() {}
 
-    /** DamageConfig based on Hypixel ({@code hurtKnockback} inherits Vanilla18's zero-impulse config). */
+    /** {@code hurtKnockback} inherits Vanilla18's zero-impulse config. */
     public static DamageConfig config() {
         return DamageConfig.builder(Vanilla18.damage())
                 .overdamageSilent(true)

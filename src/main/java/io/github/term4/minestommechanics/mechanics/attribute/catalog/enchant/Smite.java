@@ -13,14 +13,12 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * Smite (enchant) - a flat melee bonus <em>vs undead</em>, like {@link Sharpness} but victim-conditional. {@code 2.5 × level}
- * ({@code minecraft:damage} data effect / 1.8 {@code EnchantmentWeaponDamage}, identical), gated by the combat
- * {@link CombatFacts#TARGET target} being undead. An {@link ItemSource}: read from the weapon on demand.
+ * Smite - {@link Sharpness} but victim-conditional: {@code 2.5 × level} (identical 1.8/26), gated on the combat
+ * {@link CombatFacts#TARGET target} being undead.
  */
 public final class Smite {
 
     public static final Key KEY = Key.key("minecraft:smite");
-    /** Flat bonus per level vs undead. */
     private static final double PER_LEVEL = 2.5;
 
     private Smite() {}

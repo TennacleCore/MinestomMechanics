@@ -13,8 +13,7 @@ import java.util.function.Function;
 /**
  * Per-item blocking knobs, held in a {@link BlockingConfig} keyed by {@code Material}: every value is a {@link FieldValue}
  * resolved against a {@link BlockingContext} (constant or per-hit), unset fields falling back per-material entry -&gt;
- * {@link BlockingConfig#defaults()} -&gt; hard fallbacks. The {@link #behavior} knob picks how blocking works (sword /
- * shield / custom); the rest are its parameters (reduction curve, shield arc / delay / bypasses).
+ * {@link BlockingConfig#defaults()} -&gt; hard fallbacks.
  */
 @GenerateBuilder
 public final class BlockingTypeConfig extends Config<BlockingContext, BlockingTypeConfig> {

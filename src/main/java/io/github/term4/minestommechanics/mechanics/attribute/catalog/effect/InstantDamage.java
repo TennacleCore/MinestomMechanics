@@ -9,9 +9,9 @@ import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.damage.DamageType;
 
 /**
- * Instant Damage (potion) - deals {@code 6 << amplifier} magic damage on apply (1.8 + 26 identical; vanilla
- * {@code HealOrHarmMobEffect}). A direct entity op (Minestom-native MAGIC damage, bypasses armor), not a routed pipeline
- * hit. Direct-apply only; splash proximity-scaling / undead inversion live on the potion-throw path.
+ * Instant Damage - {@code 6 << amplifier} magic damage on apply (vanilla {@code HealOrHarmMobEffect}, identical 1.8/26).
+ * Minestom-native MAGIC damage, not a routed pipeline hit. Splash proximity-scaling / undead inversion live on the
+ * potion-throw path.
  */
 public final class InstantDamage {
 

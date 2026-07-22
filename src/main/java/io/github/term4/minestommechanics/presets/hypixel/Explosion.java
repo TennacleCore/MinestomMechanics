@@ -15,13 +15,11 @@ public final class Explosion {
 
     private Explosion() {}
 
-    // radial base toward feet+1, magnitude 0.8: isotropic up/sideways (capture-fit MMC-vs-Hypixel), 0.4× (0.32) downward
     private static final double BASE = 0.8;
     private static final double BASE_DOWNWARD_SCALE = 0.4;
     private static final double BASE_HEIGHT = 1.0;
-    /** Weak blasts (impact below this) deal no explosion KB - only the projectile KB lands. */
+    // weaker impacts deal no explosion KB - only the projectile KB lands
     private static final double KB_IMPACT_FLOOR = 0.435;
-    /** Flat damage to every in-range target (fireball + TNT alike), ignoring armor points. */
     private static final double FLAT_DAMAGE = 2.0;
 
     public static ExplosionConfig config() {

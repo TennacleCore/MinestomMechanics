@@ -15,9 +15,8 @@ public record TickContext(MechanicsWorld world, long tick, int serverTps, boolea
     }
 
     /**
-     * Whether this pass owns {@code entity}'s work: the main pass takes every server-ticked entity (shard-bound
-     * or not), a world pass takes exactly its OWN world's externally ticked ones - co-located worlds' passes
-     * never cross, so a global-collection ticker gets per-entity scoping from this one gate.
+     * Whether this pass owns {@code entity}'s work: the main pass takes every server-ticked entity, a world pass takes
+     * exactly its OWN world's externally ticked ones - co-located worlds' passes never cross.
      */
     public boolean owns(Entity entity) {
         if (external != MechanicsWorld.externallyTicked(entity)) return false;

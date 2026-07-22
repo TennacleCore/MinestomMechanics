@@ -10,8 +10,8 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 
 /**
- * Hunger (potion) - exhaustion EVERY tick while active, {@code amplifier+1} per tick; the hunger preset prices it
- * (1.8: x0.025, modern: x0.005). Vanilla's tick gate is unconditionally true for hunger, both versions.
+ * Hunger - exhaustion every tick while active, {@code amplifier+1} per tick; the hunger preset prices it (1.8 x0.025,
+ * modern x0.005). Vanilla's tick gate is unconditionally true for hunger in both versions.
  */
 public final class Hunger {
 

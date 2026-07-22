@@ -9,9 +9,8 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * Sharpness (enchant) - a flat melee bonus added after crit, as a modifier on {@link Attribute#MELEE_FLAT_ADD}.
- * {@link #LEGACY} is 1.8's {@code 1.25 × level} ({@code EnchantmentWeaponDamage}, "all"); {@link #MODERN} is
- * {@code 0.5 × level + 0.5}. An {@link ItemSource}: read from the weapon on demand, not pushed.
+ * Sharpness - a flat melee bonus added after crit, via {@link Attribute#MELEE_FLAT_ADD}. {@link #LEGACY} is 1.8's
+ * {@code 1.25 × level} ({@code EnchantmentWeaponDamage}, "all"); {@link #MODERN} is {@code 0.5 × level + 0.5}.
  */
 public final class Sharpness {
 

@@ -16,18 +16,17 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Set;
 
 /**
- * Resolves a {@link BlockingConfig} into plain values against a {@link BlockingContext}. Mirrors the other resolvers
- * (per-material entry over {@link BlockingConfig#defaults()}, then resolve each knob). The {@link BlockingBehavior} reads
- * the resolved knobs + the hit (carried as a {@link DamageContext}) to decide the block.
+ * Resolves a {@link BlockingConfig} into plain values against a {@link BlockingContext}: the per-material entry over
+ * {@link BlockingConfig#defaults()}, then each knob.
  */
 public final class BlockingConfigResolver {
 
     private BlockingConfigResolver() {}
 
     /**
-     * The context the per-item {@code FieldValue}s resolve against, and that the {@link BlockingBehavior} receives: the
-     * blocking {@code defender} + the {@code item}/{@code hand} they hold, and the incoming hit as a {@link DamageContext}
-     * (so a behavior reads the damage type, attacker, {@code bypassArmor}, etc. through the damage domain's own resolution).
+     * What the per-item {@code FieldValue}s and the {@link BlockingBehavior} resolve against. The incoming hit rides
+     * along as a {@link DamageContext}, so a behavior reads type/attacker/{@code bypassArmor} through the damage
+     * domain's own resolution.
      */
     public record BlockingContext(Player defender, ItemStack item, PlayerHand hand, DamageContext damage,
                                   @Nullable Services services) {
@@ -77,7 +76,6 @@ public final class BlockingConfigResolver {
         }
     }
 
-    /** Resolves the effective blocking values for {@code ctx} under {@code cfg}. */
     public static ResolvedBlocking resolve(@Nullable BlockingConfig cfg, BlockingContext ctx) {
         BlockingTypeConfig tc = ctx.typeConfig(cfg);
         return new ResolvedBlocking(
@@ -96,7 +94,6 @@ public final class BlockingConfigResolver {
         return fv != null ? fv.resolve(ctx) : null;
     }
 
-    /** Resolved per-item values: whether it blocks, the model, the damage reduction ({@code base}+{@code factor}), and the shield gates. */
     public record ResolvedBlocking(boolean enabled, BlockingBehavior behavior, double reductionBase, double reductionFactor,
                                    int blockDelayTicks, @Nullable Double blockingAngle, Set<Key> bypassedTypes) {}
 }

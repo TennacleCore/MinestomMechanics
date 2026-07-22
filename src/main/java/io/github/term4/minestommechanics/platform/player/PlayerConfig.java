@@ -3,11 +3,10 @@ package io.github.term4.minestommechanics.platform.player;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Immutable player platform config (per-player server behavior, not combat mechanics). Scoped like the
- * combat configs via {@code MechanicsProfile.player} and applied at spawn (join / instance change) by
- * {@link PlayerConfigApplier}. Plain values only - these are rarely-changing platform knobs, not
- * per-hit values, so there is deliberately no {@code FieldValue}/subconfig machinery here. Unset
- * ({@code null}) fields are left unmanaged.
+ * Immutable player platform config (per-player server behavior, not combat mechanics). Scoped via
+ * {@code MechanicsProfile.player} and applied at spawn (join / instance change) by {@link PlayerConfigApplier}.
+ * Plain values only - no {@code FieldValue}/subconfig machinery; these are rarely-changing platform knobs, not
+ * per-hit values. Unset ({@code null}) fields are left unmanaged.
  */
 public final class PlayerConfig {
 

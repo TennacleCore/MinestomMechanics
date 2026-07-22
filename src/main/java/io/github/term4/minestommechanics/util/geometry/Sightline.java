@@ -7,9 +7,8 @@ import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 
 /**
- * Line-of-sight obstruction: whether solid terrain blocks the straight segment between two points. A zero-size box
- * swept along the segment is a block raycast through Minestom's collision engine - the same primitive vanilla exposure
- * uses. A query only; nothing here enforces it.
+ * Line-of-sight obstruction: whether solid terrain blocks the straight segment between two points. A zero-size box swept
+ * along the segment is a block raycast through Minestom's collision engine - the primitive vanilla exposure uses.
  */
 public final class Sightline {
 

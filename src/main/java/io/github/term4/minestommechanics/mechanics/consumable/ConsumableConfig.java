@@ -13,13 +13,12 @@ import java.util.function.Function;
 
 /**
  * Immutable consumable config: a generic {@link #defaults} base plus per-consumable {@link ConsumableTypeConfig}
- * overrides keyed by type key. Mirrors {@code ProjectileConfig}; assigned per scope via the
+ * overrides keyed by type key. Assigned per scope via the
  * {@link io.github.term4.minestommechanics.MechanicsProfile} {@code consumables} member. Resolution layers per-type
  * override -&gt; {@link #defaults} -&gt; the registered type's {@code defaultConfig()} -&gt; hard fallbacks.
  *
  * <p>The consumable <em>definitions</em> (the {@link Consumable} types + their materials) live in the
- * {@link ConsumableRegistry}; this config only tunes them. A scope disables all consumables by setting
- * {@code defaults(ConsumableTypeConfig.builder().enabled(false).build())}.
+ * {@link ConsumableRegistry}; this config only tunes them.
  */
 public final class ConsumableConfig extends Config<ConsumableContext, ConsumableConfig> {
 
@@ -40,19 +39,15 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
         this.componentFoods = b.componentFoods;
     }
 
-    /** The generic base config every consumable inherits, or {@code null} if none set. */
     public @Nullable ConsumableTypeConfig defaults() { return defaults; }
 
-    /** Whether the {@link ComponentFood} floor is active (unset = on). */
     public @Nullable Boolean componentFoods() { return componentFoods; }
 
-    /** Per-consumable config for {@code key}, or {@code null} if none registered. */
     public @Nullable ConsumableTypeConfig typeConfig(Key key) { return typeConfigs.get(key); }
 
-    /** The consumable type identities this config registers. */
     public List<Consumable> types() { return types; }
 
-    /** Merges this config over base (this config's generic defaults + per-type entries + types layered over base's). */
+    /** Merges this config over {@code base}; per-type entries and types layer over base's. */
     public ConsumableConfig fromBase(ConsumableConfig base) {
         Map<Key, ConsumableTypeConfig> merged = new LinkedHashMap<>(base.typeConfigs);
         merged.putAll(typeConfigs);
@@ -87,11 +82,10 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
         }
 
         public Builder subConfig(Function<ConsumableContext, ConsumableConfig> fn) { subConfig = fn; return this; }
-        /** Sets the generic base config every consumable inherits (its knobs apply unless a per-type entry overrides them). */
         public Builder defaults(@Nullable ConsumableTypeConfig generic) { this.defaults = generic; return this; }
         public Builder componentFoods(@Nullable Boolean v) { this.componentFoods = v; return this; }
 
-        /** Adds per-consumable config overrides, each keyed by its {@link ConsumableTypeConfig#key()}. */
+        /** Each keyed by its {@link ConsumableTypeConfig#key()}. */
         public Builder typeConfigs(ConsumableTypeConfig... cfgs) {
             for (ConsumableTypeConfig c : cfgs) typeConfigs.put(c.key(), c);
             return this;
@@ -99,7 +93,6 @@ public final class ConsumableConfig extends Config<ConsumableContext, Consumable
 
         Builder typeConfigs(Map<Key, ConsumableTypeConfig> cfgs) { typeConfigs.putAll(cfgs); return this; }
 
-        /** Adds consumable type identities (key + material) this config registers. */
         public Builder types(Consumable... t) { for (Consumable c : t) types.add(c); return this; }
 
         Builder types(List<Consumable> t) { types.addAll(t); return this; }

@@ -8,18 +8,16 @@ import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Immutable input describing a single projectile launch. Mirrors {@code DamageSnapshot} /
- * {@code KnockbackSnapshot}: the producing {@link ProjectileType} or {@code Shootable} (a bow/throw trigger) builds it
- * and hands it to {@link ProjectileSystem#launch}.
+ * Immutable input describing a single projectile launch: the producing {@link ProjectileType} or {@code Shootable}
+ * builds it and hands it to {@link ProjectileSystem#launch}.
  *
- * @param shooter  the entity launching the projectile (knockback origin, damage source, hit immunity)
- * @param type     the projectile type (snowball, arrow, ...) - its config + entity factory
+ * @param shooter  knockback origin, damage source, hit immunity
  * @param item     the item that launched it (snowball stack, bow), for {@code ctx.item()} config lambdas
- * @param power    launch power (throw strength / bow draw, {@code 1.0} baseline) - scales the resolved speed
- * @param spawnPos explicit spawn position override, or {@code null} to compute from the shooter's eye + offset
- * @param velocity explicit initial velocity (b/t) override, or {@code null} to compute from aim + speed + spread
- * @param config   per-launch config override, or {@code null} to resolve the scope chain (profile -> install)
- * @param behavior per-launch {@link ProjectileBehavior} override, or {@code null} to use the type config's {@code behavior} knob
+ * @param power    throw strength / bow draw ({@code 1.0} baseline) - scales the resolved speed
+ * @param spawnPos override, or {@code null} to compute from the shooter's eye + offset
+ * @param velocity override in b/t, or {@code null} to compute from aim + speed + spread
+ * @param config   override, or {@code null} to resolve the scope chain (profile -&gt; install)
+ * @param behavior override, or {@code null} to use the type config's {@code behavior} knob
  */
 public record ProjectileSnapshot(Entity shooter, ProjectileType type, @Nullable ItemStack item, double power,
                                  @Nullable Pos spawnPos, @Nullable Vec velocity, @Nullable ProjectileConfig config,

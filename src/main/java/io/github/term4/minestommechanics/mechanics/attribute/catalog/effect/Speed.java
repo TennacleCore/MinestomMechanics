@@ -8,10 +8,7 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 
 import java.util.List;
 
-/**
- * Speed (potion) - {@code +0.2 × level} movement-speed {@code ADD_MULTIPLIED_TOTAL}. Identical in 1.8 and 26, so one
- * variant. Pushed to the holder's movement-speed instance.
- */
+/** Speed - {@code +0.2 × level} movement speed. Identical in 1.8 and 26, so one variant. */
 public final class Speed {
 
     public static final Key KEY = Key.key("minecraft:speed");

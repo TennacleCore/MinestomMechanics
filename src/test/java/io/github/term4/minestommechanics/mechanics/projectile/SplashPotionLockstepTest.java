@@ -31,10 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Client-prediction lockstep (silent flight, the mmc18 splash model - vanilla presets use the tracker wire): the
- * server sim must reproduce, bit for bit, the flight the predicting client integrates from its decoded spawn wire -
- * the 1.8 client ({@code EntityThrowable.onUpdate}) on the LEGACY_1_8 grid, the 26.1 client
- * ({@code ThrowableProjectile.tick}) on the MODERN grid. Exactness is what lands the break on the client's bottle.
+ * Client-prediction lockstep on silent flight (vanilla presets use the tracker wire instead): the server sim must
+ * reproduce bit for bit the flight the client integrates from its decoded spawn wire - the 1.8 client
+ * ({@code EntityThrowable.onUpdate}) on the LEGACY_1_8 grid, the 26.1 client ({@code ThrowableProjectile.tick}) on
+ * the MODERN grid.
  */
 class SplashPotionLockstepTest extends HeadlessServerTest {
 

@@ -12,8 +12,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Fired after a damage instance has been applied - informational. Carries the amount actually {@link #dealt()} and the
- * {@link #outcome()}, for stats, logging, and on-hit triggers that need the real result. The post-damage counterpart to
- * {@link PreDamageEvent} / {@link DamageEvent}.
+ * {@link #outcome()}. The post-damage counterpart to {@link PreDamageEvent} / {@link DamageEvent}.
  */
 public final class DamageAppliedEvent implements Event {
 
@@ -29,16 +28,13 @@ public final class DamageAppliedEvent implements Event {
         this.outcome = outcome;
     }
 
-    /** The snapshot the damage was applied from. */
     public DamageSnapshot snapshot() { return snapshot; }
 
-    /** The active services (system lookups, scoped profiles). */
     public Services services() { return services; }
 
     /** Amount actually applied (after overdamage/mitigation); {@code 0} if nothing landed. */
     public float dealt() { return dealt; }
 
-    /** How the hit resolved (fresh / overdamage / blocked / immune). */
     public DamageOutcome outcome() { return outcome; }
 
     public DamageType type() { return snapshot.type(); }

@@ -22,10 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * End-to-end proof of the attribute slice: Strength (an attack-damage modifier, from a potion) and Sharpness (a
- * melee-flat-add modifier, from an enchant) flow through the {@link AttributeSystem} into the melee offense path with
- * the LEGACY variants registered - {@code attackDamage = table × (1 + 1.3·strength)}, then {@code × crit}, then
- * {@code + 1.25·sharpness}. The step-0 {@code MeleeDamageCharacterizationTest} guards the no-contributor path.
+ * LEGACY variants: {@code attackDamage = table × (1 + 1.3·strength)}, then {@code × crit}, then
+ * {@code + 1.25·sharpness}.
  */
 class AttributeSliceTest extends HeadlessServerTest {
 

@@ -17,10 +17,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-/**
- * Per-source tunings resolved off the scoped {@link AttributeConfig} (profile chain). Tuning the catalog'd Strength
- * source per scope, without writing a new Source: {@code scale} multiplies its amount, {@code disable} turns it off.
- */
+/** Per-source tunings resolved off the scoped {@link AttributeConfig}. */
 class AttributeTuningTest extends HeadlessServerTest {
 
     @AfterEach
@@ -47,13 +44,12 @@ class AttributeTuningTest extends HeadlessServerTest {
 
     @Test
     void scaleMultipliesTheSourceAmount() {
-        // baseline Strength I = ×(1+1.3) -> 7×2.3 = 16.1; scaled ×2 -> amount 2.6 -> 7×(1+2.6) = 25.2
+        // scaled ×2 -> amount 2.6 -> 7×(1+2.6)
         assertEquals(25.2f, meleeWithStrength(AttributeConfig.builder().scale(Strength.KEY, 2.0).build()), 1e-2f);
     }
 
     @Test
     void disableTurnsTheSourceOff() {
-        // Strength disabled in this scope -> plain diamond damage 7
         assertEquals(7.0f, meleeWithStrength(AttributeConfig.builder().disable(Strength.KEY).build()), 1e-3f);
     }
 }

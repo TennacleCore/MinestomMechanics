@@ -14,7 +14,6 @@ public final class SelfPlacementFixConfig implements FixToggle {
 
     private SelfPlacementFixConfig(Builder b) { this.enabled = b.enabled; }
 
-    /** Whether a player may place a block into its own body (the 1.8 exclude-placer rule); {@code null} = off. */
     public @Nullable Boolean enabled() { return enabled; }
 
     /** Merges this config over {@code base}: this config's set knob wins, unset falls back to {@code base}. */

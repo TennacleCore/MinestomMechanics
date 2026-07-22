@@ -13,9 +13,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired after a projectile entity is built and configured but before it enters the world: cancel to discard, redirect
- * via {@link #setSpawnPos}/{@link #setVelocity}, override {@link #behavior(ProjectileBehavior)}, or keep the
- * {@link #projectile()} handle for cosmetics. End of flight is {@link ProjectileHitEvent}.
+ * Fired after a projectile entity is built and configured but before it enters the world. End of flight is
+ * {@link ProjectileHitEvent}.
  */
 public class ProjectileLaunchEvent implements CancellableEvent {
 
@@ -38,12 +37,12 @@ public class ProjectileLaunchEvent implements CancellableEvent {
     public ProjectileSnapshot snapshot() { return snapshot; }
     public @Nullable Entity shooter() { return snapshot.shooter(); }
 
-    /** Resolved flight knobs the entity was stamped with; redirect via {@link #setSpawnPos}/{@link #setVelocity}. */
+    /** Flight knobs the entity was already stamped with; redirect via {@link #setSpawnPos}/{@link #setVelocity}. */
     public ResolvedFlight resolvedFlight() { return resolvedFlight; }
 
-    /** The built projectile entity (not yet in the world) - a typed handle for physics, velocity, behavior, cosmetics. */
+    /** The built entity, not yet in the world. */
     public @NotNull ProjectileEntity projectile() { return projectile; }
-    /** The world the projectile launches into (the shooter's). */
+    /** The shooter's world - the one the projectile launches into. */
     public MechanicsWorld world() { return MechanicsWorld.of(snapshot.shooter()); }
 
     public @NotNull Pos spawnPos() { return spawnPos; }
@@ -53,7 +52,7 @@ public class ProjectileLaunchEvent implements CancellableEvent {
     public @NotNull Vec velocity() { return velocity; }
     public void setVelocity(@NotNull Vec velocityBt) { this.velocity = velocityBt; }
 
-    /** Per-launch {@link ProjectileBehavior} override ({@code null} = keep the config/snapshot one). */
+    /** Per-launch override ({@code null} = keep the config/snapshot behavior). */
     public @Nullable ProjectileBehavior behavior() { return behavior; }
     public void behavior(@Nullable ProjectileBehavior behavior) { this.behavior = behavior; }
 

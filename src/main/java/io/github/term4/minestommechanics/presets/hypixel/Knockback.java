@@ -8,7 +8,7 @@ public final class Knockback {
 
     private Knockback() {}
 
-    /** Measured sprint-hit ("extra") vertical, replacing vanilla's 0.1. */
+    // measured sprint-hit vertical; vanilla is 0.1
     private static final double EXTRA_VERTICAL = 0.07;
 
     public static KnockbackConfig melee() {

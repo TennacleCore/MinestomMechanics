@@ -10,8 +10,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The pre-knockback gate: fired <em>before</em> the velocity is computed and the {@link KnockbackEvent}. Cancel to
- * suppress the knockback entirely (no-KB zones, grapple abilities), or redirect the inputs (melee flag / config) via
- * {@link #finalSnap}. The computed velocity isn't known yet - use {@link KnockbackEvent} to override it.
+ * suppress the knockback entirely, or redirect the inputs (melee flag / config) via {@link #finalSnap}. The velocity
+ * isn't computed yet - override it in {@link KnockbackEvent}.
  */
 public final class PreKnockbackEvent extends CancellableMechanicsEvent<KnockbackSnapshot> {
 

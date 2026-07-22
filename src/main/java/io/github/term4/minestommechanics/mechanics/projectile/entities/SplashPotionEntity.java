@@ -44,9 +44,9 @@ public class SplashPotionEntity extends ManagedProjectile {
     private static final int SPLASH_LEVEL_EVENT = 2002;
     private static final int SPLASH_LEVEL_EVENT_INSTANT = 2007;
 
-    /** Whether MODERN viewers get the 1.8 particle palette ({@code legacyPotionColors}); resolved at launch. */
+    /** Whether MODERN viewers get the 1.8 particle palette ({@code legacyPotionColors}). */
     private final boolean legacyPalette;
-    /** 26.1 impact semantics ({@code modernSplash}); resolved at launch. */
+    /** 26.1 impact semantics ({@code modernSplash}). */
     private final boolean modernModel;
 
     public SplashPotionEntity(@Nullable Entity shooter, @NotNull EntityType entityType,
@@ -70,8 +70,8 @@ public class SplashPotionEntity extends ManagedProjectile {
         if (!payload.isEmpty()) {
             Float scale = item.get(DataComponents.POTION_DURATION_SCALE);
             float durationScale = scale != null ? scale : 1.0f;
-            if (modernModel) splashModern(instance, at, payload, durationScale);
-            else splash(instance, at, hitEntity, payload, durationScale);
+            if (modernModel) splashModern(at, payload, durationScale);
+            else splash(at, hitEntity, payload, durationScale);
         }
         broadcastSplashEvent(item, payload, at);
     }
@@ -81,8 +81,7 @@ public class SplashPotionEntity extends ManagedProjectile {
      * raw 1.8 potion VALUE (Via passes it through untranslated - RGB would be garbage to it), a modern client as an RGB
      * color ({@code legacyPotionColors} picks the palette).
      *
-     * <p>TODO: relocate to the vanilla featureset when it lands (with the other absent vanilla broadcasts: sounds,
-     * block-break animation, item drops/pickup, crit + potion particles).
+     * <p>TODO: relocate to the vanilla featureset when it lands, with the other absent vanilla broadcasts.
      */
     private void broadcastSplashEvent(ItemStack item, List<CustomPotionEffect> payload, Point at) {
         PotionContents contents = item.get(DataComponents.POTION_CONTENTS);
@@ -107,7 +106,7 @@ public class SplashPotionEntity extends ManagedProjectile {
         return false;
     }
 
-    private void splash(Instance instance, Point at, @Nullable Entity hitEntity,
+    private void splash(Point at, @Nullable Entity hitEntity,
                         List<CustomPotionEffect> payload, float durationScale) {
         for (Entity entity : MechanicsWorld.of(this).nearbyEntities(at, 8.0)) {
             if (!(entity instanceof LivingEntity living) || !WorldPolicy.canAffect(this, living)) continue;
@@ -122,7 +121,7 @@ public class SplashPotionEntity extends ManagedProjectile {
 
     /** 26.1: the potion's REAL box at the impact point (the physics box is a point) vs the target grown by the ramped
      *  hit margin ({@code ProjectileUtil.computeMargin}). */
-    private void splashModern(Instance instance, Point at, List<CustomPotionEffect> payload, float durationScale) {
+    private void splashModern(Point at, List<CustomPotionEffect> payload, float durationScale) {
         double halfWidth = getEntityType().width() / 2.0, height = getEntityType().height();
         double margin = Math.max(0.0, Math.min(0.3, (getAliveTicks() - 2) / 20.0));
         for (Entity entity : MechanicsWorld.of(this).nearbyEntities(at, 8.0)) {

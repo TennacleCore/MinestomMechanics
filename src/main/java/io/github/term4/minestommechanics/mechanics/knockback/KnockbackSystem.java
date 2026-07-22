@@ -72,7 +72,7 @@ public final class KnockbackSystem implements MechanicsModule {
      * falloff push on top of the base knockback; the impulse rides the same quantize + wire + applied event as the base.
      */
     public void apply(KnockbackSnapshot snap, @Nullable Vec impulse) {
-        // config: snapshot -> victim scope -> install (none = inert, empty = vanilla floor). An impulse is delivered regardless.
+        // none = inert, empty = vanilla floor; an impulse is delivered regardless
         if (impulse == null && snap.config() == null && configFor(snap.target()) == null) return;
 
         if (PRE_KNOCKBACK.hasListener()) {
@@ -91,7 +91,7 @@ public final class KnockbackSystem implements MechanicsModule {
         if (target == null) return;
         KnockbackSnapshot cfgSnap = finalSnap.config() != null ? finalSnap : finalSnap.withConfig(configFor(target));
 
-        // override skips compute; resolved is fetched lazily below, for quantize
+        // an override skips compute, so the quantize knobs are resolved lazily below
         @Nullable Vec velocity;
         @Nullable KnockbackConfigResolver.ResolvedKnockbackConfig resolved;
         if (event.velocity() != null) {
@@ -108,7 +108,6 @@ public final class KnockbackSystem implements MechanicsModule {
             }
         }
 
-        // explosion push (etc.): stacked on the base, un-folded
         if (impulse != null) velocity = velocity != null ? velocity.add(impulse) : impulse;
 
         if (velocity != null) {

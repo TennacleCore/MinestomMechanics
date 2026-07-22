@@ -31,10 +31,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class HungerSystem implements MechanicsModule {
 
-    /** This system's identity for per-module TPS scaling (its {@code referenceTps} feel-baseline). */
+    /** Per-module TPS scaling identity. */
     public static final Key KEY = Key.key("mm:hunger");
-    // Source keys, priced per preset. Lib sources charge ONLY when the scope prices them (no entry = inert);
-    // quantities: per-meter sources pass meters, per-event pass 1, damage-taken passes the type's exhaustion value.
+    // Source keys, priced per preset. Lib sources charge ONLY when the scope prices them (no entry = inert).
     /** The 80-tick regen heal; quantity 1 per heal (1.8 preset: {@code flat(3)}, modern: {@code flat(6)}). */
     public static final Key REGEN_COST = Key.key("mm:regen");
     /** The modern saturation fast-regen heal; quantity = the spent saturation (modern preset: {@code dynamic()}). */
@@ -94,14 +93,13 @@ public final class HungerSystem implements MechanicsModule {
         return scoped != null ? scoped : config;
     }
 
-    /** Whether hunger is enabled for {@code subject} - active by default (an installed config is on unless it sets {@code enabled(false)}). */
+    /** Active by default; only an explicit {@code enabled(false)} disables. */
     public boolean enabled(@Nullable Entity subject) {
         return !Boolean.FALSE.equals(configFor(subject).enabled());
     }
 
     /**
-     * Restores {@code nutrition} food points and {@code saturation} to {@code player} - the entry point food consumables
-     * call on finish (e.g. a golden apple's +4 / +9.6). Saturation caps at the food level (vanilla).
+     * The entry point food consumables call on finish. Saturation caps at the food level (vanilla).
      */
     public void restore(Player player, int nutrition, float saturation) {
         if (!enabled(player)) return;
@@ -111,8 +109,8 @@ public final class HungerSystem implements MechanicsModule {
 
     /**
      * Adds exhaustion from {@code source}: its {@link ExhaustionCost} rule maps {@code quantity} to the cost (no entry
-     * = as-is), times the global {@code exhaustionScale}. Custom costs use their own key - {@code exhaust(p,
-     * Key.key("game:dash"), 2.0f)} - and are scope-tunable like the vanilla ones.
+     * = as-is), times the global {@code exhaustionScale}. Custom sources use their own key and are scope-tunable like
+     * the vanilla ones.
      */
     public void exhaust(Player player, Key source, float quantity) {
         if (!enabled(player)) return;
@@ -134,13 +132,11 @@ public final class HungerSystem implements MechanicsModule {
         if (cfg.exhaustionCost(source) != null) exhaust(player, cfg, source, quantity);
     }
 
-    /** The player's accumulated exhaustion. */
     public static float exhaustion(Player player) {
         Float v = player.getTag(EXHAUSTION);
         return v != null ? v : 0f;
     }
 
-    /** Per-instance hunger pass: exhaustion drain then the food tick (regen/starvation), per enabled player. */
     private void tick(TickContext ctx) {
         for (Player p : ctx.world().players()) {
             if (!ctx.owns(p) || !enabled(p)) continue;
@@ -149,7 +145,7 @@ public final class HungerSystem implements MechanicsModule {
         }
     }
 
-    /** 4 exhaustion points take a saturation point, else a food point (identical in 1.8 and modern; peaceful gate dropped). */
+    /** Identical in 1.8 and modern; peaceful gate dropped. */
     private static void drainExhaustion(Player p) {
         float ex = exhaustion(p);
         if (ex <= 4.0f) return;
@@ -159,7 +155,7 @@ public final class HungerSystem implements MechanicsModule {
         else p.setFood(Math.max(p.getFood() - 1, 0));
     }
 
-    /** The vanilla food tick: regen (gated by {@code naturalRegen}), else starvation, on the SHARED timer. */
+    /** The vanilla food tick: regen, else starvation, on the SHARED timer. */
     private void foodTick(Player p, HungerConfig cfg) {
         float max = (float) p.getAttributeValue(Attribute.MAX_HEALTH);
         boolean hurt = p.getHealth() < max;
@@ -169,7 +165,7 @@ public final class HungerSystem implements MechanicsModule {
             if (t >= scaled(p, SATURATION_REGEN_INTERVAL)) {
                 float spent = Math.min(p.getFoodSaturation(), SATURATION_REGEN_CAP);
                 p.setHealth(Math.min(p.getHealth() + spent / 6.0f, max));
-                exhaust(p, cfg, SATURATION_REGEN_COST, spent); // quantity = the spent saturation
+                exhaust(p, cfg, SATURATION_REGEN_COST, spent);
                 t = 0;
             }
             p.setTag(FOOD_TIMER, t);
@@ -177,7 +173,7 @@ public final class HungerSystem implements MechanicsModule {
             int t = timer(p) + 1;
             if (t >= scaled(p, interval(cfg))) {
                 p.setHealth(Math.min(p.getHealth() + 1.0f, max));
-                exhaust(p, cfg, REGEN_COST, 1.0f); // quantity = one heal; the preset's cost rule prices it
+                exhaust(p, cfg, REGEN_COST, 1.0f);
                 t = 0;
             }
             p.setTag(FOOD_TIMER, t);

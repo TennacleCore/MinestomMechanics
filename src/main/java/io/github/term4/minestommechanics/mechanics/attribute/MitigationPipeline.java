@@ -12,15 +12,14 @@ import java.util.List;
 
 /**
  * The staged mitigation pipeline (vanilla order: armor -&gt; resistance -&gt; EPF/protection; absorption is Minestom's,
- * applied later by {@code living.damage()}). Users replace, insert, remove or reorder stages via
- * {@code AttributeConfig.mitigationStages}; each built-in stage self-gates on its {@link Bypass} flag and config.
- * A run short-circuits once the damage reaches 0.
+ * applied later by {@code living.damage()}). Stages are replaceable via {@code AttributeConfig.mitigationStages}; each
+ * built-in one self-gates on its {@link Bypass} flag and config.
  */
 public final class MitigationPipeline {
 
     private MitigationPipeline() {}
 
-    /** One pipeline stage; reads and mutates {@link State#damage}. */
+    /** Reads and mutates {@link State#damage}. */
     @FunctionalInterface
     public interface Stage {
         void apply(State state);
@@ -43,7 +42,7 @@ public final class MitigationPipeline {
         }
     }
 
-    /** Armor-points reduction ({@link ArmorConfig#damageAfterArmor}); gated on the armor bypass. */
+    /** {@link ArmorConfig#damageAfterArmor} */
     public static final Stage ARMOR = s -> {
         Bypass bypass = s.request.bypass();
         ArmorConfig armor = s.cfg.armor;
@@ -52,7 +51,7 @@ public final class MitigationPipeline {
         }
     };
 
-    /** Resistance-effect reduction: the vanilla integer curve ({@code 25 - 5*level / 25}) or {@code resistancePerLevel}. */
+    /** The vanilla integer curve ({@code (25 - 5*level) / 25}) or {@code resistancePerLevel}. */
     public static final Stage RESISTANCE = s -> {
         Bypass bypass = s.request.bypass();
         if (bypass.effectStage() || bypass.effect(AttributeSystem.RESISTANCE_KEY)) return;
@@ -60,8 +59,7 @@ public final class MitigationPipeline {
         if (level <= 0) return;
         Double perLevel = s.cfg.resistancePerLevel;
         if (perLevel == null) {
-            // vanilla integer curve, kept exact (identical 1.8-26)
-            int reduced = 25 - 5 * level;
+            int reduced = 25 - 5 * level; // integer math, kept exact
             s.damage = reduced <= 0 ? 0f : s.damage * reduced / 25f;
         } else {
             double frac = 1.0 - perLevel * level;
@@ -69,7 +67,7 @@ public final class MitigationPipeline {
         }
     };
 
-    /** EPF/Protection reduction ({@link ProtectionConfig#damageAfterProtection}); gated on the enchant bypass. */
+    /** {@link ProtectionConfig#damageAfterProtection} */
     public static final Stage PROTECTION = s -> {
         Bypass bypass = s.request.bypass();
         ProtectionConfig protection = s.cfg.protection;
@@ -78,12 +76,12 @@ public final class MitigationPipeline {
         }
     };
 
-    /** The vanilla stage order, as a fresh mutable list - edit it to insert/remove/reorder. */
+    /** The vanilla stage order, as a fresh mutable list. */
     public static List<Stage> vanilla() {
         return new ArrayList<>(VANILLA);
     }
 
-    /** Runs {@code stages} (or {@link #vanilla()} when {@code null}); stops early once the damage reaches 0. */
+    /** Runs {@code stages}, or the vanilla order when {@code null}; stops early once the damage reaches 0. */
     public static float run(@Nullable List<Stage> stages, State state) {
         for (Stage stage : stages != null ? stages : VANILLA) {
             stage.apply(state);

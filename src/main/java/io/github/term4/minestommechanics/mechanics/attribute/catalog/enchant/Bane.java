@@ -18,10 +18,10 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Bane of Arthropods (enchant) - {@code 2.5 × level} flat melee bonus <em>vs arthropods</em> (like {@link Smite}, gated on
- * the combat {@link CombatFacts#TARGET target}), plus Slowness IV on the hit arthropod (the damage-domain {@link OnHit}
- * side effect). Vanilla 1.8: {@code 20 + rand(10×level)} ticks of {@code SLOWER_MOVEMENT} amplifier 3. The slowness needs
- * {@link io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Slowness} registered to move the victim.
+ * Bane of Arthropods - {@code 2.5 × level} melee bonus vs arthropods (like {@link Smite}, gated on the combat
+ * {@link CombatFacts#TARGET target}), plus {@code 20 + rand(10×level)} ticks of Slowness IV as an {@link OnHit} effect.
+ * The slowness needs {@link io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Slowness} registered to
+ * move the victim.
  */
 public final class Bane {
 
@@ -45,7 +45,7 @@ public final class Bane {
         @Override public void onHit(HitContext ctx) {
             if (ctx.level() <= 0 || !MonsterTypes.isArthropod(ctx.victim())) return;
             int ticks = 20 + ThreadLocalRandom.current().nextInt(10 * ctx.level()); // 1.8 EnchantmentWeaponDamage.a
-            // vanilla slowness shows its swirl + icon (default MobEffectInstance); flags 0 would hide both
+            // flags 0 would hide the swirl + icon vanilla shows
             ctx.victim().addEffect(new Potion(PotionEffect.SLOWNESS, SLOWNESS_AMPLIFIER, ticks,
                     (byte) (Potion.PARTICLES_FLAG | Potion.ICON_FLAG)));
         }

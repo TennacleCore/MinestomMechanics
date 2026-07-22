@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * Entity-backed effects that act through behaviors / the damage pipeline: Instant Health (onApply heal {@code 4<<amp})
- * and Resistance (defense reduction {@code ×(25-5·level)/25}, level 5 = immune). Verified vs 1.8 + 26.
+ * Instant Health heals {@code 4<<amp}; Resistance scales damage {@code ×(25-5·level)/25}, level 5 = immune
+ * (1.8 + 26).
  */
 class EffectApplicationTest extends HeadlessServerTest {
 
@@ -43,8 +43,8 @@ class EffectApplicationTest extends HeadlessServerTest {
     @Test
     void resistanceScalesIncomingDamage() {
         LivingEntity attacker = zombie(new Pos(0, 64, 81));
-        LivingEntity victim = zombie(new Pos(0, 64, 82)); // zombie (not Player): no absorption buffer in the way
-        victim.getAttribute(Attribute.ARMOR).setBaseValue(0); // model an unarmored player: isolate resistance from the armor stage
+        LivingEntity victim = zombie(new Pos(0, 64, 82)); // not a Player: no absorption buffer in the way
+        victim.getAttribute(Attribute.ARMOR).setBaseValue(0); // isolate resistance from the armor stage
         PotionEffect resistance = PotionEffect.fromKey(RESISTANCE);
         assertNotNull(resistance, "resistance effect");
 

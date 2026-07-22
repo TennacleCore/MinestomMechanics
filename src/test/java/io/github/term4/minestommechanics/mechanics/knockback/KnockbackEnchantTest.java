@@ -19,9 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The unified extra-knockback level: the Knockback enchant (read off the weapon by the attack ruleset) and a projectile's
- * Punch both arrive as {@code KnockbackSnapshot.extraKnockback}, and a melee sprint adds {@code +1} - all scaling the
- * config's {@code extra}* knobs. So one explicit extra level reproduces a sprint hit's golden vector {@code (0, 10, 18)}.
+ * The Knockback enchant, a projectile's Punch and a melee sprint all arrive as the same
+ * {@code KnockbackSnapshot.extraKnockback} level, so one explicit extra level reproduces a sprint hit's vector.
  */
 class KnockbackEnchantTest extends HeadlessServerTest {
 
@@ -53,8 +52,8 @@ class KnockbackEnchantTest extends HeadlessServerTest {
 
     @Test
     void projectilePunchAppliesWithoutMelee() {
-        // a projectile feeds its captured Punch as the extra level on a melee=false snapshot (no sprint bonus path); the
-        // extra* knobs must still scale by it - guards ManagedProjectile.buildKnockback passing punchLevel() through.
+        // melee=false (no sprint bonus path) must still scale the extra* knobs: guards
+        // ManagedProjectile.buildKnockback passing punchLevel() through
         LivingEntity target = zombie(new Pos(44, 64, 0));
         LivingEntity source = zombie(new Pos(44, 64, -1, 0f, 0f));
         Vec none = new KnockbackCalculator(services, Vanilla18.knockback())

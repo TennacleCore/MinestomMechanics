@@ -31,10 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The EPF / Protection defense stage (folded into the attribute system's mitigation pipeline) and the bypass model.
- * Pure-formula pins verified vs vanilla 1.8 ({@code EnchantmentProtection.a} + {@code EnchantmentManager.a} +
- * {@code applyMagicModifier}) and 26 ({@code damage_protection} data + {@code CombatRules.getDamageAfterMagicAbsorb}),
- * plus entity-backed passes: category gating, the live pipeline, and {@link Bypass} (broad stages + targeted keys).
+ * The EPF / Protection defense stage and the bypass model, pinned vs vanilla 1.8 ({@code EnchantmentProtection.a} +
+ * {@code EnchantmentManager.a} + {@code applyMagicModifier}) and 26 ({@code damage_protection} data +
+ * {@code CombatRules.getDamageAfterMagicAbsorb}).
  */
 class ProtectionStageTest extends HeadlessServerTest {
 

@@ -19,10 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Server-authoritative item cooldowns: {@link CooldownSystem#tryUse} arms on a successful use (sending the client
- * overlay), gates while active, and re-allows at expiry; unconfigured materials are never gated.
- */
+/** {@link CooldownSystem#tryUse} arms on use (sending the client overlay), gates while active, re-allows at expiry. */
 class CooldownSystemTest extends HeadlessServerTest {
 
     private static CooldownSystem system;

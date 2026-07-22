@@ -9,26 +9,24 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Config for the death/respawn cleanup: clearing potion effects, resetting transient combat state, and hiding the dead
- * player's body from viewers until respawn. Assigned per scope via the
+ * Config for the death/respawn cleanup. Assigned per scope via the
  * {@link io.github.term4.minestommechanics.MechanicsProfile} {@code DEATH} member and resolved per-victim by
  * {@code DamageSystem} on the death path. An unset knob reads as its vanilla default (on / 20-tick animation).
  */
 @GenerateBuilder
 public final class DeathConfig extends Config<DeathConfig.DeathContext, DeathConfig> {
 
-    /** What the per-victim {@code FieldValue}s resolve against: the dying entity. */
     public record DeathContext(LivingEntity victim) {}
 
     public final @Nullable FieldValue<DeathContext, Boolean> clearEffects;
-    public final @Nullable FieldValue<DeathContext, Boolean> resetCombatState;
+    public final @Nullable FieldValue<DeathContext, Boolean> resetMechanicsState;
     public final @Nullable FieldValue<DeathContext, Boolean> hideCorpse;
     public final @Nullable FieldValue<DeathContext, Integer> deathAnimationTicks;
 
     private DeathConfig(Builder b) {
         super(b.subConfig);
         this.clearEffects = b.clearEffects;
-        this.resetCombatState = b.resetCombatState;
+        this.resetMechanicsState = b.resetMechanicsState;
         this.hideCorpse = b.hideCorpse;
         this.deathAnimationTicks = b.deathAnimationTicks;
     }
@@ -37,7 +35,7 @@ public final class DeathConfig extends Config<DeathConfig.DeathContext, DeathCon
     public @Nullable Boolean clearEffects(DeathContext ctx) { return resolve(clearEffects, ctx); }
 
     /** Reset fire, velocity, drowning air, and stuck arrows on death. Unset = on. */
-    public @Nullable Boolean resetCombatState(DeathContext ctx) { return resolve(resetCombatState, ctx); }
+    public @Nullable Boolean resetMechanicsState(DeathContext ctx) { return resolve(resetMechanicsState, ctx); }
 
     /** Hide the health-0 body from viewers until respawn (Minestom keeps broadcasting it). Unset = on. */
     public @Nullable Boolean hideCorpse(DeathContext ctx) { return resolve(hideCorpse, ctx); }
@@ -45,7 +43,7 @@ public final class DeathConfig extends Config<DeathConfig.DeathContext, DeathCon
     /** Ticks the death animation plays before {@link #hideCorpse} removes the body. Unset = 20. */
     public @Nullable Integer deathAnimationTicks(DeathContext ctx) { return resolve(deathAnimationTicks, ctx); }
 
-    /** Merges this config over {@code base}: this config's set fields win, unset fields fall back per resolution. */
+    /** Merges this config over {@code base}. */
     public DeathConfig fromBase(DeathConfig base) {
         Builder b = new Builder();
         b.mergeKnobs(this, base);

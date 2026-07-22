@@ -20,9 +20,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Proves the victim-conditional enchant mechanism: Smite/Bane contribute to {@code MELEE_FLAT_ADD} only when the combat
- * {@code CombatFacts.TARGET} (dropped in by the melee path) matches their monster type. Diamond sword base = 7; the
- * bonus is {@code 2.5 × level} after crit, so a Smite-III hit vs undead is {@code 7 + 7.5}, vs anything else just {@code 7}.
+ * Smite/Bane contribute to {@code MELEE_FLAT_ADD} only when {@code CombatFacts.TARGET} (dropped in by the melee path)
+ * matches their monster type.
  */
 class ConditionalEnchantTest extends HeadlessServerTest {
 
@@ -50,7 +49,7 @@ class ConditionalEnchantTest extends HeadlessServerTest {
         Entity living = spawn(EntityType.PIG, 82);
         ItemStack sword = swordWith(Smite.KEY, 3);
         assertEquals(14.5f, melee(atk, undead, sword), EPS); // 7 + 2.5×3
-        assertEquals(7.0f, melee(atk, living, sword), EPS);  // not undead -> no bonus
+        assertEquals(7.0f, melee(atk, living, sword), EPS);
     }
 
     @Test

@@ -2,8 +2,8 @@ package io.github.term4.minestommechanics.util.tick;
 
 /**
  * Event at eventTick, effective for duration ticks. The no-arg methods read the server-wide clock
- * ({@link TickSystem#serverTick()}); the {@code (long now)} overloads take the clock explicitly, so callers can evaluate
- * a window against the per-instance {@link TickSystem} clock instead. Use isActiveWithin(ticks) when duration is passed at check time.
+ * ({@link TickSystem#serverTick()}); the {@code (long now)} overloads take the clock explicitly, to evaluate a window
+ * against a per-instance clock instead. Use {@link #isActiveWithin(int)} when the duration is passed at check time.
  */
 public record TickState(long eventTick, int duration) {
 
@@ -20,12 +20,12 @@ public record TickState(long eventTick, int duration) {
         return now >= eventTick && now < eventTick + duration;
     }
 
-    /** True if event occurred within last {@code ticks} */
+    /** True if the event occurred within the last {@code ticks}. */
     public boolean isActiveWithin(int ticks) {
         return isActiveWithin(TickSystem.serverTick(), ticks);
     }
 
-    /** True if the event was within the last {@code ticks} against the supplied clock; a "future" stamp reads not-recent (see {@link #isActive(long)}). */
+    /** Against the supplied clock; a "future" stamp reads not-recent (see {@link #isActive(long)}). */
     public boolean isActiveWithin(long now, int ticks) {
         long elapsed = now - eventTick;
         return elapsed >= 0 && elapsed <= ticks;

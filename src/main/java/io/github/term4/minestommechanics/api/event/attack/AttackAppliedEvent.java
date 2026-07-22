@@ -9,8 +9,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Fired after a detected attack has been processed by its ruleset (damage / knockback applied) - informational. The
- * post-attack counterpart to {@link PreAttackEvent} / {@link AttackEvent}; carries the finalized snapshot for combo /
- * cooldown tracking.
+ * post-attack counterpart to {@link PreAttackEvent} / {@link AttackEvent}.
  */
 public final class AttackAppliedEvent implements Event {
 
@@ -25,7 +24,6 @@ public final class AttackAppliedEvent implements Event {
     /** The finalized snapshot the attack was processed from. */
     public AttackSnapshot snapshot() { return snapshot; }
 
-    /** The active services (system lookups, scoped profiles). */
     public Services services() { return services; }
 
     public Entity attacker() { return snapshot.attacker(); }

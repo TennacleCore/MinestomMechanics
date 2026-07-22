@@ -10,9 +10,9 @@ import io.github.term4.minestommechanics.mechanics.attribute.defense.ArmorConfig
 import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionConfig;
 
 /**
- * Vanilla 1.8 attribute config: the LEGACY source variants (Strength, Sharpness) plus the LEGACY defense stages (armor
- * linear, EPF randomized) the {@code AttributeSystem.mitigate} pipeline runs. A MODERN preset registers the {@code .MODERN}
- * variants + MODERN formulas instead - the version lives in what's registered, not a flag.
+ * Vanilla 1.8 attribute config: the LEGACY source variants + LEGACY defense stages the {@code AttributeSystem.mitigate}
+ * pipeline runs. A MODERN preset registers the {@code .MODERN} variants instead - the version lives in what's
+ * registered, not a flag.
  */
 public final class Attributes {
 
@@ -20,7 +20,7 @@ public final class Attributes {
 
     public static AttributeConfig config() {
         return AttributeConfig.builder()
-                .sources(Strength.LEGACY, Weakness.LEGACY, Sharpness.LEGACY, Absorption.LEGACY) // 1.8 version variants
+                .sources(Strength.LEGACY, Weakness.LEGACY, Sharpness.LEGACY, Absorption.LEGACY)
                 .sources(VanillaAttributes.enchants())
                 .sources(VanillaAttributes.effects())
                 .armor(ArmorConfig.builder().formula(ArmorConfig.Formula.LEGACY_LINEAR).build())

@@ -8,16 +8,12 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/**
- * Golden pin for the LEGACY {@link ItemRegistry} weapon values (took over from the retired
- * {@code LegacyWeaponDamageCharacterizationTest}): the 1.8 attack-damage table, plus the fist/air fallback.
- */
+/** Golden pin for the 1.8 weapon attack-damage table. */
 class ItemRegistryParityTest {
 
     private static final double FIST = 1.0;
     private static final ItemRegistry LEGACY = new ItemRegistry(ItemDef.Version.LEGACY, VanillaItems.weapons());
 
-    /** The full 1.8 weapon table - swords 4/4/5/6/7(/8), axes 3/3/4/5/6(/7), pickaxes 2/2/3/4/5(/6), shovels 1/1/2/3/4(/5). */
     private static final Map<Material, Double> EXPECTED = Map.ofEntries(
             Map.entry(Material.WOODEN_SWORD, 4.0), Map.entry(Material.GOLDEN_SWORD, 4.0), Map.entry(Material.STONE_SWORD, 5.0),
             Map.entry(Material.IRON_SWORD, 6.0), Map.entry(Material.DIAMOND_SWORD, 7.0), Map.entry(Material.NETHERITE_SWORD, 8.0),

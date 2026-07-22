@@ -8,9 +8,9 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 
 /**
- * Absorption (potion) - extra "yellow heart" buffer (Player-only; Minestom's {@code damage()} consumes it before health).
- * {@link #LEGACY} is 1.8's additive {@code +4 × level} on apply, removed on expiry. {@link #MODERN} is 26's
- * {@code max(cur, 4×level)} on start, which persists past the effect ({@code onRemove} is a no-op).
+ * Absorption - Player-only; Minestom's {@code damage()} consumes the buffer before health. {@link #LEGACY} is 1.8's
+ * additive {@code +4 × level}, removed on expiry; {@link #MODERN} is 26's {@code max(cur, 4×level)}, which persists past
+ * the effect.
  */
 public final class Absorption {
 

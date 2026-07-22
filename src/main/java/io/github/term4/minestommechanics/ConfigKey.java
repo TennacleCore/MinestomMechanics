@@ -3,10 +3,9 @@ package io.github.term4.minestommechanics;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Type-safe identifier for a {@link MechanicsProfile} member (a heterogeneous-map key, like Minestom's {@code Tag}).
- * Built-in keys live in {@link MechanicsKeys}; a module declares its own as a static constant. Keys are equal by
- * {@link #id()} (a re-created key matches), so each id must be unique (convention {@code "namespace:name"}) - two
- * modules claiming one id with different types fail fast at key creation instead of as a far-away {@code ClassCastException}.
+ * Type-safe identifier for a {@link MechanicsProfile} member. Built-in keys live in {@link MechanicsKeys}; a module
+ * declares its own as a static constant. Keys are equal by {@link #id()}, so each id must be unique (convention
+ * {@code "namespace:name"}) - two modules claiming one id with different types fail fast at key creation.
  */
 public final class ConfigKey<C> {
 

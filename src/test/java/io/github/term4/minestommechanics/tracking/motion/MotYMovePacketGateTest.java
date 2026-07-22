@@ -16,9 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * {@link VelocityConfig#motYOnMovePacket}: with the knob on (MineMen), the motY sim holds on ticks without a client
- * move packet and resumes on the next one; default advances every tick. Own instance per test - the gate reads the
- * instance profile and clock.
+ * With {@link VelocityConfig#motYOnMovePacket} on the motY sim holds on ticks without a client move packet; the
+ * default advances every tick. Own instance per test - the gate reads the instance profile and clock.
  */
 class MotYMovePacketGateTest extends HeadlessServerTest {
 
@@ -32,7 +31,6 @@ class MotYMovePacketGateTest extends HeadlessServerTest {
         EventDispatcher.call(new PlayerMoveEvent(p, new Pos(8.5, y, 8.5), onGround));
     }
 
-    /** Baseline packet, rising launch packet (seeds 0.42), then one advanced tick. Returns the post-launch motY. */
     private static double launch(Instance inst, Player p) {
         tick(inst);                    // sim created
         move(p, 80.0, true);           // baseline

@@ -12,18 +12,16 @@ import java.util.Set;
 
 /**
  * The EPF / Protection defense stage: reduces incoming damage by the {@link ProtectionEnchant} factor summed off the
- * victim's four armor pieces, gated to each enchant's damage category. Third stage of the attribute system's mitigation
- * pipeline (armor → resistance → EPF). General Protection always counts; the specialized enchants only when the damage
- * type declares their {@link ProtectionCategory category}.
+ * victim's four armor pieces. General Protection always counts; the specialized enchants only when the damage type
+ * declares their {@link ProtectionCategory category}.
  *
- * <p>The two versions diverge: {@link Formula#LEGACY_RANDOMIZED 1.8} floors {@code (6+lvl²)/3 × typeMult} per enchant,
- * clamps the sum to {@code [0,25]}, then <em>randomizes</em> it ({@code EnchantmentManager.a}) before the {@code ×(25−i)/25}
- * reduction; {@link Formula#MODERN_LINEAR 26} sums a flat {@code lvl × perLevel} per enchant, clamps to {@code [0,20]},
- * and applies {@code ×(1−epf/25)} deterministically.
+ * <p>The versions diverge: {@link Formula#LEGACY_RANDOMIZED 1.8} floors {@code (6+lvl²)/3 × typeMult} per enchant, clamps
+ * the sum to {@code [0,25]}, then <em>randomizes</em> it ({@code EnchantmentManager.a}) before the {@code ×(25−i)/25}
+ * reduction; {@link Formula#MODERN_LINEAR 26} sums a flat {@code lvl × perLevel}, clamps to {@code [0,20]}, and applies
+ * {@code ×(1−epf/25)} deterministically.
  */
 public final class ProtectionConfig {
 
-    /** Which vanilla EPF formula to apply. */
     public enum Formula {
         /** 1.8 {@code EnchantmentManager.a} + {@code applyMagicModifier}: floored per-piece terms, randomized roll. */
         LEGACY_RANDOMIZED,
@@ -39,17 +37,13 @@ public final class ProtectionConfig {
         this.formula = b.formula;
     }
 
-    /** Whether the protection stage runs (default {@code true}). */
+    /** Default {@code true}. */
     public boolean enabled() { return enabled == null || enabled; }
 
-    /** The formula to apply (default {@link Formula#LEGACY_RANDOMIZED}). */
+    /** Default {@link Formula#LEGACY_RANDOMIZED}. */
     public Formula formula() { return formula != null ? formula : Formula.LEGACY_RANDOMIZED; }
 
-    /**
-     * Damage after the EPF stage: sums the applicable {@link ProtectionEnchant}s off the victim's armor (gated by the
-     * damage {@code categories}, minus any {@link Bypass#enchant targeted-bypassed} enchant) and applies the configured
-     * formula. {@code random} drives the LEGACY roll (ignored by MODERN).
-     */
+    /** {@code random} drives the LEGACY roll; MODERN ignores it. */
     public float damageAfterProtection(LivingEntity victim, Set<ProtectionCategory> categories, float damage, Random random, Bypass bypass) {
         if (damage <= 0) return damage;
         Bypass b = bypass != null ? bypass : Bypass.NONE;
@@ -61,29 +55,31 @@ public final class ProtectionConfig {
 
     /** 1.8: per-piece {@code floor((6+lvl²)/3 × mult)} summed, clamped [0,25], randomized, clamped 20, then {@code ×(25−i)/25}. */
     private static float legacy(LivingEntity victim, Set<ProtectionCategory> categories, float damage, Random random, Bypass bypass) {
-        int raw = 0;
-        for (EquipmentSlot slot : EquipmentSlot.armors()) {
-            ItemStack piece = victim.getEquipment(slot);
-            for (ProtectionEnchant p : ProtectionEnchant.values()) {
-                if (!p.applies(categories) || bypass.enchant(p.key())) continue;
-                raw += p.legacyPerPiece(Enchants.level(piece, p.key()));
-            }
-        }
+        int raw = sumEpf(victim, categories, bypass, ProtectionEnchant::legacyPerPiece);
         if (raw <= 0) return damage;
         return applyLegacy(damage, legacyRoll(Math.min(raw, 25), random));
     }
 
     /** 26: per-piece {@code lvl × perLevel} summed, clamped [0,20], then {@code ×(1−epf/25)}. */
     private static float modern(LivingEntity victim, Set<ProtectionCategory> categories, float damage, Bypass bypass) {
-        float epf = 0;
+        return applyModern(damage, sumEpf(victim, categories, bypass, ProtectionEnchant::modernPerPiece));
+    }
+
+    private static int sumEpf(LivingEntity victim, Set<ProtectionCategory> categories, Bypass bypass, PerPiece perPiece) {
+        int sum = 0;
         for (EquipmentSlot slot : EquipmentSlot.armors()) {
             ItemStack piece = victim.getEquipment(slot);
             for (ProtectionEnchant p : ProtectionEnchant.values()) {
                 if (!p.applies(categories) || bypass.enchant(p.key())) continue;
-                epf += p.modernPerPiece(Enchants.level(piece, p.key()));
+                sum += perPiece.of(p, Enchants.level(piece, p.key()));
             }
         }
-        return applyModern(damage, epf);
+        return sum;
+    }
+
+    @FunctionalInterface
+    private interface PerPiece {
+        int of(ProtectionEnchant enchant, int level);
     }
 
     /** 1.8 {@code EnchantmentManager.a} roll over the (already [0,25]-clamped) raw EPF: {@code (raw+1>>1) + rand[0, raw>>1]}. */

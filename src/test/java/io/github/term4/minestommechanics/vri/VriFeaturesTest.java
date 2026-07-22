@@ -48,6 +48,12 @@ class VriFeaturesTest extends HeadlessServerTest {
         return new PlayerBlockBreakEvent(miner.player, instance, block, Block.AIR, BLOCK, BlockFace.TOP);
     }
 
+    private static ItemEntity dropOf(Material material) {
+        return instance.getEntities().stream()
+                .filter(e -> e instanceof ItemEntity i && i.getItemStack().material() == material)
+                .map(e -> (ItemEntity) e).findFirst().orElseThrow();
+    }
+
     @Test
     void dropSpawnsWithVanillaShape() {
         long before = instance.getEntities().stream().filter(e -> e instanceof ItemEntity).count();
@@ -96,9 +102,7 @@ class VriFeaturesTest extends HeadlessServerTest {
     @Test
     void qDropSpawnsThrownItemAtEye() {
         EventDispatcher.call(new ItemDropEvent(miner.player, ItemStack.of(Material.OAK_PLANKS)));
-        var drop = instance.getEntities().stream()
-                .filter(e -> e instanceof ItemEntity i && i.getItemStack().material() == Material.OAK_PLANKS)
-                .map(e -> (ItemEntity) e).findFirst().orElseThrow();
+        var drop = dropOf(Material.OAK_PLANKS);
         // vanilla: spawned at eye - 0.3, 40t pickup delay, thrown roughly along the look
         assertEquals(miner.player.getPosition().y() + miner.player.getEyeHeight() - 0.3, drop.getPosition().y(), 1e-6);
         assertFalse(drop.isPickable(), "40-tick pickup delay");
@@ -122,12 +126,12 @@ class VriFeaturesTest extends HeadlessServerTest {
         var modern = new DroppedItemEntity(ItemStack.of(Material.DIRT), DroppedItemEntity.Model.MODERN);
         legacy.setInstance(instance, new Pos(10.5, 46.5, 10.5)).join();
         modern.setInstance(instance, new Pos(10.5, 46.5, 10.5)).join();
-        for (int i = 0; i < 100; i++) { // full ticks: stock physics in movementTick, the fluid overlay in update
+        for (int i = 0; i < 100; i++) { // full ticks: stock physics in movementTick, fluid overlay in update
             legacy.tick(0);
             modern.tick(0);
         }
         assertTrue(legacy.getPosition().y() <= 45.01, "1.8 items sink to the bottom: " + legacy.getPosition());
-        // 26.1 items dip first (gravity applies until the first fluid sample), then buoyancy wins
+        // 26.1 items dip first - gravity applies until the first fluid sample - then buoyancy wins
         assertTrue(modern.getVelocity().y() > 0, "26.1 items rise in water: " + modern.getVelocity());
         assertTrue(modern.getPosition().y() > legacy.getPosition().y() + 0.5, "26.1 floats above 1.8: " + modern.getPosition());
         legacy.remove();
@@ -187,9 +191,7 @@ class VriFeaturesTest extends HeadlessServerTest {
         miner.player.getInventory().setCursorItem(ItemStack.of(Material.GOLD_INGOT, 3));
         miner.player.closeInventory();
         assertTrue(miner.player.getInventory().getCursorItem().isAir(), "cursor cleared on close");
-        var drop = instance.getEntities().stream()
-                .filter(en -> en instanceof ItemEntity i && i.getItemStack().material() == Material.GOLD_INGOT)
-                .map(en -> (ItemEntity) en).findFirst().orElseThrow();
+        var drop = dropOf(Material.GOLD_INGOT);
         assertEquals(3, drop.getItemStack().amount(), "the whole dragged stack drops");
         drop.remove();
     }
@@ -200,9 +202,7 @@ class VriFeaturesTest extends HeadlessServerTest {
         miner.player.openInventory(chest);
         miner.player.getInventory().setCursorItem(ItemStack.of(Material.IRON_INGOT, 4));
         miner.player.closeInventory();
-        var drop = instance.getEntities().stream()
-                .filter(en -> en instanceof ItemEntity i && i.getItemStack().material() == Material.IRON_INGOT)
-                .map(en -> (ItemEntity) en).findFirst().orElseThrow();
+        var drop = dropOf(Material.IRON_INGOT);
         assertEquals(4, drop.getItemStack().amount(), "chest close drops the dragged stack");
         assertTrue(miner.player.getInventory().getCursorItem().isAir());
         drop.remove();
@@ -228,8 +228,8 @@ class VriFeaturesTest extends HeadlessServerTest {
     }
     @Test
     void dropSpawnPacketCarriesDataOneAndVelocity() {
-        // ViaRewind synthesizes a DELAYED zero SET_ENTITY_MOTION for data-0 object spawns (froze 1.8 TNT
-        // hops); items ride Minestom's ItemEntityMeta data=1 + embedded velocity = vanilla 1.8's item spawn
+        // ViaRewind synthesizes a DELAYED zero SET_ENTITY_MOTION for data-0 object spawns (froze 1.8 TNT hops);
+        // items ride Minestom's ItemEntityMeta data=1 + embedded velocity, as vanilla 1.8 spawns them
         int before = miner.sent.size();
         var drop = DroppedItemEntity.spawn(instance, new Pos(3.5, 45, 3.5), new Vec(0.1, 0.2, 0.05),
                 ItemStack.of(Material.FEATHER), DroppedItemEntity.Model.LEGACY, 10,

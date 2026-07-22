@@ -15,9 +15,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired when a projectile hits an entity or block, before effects apply. Same shape as {@code DamageEvent} /
- * {@code KnockbackEvent}: a {@link #snapshot()}, a {@link #resolvedHit()} preview, and per-hit overrides (each unset =
- * use resolved). Cancel suppresses everything (the projectile keeps flying); {@link #target()} is {@code null} for a block hit.
+ * Fired when a projectile hits an entity or block, before effects apply: a {@link #snapshot()}, a {@link #resolvedHit()}
+ * preview, and per-hit overrides (each unset = use resolved). Cancel suppresses everything and the projectile keeps
+ * flying.
  */
 public class ProjectileHitEvent implements CancellableEvent {
 
@@ -56,7 +56,7 @@ public class ProjectileHitEvent implements CancellableEvent {
     public @Nullable Entity shooter() { return shooter; }
     /** The hit entity, or {@code null} for a block hit. */
     public @Nullable Entity target() { return target; }
-    /** The world the projectile flew in. */
+    /** The projectile's world. */
     public MechanicsWorld world() { return MechanicsWorld.of(projectile()); }
     public @NotNull Point hitPoint() { return hitPoint; }
     public boolean isBlockHit() { return target == null; }
@@ -64,10 +64,10 @@ public class ProjectileHitEvent implements CancellableEvent {
     /** Shooter pos + view at throw time, or {@code null}. */
     public @Nullable Pos throwOrigin() { return throwOrigin; }
 
-    /** Resolved hit knobs (config preview, before overrides). */
+    /** Config preview, before overrides. */
     public ResolvedHit resolvedHit() { return resolved; }
 
-    /** Final damage: the {@link #damage(double) override} else the resolved amount. {@code 0} for a block hit. */
+    /** The {@link #damage(double) override} else the resolved amount. {@code 0} for a block hit. */
     public double damage() { return damage != null ? damage : resolvedDamage; }
     public void damage(double amount) { this.damage = amount; }
 
@@ -79,7 +79,7 @@ public class ProjectileHitEvent implements CancellableEvent {
     public KnockbackSource knockbackSource() { return knockbackSource != null ? knockbackSource : resolved.knockbackSource(); }
     public void knockbackSource(KnockbackSource source) { this.knockbackSource = source; }
 
-    /** Whether the projectile is removed on this hit (override else the resolved entity/block-hit flag). */
+    /** Override else the resolved entity/block-hit flag. */
     public boolean removeOnHit() {
         if (removeOnHit != null) return removeOnHit;
         return isBlockHit() ? resolved.removeOnBlockHit() : resolved.removeOnEntityHit();
@@ -90,7 +90,6 @@ public class ProjectileHitEvent implements CancellableEvent {
     public @Nullable HitResponse response() { return response; }
     public void response(@Nullable HitResponse response) { this.response = response; }
 
-    /** Cancel the hit (no damage/knockback/impact/removal); the projectile keeps flying. */
     public void cancel() { setCancelled(true); }
 
     @Override public boolean isCancelled() { return cancelled; }

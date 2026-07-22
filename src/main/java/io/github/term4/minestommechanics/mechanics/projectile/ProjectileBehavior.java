@@ -11,10 +11,10 @@ import org.jetbrains.annotations.Nullable;
  */
 public interface ProjectileBehavior {
 
-    /** A behavior that does nothing (the default when none is configured). */
+    /** The no-op default when none is configured. */
     ProjectileBehavior NONE = new ProjectileBehavior() {};
 
-    /** Fired once, the first tick after the projectile enters the world - the seam for spawn cosmetics (trail, sound). */
+    /** Fired once, the first tick after the projectile enters the world. */
     default void onSpawn(ManagedProjectile projectile) {}
 
     /** Fired every tick the projectile is alive, after its built-in update. */
@@ -36,6 +36,6 @@ public interface ProjectileBehavior {
     /** Fired when a stuck projectile unsticks (the block it was in was broken). */
     default void onUnstuck(ManagedProjectile projectile) {}
 
-    /** Fired once when the projectile is removed from the world (despawn, pickup, break), closing the lifecycle. */
+    /** Fired once when the projectile is removed from the world (despawn, pickup, break). */
     default void onRemove(ManagedProjectile projectile) {}
 }

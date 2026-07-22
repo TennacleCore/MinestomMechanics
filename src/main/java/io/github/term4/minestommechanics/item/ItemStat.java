@@ -13,20 +13,18 @@ import java.util.function.BiFunction;
 
 /**
  * A named, extensible item-stat key for {@link ItemRegistry} lookups. Each stat also knows how to derive its value from
- * Minestom (the {@code minestomDefault}) so an unregistered item falls back to what Minestom already computes rather
- * than a duplicated table - that's the "don't re-store what Minestom gets right" rule. Add a new stat = one constant here.
+ * Minestom ({@code minestomDefault}), so an unregistered item falls back to what Minestom computes rather than a
+ * duplicated table.
  */
 public final class ItemStat {
 
     /**
-     * Held-weapon attack damage: the item's <em>intrinsic</em> value (attribute base + the item's own {@code ATTACK_DAMAGE}
-     * modifiers), <em>excluding</em> the holder's potion-effect modifiers. The melee calculator folds Strength/Weakness
-     * once through the attribute system, so reading the holder's full attribute value here would double-count them - a
-     * held item would, unlike a fist (which uses the effect-free fallback), get e.g. Weakness twice.
+     * Held-weapon attack damage: attribute base + the item's own {@code ATTACK_DAMAGE} modifiers, <em>excluding</em> the
+     * holder's potion-effect modifiers - the melee calculator folds Strength/Weakness once through the attribute system,
+     * so including them here would double-count (unlike a fist, which uses the effect-free fallback).
      */
     public static final ItemStat ATTACK_DAMAGE = new ItemStat("attack_damage", ItemStat::weaponAttackDamage);
 
-    /** Base attack-damage attribute value + the {@code item}'s own ATTACK_DAMAGE modifiers (no effect/holder modifiers). */
     private static double weaponAttackDamage(ItemStack item, @Nullable LivingEntity holder) {
         if (holder == null) return Double.NaN;
         AttributeInstance inst = holder.getAttribute(Attribute.ATTACK_DAMAGE);
@@ -57,7 +55,7 @@ public final class ItemStat {
 
     public String id() { return id; }
 
-    /** The Minestom-derived value for this stat, or {@code NaN} when Minestom can't supply it (then the caller's fallback wins). */
+    /** {@code NaN} when Minestom can't supply it (the caller's fallback then wins). */
     double minestomDefault(ItemStack item, @Nullable LivingEntity holder) {
         return minestomDefault.apply(item, holder);
     }

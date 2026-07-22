@@ -13,7 +13,6 @@ public final class LegacyTabCompleteFixConfig implements FixToggle {
 
     private LegacyTabCompleteFixConfig(Builder b) { this.enabled = b.enabled; }
 
-    /** Whether the server answers command-name tab-completion for legacy clients; {@code null} = off. */
     public @Nullable Boolean enabled() { return enabled; }
 
     /** Merges this config over {@code base}: this config's set knob wins, unset falls back to {@code base}. */

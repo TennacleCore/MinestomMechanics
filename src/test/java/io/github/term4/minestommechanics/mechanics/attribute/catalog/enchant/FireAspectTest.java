@@ -14,10 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/**
- * Fire Aspect's on-hit dispatch: a melee hit with a Fire Aspect weapon ignites the victim for {@code level × 4} seconds
- * (vanilla {@code EntityHuman.attack}). Exercises the damage system's post-hit weapon dispatch into the attribute catalog.
- */
+/** Fire Aspect ignites for {@code level × 4} seconds (vanilla {@code EntityHuman.attack}). */
 class FireAspectTest extends HeadlessServerTest {
 
     @Test
@@ -26,7 +23,7 @@ class FireAspectTest extends HeadlessServerTest {
         LivingEntity victim = zombie(new Pos(0, 64, 501));
         victim.setHealth(20f);
         services.damage().apply(MeleeDamage.INSTANCE.snapshot(attacker, victim, false, fireAspectSword(2), services));
-        assertEquals(2 * 4 * 20, victim.getFireTicks()); // level 2 -> 8s -> 160 ticks
+        assertEquals(2 * 4 * 20, victim.getFireTicks());
     }
 
     @Test

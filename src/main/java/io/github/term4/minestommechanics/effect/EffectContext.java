@@ -18,7 +18,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * Where + who an {@link Effect} plays for: a {@code position} in a shard-scoped {@link MechanicsWorld}, an optional
  * {@code source} entity (entity animations ride its viewers), and an optional {@code target} (hit feedback). The emit
- * helpers route through the world / the source's viewers, so the audience follows the shard automatically.
+ * helpers route through the world / the source's viewers, so the audience follows the shard.
  */
 public final class EffectContext {
 
@@ -34,7 +34,7 @@ public final class EffectContext {
         this.target = target;
     }
 
-    /** At {@code source}'s position, with animations riding its viewers (crit sparkle, eating). */
+    /** At {@code source}'s position, with animations riding its viewers. */
     public static @NotNull EffectContext of(@NotNull Entity source) {
         return new EffectContext(MechanicsWorld.of(source), source.getPosition(), source, null);
     }
@@ -61,8 +61,8 @@ public final class EffectContext {
 
     /**
      * A positional sound at {@link #position()} to the {@code source}'s viewers but NOT the source itself - the sound
-     * analogue of {@link #hitAnimation}. Used for the eating chew on 1.8, where the eater's own client predicts the
-     * sound locally and echoing it back would double it. No-op without a source.
+     * analogue of {@link #hitAnimation}: the eater's own client predicts the chew locally, so echoing it would double it.
+     * No-op without a source.
      */
     public void viewerSound(@NotNull SoundEvent sound, @NotNull Sound.Source src, float volume, float pitch) {
         if (source != null) source.sendPacketToViewers(
@@ -70,8 +70,8 @@ public final class EffectContext {
     }
 
     /**
-     * A sound to the {@code source} entity ONLY, if it's a player - the arrow hit-marker "ding" to the shooter (source =
-     * shooter, target = victim). Positional at the source, so that one player hears it at full volume. No-op without a player source.
+     * A sound to the {@code source} entity ONLY, if it's a player (the arrow hit-marker "ding" to the shooter).
+     * Positional at the source, so that one player hears it at full volume.
      */
     public void sourceSound(@NotNull SoundEvent sound, @NotNull Sound.Source src, float volume, float pitch) {
         if (source instanceof Player p)
@@ -84,17 +84,16 @@ public final class EffectContext {
                 (float) offsetX, (float) offsetY, (float) offsetZ, speed, count));
     }
 
-    /** An entity animation on the {@code source} (its own sparkle) to its viewers + itself; no-op without a source. */
+    /** An entity animation on the {@code source} to its viewers + itself; no-op without a source. */
     public void entityAnimation(EntityAnimationPacket.@NotNull Animation animation) {
         if (source != null) source.sendPacketToViewersAndSelf(new EntityAnimationPacket(source.getEntityId(), animation));
     }
 
     /**
-     * A hit animation on the {@code target} (crit / magic-crit sparkle) sent to everyone tracking the {@code source} but
-     * NOT the source itself: BOTH the 1.8 and 26.1 client predict their own crit locally ({@code EntityPlayerSP.onCriticalHit}
-     * / {@code LocalPlayer.crit}), so echoing it back would double the particles. Vanilla sends to self anyway
-     * ({@code func_151261_b} / {@code sendToTrackingPlayersAndSelf}) and thus technically doubles; mm doesn't. Universal -
-     * not version-gated. No-op without both a source and a target.
+     * A hit animation on the {@code target} (crit / magic-crit sparkle) to everyone tracking the {@code source} but NOT
+     * the source itself: both the 1.8 and 26.1 client predict their own crit locally ({@code EntityPlayerSP.onCriticalHit}
+     * / {@code LocalPlayer.crit}), so echoing it back doubles the particles. Vanilla sends to self anyway and thus
+     * doubles; mm doesn't. Universal - not version-gated.
      */
     public void hitAnimation(EntityAnimationPacket.@NotNull Animation animation) {
         if (source != null && target != null) {
@@ -104,7 +103,7 @@ public final class EffectContext {
 
     /**
      * {@link #hitAnimation} including the source itself: a server-filled (fake) hit never registered on the attacker's
-     * client, so it predicts nothing and must be sent the sparkle too. No-op without both a source and a target.
+     * client, so it predicts nothing and must be sent the sparkle too.
      */
     public void hitAnimationAll(EntityAnimationPacket.@NotNull Animation animation) {
         if (source != null && target != null) {

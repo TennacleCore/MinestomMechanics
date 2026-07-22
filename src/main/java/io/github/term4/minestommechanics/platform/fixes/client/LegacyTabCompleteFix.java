@@ -9,21 +9,17 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Command-name tab completion for legacy clients: answers a tab-complete request whose cursor is still in the command
- * name (no space yet) with the registered command names matching the prefix.
+ * Command-name tab completion for legacy clients: answers a request whose cursor is still in the command name (no
+ * space yet). A 1.8 client asks the server to complete command names (modern clients do it from the command tree);
+ * Minestom's {@code TabCompleteListener} only suggests argument values, so names never complete - vanilla answers
+ * because Brigadier's literal nodes self-suggest. Replaces the {@link ClientTabCompletePacket} listener server-wide;
+ * anything it doesn't answer delegates to the stock {@link TabCompleteListener}.
  *
- * <p><b>Why:</b> a 1.8 client asks the server to complete command names (modern clients do it client-side from the
- * command tree). ViaVersion forwards the request, but Minestom's {@code TabCompleteListener} only suggests argument
- * values, so command names never complete. Vanilla answers it because Brigadier's literal nodes self-suggest.
- *
- * <p>Replaces the {@link ClientTabCompletePacket} listener (packet-listener manager, server-wide); anything it doesn't
- * answer delegates to Minestom's stock {@link TabCompleteListener}.
- *
- * <p><b>Temporary:</b> removable once the upstream fix (branch {@code fix/tab-complete-command-names}) is on the pinned dependency.
+ * <p><b>Temporary:</b> removable once upstream branch {@code fix/tab-complete-command-names} is on the pinned dependency.
  */
 public final class LegacyTabCompleteFix {
 
-    // rebuilt when the registered-command count changes (registration is rare; requests are per keystroke)
+    // rebuilt on command-count change; requests are per keystroke
     private static volatile String[] names = new String[0];
     private static volatile int commandCount = -1;
 

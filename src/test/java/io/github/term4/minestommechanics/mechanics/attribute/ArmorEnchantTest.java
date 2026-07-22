@@ -19,11 +19,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * The worn-equipment source lifecycle: an {@link ArmorSource} (Aqua Affinity) pushes its modifier onto the wearer's
- * {@code SUBMERGED_MINING_SPEED} while the helmet is worn and clears it on removal - driven off {@code EntityEquipEvent},
- * mirroring the potion lifecycle. (Consumption still waits on a dig calculator; this proves the delivery half.)
- */
+/** Worn/held enchant modifiers push and clear off {@code EntityEquipEvent} (mob lifecycle). */
 class ArmorEnchantTest extends HeadlessServerTest {
 
     private static ItemStack aquaHelmet() {
@@ -31,7 +27,6 @@ class ArmorEnchantTest extends HeadlessServerTest {
                 .with(DataComponents.ENCHANTMENTS, new EnchantmentList(RegistryKey.<Enchantment>unsafeOf(AquaAffinity.KEY), 1));
     }
 
-    /** Whether the wearer's submerged-mining-speed carries Aqua Affinity's {@code +4 ADD_MULTIPLIED_TOTAL} push. */
     private static boolean hasAquaModifier(LivingEntity e) {
         return e.getAttribute(Attribute.SUBMERGED_MINING_SPEED).modifiers().stream()
                 .anyMatch(m -> m.operation() == AttributeOperation.ADD_MULTIPLIED_TOTAL && Math.abs(m.amount() - 4.0) < 1e-9);
@@ -54,7 +49,6 @@ class ArmorEnchantTest extends HeadlessServerTest {
         assertFalse(hasAquaModifier(e), "an unenchanted helmet contributes nothing");
     }
 
-    /** Whether the holder's mining-efficiency carries Efficiency III's {@code +10 ADD_VALUE} (3²+1) push. */
     private static boolean hasMiningEfficiency(LivingEntity e) {
         var inst = e.getAttribute(Attribute.MINING_EFFICIENCY);
         return inst != null && inst.modifiers().stream()

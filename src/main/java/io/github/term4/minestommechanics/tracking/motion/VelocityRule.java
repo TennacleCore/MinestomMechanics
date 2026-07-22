@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.tracking.motion;
 
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.collision.PhysicsUtils;
 import net.minestom.server.coordinate.Vec;
@@ -23,92 +24,88 @@ public interface VelocityRule {
     Vec estimate(VelocityContext ctx);
 
     /**
-     * The reconstruction toggles {@link MotionTracker} reads off this rule (fluid/climb/web/flow/model). {@code null} =
-     * gate defaults (media handling on, flow off). The seam that makes a custom rule first-class; arc knobs live in {@link #arc}.
+     * The reconstruction toggles {@link MotionTracker} reads off this rule. {@code null} = gate defaults (media
+     * handling on, flow off). The seam that makes a custom rule first-class; arc knobs live in {@code arc}.
      */
     default @Nullable VelocityConfig reconstructionConfig() { return null; }
 
-    /** Rule used when a config does not specify one (the default {@link #simulated()} arc). */
     VelocityRule DEFAULT = simulated();
 
-    /** Server-tracked velocity with vanilla-default knobs. */
     static VelocityRule simulated() { return simulated(VelocityConfig.defaults()); }
 
-    /** Server-tracked velocity with the given {@link VelocityConfig}. */
     static VelocityRule simulated(VelocityConfig cfg) { return new Simulated(cfg); }
 
-    /** A {@link #simulated(VelocityConfig)} rule that exposes its {@link VelocityConfig} so {@link MotionTracker} reads its toggles. */
+    /** Exposes its {@link VelocityConfig} so {@link MotionTracker} can read the toggles. */
     record Simulated(VelocityConfig config) implements VelocityRule {
         @Override public Vec estimate(VelocityContext ctx) { return arc(ctx, config); }
         @Override public VelocityConfig reconstructionConfig() { return config; }
     }
 
-    /** The reconstruction config for {@code rule} ({@code null} when it carries none - the default gate behaviour applies). */
     private static @Nullable VelocityConfig configOf(@Nullable VelocityRule rule) {
         return rule == null ? null : rule.reconstructionConfig();
     }
 
-    /** Whether built-in fluid (water/lava) handling is on for {@code rule} - on by default. See {@link VelocityConfig#fluidPhysics}. */
+    /** On without a config. */
     static boolean fluidPhysicsEnabled(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c == null || c.fluidPhysics();
     }
 
-    /** Whether the tracker's built-in <b>climb</b> (ladder/vine/climbable) handling is on for {@code rule} - on by default. See {@link VelocityConfig#climbPhysics}. */
+    /** On without a config. */
     static boolean climbPhysicsEnabled(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c == null || c.climbPhysics();
     }
 
-    /** Whether the tracker's built-in <b>cobweb</b> handling is on for {@code rule} - on by default. See {@link VelocityConfig#webPhysics}. */
+    /** On without a config. */
     static boolean webPhysicsEnabled(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c == null || c.webPhysics();
     }
 
-    /** Whether the fluid-flow residual is maintained/folded for {@code rule} - only when its config has it on (a from-scratch rule never inherits it). */
+    /** Off without a config: a from-scratch rule never inherits the flow residual. */
     static boolean flowPushEnabled(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c != null && c.flowPush();
     }
 
-    /** Whether entity-push is maintained for {@code rule} (default-on: a config-less rule reads it through the context). */
+    /** On without a config: a config-less rule reads it through the context. */
     static boolean entityPushEnabled(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c == null || c.entityPush();
     }
 
-    /** The {@link FluidFlow.Model} for {@code rule} ({@code LEGACY} when it carries no config). */
+    /** {@code LEGACY} without a config. */
     static FluidFlow.Model flowModel(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c != null ? c.flowModel() : FluidFlow.Model.LEGACY;
     }
 
-    /** The ladder/climb model for {@code rule} ({@link ClimbModel#LEGACY} when the rule carries no config). Read once per tick. See {@link VelocityConfig#climbModel}. */
+    /** {@code LEGACY} without a config. Read once per tick. */
     static ClimbModel climbModel(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c != null ? c.climbModel() : ClimbModel.LEGACY;
     }
 
-    /** Whether the 26-only block velocity behaviors (sweet-berry/powder-snow stuck + bed bounce) are on for {@code rule} - {@code false} (1.8) when the rule carries no config. See {@link VelocityConfig#modernBlockPhysics}. */
+    /** Off (1.8) without a config. */
     static boolean modernBlockPhysicsEnabled(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c != null && c.modernBlockPhysics();
     }
 
-    /** Whether the {@link FluidFlow.Model#MODERN} lava current is folded for {@code rule} (26 yes, Hypixel no); {@code false} when the rule carries no config. */
+    /** Off without a config. */
     static boolean flowLavaEnabled(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c != null && c.flowLava();
     }
 
-    /** Whether the motY sim advances only on client move packets (MineMen) vs every tick; {@code false} when the rule carries no config. See {@link VelocityConfig#motYOnMovePacket}. */
+    /** Off without a config. */
     static boolean motYOnMovePacketEnabled(@Nullable VelocityRule rule) {
         VelocityConfig c = configOf(rule);
         return c != null && c.motYOnMovePacket();
     }
 
-    /** Reconstructed arc with per-context knobs (e.g. a ping-scaled {@code groundTicks}); use over a config lambda when only arc knobs vary. */
+    /** Per-context knobs (e.g. a ping-scaled {@code groundTicks}); use over a config lambda when only arc knobs vary. */
     static VelocityRule simulated(Function<VelocityContext, VelocityConfig> cfg) {
         return ctx -> arc(ctx, cfg.apply(ctx));
     }
@@ -125,18 +122,16 @@ public interface VelocityRule {
         @Override public @Nullable VelocityConfig reconstructionConfig() { return vertical.reconstructionConfig(); }
     }
 
-    /** Mixes two rules per axis (see {@link Split}). */
     static VelocityRule split(VelocityRule horizontal, VelocityRule vertical) {
         return new Split(horizontal, vertical);
     }
 
     /**
-     * The server-tracked velocity fold (vanilla {@code motX/motY/motZ}): vertical from {@link #verticalMot}, horizontal
-     * from {@link MotionTracker#horizontalMot} (the friction-bled sprint-jump residual, not the knockback), plus the
-     * entity-push and flow residuals when enabled. Per-component clamps apply last. Non-players use their server velocity directly.
+     * The server-tracked velocity fold (vanilla {@code motX/motY/motZ}): horizontal is the friction-bled sprint-jump
+     * residual, not the knockback, plus the entity-push and flow residuals when enabled.
      */
     private static Vec arc(VelocityContext ctx, VelocityConfig cfg) {
-        // non-players are server-simulated already; only players need the reconstruction below
+        // non-players are server-simulated already
         if (!(ctx.entity() instanceof Player)) {
             return clamp(ctx.positionDelta(), cfg.clampX(), cfg.clampY(), cfg.clampZ());
         }
@@ -147,8 +142,7 @@ public interface VelocityRule {
             out = out.add(push.x(), 0, push.z());
         }
         if (cfg.flowPush()) {
-            // flow residual is 3D (x/z current + the Y down-term)
-            Vec flow = MotionTracker.flowPush(ctx.entity());
+            Vec flow = MotionTracker.flowPush(ctx.entity()); // 3D: x/z current + the Y down-term
             out = out.add(flow.x(), flow.y(), flow.z());
         }
         // wall-pinned mot reads 0 on the blocked axis (vanilla move() zeroing, measured)
@@ -156,14 +150,14 @@ public interface VelocityRule {
         return clamp(out, cfg.clampX(), cfg.clampY(), cfg.clampZ());
     }
 
-    /** Vertical mot: the live ticked sim ({@link MotionTracker#serverMotY}), or the air-clock {@link #reconstructedVy} for non-players / before the sim has ticked. */
+    /** The live ticked sim, falling back to the air clock before it has ticked. */
     private static double verticalMot(VelocityContext ctx, VelocityConfig cfg) {
         Double simY = MotionTracker.serverMotY(ctx.entity(),
                 VelocityConfig.DEFAULT_LAUNCH_OFFSET - cfg.launchOffset(), cfg.clampY() > 0);
         return simY != null ? simY : reconstructedVy(ctx, cfg);
     }
 
-    /** Fallback vertical reconstruction from the air clock (non-players / pre-sim): seed at launch, step the air ticks, gated on ground state; {@code maxAirTicks} caps the clock. */
+    /** Seeds at launch and steps the air ticks, gated on ground state. */
     private static double reconstructedVy(VelocityContext ctx, VelocityConfig cfg) {
         boolean grounded = ctx.onGround(cfg.groundTicks());
         boolean launched = !grounded && ctx.launched();
@@ -171,10 +165,12 @@ public interface VelocityRule {
         if (cfg.maxAirTicks() != null) air = Math.min(air, cfg.maxAirTicks());
         int ticks = launched ? air + cfg.launchOffset() : air + 1;
         double seedY = launched ? cfg.seed() : 0;
-        return steppedVy(ctx.entity(), ctx.entity().getAerodynamics(), cfg.clampY(), seedY, ticks);
+        // the entity's OWN airborne motion, so it steps at the entity's dilated rate
+        return steppedVy(ctx.entity(), TickScaler.aerodynamics(ctx.entity(), ctx.entity().getAerodynamics()),
+                cfg.clampY(), seedY, ticks);
     }
 
-    /** Advances {@code seedY} by {@code ticks} airborne ticks ({@link PhysicsUtils#updateVelocity}), apex-reseeding below {@code clampY} each step. */
+    /** Apex-reseeds below {@code clampY} each step. */
     private static double steppedVy(Entity entity, Aerodynamics aero, double clampY, double seedY, int ticks) {
         if (ticks <= 0) return seedY;
         Vec vel = new Vec(0, seedY, 0);

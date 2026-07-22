@@ -42,10 +42,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The {@link FakeHits} swing fill end to end, on its compat (bare-fist) configuration. Geometry: the attacker's ray
- * runs parallel to the victim's box at {@code x = 8.85} - the real box ends at 8.8, the 0.1-padded one at 8.9 - so a
- * landed hit proves the fill covers exactly the gap the {@code attack_range} stamp can't (no item to ride). Plus the
- * fake-hit consequences: a drop's swing never arms, and a fake crit's sparkle reaches the attacker too.
+ * {@link FakeHits} swing fill on its compat (bare-fist) configuration. Geometry: the attacker's ray runs parallel to
+ * the victim's box at {@code x = 8.85} - real box ends at 8.8, the 0.1-padded one at 8.9 - so a landed hit proves the
+ * fill covers exactly the gap the {@code attack_range} stamp can't (no item to ride).
  */
 class FakeHitsTest extends HeadlessServerTest {
 
@@ -65,14 +64,23 @@ class FakeHitsTest extends HeadlessServerTest {
         return new Duo(attacker, victim, inst);
     }
 
-    /** Seeds combat (records the victim, i-frame window 0..10), then swings + looks at combat tick 10 (window edge). */
-    private static void seedAndSwing(Duo d) {
+    /** Records a hit (i-frame window 0..10), then parks the combat clock at {@code tick}. */
+    private static void seedCombat(Duo d, long tick) {
         setCombatTick(d.inst(), 0);
         mm.module(AttackSystem.class).apply(new AttackSnapshot(d.attacker().player, d.victim(), null));
         d.victim().setHealth(20f);
-        setCombatTick(d.inst(), 10);
+        setCombatTick(d.inst(), tick);
+    }
+
+    private static void swingAndLook(Duo d) {
         EventDispatcher.call(new PlayerHandAnimationEvent(d.attacker().player, PlayerHand.MAIN));
         EventDispatcher.call(new PlayerMoveEvent(d.attacker().player, d.attacker().player.getPosition(), true));
+    }
+
+    /** Swings at combat tick 10 (the i-frame window edge). */
+    private static void seedAndSwing(Duo d) {
+        seedCombat(d, 10);
+        swingAndLook(d);
     }
 
     @Test
@@ -88,12 +96,8 @@ class FakeHitsTest extends HeadlessServerTest {
     void staleTargetSideGrazeDoesNotFill() {
         Duo d = duo(8.85, "K");
         ((OptimizedPlayer) d.attacker().player).compat().apply(Compat18.config());
-        setCombatTick(d.inst(), 0);
-        mm.module(AttackSystem.class).apply(new AttackSnapshot(d.attacker().player, d.victim(), null));
-        d.victim().setHealth(20f);
-        setCombatTick(d.inst(), 40); // stale: well past the hit's i-frame window (0..10)
-        EventDispatcher.call(new PlayerHandAnimationEvent(d.attacker().player, PlayerHand.MAIN));
-        EventDispatcher.call(new PlayerMoveEvent(d.attacker().player, d.attacker().player.getPosition(), true));
+        seedCombat(d, 40); // stale: well past the hit's i-frame window (0..10)
+        swingAndLook(d);
         assertEquals(20f, d.victim().getHealth(), "out of recent combat, the body-side expansion no longer fills");
     }
 
@@ -102,10 +106,7 @@ class FakeHitsTest extends HeadlessServerTest {
     void staleTargetTopGrazeFills() {
         Duo d = duo(8.5, "L"); // straight on; the ray is aimed up into the head band by the move look below
         ((OptimizedPlayer) d.attacker().player).compat().apply(Compat18.config());
-        setCombatTick(d.inst(), 0);
-        mm.module(AttackSystem.class).apply(new AttackSnapshot(d.attacker().player, d.victim(), null));
-        d.victim().setHealth(20f);
-        setCombatTick(d.inst(), 40);
+        seedCombat(d, 40);
         EventDispatcher.call(new PlayerHandAnimationEvent(d.attacker().player, PlayerHand.MAIN));
         // eye 65.62 aiming to enter the padded front face (z=11.1, 2.6 away) at y=65.85 - above the real top 65.8
         float pitch = (float) -Math.toDegrees(Math.atan2(0.23, 2.6));
@@ -113,7 +114,7 @@ class FakeHitsTest extends HeadlessServerTest {
         assertTrue(d.victim().getHealth() < 20f, "the head band of the expansion fills even out of recent combat");
     }
 
-    /** The ExampleServer regression: a preset's WINDOWED rule must not shadow the windowless compat rule - both are live layers. */
+    /** Regression: a preset's WINDOWED rule must not shadow the windowless compat rule - both are live layers. */
     @Test
     void presetWindowedRuleDoesNotShadowTheCompatBareFistFill() {
         Instance inst = flatInstance(MechanicsProfile.builder()
@@ -177,13 +178,9 @@ class FakeHitsTest extends HeadlessServerTest {
     void dropSwingDoesNotArm() {
         Duo d = duo(8.85, "E");
         ((OptimizedPlayer) d.attacker().player).compat().apply(Compat18.config());
-        setCombatTick(d.inst(), 0);
-        mm.module(AttackSystem.class).apply(new AttackSnapshot(d.attacker().player, d.victim(), null));
-        d.victim().setHealth(20f);
-        setCombatTick(d.inst(), 10);
+        seedCombat(d, 10);
         EventDispatcher.call(new ItemDropEvent(d.attacker().player, ItemStack.of(Material.SNOWBALL)));
-        EventDispatcher.call(new PlayerHandAnimationEvent(d.attacker().player, PlayerHand.MAIN)); // the drop's own swing
-        EventDispatcher.call(new PlayerMoveEvent(d.attacker().player, d.attacker().player.getPosition(), true));
+        swingAndLook(d);
         assertEquals(20f, d.victim().getHealth(), "a drop's swing is never an attack");
     }
 
@@ -192,14 +189,10 @@ class FakeHitsTest extends HeadlessServerTest {
     void instantBreakSwingDoesNotArm() {
         Duo d = duo(8.85, "J");
         ((OptimizedPlayer) d.attacker().player).compat().apply(Compat18.config());
-        setCombatTick(d.inst(), 0);
-        mm.module(AttackSystem.class).apply(new AttackSnapshot(d.attacker().player, d.victim(), null));
-        d.victim().setHealth(20f);
-        setCombatTick(d.inst(), 10);
+        seedCombat(d, 10);
         EventDispatcher.call(new PlayerBlockBreakEvent(d.attacker().player, d.inst(), Block.STONE, Block.AIR,
                 new BlockVec(8, 63, 9), BlockFace.TOP));
-        EventDispatcher.call(new PlayerHandAnimationEvent(d.attacker().player, PlayerHand.MAIN)); // the mining swing
-        EventDispatcher.call(new PlayerMoveEvent(d.attacker().player, d.attacker().player.getPosition(), true));
+        swingAndLook(d);
         assertEquals(20f, d.victim().getHealth(), "a mining swing is never an attack on a modern client");
     }
 
@@ -207,13 +200,9 @@ class FakeHitsTest extends HeadlessServerTest {
     void useItemSwingDoesNotArm() {
         Duo d = duo(8.85, "F");
         ((OptimizedPlayer) d.attacker().player).compat().apply(Compat18.config());
-        setCombatTick(d.inst(), 0);
-        mm.module(AttackSystem.class).apply(new AttackSnapshot(d.attacker().player, d.victim(), null));
-        d.victim().setHealth(20f);
-        setCombatTick(d.inst(), 10);
+        seedCombat(d, 10);
         EventDispatcher.call(new PlayerUseItemEvent(d.attacker().player, PlayerHand.MAIN, ItemStack.of(Material.SNOWBALL), 0));
-        EventDispatcher.call(new PlayerHandAnimationEvent(d.attacker().player, PlayerHand.MAIN)); // the throw's own swing
-        EventDispatcher.call(new PlayerMoveEvent(d.attacker().player, d.attacker().player.getPosition(), true));
+        swingAndLook(d);
         assertEquals(20f, d.victim().getHealth(), "a right-click use's swing is never an attack");
     }
 
@@ -247,7 +236,7 @@ class FakeHitsTest extends HeadlessServerTest {
                 && a.animation() == EntityAnimationPacket.Animation.CRITICAL_EFFECT);
     }
 
-    /** The fill's knockback follows the intersecting ray, not the attacker's live look: an explicit snapshot direction outranks the source's. */
+    /** The fill's knockback follows the intersecting ray: an explicit snapshot direction outranks the source's look. */
     @Test
     void explicitKnockbackDirectionOutranksSourceLook() {
         LivingEntity attacker = zombie(new Pos(100, 64, 100));      // yaw 0 -> looks +Z

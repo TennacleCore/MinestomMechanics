@@ -3,16 +3,14 @@ package io.github.term4.minestommechanics.item;
 import net.minestom.server.item.Material;
 
 /**
- * Vanilla item defs shared by the presets (mirrors {@code VanillaTypes} for damage). Currently the 1.8 weapon
- * attack-damage table as defs - the legacy values; modern attack damage derives from Minestom's {@code ATTACK_DAMAGE}
- * attribute, so it's left unset. Armor isn't here (rides Minestom's {@code ARMOR} attribute).
+ * Vanilla item defs shared by the presets. Only the 1.8 weapon attack-damage table is stored: modern attack damage
+ * derives from Minestom's {@code ATTACK_DAMAGE} attribute, armor from {@code ARMOR}.
  */
 // TODO: Add modern weapons / items
 public final class VanillaItems {
 
     private VanillaItems() {}
 
-    /** The 1.8 weapon attack-damage table as defs. */
     public static ItemDef[] weapons() {
         return new ItemDef[]{
                 w(Material.WOODEN_SWORD, 4), w(Material.GOLDEN_SWORD, 4), w(Material.STONE_SWORD, 5),

@@ -29,10 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/**
- * The consumable API: the ComponentFood floor (plain foods eat off the item registry, values pinned bit-exact vs the
- * pristine 1.8 table), the Pre/Consume/Applied event trio, and the pufferfish version split.
- */
+/** The ComponentFood floor (plain foods eat off the item registry), the Pre/Consume/Applied trio, version splits. */
 class ConsumableApiTest extends HeadlessServerTest {
 
     private static Player p;

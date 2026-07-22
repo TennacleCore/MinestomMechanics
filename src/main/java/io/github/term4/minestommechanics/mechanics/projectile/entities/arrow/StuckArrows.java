@@ -22,9 +22,9 @@ public final class StuckArrows {
 
     private StuckArrows() {}
 
-    /** Per-entity countdown (ticks) to the next arrow falling out; transient - not persisted, dies with the entity. */
+    /** Per-entity countdown (ticks) to the next arrow falling out. */
     private static final Tag<Integer> REMOVE_TIME = Tag.Transient("mm:arrow-remove-time");
-    /** Living entities with at least one stuck arrow - the only entities the decay task touches. */
+    /** The only entities the decay task touches. */
     private static final Set<LivingEntity> tracked = ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean decayStarted = new AtomicBoolean();
 
@@ -53,11 +53,9 @@ public final class StuckArrows {
     /** Removes all stuck arrows from {@code entity}. */
     public static void clear(LivingEntity entity) { set(entity, 0); }
 
-    /** Lazily registers the fall-out decay on the {@link TickSystem} (vanilla cadence {@code 20 * (30 - count)} ticks per arrow). */
+    /** Lazily registers the fall-out decay on the {@link TickSystem} - each entity decays on its own instance's tick. */
     private static void ensureDecayTask() {
         if (!decayStarted.compareAndSet(false, true)) return;
-        // Per-instance tick via the TickSystem (each entity decays on its own instance's tick), not a global scheduler task.
-        // Registered once for the JVM; the tracked set self-empties as arrows fall out.
         TickSystem.register(TickPhase.DEFAULT, StuckArrows::tickDecay);
     }
 
@@ -68,7 +66,7 @@ public final class StuckArrows {
             int count = m.getArrowCount();
             if (count <= 0) return true;
             Integer t = entity.getTag(REMOVE_TIME);
-            int time = (t == null || t <= 0) ? TickScaler.duration(20 * (30 - count), ProjectileSystem.KEY) : t; // vanilla cadence, scaled
+            int time = (t == null || t <= 0) ? TickScaler.duration(entity, 20 * (30 - count), ProjectileSystem.KEY) : t; // vanilla cadence, scaled
             if (--time <= 0) {
                 m.setArrowCount(count - 1);
                 entity.setTag(REMOVE_TIME, 0);

@@ -9,9 +9,9 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * Jump Boost (potion). {@link #MODERN} is {@code +1 × level} safe-fall-distance ({@code ADD_VALUE}, 26) - the
- * fall-damage-reduction part. The jump-velocity part ({@code +0.1/level}, both versions) isn't an attribute -
- * {@link io.github.term4.minestommechanics.tracking.motion.MotionTracker#jumpSeed} seeds it off the live effect, so no LEGACY source here.
+ * Jump Boost. {@link #MODERN} is 26's {@code +1 × level} safe-fall-distance. The jump-velocity part ({@code +0.1/level},
+ * both versions) isn't an attribute - {@link io.github.term4.minestommechanics.tracking.motion.MotionTracker#jumpSeed}
+ * seeds it off the live effect, so there is no LEGACY source.
  */
 public final class JumpBoost {
 

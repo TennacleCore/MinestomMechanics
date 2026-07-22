@@ -18,6 +18,7 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Chunk;
 import net.minestom.server.network.packet.client.ClientPacket;
 import net.minestom.server.network.packet.server.SendablePacket;
+import net.minestom.server.network.packet.server.play.EntityEquipmentPacket;
 import net.minestom.server.network.packet.server.play.EntityAttributesPacket;
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket;
 import net.minestom.server.network.player.GameProfile;
@@ -82,10 +83,7 @@ public class OptimizedPlayer extends Player {
         this.selfMetaFilter = filter;
     }
 
-    /**
-     * Updates player state without sending the change to this player; viewers still receive it.
-     * <pre>{@code player.suppressSelf(() -> player.setSneaking(true)); }</pre>
-     */
+    /** Updates player state without sending the change to this player; viewers still receive it. */
     public void suppressSelf(@NotNull Runnable action) {
         processingClientInput = true;
         try {
@@ -119,10 +117,9 @@ public class OptimizedPlayer extends Player {
         super.sendPacketToViewersAndSelf(packet);
     }
 
-    /** This player's inventory echo suppressor (the remote-slot mirror); inert until {@code FixesSystem} arms {@link InventorySync}. */
+    /** Inert until {@code FixesSystem} arms {@link InventorySync}. */
     public @NotNull InventorySync inventorySync() { return inventorySync; }
 
-    /** Outgoing transforms: seen items rewritten (attack-range stamp, throwable reskin), empty equipment slots stripped, then redundant inventory slot echoes dropped. All no-op when off. */
     @Override
     public void sendPacket(@NotNull SendablePacket packet) {
         SendablePacket p = LegacyEquipmentFix.rewrite(compat.rewriteItems(packet));
@@ -137,13 +134,27 @@ public class OptimizedPlayer extends Player {
     // so strip empty slots before grouping - else BODY=AIR reaches ViaBackwards and hides the chestplate
     @Override
     public void sendPacketToViewers(@NotNull SendablePacket packet) {
-        super.sendPacketToViewers(LegacyEquipmentFix.rewrite(packet));
+        SendablePacket rewritten = LegacyEquipmentFix.rewrite(packet);
+        // The blocking-pose stamp is per-VIEWER (a modern client poses the block off ITS copy of the held item), so
+        // equipment must arrive bare for each viewer's own item view to apply - grouping would share one CachedPacket.
+        if (rewritten instanceof EntityEquipmentPacket && anyViewerRewritesItems()) {
+            for (Player viewer : getViewers()) viewer.sendPacket(rewritten);
+            return;
+        }
+        super.sendPacketToViewers(rewritten);
+    }
+
+    private boolean anyViewerRewritesItems() {
+        for (Player viewer : getViewers()) {
+            if (viewer instanceof OptimizedPlayer op && op.compat().rewritesItems()) return true;
+        }
+        return false;
     }
 
     /**
      * {@link Player#updatePose()} recomputes the pose every tick (crawl enter/exit), not only in packet listeners -
      * without arming the echo guard here the self-bound pose echo slips through (the crawl/stand stutter).
-     * Save/restore so it nests; a direct {@code setPose} doesn't route here, so server-authoritative poses still echo.
+     * A direct {@code setPose} doesn't route here, so server-authoritative poses still echo.
      */
     @Override
     protected void updatePose() {

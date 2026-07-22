@@ -175,22 +175,20 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
     public final @Nullable FieldValue<ProjectileContext, RodDurability> rodDurability;
     /** Distance from the angler past which the bobber discards (vanilla 32). Fishing-bobber only. */
     public final @Nullable FieldValue<ProjectileContext, Double> lineSnapDistance;
-    /** Publish the hooked entity on the bobber metadata - the modern client's glued-bobber visual (26.1 {@code true}).
-     *  A 1.8 server through Via never emits it (no such metadata in 1.8); {@code false} = the authentic vanilla18 look,
-     *  hook mechanics unchanged (the pin position is the 1.8 visual). Fishing-bobber only. */
+    /** Publish the hooked entity on the bobber metadata - the modern glued-bobber visual (26.1 {@code true}). A 1.8
+     *  server through Via never emits it; {@code false} = the authentic vanilla18 look, hook mechanics unchanged
+     *  (the pin position IS the 1.8 visual). Fishing-bobber only. */
     public final @Nullable FieldValue<ProjectileContext, Boolean> hookedMetadata;
     /** Halt + zero the bobber on the hook tick. Default follows the physics order: 26.1 {@code true} (FLYING ->
-     *  HOOKED_IN_ENTITY sets deltaMovement ZERO), 1.8 {@code false} (the hook tick's move completes THROUGH the
-     *  victim, motion kept; the pin starts next tick on the normal sync). mmc18 opts in (silent-wire glued flash).
-     *  Fishing-bobber only. */
+     *  HOOKED_IN_ENTITY zeroes deltaMovement), 1.8 {@code false} (the hook tick's move completes THROUGH the victim,
+     *  the pin starts next tick). mmc18 opts in. Fishing-bobber only. */
     public final @Nullable FieldValue<ProjectileContext, Boolean> hookHalt;
-    /** Whether the bobber senses water at all ({@code false} = hooks ignore it entirely - NOT a vanilla or
-     *  MineMen behavior; thin-water punch-through is plain 1.8 momentum). Default on. */
+    /** Whether the bobber senses water at all ({@code false} = neither vanilla nor MineMen; thin-water
+     *  punch-through is plain 1.8 momentum). Default on. */
     public final @Nullable FieldValue<ProjectileContext, Boolean> hookWater;
 
-    /** Freeze the bobber INTO the block it hits (arrow-like) instead of the vanilla slide/damp. Default {@code false}
-     *  (vanilla: 1.8 ray-holds + damps down the face, 26.1 stops dead + falls); {@code true} = a server that wants
-     *  rods to stick in walls. Fishing-bobber only. */
+    /** Freeze the bobber INTO the block it hits (arrow-like) instead of the vanilla slide/damp (1.8 ray-holds + damps
+     *  down the face, 26.1 stops dead + falls). Default {@code false}. Fishing-bobber only. */
     public final @Nullable FieldValue<ProjectileContext, Boolean> hookStick;
     public final @Nullable FieldValue<ProjectileContext, KnockbackConfig> knockback;
     public final @Nullable FieldValue<ProjectileContext, KnockbackSource> knockbackSource;

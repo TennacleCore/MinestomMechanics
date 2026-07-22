@@ -15,11 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Proves the potion-lifecycle layer end-to-end: an effect with a registered source applies + removes its contribution
- * on the Minestom add/remove events. Channel A (Speed -> movement-speed modifier pushed to the holder's instance) and
- * channel C (Invisibility -> the invisible flag).
- */
+/** An effect with a registered source applies + removes its contribution on the Minestom add/remove events. */
 class PotionLifecycleTest extends HeadlessServerTest {
 
     @Test
@@ -72,7 +68,7 @@ class PotionLifecycleTest extends HeadlessServerTest {
 
     @Test
     void deathClearsEffectsAndTheirModifiers() {
-        // Minestom's kill() leaves effects intact; the death path clears them (DeathConfig.clearEffects, default on) so nothing leaks.
+        // Minestom's kill() leaves effects intact; the death path clears them (DeathConfig.clearEffects, default on)
         LivingEntity e = zombie(new Pos(0, 64, 66));
         double base = e.getAttributeValue(Attribute.MOVEMENT_SPEED);
         PotionEffect speed = PotionEffect.fromKey(Speed.KEY);
@@ -82,7 +78,7 @@ class PotionLifecycleTest extends HeadlessServerTest {
 
         e.kill();
         assertTrue(e.getActiveEffects().isEmpty(), "death clears active effects");
-        assertEquals(base, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9); // and so their pushed modifier
+        assertEquals(base, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
     }
 
     @Test

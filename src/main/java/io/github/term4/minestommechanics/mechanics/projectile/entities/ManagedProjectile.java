@@ -31,12 +31,11 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class ManagedProjectile extends ProjectileEntity {
 
-    /** The merged per-type config (FieldValues unresolved); hit knobs resolve from it at impact. */
+    /** Merged per-type config, FieldValues unresolved. */
     private final ProjectileTypeConfig effectiveConfig;
     private final ProjectileSnapshot snap;
-    /** Pluggable behavior layered over the built-in hooks (set by the launcher from config/snapshot); default no-op. */
     private ProjectileBehavior behavior = ProjectileBehavior.NONE;
-    /** Latches the one-time {@link ProjectileBehavior#onSpawn} on the first tick after entering the world. */
+    /** Latches the one-time {@link ProjectileBehavior#onSpawn}. */
     private boolean spawned;
 
     public ManagedProjectile(@Nullable Entity shooter, @NotNull EntityType entityType,
@@ -48,10 +47,10 @@ public class ManagedProjectile extends ProjectileEntity {
 
     public void setBehavior(@Nullable ProjectileBehavior behavior) { this.behavior = behavior != null ? behavior : ProjectileBehavior.NONE; }
 
-    /** Whether a non-default behavior is attached; a fireball reads this so a bare one detonates itself while one carrying a behavior lets that behavior own the detonation timing. */
+    /** A fireball reads this: a bare one detonates itself, one carrying a behavior lets that behavior own the timing. */
     protected boolean hasBehavior() { return behavior != ProjectileBehavior.NONE; }
 
-    /** Resolves the hit knobs at impact: {@code target} is the struck entity, or {@code null} for a block hit. */
+    /** {@code target} is the struck entity, or {@code null} for a block hit. */
     private ResolvedHit resolveHit(@Nullable Entity target) {
         ProjectileContext ctx = ProjectileContext.of(snap, services())
                 .atHit(target, getShooterOriginPos(), getPosition());
@@ -71,7 +70,7 @@ public class ManagedProjectile extends ProjectileEntity {
                 : (target == shooter ? hit.selfHit() : hit.entityHit());
         switch (pre) {
             case HIT -> { /* normal hit below */ }
-            case PASS_THROUGH -> { passThrough(hit, target); return false; }
+            case PASS_THROUGH -> { passThrough(target); return false; }
             case DEFLECT -> { bounce(hit, target); return false; }
             case DESTROY -> { fireImpact(target); return true; }
         }
@@ -82,7 +81,7 @@ public class ManagedProjectile extends ProjectileEntity {
             ProjectileTypeConfig.InvulnResponse ir = hit.invulnHit();
             ProjectileTypeConfig.HitResponse blocked = result == DamageSystem.DamageOutcome.IMMUNE ? ir.immune() : ir.invulWindow();
             switch (blocked) {
-                case PASS_THROUGH -> { passThrough(hit, target); return false; }
+                case PASS_THROUGH -> { passThrough(target); return false; }
                 case DEFLECT -> { bounce(hit, target); return false; }
                 case HIT, DESTROY -> { /* fall through to onImpact + removeOnHit */ }
             }
@@ -104,21 +103,19 @@ public class ManagedProjectile extends ProjectileEntity {
             result = s.damage().apply(DamageSnapshot.of(target, dt)
                     .withSource(shooter).withPoint(getPosition()).withAmount((float) ev.damage()));
         }
-        // projectile-relative (origin = projectile) or shooter-relative; the knockback owns the velocity broadcast
         if (result.landed() && ev.knockback() != null && s.knockback() != null) {
             s.knockback().apply(buildKnockback(target, ev.knockbackSource(), ev.knockback()));
         }
         return result;
     }
 
-    /** A {@code DEFLECT}: bounce off per the {@link ProjectileTypeConfig.Deflect} knob + (opt-in) the cosmetic crit trail. Fires {@link ProjectileBehavior#onDeflect}. */
     private void bounce(ResolvedHit hit, @Nullable Entity hitEntity) {
         deflect(hit.deflect());
         if (deflectTrailEnabled()) deflectVisible = true;
         behavior.onDeflect(this, hitEntity);
     }
 
-    /** Whether the cosmetic deflect crit-trail is on for this shooter ({@code deflectParticles}, resolved via {@code FixesSystem}; default off). */
+    /** The cosmetic {@code deflectParticles} crit trail, off by default. */
     private boolean deflectTrailEnabled() {
         Services s = services();
         if (s == null) return false;
@@ -126,8 +123,7 @@ public class ManagedProjectile extends ProjectileEntity {
         return fixes != null && fixes.legacyArrowDeflectParticles(shooter);
     }
 
-    /** A {@code PASS_THROUGH}: keep flying + (opt-in) the cosmetic crit trail. Fires {@link ProjectileBehavior#onDeflect}. */
-    private void passThrough(ResolvedHit hit, @Nullable Entity hitEntity) {
+    private void passThrough(@Nullable Entity hitEntity) {
         if (deflectTrailEnabled()) deflectVisible = true;
         behavior.onDeflect(this, hitEntity);
     }
@@ -149,10 +145,9 @@ public class ManagedProjectile extends ProjectileEntity {
         return ev.removeOnHit(); // block hit -> removeOnBlockHit (override ?? resolved)
     }
 
-    /** Impact effect once a hit lands (entity or block), after damage/knockback and before removal. {@code hitEntity} = the struck entity, or {@code null} for a block hit. Override for egg/pearl. */
+    /** Impact effect once a hit lands, after damage/knockback and before removal. {@code hitEntity} {@code null} = block hit. */
     protected void onImpact(@Nullable Entity hitEntity) {}
 
-    /** Fires the type's {@link #onImpact} effect, then the pluggable {@link ProjectileBehavior#onImpact}. */
     private void fireImpact(@Nullable Entity hit) {
         onImpact(hit);
         behavior.onImpact(this, hit);
@@ -188,7 +183,6 @@ public class ManagedProjectile extends ProjectileEntity {
         setDeflected();
     }
 
-    /** Applies a {@link ProjectileTypeConfig.Deflect}: scale velocity by {@code multiplier} and rotate the heading by {@code turn} + a random jitter (degrees). */
     private static Vec applyDeflect(ProjectileTypeConfig.Deflect d, Vec velocity) {
         Vec v = velocity.mul(d.multiplier());
         double extra = d.turn() + (d.maxJitter() > d.minJitter()
@@ -196,12 +190,11 @@ public class ManagedProjectile extends ProjectileEntity {
         return extra == 0 ? v : Directions.rotateY(v, extra);
     }
 
-    /** Hit-knockback snapshot for the {@link ProjectileTypeConfig.KnockbackSource}; {@link #punchLevel()} rides as the extra-KB level (vanilla's {@code i}, the melee Knockback-enchant channel), {@code 0} = inert. */
+    /** {@link #punchLevel()} rides as the extra-KB level (vanilla's {@code i}, the melee Knockback-enchant channel), {@code 0} = inert. */
     private KnockbackSnapshot buildKnockback(@NotNull Entity target, ProjectileTypeConfig.KnockbackSource source, KnockbackConfig kb) {
         // a SELF hit always rides the shooter-source form, whatever the mode: the projectile-relative frame is
         // degenerate (the projectile is on the victim), and a preset's self-hit rule needs source == target to detect
         if (shooter != null && (target == shooter || source == ProjectileTypeConfig.KnockbackSource.SHOOTER)) {
-            // shooter source (like melee): the calculator reads the shooter's position + look (yawWeight picks aim vs direction)
             return new KnockbackSnapshot(target, false, shooter, null, null, kb, punchLevel());
         }
         // projectile source: origin = projectile, direction = horizontal flight
@@ -210,7 +203,7 @@ public class ManagedProjectile extends ProjectileEntity {
         return new KnockbackSnapshot(target, false, null, getPosition(), flightDir, kb, punchLevel());
     }
 
-    /** Live services lookup (the systems are install-time singletons); null-tolerant if none installed. */
+    /** {@code null} when nothing is installed. */
     protected @Nullable Services services() {
         var mm = MinestomMechanics.getInstance();
         return mm.isInitialized() ? mm.services() : null;

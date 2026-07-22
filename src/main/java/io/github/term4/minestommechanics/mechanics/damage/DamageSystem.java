@@ -41,6 +41,7 @@ import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.attribute.Attribute;
 import net.minestom.server.entity.Player;
+import net.minestom.server.entity.PlayerHand;
 import net.minestom.server.entity.damage.Damage;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.event.Event;
@@ -103,32 +104,28 @@ public final class DamageSystem implements MechanicsModule {
         this.services = mm.services();
         this.calc = new DamageCalculator(this.services, Vanilla18.damage());
         this.registry = new DamageTypeRegistry(this, mm).registerVanillaDefaults();
-        // i-frame window stamps use the victim's per-instance clock; drop the window state on (re)spawn (the TickState
-        // future-guard covers most cross-instance carries, but a long-lived target instance could coincide with one).
+        // window stamps ride the victim's per-instance clock; the TickState future-guard misses a coinciding long-lived instance
         this.node.addListener(PlayerSpawnEvent.class, e -> clearDamageWindow(e.getPlayer()));
         if (CLOCK_RESET.compareAndSet(false, true)) {
             TickSystem.onClockChange(e -> {
                 if (e instanceof LivingEntity le) clearDamageWindow(le);
             });
         }
-        // Death handling lives here (the damage system owns the death/respawn path). Vanilla clears active effects +
-        // transient combat state on death; Minestom's kill() does not, so it would leak across respawn (the Player object
-        // persists). clearEffects() fires the remove events the AttributeSystem reacts to. Behavior is the victim's scoped
-        // DeathConfig; an unset knob defaults to vanilla (on / 20-tick animation).
+        // vanilla clears effects + transient combat state on death; Minestom's kill() does not and the Player object
+        // survives respawn. An unset DeathConfig knob defaults to vanilla (on / 20-tick animation).
         this.node.addListener(EntityDeathEvent.class, e -> {
             if (!(e.getEntity() instanceof LivingEntity dead)) return;
             DeathContext ctx = new DeathContext(dead);
             DeathConfig death = effectiveDeath(mm.profiles().resolve(dead, MechanicsKeys.DEATH), ctx);
             if (deathFlag(death != null ? death.clearEffects(ctx) : null)) dead.clearEffects();
-            if (deathFlag(death != null ? death.resetCombatState(ctx) : null)) resetCombatState(dead);
-            // Minestom keeps the health-0 entity in the world (viewers see a lingering body; 1.8/Via replays the death
-            // smoke on chunk reload) - hide it from viewers, but only AFTER the death animation plays (immediate removal
-            // yanks the entity mid-animation = instant disappear). Guarded so a fast respawn doesn't hide the live player.
+            if (deathFlag(death != null ? death.resetMechanicsState(ctx) : null)) resetMechanicsState(dead);
+            // Minestom keeps the health-0 entity in the world (1.8/Via replays the death smoke on chunk reload); hide it
+            // only AFTER the animation plays, and guard so a fast respawn doesn't hide the live player
             if (deathFlag(death != null ? death.hideCorpse(ctx) : null) && dead instanceof Player p) {
                 Integer knob = death != null ? death.deathAnimationTicks(ctx) : null;
                 int ticks = knob != null ? knob : DEATH_ANIMATION_TICKS;
                 p.scheduler().buildTask(() -> { if (p.isDead()) p.setAutoViewable(false); })
-                        .delay(TaskSchedule.tick(TickScaler.duration(ticks, KEY))).schedule();
+                        .delay(TaskSchedule.tick(TickScaler.duration(p, ticks, KEY))).schedule();
             }
         });
         // re-show the respawned player NEXT tick (after the respawn teleport, else viewers re-see them at the death spot)
@@ -222,23 +219,20 @@ public final class DamageSystem implements MechanicsModule {
 
         if (!bypassImmune && isImmune(living)) return DamageOutcome.IMMUNE;
 
-        // Fire Resistance: total immunity to fire-source damage. Vanilla blocks it at the hit entry (1.8 damageEntity /
-        // 26 hurtServer return false) - before i-frames and mitigation, so it consumes no invul window and never flashes.
-        // Keyed on the type's FIRE protection set (in-fire / on-fire / lava / burning); not gated by the i-frame bypass.
+        // Fire Resistance blocks at the hit entry (1.8 damageEntity / 26 hurtServer return false): before i-frames and
+        // mitigation, so it consumes no invul window and never flashes. Not gated by the i-frame bypass.
         AttributeSystem fireAttrs = services.attributes();
         if (fireAttrs != null && type.protectionCategories().contains(ProtectionCategory.FIRE) && fireAttrs.fireResistant(living)) {
             return DamageOutcome.BLOCKED;
         }
 
-        ResolvedDamageConfig resolved = calc.resolveConfig(
-                finalSnap.config() != null ? finalSnap : finalSnap.withConfig(configFor(finalSnap.target())));
+        ResolvedDamageConfig resolved = calc.resolveConfig(typeCtx.snap());
 
         boolean overdamage = Boolean.TRUE.equals(pick(typeCfg.overdamage(typeCtx), resolved.enableOverdamage()));
         boolean generalSilent = Boolean.TRUE.equals(pick(typeCfg.silent(typeCtx), resolved.silent()));
 
-        // In an active i-frame window this is a replacement (overdamage) hit, else fresh. Mitigation (components + blocking +
-        // armor/resistance/EPF) applies to the FULL amount FIRST either way - vanilla mitigates, THEN takes the overdamage
-        // remainder, so a replacement isn't "true damage" (a fall landing mid-i-frame still gets resistance / Feather Falling).
+        // vanilla mitigates the FULL amount first, THEN takes the overdamage remainder - a replacement hit is not
+        // "true damage" (a fall landing mid-i-frame still gets resistance / Feather Falling)
         boolean replacement = event.invulnerable() && !bypassInvul;
         if (replacement && !overdamage) return DamageOutcome.BLOCKED;
 
@@ -291,10 +285,7 @@ public final class DamageSystem implements MechanicsModule {
         if (DAMAGE_APPLIED.hasListener()) EventDispatcher.call(new DamageAppliedEvent(snap, dealt, outcome, services));
     }
 
-    /**
-     * Fires the attacker's weapon on-hit enchant side effects (Fire Aspect, ...) after a fresh landed hit. Damage-domain
-     * combat enchants - defined in the attribute catalog, triggered here. No attacker / no weapon = nothing fires.
-     */
+    /** Weapon on-hit enchant side effects (Fire Aspect, ...): defined in the attribute catalog, triggered here. */
     private void dispatchWeaponOnHit(LivingEntity victim, DamageSnapshot snap) {
         AttributeSystem attrs = services.attributes();
         if (attrs == null || !(snap.source() instanceof LivingEntity attacker)) return;
@@ -303,7 +294,7 @@ public final class DamageSystem implements MechanicsModule {
         attrs.dispatchWeaponOnHit(attacker, victim, weapon);
     }
 
-    /** Built-in default for the per-type {@code ownsVelocityBroadcast} knob: melee, thrown, and explosion own the velocity broadcast (the {@code ExplosionSystem} delivers its own KB), so the generic hurt velocity isn't also sent. */
+    /** Default for the per-type {@code ownsVelocityBroadcast} knob: these deliver their own KB, so the generic hurt velocity isn't also sent. */
     private static boolean knockbackOwnsVelocity(DamageType type) {
         return MeleeDamage.KEY.equals(type.key()) || ProjectileDamage.KEY.equals(type.key()) || ExplosionDamage.KEY.equals(type.key());
     }
@@ -327,12 +318,7 @@ public final class DamageSystem implements MechanicsModule {
     /** Fallback hurt knockback when no config sets one (built once - it is immutable). */
     private static final KnockbackConfig DEFAULT_HURT_KB = Knockback.hurt();
 
-    /**
-     * Defense mitigation: hands the hit to the attribute system's {@link AttributeSystem#mitigate pipeline} (armor →
-     * resistance → EPF, vanilla order; absorption is Minestom's). The damage side supplies the per-hit gating - the
-     * type's protection {@link io.github.term4.minestommechanics.mechanics.damage.types.DamageType#protectionCategories
-     * categories} and its "true damage" bypass flags. No attribute system installed = no mitigation.
-     */
+    /** Hands the hit to {@link AttributeSystem#mitigate} (armor → resistance → EPF, vanilla order; absorption is Minestom's). */
     private float applyMitigation(LivingEntity living, DamageType type, DamageTypeConfig typeCfg, DamageContext ctx, float amount) {
         AttributeSystem attrs = services.attributes();
         if (attrs == null || amount <= 0) return amount;
@@ -348,11 +334,7 @@ public final class DamageSystem implements MechanicsModule {
         return attrs.mitigate(living, amount, req);
     }
 
-    /**
-     * The hurt velocity broadcast: a fresh hit broadcasts the victim's server velocity (gated by a knockback-resistance
-     * roll), routed through the {@link KnockbackSystem} with a zero-impulse {@link DamageConfig#hurtKnockback} so all
-     * velocity sends share one path.
-     */
+    /** The hurt velocity broadcast, routed through the {@link KnockbackSystem} with a zero-impulse config so all velocity sends share one path. */
     private void applyHurtKnockback(LivingEntity living, @Nullable KnockbackConfig cfg) {
         KnockbackSystem kb = services.knockback();
         if (kb == null) return;
@@ -394,8 +376,7 @@ public final class DamageSystem implements MechanicsModule {
     }
 
     private void applyDamage(LivingEntity living, DamageType type, DamageSnapshot snap, float amount, boolean silent) {
-        // lethal hits fall through to living.damage() so Minestom handles death (its EntityDeathEvent/PlayerDeathEvent);
-        // non-lethal silent hits skip the hurt effect.
+        // lethal hits fall through to living.damage() so Minestom handles death
         if (silent && living instanceof Player p) {
             // absorption absorbs first (Minestom's damage() does this; the silent path sets health directly, so replicate it)
             float absorb = p.getAdditionalHearts();
@@ -521,15 +502,23 @@ public final class DamageSystem implements MechanicsModule {
     }
 
     /**
-     * Resets the transient combat/visual state vanilla starts fresh after death (it carries to respawn - the Player
-     * object persists): fire, drowning air, stuck arrows, and residual velocity. Gated by {@link DeathConfig#resetCombatState};
-     * effects are gated separately ({@link DeathConfig#clearEffects}); the i-frame window + fall distance reset on (re)spawn.
+     * Clears the transient state vanilla starts fresh after death - fire, residual velocity, drowning air, stuck arrows,
+     * in-progress item use. Minestom reuses the Player object, so none of it resets on its own.
+     *
+     * <p>Also the reset seam for a round restart / kit swap / tick-domain move (a timer armed on one clock means nothing
+     * on another). Effects are NOT touched - {@link DeathConfig#clearEffects} owns those.
      */
-    private static void resetCombatState(LivingEntity entity) {
+    public static void resetMechanicsState(@NotNull LivingEntity entity) {
         entity.setFireTicks(0);
         entity.setVelocity(Vec.ZERO);
         DrowningDamage.resetAir(entity);
         StuckArrows.clear(entity);
+        // vanilla die() calls stopUsingItem; Minestom's kill() leaves the use timer armed, so an eat/drink
+        // finishes on the corpse (effects applied, item consumed) and a block survives the death
+        if (entity instanceof Player p && p.isUsingItem()) {
+            p.refreshActiveHand(false, p.getItemUseHand() == PlayerHand.OFF, false);
+            p.clearItemUse();
+        }
     }
 
     private static @Nullable TickState getDamageInvul(LivingEntity le) {

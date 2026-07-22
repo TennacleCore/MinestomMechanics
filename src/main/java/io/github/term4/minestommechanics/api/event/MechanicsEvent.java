@@ -5,12 +5,9 @@ import net.minestom.server.event.Event;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Shared base for the action-domain events (attack / damage / knockback / consume): an immutable {@link #snapshot()} plus a
- * mutable {@link #finalSnap()} for processing, and the active {@link #services()}. Config previews and computed results
- * live on the subclasses; cancellable phases add cancellation via {@link CancellableMechanicsEvent}. These four
- * domains get Pre/main/Applied triads; projectiles/explosions fire single events (their damage + KB route through the triads).
- *
- * @param <S> the domain snapshot type (e.g. {@code DamageSnapshot})
+ * Base for the action-domain events (attack / damage / knockback / consume): an immutable {@link #snapshot()} plus a
+ * mutable {@link #finalSnap()} for processing. These four domains get Pre/main/Applied triads; projectiles and
+ * explosions fire single events (their damage + KB route through the triads).
  */
 public abstract class MechanicsEvent<S> implements Event {
 
@@ -23,13 +20,11 @@ public abstract class MechanicsEvent<S> implements Event {
         this.services = services;
     }
 
-    /** The original, immutable snapshot for this event. */
     public S snapshot() { return snapshot; }
 
-    /** The snapshot used for processing - the {@link #finalSnap(Object) override} when set, else the original. */
+    /** The {@link #finalSnap(Object) override} when set, else the original snapshot. */
     public S finalSnap() { return finalSnap != null ? finalSnap : snapshot; }
     public void finalSnap(S snap) { this.finalSnap = snap; }
 
-    /** The active services (system lookups, scoped profiles). */
     public Services services() { return services; }
 }

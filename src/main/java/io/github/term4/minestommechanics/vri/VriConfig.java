@@ -5,16 +5,15 @@ import org.jetbrains.annotations.Nullable;
 /** Toggles for the VRI (Vanilla Re-Implemented) behaviors; the set grows as chests / deaths etc. land. */
 public final class VriConfig {
 
-    /** The crack-overlay broadcast ({@link BlockBreakProgress}); default off. */
+    /** Default off. */
     public final boolean blockBreakProgress;
-    /** Block drops on break ({@link BlockDrops}); {@code null} = off. {@link BlockDrops#VANILLA} = correct-tool gate +
-     *  the block's own item; compose custom loot with {@link BlockDrops#chain}. */
+    /** {@code null} = off; compose custom loot with {@link BlockDrops#chain}. */
     public final @Nullable BlockDrops.DropRule blockDrops;
-    /** Item physics override; {@code null} resolves {@code MechanicsKeys.ITEM_PHYSICS} from the profile (LEGACY fallback). */
+    /** {@code null} resolves {@code MechanicsKeys.ITEM_PHYSICS} from the profile (LEGACY fallback). */
     public final @Nullable DroppedItemEntity.Model itemPhysics;
-    /** The player item collector ({@link ItemPickup}); default off. */
+    /** Default off. */
     public final boolean itemPickup;
-    /** Spawn the item a player drops (Q / drag-out, {@link ItemDrop}); default off. */
+    /** Q / drag-out. Default off. */
     public final boolean itemDrop;
 
     private VriConfig(Builder b) {

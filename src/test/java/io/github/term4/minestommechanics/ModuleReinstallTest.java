@@ -24,10 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-/**
- * Re-installing a system must REPLACE its listeners, not stack them ({@code register} detaches the predecessor's
- * node - the stacking bug was doubled consume restores). Harness-pinned systems re-install with the harness config.
- */
+/** Re-install must replace listeners, not stack them - the stacking bug was doubled consume restores. */
 class ModuleReinstallTest extends HeadlessServerTest {
 
     private record Case(String name, Supplier<MechanicsModule> install) {}

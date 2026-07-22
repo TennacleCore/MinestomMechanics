@@ -9,9 +9,8 @@ import io.github.term4.minestommechanics.platform.fixes.visuals.VisualsConfig;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Top-level config for the lib's client/protocol behavior <b>fixes</b> - covering both cross-version compatibility
- * fixes (papering over how an older client behaves, e.g. the 1.8 arrow-visibility fix) and single-version client
- * smoothing (a modern client's own prediction echo, e.g. the self-meta fix). Assigned per scope via the
+ * Top-level config for the lib's client/protocol behavior <b>fixes</b> - both cross-version compatibility (the 1.8
+ * arrow-visibility fix) and single-version client smoothing (the self-meta echo fix). Assigned per scope via the
  * {@link io.github.term4.minestommechanics.MechanicsProfile} {@code fixes} member.
  */
 public final class FixesConfig {
@@ -32,17 +31,11 @@ public final class FixesConfig {
         this.inventorySync = b.inventorySync;
     }
 
-    /** The visual fixes, or {@code null} if unset. */
     public @Nullable VisualsConfig visuals() { return visuals; }
-    /** The 1.8 self-placement compat fix (place a block into your own body), or {@code null} if unset. */
     public @Nullable SelfPlacementFixConfig selfPlacement() { return selfPlacement; }
-    /** The equipment-slot fix (strip empty slots from equipment packets - 1.8 chestplate parity via ViaBackwards), or {@code null} if unset. */
     public @Nullable LegacyEquipmentFixConfig legacyEquipmentFix() { return legacyEquipmentFix; }
-    /** The tab-completion fix (answer command-name completion that Minestom ignores) for legacy clients, or {@code null} if unset. */
     public @Nullable LegacyTabCompleteFixConfig legacyTabCompleteFix() { return legacyTabCompleteFix; }
-    /** The legacy 1.8/Via consume fix (re-use gate + silent decrement + status-9 count pacing), or {@code null} if unset. */
     public @Nullable LegacyConsumeFixConfig legacyConsume() { return legacyConsume; }
-    /** The inventory echo suppressor (drop slot updates the client already predicts), or {@code null} if unset. */
     public @Nullable InventorySyncFixConfig inventorySync() { return inventorySync; }
 
     /** Merges this config over {@code base} (each member: this if set, else base; both set -&gt; member-merged). */

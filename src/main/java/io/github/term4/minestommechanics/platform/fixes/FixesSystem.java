@@ -17,11 +17,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Installs the client/protocol behavior fixes from a {@link FixesConfig}. Mirrors the other systems
- * (DamageSystem / ProjectileSystem); per-scope config via {@code FIXES}.
+ * Installs the client/protocol behavior fixes from a {@link FixesConfig}; per-scope config via {@code FIXES}.
  *
- * <p>(The self-meta smoothing fix lives in {@code fixes.client} but its delivery is the custom player override, so it is
- * armed by {@code MetaFix.installListeners()} from {@code MinestomMechanics.init}, not this system.)
+ * <p>The self-meta smoothing fix is delivered by the custom player override, so it is armed by
+ * {@code MetaFix.installListeners()} from {@code MinestomMechanics.init}, not here.
  */
 public final class FixesSystem implements MechanicsModule {
 
@@ -39,7 +38,6 @@ public final class FixesSystem implements MechanicsModule {
 
     public EventNode<@NotNull Event> node() { return node; }
     public FixesConfig config() { return config; }
-    /** The 1.8 legacy arrow-visibility manager (runtime on/off + per-player team sync). */
     public LegacyArrowVisibility legacyArrowVisibility() { return legacyArrowVisibility; }
 
     /** Effective config for {@code subject}: the scoped profile, else the install config. */
@@ -48,7 +46,6 @@ public final class FixesSystem implements MechanicsModule {
         return scoped != null ? scoped : config;
     }
 
-    /** The resolved 1.8 legacy arrow-visibility config for {@code subject} ({@code visuals.legacyArrowVisibility}), or {@code null}. */
     public @Nullable LegacyArrowVisibilityConfig legacyArrowVisibilityConfig(@Nullable Entity subject) {
         VisualsConfig v = configFor(subject).visuals();
         return v != null ? v.legacyArrowVisibility() : null;
@@ -66,30 +63,22 @@ public final class FixesSystem implements MechanicsModule {
         return c != null && Boolean.TRUE.equals(c.deflectParticles());
     }
 
-    /**
-     * Installs reading the GLOBAL profile's {@link FixesConfig} - which fixes are enabled lives in the profile, like the
-     * other systems. The server-wide fixes (equipment / tab-complete / placement) gate from it at install;
-     * the event-driven arrow-visibility fix still resolves per-scope. Set the profile before installing.
-     */
+    /** Installs from the GLOBAL profile's {@link FixesConfig} - set the profile before installing. */
     public static FixesSystem install(MinestomMechanics mm) {
         FixesConfig global = mm.profiles().resolve(null, MechanicsKeys.FIXES);
         return install(mm, global != null ? global : FixesConfig.builder().build());
     }
 
-    /** Installs from an explicit config (the modular path): registers on {@code mm}, wires each fix's manager, installs the event node. */
     public static FixesSystem install(MinestomMechanics mm, FixesConfig cfg) {
         FixesSystem system = new FixesSystem(mm, cfg);
         mm.register(system);
         system.legacyArrowVisibility.install(system.node);
-        // Self-placement overrides the server-wide placement packet listener, so it reads the install config
-        // directly (cannot vary per scope). Wraps the STOCK listener; an app that replaces the placement listener
-        // (a shard library's world-scoped one) re-installs LAST with that listener as the delegate.
+        // Below ride server-wide listeners / send overrides, so they gate on the install config and cannot vary per scope.
+        // Self-placement wraps the STOCK placement listener; an app that replaces that listener re-installs LAST with
+        // its own as the delegate.
         if (enabled(cfg.selfPlacement())) SelfPlacementFix.install();
-        // Equipment-slot fix rides the OptimizedPlayer send-packet override (server-wide), so it reads the install config directly.
         if (enabled(cfg.legacyEquipmentFix())) LegacyEquipmentFix.install();
-        // Tab-completion fix replaces the tab-complete packet listener (server-wide), so it reads the install config directly.
         if (enabled(cfg.legacyTabCompleteFix())) LegacyTabCompleteFix.install();
-        // Inventory echo suppression rides the OptimizedPlayer send override + a click-prediction listener; server-wide, install config.
         if (enabled(cfg.inventorySync())) InventorySync.install(system.node);
         mm.install(system.node);
         return system;

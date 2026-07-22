@@ -13,8 +13,8 @@ import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The main damage phase: inspect and modify a computed damage instance before it is applied. Fired after mitigation
- * with the resolved {@link #amount()}; bracketed by {@link PreDamageEvent} and {@link DamageAppliedEvent}.
+ * The main damage phase: fired after mitigation with the resolved {@link #amount()}, before it is applied. Bracketed by
+ * {@link PreDamageEvent} and {@link DamageAppliedEvent}.
  */
 public final class DamageEvent extends CancellableMechanicsEvent<DamageSnapshot> {
 
@@ -42,11 +42,11 @@ public final class DamageEvent extends CancellableMechanicsEvent<DamageSnapshot>
     public @Nullable DamageConfig config() { return finalSnap().config(); }
     public void config(@Nullable DamageConfig config) { finalSnap(finalSnap().withConfig(config)); }
 
-    /** Target was in its i-frame window when the hit arrived (not creative/spectator immunity). */
+    /** In its i-frame window when the hit arrived (not creative/spectator immunity). */
     public boolean invulnerable() { return invulnerable; }
     public int remainingInvul() { return remainingInvul; }
 
-    /** Highwater of the current i-frame window; overdamage applies only the delta {@code amount - stored}. {@code 0} when fresh. */
+    /** Highwater of the current i-frame window; overdamage applies only {@code amount - stored}. {@code 0} when fresh. */
     public float stored() { return stored; }
 
     /** Ignore the target's i-frame window. */

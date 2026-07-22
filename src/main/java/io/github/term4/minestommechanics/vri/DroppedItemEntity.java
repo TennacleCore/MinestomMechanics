@@ -1,9 +1,11 @@
 package io.github.term4.minestommechanics.vri;
 
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.tracking.motion.FluidFlow;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.nbt.BinaryTagTypes;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
 import net.kyori.adventure.nbt.DoubleBinaryTag;
@@ -15,6 +17,7 @@ import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.collision.PhysicsResult;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
+import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.ItemEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.EventDispatcher;
@@ -41,6 +44,8 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class DroppedItemEntity extends ItemEntity {
 
+    public static final Key KEY = Key.key("mm:item");
+
     // @ApiStatus.Internal override: super is exactly this field write + dispatcher().updateElement (verified
     // 2026.07.12-26.2, re-verify on bumps) - an externally ticked entity in the global dispatcher double-ticks
     @Override protected void refreshCurrentChunk(@NotNull net.minestom.server.instance.Chunk chunk) {
@@ -56,7 +61,6 @@ public class DroppedItemEntity extends ItemEntity {
         super.tick(time);
     }
 
-    /** Which vanilla item physics to run. */
     public enum Model { LEGACY, MODERN }
 
     private static final double WATER_DRAG_MODERN = 0.99;
@@ -83,13 +87,13 @@ public class DroppedItemEntity extends ItemEntity {
     public DroppedItemEntity(@NotNull ItemStack itemStack, @Nullable Model model) {
         super(itemStack);
         this.model = model;
-        // a copy with the current stack + motion (world fork/respawn cloners read the stamp)
+        // world fork/respawn cloners read this stamp
         setTag(MechanicsWorld.ENTITY_COPY, () -> {
             DroppedItemEntity copy = new DroppedItemEntity(getItemStack(), this.model);
             copy.setVelocity(getVelocity());
             return copy;
         });
-        // the disk twin: world saves persist this descriptor, apps revive it via fromSave
+        // world saves persist this descriptor; apps revive it via fromSave
         setTag(MechanicsWorld.ENTITY_SAVE, () -> {
             Vec vel = getVelocity();
             CompoundBinaryTag.Builder out = CompoundBinaryTag.builder().putString("id", "mm:item")
@@ -103,7 +107,7 @@ public class DroppedItemEntity extends ItemEntity {
         });
     }
 
-    /** Rebuilds a drop from its {@link MechanicsWorld#ENTITY_SAVE} descriptor - the load-side reviver for {@code "mm:item"}. */
+    /** The load-side reviver for {@code "mm:item"} {@link MechanicsWorld#ENTITY_SAVE} descriptors. */
     public static @NotNull DroppedItemEntity fromSave(@NotNull CompoundBinaryTag data) {
         String model = data.getString("model");
         DroppedItemEntity item = new DroppedItemEntity(
@@ -131,8 +135,10 @@ public class DroppedItemEntity extends ItemEntity {
                                                      @Nullable Model physics, int pickupDelayTicks,
                                                      ItemSpawnEvent.Cause cause, @Nullable Player player) {
         DroppedItemEntity item = new DroppedItemEntity(stack, physics);
-        item.setPickupDelay(pickupDelayTicks, TimeUnit.SERVER_TICK);
-        item.setVelocity(velocity.mul(TPS));
+        // armed BEFORE the async world spawn, so an instance-less item resolves no scope - use the dropper's
+        Entity scope = player != null ? player : item;
+        item.setPickupDelay(TickScaler.duration(scope, pickupDelayTicks, KEY), TimeUnit.SERVER_TICK);
+        item.setVelocity(TickScaler.fromClientVelocity(scope, velocity).mul(TPS));
         ItemSpawnEvent event = new ItemSpawnEvent(item, cause, player, world, pos);
         EventDispatcher.call(event);
         if (event.isCancelled()) return null;
@@ -140,24 +146,15 @@ public class DroppedItemEntity extends ItemEntity {
         return item;
     }
 
-    private boolean isParked() {
-        return Boolean.TRUE.equals(getTag(MechanicsWorld.REPLAY_PARKED));
-    }
-
     // Minestom's movementTick collides against the backing instance only; a drop in a diff world would fall through
     // placed blocks server-side. Same step, world block view.
     @Override
     public void movementTick() {
-        if (isParked()) { // a replay leg drives it: integrate the leg only
-            Vec leg = velocity.div(TPS);
-            if (!leg.isZero()) refreshPosition(getPosition().add(leg), false, false);
-            return;
-        }
         this.gravityTickCount = onGround ? 0 : gravityTickCount + 1;
         if (vehicle == null && getInstance() != null) {
             MechanicsWorld world = MechanicsWorld.of(this, getInstance());
             var result = world.simulateMovement(position, velocity.div(TPS), getBoundingBox(),
-                    getAerodynamics(), hasNoGravity(), hasPhysics(), onGround, lastPhysics);
+                    TickScaler.aerodynamics(this, getAerodynamics()), hasNoGravity(), hasPhysics(), onGround, lastPhysics);
             this.lastPhysics = result;
             if (world.isChunkLoaded(result.newPosition())) {
                 this.velocity = result.newVelocity().mul(TPS);
@@ -165,17 +162,17 @@ public class DroppedItemEntity extends ItemEntity {
                 refreshPosition(result.newPosition(), true, false); // ITEM is a synchronize-only type
             }
         }
-        // ItemEntity's landing sync (one position + velocity when the drop first touches down)
+        // ItemEntity's landing sync, once on first touchdown
         if (!landedLastTick && onGround) {
             synchronizePosition();
-            sendPacketToViewers(getVelocityPacket());
+            sendPacketToViewers(new net.minestom.server.network.packet.server.play.EntityVelocityPacket(
+                    getEntityId(), TickScaler.wireVelocity(this, getVelocity().div(TPS))));
         }
         landedLastTick = onGround;
     }
 
     @Override
     public void update(long time) {
-        if (isParked()) return; // no merges, no fluid pushes
         Instance instance = getInstance();
         if (instance == null || isRemoved()) return;
         mergeScan(time);
@@ -227,7 +224,7 @@ public class DroppedItemEntity extends ItemEntity {
         // twice per tick (Entity.onEntityUpdate + the EntityItem tail); half-speed sliding rubber-bands
         // against the client's own sim
         Vec flow = FluidFlow.itemLegacyFlow(world, pos, getBoundingBox());
-        return flow.isZero() ? v : v.add(flow.mul(2 * FLOW_SCALE));
+        return flow.isZero() ? v : v.add(flow.mul(TickScaler.impulse(this, 2 * FLOW_SCALE)));
     }
 
     private Vec modernTick(MechanicsWorld world, Pos pos, Vec v) {
@@ -237,28 +234,31 @@ public class DroppedItemEntity extends ItemEntity {
 
         // vanilla skipped gravity this tick - invert exactly what Minestom's aerodynamics (registry item 0.04/0.98) applied
         if (fluidMotion) {
-            Aerodynamics aero = getAerodynamics();
+            Aerodynamics aero = TickScaler.aerodynamics(this, getAerodynamics());
             v = v.withY(v.y() + aero.gravity() * aero.verticalAirResistance());
         }
         // twice per tick (baseTick + the item tail); sequential - the near-still floor reads v between pushes
         for (int push = 0; push < 2; push++) {
-            if (water.height() > 0) v = v.add(water.current(FLOW_SCALE, v.x(), v.z()));
-            else if (lava.height() > 0) v = v.add(lava.current(LAVA_FLOW_SCALE, v.x(), v.z()));
+            if (water.height() > 0) v = v.add(water.current(TickScaler.impulse(this, FLOW_SCALE), v.x(), v.z()));
+            else if (lava.height() > 0) v = v.add(lava.current(TickScaler.impulse(this, LAVA_FLOW_SCALE), v.x(), v.z()));
         }
 
         fluidMotion = water.height() > FLOAT_HEIGHT || lava.height() > FLOAT_HEIGHT;
         if (fluidMotion) {
-            double drag = water.height() > FLOAT_HEIGHT ? WATER_DRAG_MODERN : LAVA_DRAG_MODERN;
-            double vy = v.y() + (v.y() < BUOYANCY_CAP ? BUOYANCY : 0.0);
+            double drag = TickScaler.dragPerTick(this, water.height() > FLOAT_HEIGHT ? WATER_DRAG_MODERN : LAVA_DRAG_MODERN);
+            double vy = v.y() + (v.y() < TickScaler.impulse(this, BUOYANCY_CAP) ? TickScaler.impulse(this, BUOYANCY) : 0.0);
             v = new Vec(v.x() * drag, vy, v.z() * drag);
         }
         return v;
     }
 
     private boolean buried(MechanicsWorld world, Pos pos) {
-        double cy = pos.y() + getBoundingBox().height() / 2.0;
-        return world.getBlock((int) Math.floor(pos.x()), (int) Math.floor(cy), (int) Math.floor(pos.z()),
+        return world.getBlock((int) Math.floor(pos.x()), (int) Math.floor(centerY(pos)), (int) Math.floor(pos.z()),
                 Block.Getter.Condition.TYPE).isSolid();
+    }
+
+    private double centerY(Pos pos) {
+        return pos.y() + getBoundingBox().height() / 2.0;
     }
 
     private Model effectiveModel() {
@@ -272,7 +272,7 @@ public class DroppedItemEntity extends ItemEntity {
 
     /** Vanilla {@code Entity.pushOutOfBlocks}: inside a solid block, shove {@code 0.1..0.3} toward the nearest free face (up wins ties). */
     private Vec pushOutOfBlocks(MechanicsWorld world, Pos pos, Vec v) {
-        double cy = pos.y() + getBoundingBox().height() / 2.0;
+        double cy = centerY(pos);
         int bx = (int) Math.floor(pos.x()), by = (int) Math.floor(cy), bz = (int) Math.floor(pos.z());
 
         double dx = pos.x() - bx, dy = cy - by, dz = pos.z() - bz;

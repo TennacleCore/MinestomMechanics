@@ -40,7 +40,6 @@ public final class TickSystem {
 
     private static final AtomicBoolean STARTED = new AtomicBoolean();
 
-    /** Server-wide tick counter. */
     private static final AtomicLong serverTick = new AtomicLong();
     /** Per-instance tick counters (removed when an instance unregisters). */
     private static final Map<Instance, AtomicLong> CLOCKS = new ConcurrentHashMap<>();
@@ -55,7 +54,6 @@ public final class TickSystem {
         if (!STARTED.compareAndSet(false, true)) return;
         MinecraftServer.getSchedulerManager()
                 .buildTask(serverTick::incrementAndGet).repeat(TaskSchedule.tick(1)).schedule();
-        // Clock + cleanup on a typed INSTANCE node rather than raw global listeners, mounted on the global handler.
         EventNode<InstanceEvent> node = EventNode.type("mm:tick", EventFilter.INSTANCE);
         node.addListener(InstanceTickEvent.class, e -> { advance(e.getInstance()); dispatch(e.getInstance()); });
         node.addListener(InstanceUnregisterEvent.class, e -> CLOCKS.remove(e.getInstance()));
@@ -84,7 +82,7 @@ public final class TickSystem {
 
     private static final List<Consumer<Entity>> CLOCK_CHANGE = new CopyOnWriteArrayList<>();
 
-    /** Registers a reset for tick-stamped entity state (i-frames, sprint windows, motion clocks); run by {@link #clockChanged}. Returns the removal handle. */
+    /** Registers a reset for tick-stamped entity state (i-frames, sprint windows, motion clocks); run by {@link #clockChanged}. */
     public static Runnable onClockChange(Consumer<Entity> reset) {
         CLOCK_CHANGE.add(reset);
         return () -> CLOCK_CHANGE.remove(reset);
@@ -141,8 +139,8 @@ public final class TickSystem {
         for (TickPhase phase : PHASES) {
             for (Tickable t : BY_PHASE.get(phase)) {
                 int iv = t.interval();
-                // isolated: one broken tickable must not starve every later system of its tick
                 if (iv <= 1 || ctx.tick() % iv == 0) {
+                    // isolated: one broken tickable must not starve every later system of its tick
                     try {
                         t.tick(ctx);
                     } catch (Throwable e) {

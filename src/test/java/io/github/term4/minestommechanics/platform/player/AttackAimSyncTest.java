@@ -17,9 +17,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * The attack aim-sync hold: a gated attack packet waits for its tick's flying packet and is released just AFTER that
- * tick's look is applied (but before the move), so the knockback's aim component reads the click look - a 1.8 client
- * sends attack-then-look within one tick, so the attack lands one look stale (the flick-hit desync).
+ * A 1.8 client sends attack-then-look within one tick, so an ungated attack lands one look stale (the flick-hit
+ * desync). The hold releases the attack after that tick's look is applied but before the move.
  */
 class AttackAimSyncTest {
 
@@ -36,7 +35,7 @@ class AttackAimSyncTest {
     void rotationIsAppliedBeforeTheAttack() {
         ClientPlayerRotationPacket rot = new ClientPlayerRotationPacket(90.0f, -15.0f, (byte) 1);
         feed(true, ATTACK, rot);
-        assertEquals(List.of(rot, ATTACK), out); // look first, then the attack reads it - position never moved
+        assertEquals(List.of(rot, ATTACK), out);
     }
 
     @Test
@@ -44,7 +43,7 @@ class AttackAimSyncTest {
         ClientPlayerPositionAndRotationPacket posRot =
                 new ClientPlayerPositionAndRotationPacket(new Pos(1, 2, 3, 45.0f, 30.0f), (byte) 1);
         feed(true, ATTACK, posRot);
-        // synthetic look-only update (keeps the pre-move position), then the attack, then the real move
+        // synthetic look-only update keeps the pre-move position
         assertEquals(List.of(new ClientPlayerRotationPacket(45.0f, 30.0f, (byte) 1), ATTACK, posRot), out);
     }
 
@@ -52,7 +51,7 @@ class AttackAimSyncTest {
     void positionOnlyReleasesTheAttackBeforeTheMove() {
         ClientPlayerPositionPacket pos = new ClientPlayerPositionPacket(new Pos(1, 2, 3), (byte) 1);
         feed(true, ATTACK, pos);
-        assertEquals(List.of(ATTACK, pos), out); // no look change: attack keeps the pre-move position
+        assertEquals(List.of(ATTACK, pos), out);
     }
 
     @Test
@@ -80,7 +79,7 @@ class AttackAimSyncTest {
     @Test
     void staleHoldReleasesOnTimeout() throws InterruptedException {
         feed(true, ATTACK);
-        Thread.sleep(150); // past the 100ms hold cap (a vanilla client would have sent a flying packet within 50ms)
+        Thread.sleep(150); // past the 100ms hold cap
         ClientAnimationPacket swing = new ClientAnimationPacket(PlayerHand.MAIN);
         feed(true, swing);
         assertEquals(List.of(ATTACK, swing), out);

@@ -26,7 +26,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Base for a hand-thrown item projectile (snowball, egg, ender pearl): using the {@link #material} launches one and
- * consumes it (unless creative). Subclasses add only their flight entity + impact behavior; the throw/consume wiring lives here.
+ * consumes it (unless creative). Subclasses add only their flight entity + impact behavior.
  */
 public abstract class ThrowableItemType extends ProjectileType {
 
@@ -40,7 +40,7 @@ public abstract class ThrowableItemType extends ProjectileType {
     private @Nullable ProjectileSystem system;
     private @Nullable MinestomMechanics mm;
 
-    /** This throwable's launch-sound effect key ({@link Effects#THROW_SNOWBALL} etc.), or null for none. Emitted to the thrower's audience on each throw. */
+    /** Launch-sound effect key ({@link Effects#THROW_SNOWBALL} etc.), or null for none. */
     protected @Nullable Key throwSound() { return null; }
 
     protected ThrowableItemType(Key key, String name, EntityType entityType, Material material) {

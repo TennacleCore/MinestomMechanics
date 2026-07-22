@@ -1,8 +1,8 @@
 package io.github.term4.minestommechanics.mechanics.explosion;
 
+import io.github.term4.minestommechanics.util.geometry.Sightline;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.collision.BoundingBox;
-import net.minestom.server.collision.PhysicsResult;
 import net.minestom.server.collision.Shape;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
@@ -26,7 +26,6 @@ public final class ExplosionExposure {
      */
     public enum Rays { NONE, MODERN, LEGACY_1_8, LEGACY_1_8_FULL_CUBE }
 
-    private static final BoundingBox RAY_BOX = new BoundingBox(Vec.ZERO, Vec.ZERO);
     // 1.8 Vec3D intermediate epsilon ((float) 1e-7 widened)
     private static final double EPSILON_1_8 = 1.0000000116860974E-7;
 
@@ -57,7 +56,7 @@ public final class ExplosionExposure {
             for (double yy = 0.0; yy <= 1.0; yy += g.ys) {
                 for (double zz = 0.0; zz <= 1.0; zz += g.zs) {
                     Vec from = new Vec(lerp(xx, g.minX, g.maxX) + g.xOff, lerp(yy, g.minY, g.maxY), lerp(zz, g.minZ, g.maxZ) + g.zOff);
-                    if (unobstructed(world, from, center)) hits++;
+                    if (!Sightline.blocked(world, from, center)) hits++;
                     count++;
                 }
             }
@@ -97,13 +96,6 @@ public final class ExplosionExposure {
             }
         }
         return total == 0 ? 0.0f : (float) clear / total;
-    }
-
-    private static boolean unobstructed(MechanicsWorld world, Vec from, Point center) {
-        Vec dir = new Vec(center.x() - from.x(), center.y() - from.y(), center.z() - from.z());
-        if (dir.isZero()) return true;
-        PhysicsResult result = world.sweep(RAY_BOX, from.asPos(), dir, null, false);
-        return !result.hasCollision();
     }
 
     private static double lerp(double t, double a, double b) {

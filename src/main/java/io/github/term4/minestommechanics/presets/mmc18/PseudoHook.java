@@ -23,8 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * MineMen pseudo-hook (the old lib's bobberFix LEGACY): a player hit lands once and only FLASHES the hook for
  * {@link #DISPLAY_TICKS}, re-flashing on every victim position move ({@link Installer}) until retract; after the
- * flash the bobber pops away from the shooter. Attach per launch - {@code behavior(ctx -> new PseudoHook())} - the
- * instance carries the flash/fall state.
+ * flash the bobber pops away from the shooter. Attach per launch - the instance carries the flash/fall state.
  */
 public final class PseudoHook implements ProjectileBehavior {
 
@@ -32,8 +31,7 @@ public final class PseudoHook implements ProjectileBehavior {
     public static final Tag<Set<PseudoHook>> HOOKED_BY = Tag.Transient("mmc18:pseudo-hooked-by");
 
     private static final int DISPLAY_TICKS = 1;
-    // the gentle drop-off after the flash (old-lib values, which fed Minestom setVelocity = blocks/SECOND: a 0.04 b/t
-    // slide away from the shooter, NOT a b/t impulse - x20 turns it into a rocket that reads as a teleport)
+    // old-lib values, fed to setVelocity as blocks/SECOND: a 0.04 b/t slide away, NOT a b/t impulse
     private static final int FALL_DELAY_TICKS = 3;
     private static final double FALL_AWAY_BS = 0.8;
     private static final double FALL_DOWN_BS = 0.4;
@@ -64,14 +62,13 @@ public final class PseudoHook implements ProjectileBehavior {
         if (set == null) set = ConcurrentHashMap.newKeySet(); // victim-thread rehook can overlap a bobber-thread detach
         set.add(this);
         player.setTag(HOOKED_BY, set);
-        pinTicksLeft = DISPLAY_TICKS; // the entity hooked vanilla-style; the countdown below turns it into a flash
+        pinTicksLeft = DISPLAY_TICKS;
     }
 
     @Override
     public void onTick(ManagedProjectile projectile, long time) {
         if (victim == null || bobber == null) return;
-        // re-gate every tick: a victim who left the shard mid-rod must release (the hook would otherwise keep driving
-        // an entity another domain owns)
+        // victim left the shard mid-rod: release, or the hook drives an entity another domain owns
         if (victim.isRemoved() || !WorldPolicy.canAffect(bobber, victim)) {
             if (bobber.getHookedEntity() == victim) bobber.setHookedEntity(null);
             detach();

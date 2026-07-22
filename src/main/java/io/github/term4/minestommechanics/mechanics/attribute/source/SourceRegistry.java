@@ -8,9 +8,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The registered {@link Source} catalog, split by kind ({@link EntitySource} by effect key, {@link ItemSource}/{@link HeldSource}
- * by enchant key, {@link ArmorSource} by armor-enchant key) so each scan matches only the relevant kind. {@link #register}
- * dispatches by subtype.
+ * The registered {@link Source} catalog, split by kind ({@link EntitySource} by effect key, the rest by enchant key) so
+ * each scan matches only the relevant kind. {@link #register} dispatches by subtype.
  */
 public final class SourceRegistry {
 
@@ -27,21 +26,15 @@ public final class SourceRegistry {
         return this;
     }
 
-    /** The entity-borne (potion-effect) source for {@code effectKey}, or {@code null}. */
     public @Nullable EntitySource entitySource(Key effectKey) { return entitySources.get(effectKey); }
 
-    /** The item-borne (held-enchant) source for {@code enchantKey}, or {@code null}. */
     public @Nullable ItemSource itemSource(Key enchantKey) { return itemSources.get(enchantKey); }
 
-    /** The worn-armor source for {@code enchantKey}, or {@code null}. */
     public @Nullable ArmorSource armorSource(Key enchantKey) { return armorSources.get(enchantKey); }
 
-    /** Every registered worn-armor source (for the equipment-lifecycle reconcile). */
     public Collection<ArmorSource> armorSources() { return armorSources.values(); }
 
-    /** The held-item source for {@code enchantKey}, or {@code null}. */
     public @Nullable HeldSource heldSource(Key enchantKey) { return heldSources.get(enchantKey); }
 
-    /** Every registered held-item source (for the held-item lifecycle reconcile). */
     public Collection<HeldSource> heldSources() { return heldSources.values(); }
 }

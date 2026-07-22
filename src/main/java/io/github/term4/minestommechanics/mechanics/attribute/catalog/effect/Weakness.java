@@ -9,8 +9,8 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * Weakness (potion) - a flat attack-damage debuff (additive both versions). {@link #LEGACY} is 1.8's {@code -0.5 × level};
- * {@link #MODERN} is the 1.9+ {@code -4 × level}.
+ * Weakness - flat attack-damage debuff in both versions. {@link #LEGACY} is 1.8's {@code -0.5 × level}; {@link #MODERN}
+ * is the 1.9+ {@code -4 × level}.
  */
 public final class Weakness {
 

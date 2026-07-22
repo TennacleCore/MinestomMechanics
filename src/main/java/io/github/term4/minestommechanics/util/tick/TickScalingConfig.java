@@ -8,17 +8,37 @@ import java.util.Map;
 /**
  * Per-scope TPS-scaling config (rides the {@code MechanicsProfile} chain). The default baseline {@link #SERVER_TPS}
  * tracks the live server TPS, so nothing scales: durations stay literal ticks and physics runs native, like a vanilla
- * {@code /tick rate}. Opt in with a fixed baseline (e.g. {@code referenceTps}/{@code clientTps} = 20): values authored
- * at it then stretch to the live TPS via {@link TickScaler}. A module - a system's {@code KEY}, or any custom
- * {@link Key} - may override {@code referenceTps}.
+ * {@code /tick rate}. Opt in with a fixed baseline (e.g. 20): values authored at it then stretch to the live TPS via
+ * {@link TickScaler}. A module - a system's {@code KEY}, or any custom {@link Key} - may override {@code referenceTps}.
  */
 public record TickScalingConfig(int referenceTps, int clientTps, Map<Key, Integer> moduleReferenceTps) {
 
     /** Baseline sentinel: track the live server TPS, leaving the scaled quantity literal/native (the no-scaling default). */
     public static final int SERVER_TPS = 0;
 
-    /** No scaling: both baselines follow the live server TPS (literal durations, native physics). The opt-out default. */
+    /** No scaling: both baselines follow the live server TPS (literal durations, native physics). */
     public static final TickScalingConfig DEFAULTS = new TickScalingConfig(SERVER_TPS, SERVER_TPS, Map.of());
+
+    /** A vanilla client's own tick rate - the pivot for "does this need a tick-rate push", and its hard ceiling. */
+    public static final int VANILLA_CLIENT_TPS = 20;
+
+    /** Widest supported simulated rate. */
+    public static final int MAX_SIMULATED_TPS = 100;
+
+    /**
+     * Time dilation: BOTH baselines pinned to {@code simulatedTps}, so the scope runs as if the game ticked at
+     * that rate while the server keeps its own - below is slow motion, above is fast. Anything simulating in the
+     * scope also needs its client told ({@code SetTickStatePacket}); spectators stay unbound and resolve native.
+     *
+     * @throws IllegalArgumentException outside {@code [1, }{@value #MAX_SIMULATED_TPS}{@code ]} ({@code 0} is the
+     *         {@link #SERVER_TPS} sentinel, never a rate)
+     */
+    public static TickScalingConfig simulated(int simulatedTps) {
+        if (simulatedTps < 1 || simulatedTps > MAX_SIMULATED_TPS) {
+            throw new IllegalArgumentException("simulated tps must be 1.." + MAX_SIMULATED_TPS + " (got " + simulatedTps + ")");
+        }
+        return new TickScalingConfig(simulatedTps, simulatedTps, Map.of());
+    }
 
     public TickScalingConfig {
         if (referenceTps < SERVER_TPS || clientTps < SERVER_TPS)

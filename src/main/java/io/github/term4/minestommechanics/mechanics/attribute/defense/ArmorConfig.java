@@ -6,13 +6,11 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The armor defense stage: reduces incoming damage by the victim's {@code ARMOR} (plus {@code ARMOR_TOUGHNESS} in 26).
- * First stage of the attribute system's mitigation pipeline (armor → resistance → EPF). Armor points come from the
- * Minestom attribute (equipped-item modifiers; identical points across versions). Per-type opt-out is the damage side's
- * {@code bypassArmor} flag. The version is the {@link Formula} the preset sets in its {@code AttributeConfig}.
+ * Points come from the Minestom attribute and are identical across versions; the version is the {@link Formula}.
+ * Per-type opt-out is the damage side's {@code bypassArmor} flag.
  */
 public final class ArmorConfig {
 
-    /** Which vanilla armor-reduction formula to apply. */
     public enum Formula {
         /** 1.8 {@code applyArmorModifier}: {@code damage × (25 − armor) / 25} (no toughness). */
         LEGACY_LINEAR,
@@ -28,13 +26,12 @@ public final class ArmorConfig {
         this.formula = b.formula;
     }
 
-    /** Whether the armor stage runs (default {@code true}). */
+    /** Default {@code true}. */
     public boolean enabled() { return enabled == null || enabled; }
 
-    /** The formula to apply (default {@link Formula#LEGACY_LINEAR}). */
+    /** Default {@link Formula#LEGACY_LINEAR}. */
     public Formula formula() { return formula != null ? formula : Formula.LEGACY_LINEAR; }
 
-    /** Damage after armor: reads the victim's {@code ARMOR} (+ {@code ARMOR_TOUGHNESS}) and applies the configured formula. */
     public float damageAfterArmor(LivingEntity victim, float damage) {
         if (damage <= 0) return damage;
         int armor = (int) victim.getAttributeValue(Attribute.ARMOR);
@@ -44,12 +41,12 @@ public final class ArmorConfig {
         };
     }
 
-    /** 1.8 {@code applyArmorModifier}: {@code f * (float)(25 - armor) / 25} (float-exact). */
+    /** 1.8 {@code applyArmorModifier}, float-exact. */
     public static float legacy(float damage, int armor) {
         return damage * (float) (25 - armor) / 25.0F;
     }
 
-    /** 26 {@code CombatRules.getDamageAfterAbsorb}: toughness-scaled clamp (float-exact; the weapon-side Breach effect is omitted). */
+    /** 26 {@code CombatRules.getDamageAfterAbsorb}, float-exact; the weapon-side Breach effect is omitted. */
     public static float modern(float damage, int armor, float toughness) {
         float armorF = armor;
         float f = 2.0F + toughness / 4.0F;

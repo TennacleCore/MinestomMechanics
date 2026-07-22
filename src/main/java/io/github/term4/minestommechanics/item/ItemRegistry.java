@@ -10,11 +10,9 @@ import java.util.Map;
 import java.util.OptionalDouble;
 
 /**
- * Registry of per-item gameplay stats (weapons / tools), version-aware. One lookup, {@link #value}, resolves: the
- * registered value for the active {@link ItemDef.Version}, else the {@link ItemStat}'s Minestom-derived default, else the
- * caller's fallback. The active version is set per preset; {@link ItemDef}s carry both versions for clarity/override.
- * Armor is NOT here - its aggregate rides Minestom's {@code ARMOR} attribute (version-identical points). Holds only
- * what diverges from Minestom (e.g. 1.8 weapon damage).
+ * Registry of per-item gameplay stats (weapons / tools), version-aware; the active version is set per preset. Holds only
+ * what diverges from Minestom (e.g. 1.8 weapon damage) - armor is NOT here, its aggregate rides Minestom's
+ * {@code ARMOR} attribute (version-identical points).
  */
 public final class ItemRegistry {
 
@@ -30,7 +28,7 @@ public final class ItemRegistry {
 
     public ItemDef.Version version() { return version; }
 
-    /** Register or override an item def; returns a new registry (immutable). */
+    /** A copy of this registry with {@code def} added or replaced. */
     public ItemRegistry register(ItemDef def) {
         Map<Material, ItemDef> map = new HashMap<>(defs);
         map.put(def.material(), def);
@@ -38,8 +36,8 @@ public final class ItemRegistry {
     }
 
     /**
-     * The {@code stat} for the held {@code item} (and optional {@code holder}, used by some Minestom-derived defaults):
-     * the registered value for the active version, else the stat's Minestom default, else {@code fallback}.
+     * The registered value for the active version, else the stat's Minestom default, else {@code fallback}. Some
+     * Minestom-derived defaults need the {@code holder}.
      */
     public double value(@Nullable ItemStack item, @Nullable LivingEntity holder, ItemStat stat, double fallback) {
         if (item != null && !item.isAir()) {

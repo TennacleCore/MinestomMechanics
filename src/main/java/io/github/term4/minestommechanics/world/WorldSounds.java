@@ -20,11 +20,9 @@ import org.jetbrains.annotations.NotNull;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Block-interaction sounds Minestom doesn't emit: the place sound on a placement, and footsteps as a player walks.
- * Audience is version-dependent: a modern doer predicts both client-side (vanilla excludes them from the broadcast),
- * but the 1.8 client CANNOT - its {@code RenderGlobal.playSound}/{@code playSoundToNearExcept} sinks are empty stubs,
- * and 1.8 servers included the doer in the broadcast - so legacy doers get the packet too, modern doers stay excluded
- * (else it doubles). Per-block sound data is {@code block.registry().getBlockSoundType()}.
+ * Block place + footstep sounds Minestom doesn't emit. Audience is version-dependent: a modern doer predicts them
+ * client-side (vanilla excludes it from the broadcast), but a 1.8 client cannot - its {@code RenderGlobal.playSound}
+ * sinks are empty stubs and 1.8 servers included the doer - so legacy doers get the packet, modern doers don't.
  */
 public final class WorldSounds {
 

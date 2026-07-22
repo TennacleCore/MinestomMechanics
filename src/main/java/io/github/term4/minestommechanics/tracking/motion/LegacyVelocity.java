@@ -16,7 +16,7 @@ public final class LegacyVelocity {
 
     /** 1.8 wire unit: shorts per block-per-tick. */
     private static final double WIRE_SCALE = 8000.0;
-    /** Default per-axis cap (b/t): vanilla 1.8's {@code PacketPlayOutEntityVelocity} clamp. The wire saturates near {@code +-4.0} (short range / 8000). */
+    /** Vanilla 1.8's {@code PacketPlayOutEntityVelocity} clamp (b/t); the wire saturates near {@code +-4.0}. */
     public static final double DEFAULT_CAP = 3.9;
     private static final double LP_EXACT_BT = 2.0;
 
@@ -32,10 +32,10 @@ public final class LegacyVelocity {
     }
 
     private static double snapAxis(double perSecond, double tps, double capBt) {
-        return wireShort(perSecond, tps, capBt) * tps / WIRE_SCALE;   // decode the wire short; multiply before divide stays on-grid
+        return wireShort(perSecond, tps, capBt) * tps / WIRE_SCALE;   // multiply before divide stays on-grid
     }
 
-    /** The exact per-axis 1.8 wire shorts ({@code (int)(clamp(bt)*8000)}) - the {@code SET_ENTITY_MOTION} payload for the exact ViaBridge path. */
+    /** The {@code SET_ENTITY_MOTION} payload for the exact ViaBridge path. */
     public static short[] wireShorts(Vec perSecond) {
         return wireShorts(perSecond, DEFAULT_CAP);
     }
@@ -50,13 +50,12 @@ public final class LegacyVelocity {
         return (short) (int) (bt * WIRE_SCALE);   // vanilla truncates, not rounds
     }
 
-    /** One axis (b/t) snapped onto the 1.8 wire grid: cap, truncate to a short, decode. */
     public static double snapAxisBt(double bt, double capBt) {
         double capped = Math.max(-capBt, Math.min(capBt, bt));
         return (short) (int) (capped * WIRE_SCALE) / WIRE_SCALE;
     }
 
-    /** Whether any axis exceeds the LP-exact band (|v| &gt; 2 b/t), where {@link #snap} drifts through Via - the gate for the exact ViaBridge path. */
+    /** Above 2 b/t {@link #snap} drifts through Via; gates the exact ViaBridge path. */
     public static boolean exceedsLpExactBand(Vec perSecond) {
         double tps = ServerFlag.SERVER_TICKS_PER_SECOND;
         return Math.abs(perSecond.x() / tps) > LP_EXACT_BT

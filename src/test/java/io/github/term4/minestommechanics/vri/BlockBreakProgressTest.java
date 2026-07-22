@@ -28,10 +28,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * The break-progress broadcast against synthesized instance ticks (the headless harness has no ticker): stage 0 at
- * start, the next stage exactly at its vanilla boundary tick, dedup in between, {@code -1} on abort, miner excluded.
- */
+/** The break-progress broadcast against synthesized instance ticks - the headless harness has no ticker. */
 class BlockBreakProgressTest extends HeadlessServerTest {
 
     private static final BlockVec BLOCK = new BlockVec(2, 63, 2);

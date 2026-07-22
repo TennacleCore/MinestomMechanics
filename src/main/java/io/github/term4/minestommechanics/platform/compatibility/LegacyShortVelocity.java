@@ -15,9 +15,9 @@ import org.jetbrains.annotations.NotNull;
  * Sends a 1.8-wire {@code SET_ENTITY_MOTION} (entity id + three shorts) to an Animatium client that decodes it natively
  * ({@code ServerFeature.SHORTS_VELOCITY}), byte-exact where the modern LpVec3 wire isn't.
  *
- * <p>No public seam emits custom bytes at a vanilla packet id: {@code SendablePacket} is sealed with {@link BufferedPacket} its
- * only raw-bytes member, and the registry is class-keyed. So this frames the shorts via {@link PacketWriting} at the resolved
- * id and sends a {@link BufferedPacket}, which also dodges {@code PlayerPacketOutEvent} so the send can't re-trip the rewrite.
+ * <p>No public seam emits custom bytes at a vanilla packet id ({@code SendablePacket} is sealed, {@link BufferedPacket} its
+ * only raw-bytes member, registry class-keyed), so this frames the shorts via {@link PacketWriting} at the resolved id and
+ * sends a {@link BufferedPacket} - which also dodges {@code PlayerPacketOutEvent}, so the send can't re-trip the rewrite.
  */
 final class LegacyShortVelocity {
 

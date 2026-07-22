@@ -26,10 +26,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * One click = one throw: a block-aimed click reaches the server as use_item_on_block FOLLOWED by use_item (a plain
- * throwable has no block action, so its client-side useOn passes and the client sends both), and vanilla launches
- * from use_item alone. The fire charge is the inverse: its client-side block use consumes the click, so
- * use_item_on_block is the only signal when aimed at a block.
+ * One click = one throw: a block-aimed click arrives as use_item_on_block FOLLOWED by use_item (a plain throwable has
+ * no block action, so the client sends both) and vanilla launches from use_item alone. The fire charge is the inverse -
+ * its client-side block use consumes the click, so use_item_on_block is the only signal when aimed at a block.
  */
 class ThrowableItemTypeTest extends HeadlessServerTest {
 
@@ -37,7 +36,6 @@ class ThrowableItemTypeTest extends HeadlessServerTest {
         void run(FakePlayer thrower, AtomicInteger launches);
     }
 
-    /** Enables snowball + fireball on a global-attached node, counts {@link ProjectileLaunchEvent}s, cleans up. */
     private static void withThrowables(String playerName, Throwing test) {
         var system = new ProjectileSystem(MinestomMechanics.getInstance(), Vanilla18.projectiles());
         system.registerVanillaDefaults();

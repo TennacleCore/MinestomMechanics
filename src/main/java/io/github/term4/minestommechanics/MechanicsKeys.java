@@ -21,7 +21,7 @@ import io.github.term4.minestommechanics.tracking.motion.VelocityRule;
 import io.github.term4.minestommechanics.vri.DroppedItemEntity;
 import io.github.term4.minestommechanics.util.tick.TickScalingConfig;
 
-/** Catalog of the built-in {@link MechanicsProfile} config keys. A module declares its own {@link ConfigKey} the same way - no change here. */
+/** Catalog of the built-in {@link MechanicsProfile} config keys. */
 public final class MechanicsKeys {
 
     private MechanicsKeys() {}
@@ -41,9 +41,9 @@ public final class MechanicsKeys {
     public static final ConfigKey<ConsumableConfig> CONSUMABLES = ConfigKey.of("mm:consumables", ConsumableConfig.class);
     public static final ConfigKey<EffectRegistry> EFFECTS = ConfigKey.of("mm:effects", EffectRegistry.class);
     public static final ConfigKey<BlockingConfig> BLOCKING = ConfigKey.of("mm:blocking", BlockingConfig.class);
-    /** Server-authoritative item-use cooldowns ({@code CooldownSystem}). */
+    /** Server-authoritative item-use cooldowns. */
     public static final ConfigKey<CooldownConfig> COOLDOWNS = ConfigKey.of("mm:item-cooldowns", CooldownConfig.class);
-    /** Environment physics for dropped items ({@code vri.DroppedItemEntity.Model}): 1.8 sink vs 26.1 float. */
+    /** Dropped-item environment physics: 1.8 sink vs 26.1 float. */
     public static final ConfigKey<DroppedItemEntity.Model> ITEM_PHYSICS = ConfigKey.of("mm:item-physics", DroppedItemEntity.Model.class);
     public static final ConfigKey<ExplosionConfig> EXPLOSION = ConfigKey.of("mm:explosion", ExplosionConfig.class);
     public static final ConfigKey<CompatConfig> COMPAT = ConfigKey.of("mm:compat", CompatConfig.class);

@@ -18,21 +18,17 @@ public final class Damage {
 
     private Damage() {}
 
-    /** mmc18 DamageConfig: vanilla 1.8 with overdamage applied silently and no generic-hit knockback broadcast. */
     public static DamageConfig config() {
         return DamageConfig.builder(Vanilla18.damage())
                 .overdamageSilent(true)
-                // mmc18 deals no knockback on generic damage ticks: the hurt broadcast is off entirely
-                // (the only way to switch off an inherited hurtKnockback - merge semantics can't null it).
+                // no KB on generic damage ticks; killing the broadcast is the only way off an inherited
+                // hurtKnockback (merge semantics can't null it)
                 .syncHurtVelocity(false)
                 .addCustomComponent(Damage::blockSameItemOverdamage)
                 .build();
     }
 
-    /**
-     * mmc18 overdamage rule: skip replacement when the incoming melee hit uses the same weapon (material) as the hit
-     * that opened the invulnerability window.
-     */
+    // no overdamage replacement when the incoming melee hit uses the same material as the hit that opened the window
     @Nullable
     private static Float blockSameItemOverdamage(DamageContext ctx, DamageEvent event, float amount, boolean overdamage) {
         if (!overdamage || amount <= 0) return null;

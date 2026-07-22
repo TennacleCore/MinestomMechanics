@@ -42,7 +42,7 @@ public final class KnockbackCalculator {
         return KnockbackConfigResolver.resolve(merged, ctx);
     }
 
-    /** Knockback vector + the resolved config it was computed against, so a caller (e.g. the quantize check) needn't re-resolve. */
+    /** Knockback vector + the resolved config it was computed against. */
     public record KnockbackResult(Vec velocity, KnockbackConfigResolver.ResolvedKnockbackConfig config) {}
 
     public @Nullable Vec compute(KnockbackSnapshot snap) {
@@ -84,7 +84,7 @@ public final class KnockbackCalculator {
                 ? extraKb.direction().mul(extraKb.h() * extraLevel, extraKb.v(), extraKb.h() * extraLevel)
                 : null;
 
-        // resolved once, threaded onto the state ctx so every stage/component reads the same velocity
+        // threaded onto the state ctx so every stage/component reads the same velocity
         VelocityRule velRule = cfg.velocity();
         if (velRule == null) velRule = services.profiles().resolve(t, MechanicsKeys.VELOCITY);
         if (velRule == null) velRule = VelocityRule.DEFAULT;
@@ -104,7 +104,7 @@ public final class KnockbackCalculator {
     private int extraLevel(KnockbackSnapshot snap, KnockbackConfigResolver.ResolvedKnockbackConfig cfg) {
         int level = snap.extraKnockback();
         Entity a = snap.source();
-        // sprint is server state (not on the snapshot); the leniency window scales to live TPS (identity at 20)
+        // sprint is server state, not on the snapshot; the leniency window scales to live TPS (identity at 20)
         if (snap.melee() && a != null) {
             int sprBuf = TickScaler.duration(cfg.sprintBuffer(), services.profiles().resolve(a, MechanicsKeys.TICK_SCALING), KnockbackSystem.KEY);
             if (SprintTracker.wasRecentlySprinting(services.sprintTracker(), a, sprBuf)) level++;

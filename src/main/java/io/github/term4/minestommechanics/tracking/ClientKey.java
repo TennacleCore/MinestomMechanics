@@ -3,10 +3,8 @@ package io.github.term4.minestommechanics.tracking;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Type-safe identifier for a custom value on a player's {@link ClientProfile} (the same heterogeneous-key pattern as
- * {@code ConfigKey}). An end user declares one as a static constant and reads/writes it via {@link ClientProfile#get} /
- * {@link ClientProfile#set}. Keys are equal by {@link #id()} (a re-created key matches), so each id must be unique
- * (convention {@code "namespace:name"}) - a same-id different-type collision fails fast at key creation.
+ * Type-safe identifier for a custom value on a player's {@link ClientProfile}. Keys are equal by {@link #id()}, so a
+ * re-created key matches; ids must be unique ({@code "namespace:name"}) and a same-id different-type collision throws.
  */
 public final class ClientKey<T> {
 

@@ -33,7 +33,6 @@ public enum AnimatiumFeature {
     DISABLE_BUBBLE_COLUMN(23),
     SHORTS_VELOCITY(24);
 
-    /** Bit index in the {@code set_server_features} BitSet payload (= Animatium's {@code ServerFeature} id). */
     public final int bit;
 
     AnimatiumFeature(int bit) { this.bit = bit; }

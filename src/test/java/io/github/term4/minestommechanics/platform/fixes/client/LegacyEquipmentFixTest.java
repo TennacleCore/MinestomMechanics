@@ -21,9 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The empty-slot strip on the GROUPED viewer-send path (the respawn/teleport bulk equipment resend). A bulk
- * {@code EntityEquipmentPacket} carrying the stray {@code BODY=AIR} slot must reach a viewer with the empty slots gone -
- * proving the strip happens before Minestom wraps it in a {@code CachedPacket} the per-viewer transform can't unwrap.
+ * The empty-slot strip on the GROUPED viewer-send path: it must happen before Minestom wraps the packet in a
+ * {@code CachedPacket} the per-viewer transform can't unwrap.
  */
 class LegacyEquipmentFixTest extends HeadlessServerTest {
 
@@ -40,7 +39,7 @@ class LegacyEquipmentFixTest extends HeadlessServerTest {
 
     @Test
     void groupedBulkEquipmentReachesViewerWithoutEmptySlots() {
-        // Minestom's getEquipmentsPacket includes BODY=AIR for a player; the grouped send would cache it past the strip.
+        // Minestom's getEquipmentsPacket includes BODY=AIR for a player
         Map<EquipmentSlot, ItemStack> bulk = new LinkedHashMap<>();
         bulk.put(EquipmentSlot.HELMET, ItemStack.of(Material.DIAMOND_HELMET));
         bulk.put(EquipmentSlot.CHESTPLATE, ItemStack.of(Material.DIAMOND_CHESTPLATE));
@@ -60,7 +59,6 @@ class LegacyEquipmentFixTest extends HeadlessServerTest {
         assertEquals(Material.DIAMOND_CHESTPLATE, received.equipments().get(EquipmentSlot.CHESTPLATE).material());
     }
 
-    /** Resolves a captured send to its {@link EntityEquipmentPacket}, unwrapping the grouped {@link CachedPacket}. */
     private static EntityEquipmentPacket asEquipment(SendablePacket packet) {
         SendablePacket resolved = packet instanceof CachedPacket cached ? cached.packet(ConnectionState.PLAY) : packet;
         return resolved instanceof EntityEquipmentPacket equipment ? equipment : null;

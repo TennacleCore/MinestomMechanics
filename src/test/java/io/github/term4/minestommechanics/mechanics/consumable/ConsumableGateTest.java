@@ -92,6 +92,25 @@ class ConsumableGateTest extends HeadlessServerTest {
     }
 
     /**
+     * Vanilla {@code die()} stops item use; Minestom's {@code kill()} leaves the timer armed, so an eat would
+     * finish on the corpse - effects applied and the item eaten. Death must clear the use state.
+     */
+    @Test
+    void deathStopsAnInProgressConsume() {
+        player.player.setGameMode(GameMode.SURVIVAL);
+        player.player.setHealth(20f);
+        player.player.refreshItemUse(PlayerHand.MAIN, 32);
+        assertTrue(player.player.isUsingItem(), "mid-eat");
+
+        player.player.kill();
+
+        assertFalse(player.player.isUsingItem(), "death stopped the use");
+        assertEquals(0, player.player.getCurrentItemUseTime(), "and disarmed the finish timer");
+        player.player.setHealth(20f);
+        player.player.clearItemUse();
+    }
+
+    /**
      * The opt-in legacy consume fix ({@code FixesConfig.legacyConsume}): while a LEGACY client is already mid-use a fresh
      * consume is refused (no spam-restart double-eat), but a modern client - which gates itself - is never touched.
      */

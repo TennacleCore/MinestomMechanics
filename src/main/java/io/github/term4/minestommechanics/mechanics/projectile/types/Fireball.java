@@ -12,8 +12,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Fireball throwable: a {@link Material#FIRE_CHARGE} use launches a self-propelled {@link FireballEntity} that detonates
- * on contact. Config-free (tuning - accel speed, explosion power - lives in the preset's {@code ProjectileConfig}); the
- * throw/consume wiring is inherited from {@link ThrowableItemType}.
+ * on contact. Config-free: tuning (accel speed, explosion power) lives in the preset's {@code ProjectileConfig}.
  */
 public final class Fireball extends ThrowableItemType {
 

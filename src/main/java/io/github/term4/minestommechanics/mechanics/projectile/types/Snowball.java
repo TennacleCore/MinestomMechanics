@@ -7,7 +7,7 @@ import net.minestom.server.item.Material;
 
 /**
  * Snowball throwable: launched on a {@link Material#SNOWBALL} use. Config-free (tuning lives in the preset's
- * {@code ProjectileConfig}); the generic {@code ManagedProjectile} handles the hit. Throw/consume wiring is inherited from {@link ThrowableItemType}.
+ * {@code ProjectileConfig}); the generic {@code ManagedProjectile} handles the hit.
  */
 public final class Snowball extends ThrowableItemType {
 

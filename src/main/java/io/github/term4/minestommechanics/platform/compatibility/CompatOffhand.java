@@ -13,21 +13,18 @@ import net.minestom.server.inventory.click.Click;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Server-side offhand disabling ({@code CompatConfig.disableOffhand}): blocks a modern client from putting items in / using
- * the offhand that 1.8 lacks. Cancels the gameplay F-swap ({@link PlayerSwapItemEvent} - the client only sends it, never
- * predicts the swap, so a cancel is an invisible no-op) and any inventory click that targets the offhand slot (the in-GUI
- * F-swap, or a direct click/drag/hotbar-swap on slot {@value #OFFHAND_SLOT}; Minestom resyncs the GUI on a cancelled click).
- * Installed once when the player provider is on; inert unless the player's config enables it. 1.8 clients have no offhand,
- * so this only affects modern clients.
+ * Server-side offhand disabling ({@code CompatConfig.disableOffhand}) - 1.8 clients have no offhand, so this only affects
+ * modern ones. Cancels the gameplay F-swap ({@link PlayerSwapItemEvent} - the client only sends it, never predicts the
+ * swap, so a cancel is an invisible no-op) and any inventory click targeting the offhand slot (Minestom resyncs the GUI
+ * on a cancelled click). Installed once; inert unless the player's config enables it.
  */
 public final class CompatOffhand {
 
-    /** The offhand window slot in the player inventory (Minestom {@code PlayerInventoryUtils.OFFHAND_SLOT}). */
+    /** Minestom {@code PlayerInventoryUtils.OFFHAND_SLOT}. */
     private static final int OFFHAND_SLOT = 45;
 
     private CompatOffhand() {}
 
-    /** Installs the offhand-disable listeners. Inert unless a player's {@code CompatConfig.disableOffhand} is on. */
     public static void install(MinestomMechanics mm) {
         EventNode<@NotNull PlayerEvent> node = EventNode.type("mm:compat-offhand", EventFilter.PLAYER);
         node.addListener(PlayerSwapItemEvent.class, e -> { if (disabled(e.getPlayer())) e.setCancelled(true); });
@@ -48,10 +45,9 @@ public final class CompatOffhand {
     // Gate with a new CompatConfig.emulateOffhand knob -> CompatState, enforced from this listener (a legacy-protocol check
     // via ClientInfoTracker, since this only applies to clients without a native offhand). Wire once the mechanism is picked.
 
-    /** Whether the click moves an item into/out of the offhand: the F-swap (any inventory), or slot {@value #OFFHAND_SLOT} in the player's own inventory. */
     private static boolean targetsOffhand(InventoryPreClickEvent e) {
         Click click = e.getClick();
-        if (click instanceof Click.OffhandSwap) return true; // F while an inventory is open - always swaps with the offhand
+        if (click instanceof Click.OffhandSwap) return true; // F in any inventory - always swaps with the offhand
         if (!(e.getInventory() instanceof PlayerInventory)) return false; // slot 45 is the offhand only in the player's own inventory
         return switch (click) {
             case Click.HotbarSwap hs -> hs.slot() == OFFHAND_SLOT;

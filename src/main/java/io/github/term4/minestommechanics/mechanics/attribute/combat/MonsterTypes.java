@@ -7,8 +7,7 @@ import java.util.Set;
 
 /**
  * Vanilla monster-type classification for the conditional combat enchants ({@code sensitive_to_smite} = undead,
- * {@code sensitive_to_bane_of_arthropods} = arthropods). Static {@link EntityType} sets. (Players are neither, so these
- * only fire vs mobs / test mobs.)
+ * {@code sensitive_to_bane_of_arthropods} = arthropods). Players are neither, so these only fire vs mobs.
  */
 public final class MonsterTypes {
     private MonsterTypes() {}

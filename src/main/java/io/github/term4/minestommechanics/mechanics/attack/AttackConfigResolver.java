@@ -26,7 +26,7 @@ public final class AttackConfigResolver {
             if (sub != null) cfg = sub.fromBase(cfg);
         }
 
-        // no attack-level invul/buffering: attacks always process; the damage/knockback systems gate themselves
+        // no attack-level invul/buffering: the damage/knockback systems gate themselves
         Boolean enabledVal = resolve(cfg.enabled, ctx);
         AttackEvent.AttackRule.Ruleset rulesetVal = resolve(cfg.ruleset, ctx);
         Double fullHitScaleVal = resolve(cfg.fullHitScale, ctx);
@@ -43,7 +43,6 @@ public final class AttackConfigResolver {
         return fv != null ? fv.resolve(ctx) : null;
     }
 
-    /** Resolved config with plain values. Used by AttackEvent and AttackSystem. */
     public record ResolvedAttackConfig(
             boolean enabled,
             @Nullable AttackEvent.AttackRule.Ruleset ruleset,

@@ -36,11 +36,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Player equipment attributes are tick-driven, mirroring vanilla's {@code detectEquipmentUpdates}: they apply on the
- * reconcile tick after a change (post-settle), not synchronously on the equip - so a hotbar right-click equip isn't raced
- * by the use-item client prediction (the Aqua Affinity report), and a held swap lags a tick (the attribute-swap window).
- * That window is what {@link AttributeConfig#attributeSwapping} gates: disabled (default) force-refreshes the held push
- * immediately on a hotbar-slot change; permitted leaves it to the tick. Mobs are unaffected (covered by {@link ArmorEnchantTest}).
+ * Player equipment attributes are tick-driven (vanilla {@code detectEquipmentUpdates}), not synchronous on the equip -
+ * a synchronous push races the use-item client prediction, but the tick lag leaves a held-swap window.
+ * {@link AttributeConfig#attributeSwapping} gates that window: disabled (default) refreshes the held push immediately
+ * on a hotbar-slot change. Mobs are unaffected.
  */
 class PlayerEquipAttributeTest extends HeadlessServerTest {
 
@@ -54,19 +53,17 @@ class PlayerEquipAttributeTest extends HeadlessServerTest {
                 .with(DataComponents.ENCHANTMENTS, new EnchantmentList(RegistryKey.<Enchantment>unsafeOf(Efficiency.KEY), 1));
     }
 
-    /** Aqua Affinity's +4 ADD_MULTIPLIED_TOTAL on submerged_mining_speed (server-side instance). */
     private static boolean hasAqua(LivingEntity e) {
         return e.getAttribute(Attribute.SUBMERGED_MINING_SPEED).modifiers().stream()
                 .anyMatch(m -> m.operation() == AttributeOperation.ADD_MULTIPLIED_TOTAL && Math.abs(m.amount() - 4.0) < 1e-9);
     }
 
-    /** Whether Efficiency's mining_efficiency push is present (held source). */
     private static boolean hasMining(LivingEntity e) {
         var inst = e.getAttribute(Attribute.MINING_EFFICIENCY);
         return inst != null && !inst.modifiers().isEmpty();
     }
 
-    /** A joined-state player (viewer of its own inventory, connection in PLAY) recording packets sent to its own client. */
+    /** Joined-state player recording the packets sent to its own client. */
     private static final class Recorded {
         final Player player;
         final List<SendablePacket> sent = new ArrayList<>();
@@ -88,7 +85,6 @@ class PlayerEquipAttributeTest extends HeadlessServerTest {
 
         void tick() { EventDispatcher.call(new EntityTickEvent(player)); }
 
-        /** Whether the client was sent SUBMERGED_MINING_SPEED carrying Aqua Affinity's +4 push. */
         boolean clientGotAqua() {
             return sent.stream()
                     .filter(p -> p instanceof EntityAttributesPacket).map(p -> (EntityAttributesPacket) p)
@@ -112,14 +108,14 @@ class PlayerEquipAttributeTest extends HeadlessServerTest {
     void tickReconcileSendsAquaToClient() {
         Recorded r = new Recorded();
         r.player.setEquipment(EquipmentSlot.HELMET, aquaHelmet());
-        r.sent.clear(); // drop the equip-time slot packets; we want what the reconcile sends
+        r.sent.clear(); // drop the equip-time slot packets
         r.tick();
         assertTrue(r.clientGotAqua(), "after the reconcile the client receives SUBMERGED_MINING_SPEED(+4) - the thing that makes Aqua actually work client-side");
     }
 
     @Test
     void heldSwapPatchedByDefaultAppliesImmediately() {
-        Recorded r = new Recorded(); // default install config: attributeSwapping unset -> false (patched)
+        Recorded r = new Recorded(); // attributeSwapping unset -> false (patched)
         r.player.getInventory().setItemStack(3, efficiencyPick());
         EventDispatcher.call(new PlayerChangeHeldSlotEvent(r.player, (byte) 0, (byte) 3));
         assertTrue(hasMining(r.player), "patched (default): the held push applies immediately on the slot change, closing the swap window");

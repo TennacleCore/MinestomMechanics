@@ -4,6 +4,7 @@ import io.github.term4.minestommechanics.api.event.explosion.ExplosionEvent;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionCalculator;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.kyori.adventure.nbt.BinaryTagTypes;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
@@ -59,6 +60,7 @@ public final class PrimedTnt extends Entity {
     private final ExplosionSystem explosion;
     private final Config config;
     private int fuse;
+    private boolean fuseScaled;
     private Vec motion = Vec.ZERO; // b/t; the 1.8 pipeline runs on this, Minestom's per-tick result is overwritten
     private Point wireSyncedAt;
     private boolean rawBroadcast;
@@ -136,10 +138,6 @@ public final class PrimedTnt extends Entity {
         fuse = Integer.MAX_VALUE;
     }
 
-    private boolean isParked() {
-        return Boolean.TRUE.equals(getTag(MechanicsWorld.REPLAY_PARKED));
-    }
-
     /** Spawns at the block's {@code +0.5,+0.5,+0.5} (measured) with the vanilla kick. */
     public static PrimedTnt spawn(ExplosionSystem explosion, Instance instance, Point tntBlock, Config config) {
         return spawn(explosion, MechanicsWorld.of(instance), tntBlock, config);
@@ -160,7 +158,7 @@ public final class PrimedTnt extends Entity {
     public void setVelocity(@NotNull Vec velocity) {
         this.motion = velocity.div(TPS);
         flipPending = isOnGround() && motion.y() < 0; // a downward impulse into a grounded TNT bounces at any magnitude
-        if (config.wire() == Wire.HYPIXEL && !isParked() && getInstance() != null) {
+        if (config.wire() == Wire.HYPIXEL && getInstance() != null) {
             pushed = true;
         } else {
             rawBroadcast = true; // MineMen: raw, unfloored on-blast send
@@ -182,14 +180,13 @@ public final class PrimedTnt extends Entity {
 
     @Override
     protected void movementTick() {
-        if (isParked()) return; // update()'s leg integration is the whole parked motion
         this.gravityTickCount = onGround ? 0 : gravityTickCount + 1;
         if (vehicle != null) return;
         Instance in = getInstance();
         if (in == null) return;
         MechanicsWorld shard = MechanicsWorld.of(this, in);
         var result = shard.simulateMovement(position, velocity.div(TPS), getBoundingBox(),
-                getAerodynamics(), hasNoGravity(), hasPhysics(), onGround, lastPhysics);
+                TickScaler.aerodynamics(this, getAerodynamics()), hasNoGravity(), hasPhysics(), onGround, lastPhysics);
         this.lastPhysics = result;
         if (!shard.isChunkLoaded(result.newPosition())) return;
         this.velocity = result.newVelocity().mul(TPS);
@@ -199,20 +196,15 @@ public final class PrimedTnt extends Entity {
 
     // vanilla applies gravity BEFORE the move; handing Minestom the raw motion over-shoots the hop apex (+0.577 vs +0.386)
     private Vec moveVector() {
-        return motion.sub(0, getAerodynamics().gravity(), 0).mul(TPS);
+        return motion.sub(0, TickScaler.aerodynamics(this, getAerodynamics()).gravity(), 0).mul(TPS);
     }
 
     @Override
     public void update(long time) {
-        if (isParked()) { // a replay leg drives it: no fuse, no wire, no ground logic - integrate the leg only
-            Vec leg = getVelocity().div(TPS);
-            if (!leg.isZero()) refreshPosition(getPosition().add(leg), false, false);
-            return;
-        }
         // 1.8 TNT tick on our own motion: gravity before the move, drag, then the grounded ×0.7 friction + bounce.
-        Aerodynamics aero = getAerodynamics();
+        Aerodynamics aero = TickScaler.aerodynamics(this, getAerodynamics());
         double vy = (motion.y() - aero.gravity()) * aero.verticalAirResistance();
-        double friction = isOnGround() ? 0.7 : 1.0;
+        double friction = isOnGround() ? TickScaler.dragPerTick(this, 0.7) : 1.0;
         if (isOnGround()) vy = groundVy(vy);
         flipPending = false;
         double hDrag = aero.horizontalAirResistance() * friction;
@@ -232,6 +224,12 @@ public final class PrimedTnt extends Entity {
         }
         wasAirborne = !isOnGround();
 
+        // the ctor runs before the entity has a world, so the scope is only resolvable here; stretch once
+        if (!fuseScaled) {
+            fuseScaled = true;
+            fuse = TickScaler.duration(this, fuse, ExplosionSystem.KEY);
+            ((PrimedTntMeta) getEntityMeta()).setFuseTime(fuse);
+        }
         if (--fuse > 0) return;
         Instance instance = getInstance();
         if (instance != null) explosion.explode(MechanicsWorld.of(this, instance), detonationCenter(), config.power(), this, null);

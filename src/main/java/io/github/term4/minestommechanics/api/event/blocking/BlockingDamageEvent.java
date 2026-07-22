@@ -10,7 +10,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Fired when a player blocks a hit (sword/shield), after the reduction is computed but before armor mitigation. Cancel
- * to veto the block - the hit takes its full {@link #originalAmount()} (e.g. a piercing weapon).
+ * to veto the block - the hit takes its full {@link #originalAmount()}.
  */
 public final class BlockingDamageEvent implements CancellableEvent {
 

@@ -13,13 +13,11 @@ import org.jetbrains.annotations.Nullable;
  * snapshot inputs but for damage.
  *
  * @param source  the entity responsible (attacker, projectile), if any
- * @param point   a relevant position for the damage (source position), if any
  * @param item    the item involved (melee weapon), if any
  * @param detail  type-specific payload attached by the producer (e.g. the fall distance), if any
  * @param amount  optional amount override; {@code null} uses {@link DamageTypeConfig#baseAmount(io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext)}
- * @param config  optional per-snapshot config override
- * @param bypass  optional mitigation-bypass spec the attacking item/attack contributes (targeted attribute/effect/enchant
- *                skips, e.g. a god-killer ignoring resistance); merged with the damage type's broad bypass. {@code null} = none.
+ * @param bypass  targeted attribute/effect/enchant skips the attacking item/attack contributes (e.g. a god-killer
+ *                ignoring resistance); merged with the damage type's broad bypass
  */
 public record DamageSnapshot(Entity target, DamageType type, @Nullable Entity source,
                              @Nullable Point point, @Nullable ItemStack item, @Nullable Object detail,

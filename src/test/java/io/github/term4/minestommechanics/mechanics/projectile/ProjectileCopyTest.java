@@ -26,10 +26,15 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 /** Launched projectiles carry {@link MechanicsWorld#ENTITY_COPY}: the copy re-runs the launch stamp with the CURRENT velocity. */
 class ProjectileCopyTest extends HeadlessServerTest {
 
+    private static LivingEntity shooterAt(Pos pos) {
+        LivingEntity shooter = looseZombie();
+        shooter.setInstance(instance, pos).join();
+        return shooter;
+    }
+
     @Test
     void launchedProjectileCopiesMidFlight() {
-        LivingEntity shooter = looseZombie();
-        shooter.setInstance(instance, new Pos(8.5, 220, 8.5, 0.0f, 0.0f)).join();
+        LivingEntity shooter = shooterAt(new Pos(8.5, 220, 8.5, 0.0f, 0.0f));
         var config = Vanilla18.projectiles();
         ProjectileEntity snowball = new ProjectileSystem(MinestomMechanics.getInstance(), config)
                 .launch(ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config));
@@ -52,8 +57,7 @@ class ProjectileCopyTest extends HeadlessServerTest {
 
     @Test
     void launchedProjectileSavesAndRevives() {
-        LivingEntity shooter = looseZombie();
-        shooter.setInstance(instance, new Pos(12.5, 220, 12.5, 0.0f, 0.0f)).join();
+        LivingEntity shooter = shooterAt(new Pos(12.5, 220, 12.5, 0.0f, 0.0f));
         var config = Vanilla18.projectiles();
         ProjectileSystem system = new ProjectileSystem(MinestomMechanics.getInstance(), config);
         ProjectileEntity snowball = system.launch(ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config));
@@ -79,8 +83,7 @@ class ProjectileCopyTest extends HeadlessServerTest {
 
     @Test
     void bobbersHaveNoDefaultCopy() {
-        LivingEntity shooter = looseZombie();
-        shooter.setInstance(instance, new Pos(8.5, 220, 8.5, 0.0f, 0.0f)).join();
+        LivingEntity shooter = shooterAt(new Pos(8.5, 220, 8.5, 0.0f, 0.0f));
         var config = Vanilla18.projectiles();
         ProjectileEntity bobber = new ProjectileSystem(MinestomMechanics.getInstance(), config)
                 .launch(ProjectileSnapshot.of(shooter, FishingBobber.INSTANCE).withConfig(config));

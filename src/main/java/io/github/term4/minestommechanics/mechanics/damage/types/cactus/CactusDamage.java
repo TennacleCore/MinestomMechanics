@@ -1,9 +1,8 @@
 package io.github.term4.minestommechanics.mechanics.damage.types.cactus;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
+import io.github.term4.minestommechanics.mechanics.damage.DamageProducers;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
-import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalDamageTicker;
 import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalTickProducer;
 import io.github.term4.minestommechanics.util.BlockContact;
@@ -52,11 +51,6 @@ public final class CactusDamage extends DamageType implements EnvironmentalTickP
     @Override
     public void tick(LivingEntity living, DamageSystem sys) {
         if (!BlockContact.touchingShapes(living, b -> b.compare(Block.CACTUS))) return;
-
-        DamageSnapshot snap = DamageSnapshot.of(living, this);
-        DamageContext ctx = sys.contextFor(snap);
-        if (!ctx.typeConfig().enabled(ctx)) return;
-        if (DamageSystem.absorbedByWindow(living, ctx.baseAmount())) return;
-        sys.apply(snap);
+        DamageProducers.emit(sys, living, this);
     }
 }

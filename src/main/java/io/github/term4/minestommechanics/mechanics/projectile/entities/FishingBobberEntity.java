@@ -17,6 +17,7 @@ import net.minestom.server.ServerFlag;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.collision.PhysicsResult;
+import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
@@ -27,7 +28,9 @@ import net.minestom.server.entity.metadata.other.FishingHookMeta;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.Material;
+import net.minestom.server.network.packet.server.play.EntityPositionSyncPacket;
 import net.minestom.server.network.packet.server.play.EntityTeleportPacket;
+import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
 import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,8 +40,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * Fishing bobber: flies until it hooks an entity (0-damage hit, then pinned at 0.8 body height - what draws the 1.8
  * client's line to the victim) or lands; discards when the angler dies, drops the rod, or the line passes
- * {@code lineSnapDistance}. {@link #retrieve} pulls the hooked entity per {@code rodPull} and returns the
- * {@code rodDurability} cost; {@link #setHookedEntity} is the hook seam for custom rod behaviors (mmc18 pseudo-hook).
+ * {@code lineSnapDistance}. {@link #setHookedEntity} is the hook seam for custom rod behaviors (mmc18 pseudo-hook).
  *
  * <p>1.8 ground contact is a live damp-settle loop, never a frozen state (vanilla never records the hit block, so
  * {@code inGround} clears every tick with a {@code rand*0.2} damp); the predicting client settles the same way.
@@ -107,8 +109,8 @@ public class FishingBobberEntity extends ManagedProjectile {
 
     public @Nullable Entity getHookedEntity() { return hooked; }
 
-    /** Hooks/releases the line ({@code hookedMetadata} gates the modern glued-bobber visual); {@code hookHalt} zeroes
-     *  the motion (1.8 keeps it - stale on release). Public so a custom behavior can flash it (mmc18 pseudo-hook). */
+    /** Hooks/releases the line; {@code hookHalt} zeroes the motion (1.8 keeps it - stale on release).
+     *  Public so a custom behavior can flash it (mmc18 pseudo-hook). */
     public void setHookedEntity(@Nullable Entity entity) {
         this.hooked = entity;
         if (hookedMetadata) ((FishingHookMeta) getEntityMeta()).setHookedEntity(entity);
@@ -191,17 +193,19 @@ public class FishingBobberEntity extends ManagedProjectile {
         if (bobbing && inWater) {
             double force = pos.y() + velocityBt.y() - (blockY + liquidHeight);
             if (Math.abs(force) < 0.01) force += Math.signum(force) * 0.1;
-            velocityBt = new Vec(velocityBt.x() * TickScaler.dragPerTick(0.9),
-                    velocityBt.y() - TickScaler.gravityPerTick(force * ThreadLocalRandom.current().nextFloat() * 0.2),
-                    velocityBt.z() * TickScaler.dragPerTick(0.9));
+            velocityBt = new Vec(velocityBt.x() * (subStepping() ? 0.9 : TickScaler.dragPerTick(scopeSubject(), 0.9)),
+                    velocityBt.y() - (subStepping() ? force * ThreadLocalRandom.current().nextFloat() * 0.2
+                            : TickScaler.gravityPerTick(scopeSubject(), force * ThreadLocalRandom.current().nextFloat() * 0.2)),
+                    velocityBt.z() * (subStepping() ? 0.9 : TickScaler.dragPerTick(scopeSubject(), 0.9)));
         }
         // 26.1 gates gravity on the ground too - a rested hook stays put (contact zeroed it, see onBlockClip)
-        if (!inWater && !isOnGround()) velocityBt = velocityBt.sub(0, TickScaler.gravityPerTick(gravityBt), 0);
+        if (!inWater && !isOnGround()) velocityBt = velocityBt.sub(0,
+                subStepping() ? gravityBt : TickScaler.gravityPerTick(scopeSubject(), gravityBt), 0);
         this.velocity = velocityBt.mul(ServerFlag.SERVER_TICKS_PER_SECOND);
         return false;
     }
 
-    private boolean touchesWater(net.minestom.server.coordinate.Point p) {
+    private boolean touchesWater(Point p) {
         if (getInstance() == null) return false;
         MechanicsWorld world = MechanicsWorld.of(this);
         int x = (int) Math.floor(p.x()), z = (int) Math.floor(p.z());
@@ -209,7 +213,7 @@ public class FishingBobberEntity extends ManagedProjectile {
         return world.getBlock(x, (int) Math.floor(p.y()), z).compare(Block.WATER);
     }
 
-    /** 1.8 water coverage: the 0.25 bobber box in 5 slabs, each counting when the water surface is above its bottom. */
+    /** 1.8 coverage: the 0.25 bobber box in 5 slabs, each counting when the water surface is above its bottom. */
     private double waterCoverage() {
         Pos pos = getPosition();
         double coverage = 0;
@@ -316,7 +320,7 @@ public class FishingBobberEntity extends ManagedProjectile {
         // 26.1 despawns a resting (non-stuck) bobber after 1200 grounded ticks (life); 1.8's counter is dead code.
         // A hookStick bobber is frozen-stuck instead - the stuck lifecycle owns its removal (unstick on block break).
         if (modernOrder && !isStuck() && isOnGround()) {
-            if (++groundTicks >= TickScaler.duration(GROUND_DESPAWN_TICKS, ProjectileSystem.KEY)) { remove(); return; }
+            if (++groundTicks >= TickScaler.duration(scopeSubject(), GROUND_DESPAWN_TICKS, ProjectileSystem.KEY)) { remove(); return; }
         } else {
             groundTicks = 0;
         }
@@ -325,35 +329,28 @@ public class FishingBobberEntity extends ManagedProjectile {
         if (hooked != null && hookedValid()) {
             pinTo(hooked.getPosition().add(0, hooked.getBoundingBox().height() * 0.8, 0));
         }
-        // a COMPAT display fix, not preset wire: prediction is generation-correct, so a silent wire only
-        // breaks for viewers whose client generation cannot predict THIS hook's water physics - hookWater
-        // off = no generation predicts a sail-through (1.8 EntityFishHook buoys client-side, MCP-919
-        // l.476; 26.1 latches BOBBING at first contact); hookWater on = only the mismatched generation.
-        // Those viewers ride a dense server escort through the water window; the air stays silent
-        // (ballistics are the shared prediction)
+        // COMPAT display fix, not preset wire: a silent wire only breaks for viewers whose generation cannot
+        // predict THIS hook's water physics (1.8 EntityFishHook buoys client-side, MCP-919 l.476; 26.1 latches
+        // BOBBING at first contact); hookWater off = neither predicts. Those viewers ride a dense escort
+        // through the water window, the air stays silent
         if (hooked == null && velocitySyncInterval <= 0 && getSynchronizationTicks() <= 0) {
+            Pos pos = getPosition();
             if (!waterDense) {
-                Pos pos = getPosition();
                 waterDense = touchesWater(pos) || touchesWater(pos.add(velocityBt.mul(2)));
             }
-            if (waterDense) {
-                Pos pos = getPosition();
-                if (waterSyncedAt == null || pos.distanceSquared(waterSyncedAt) > 1.0e-8) {
-                    waterSyncedAt = pos;
-                    var clientInfo = io.github.term4.minestommechanics.MinestomMechanics.getInstance().clientInfo();
-                    var sync = new net.minestom.server.network.packet.server.play.EntityPositionSyncPacket(
-                            getEntityId(), pos, Vec.ZERO, pos.yaw(), pos.pitch(), isOnGround());
-                    var vel = new net.minestom.server.network.packet.server.play.EntityVelocityPacket(
-                            getEntityId(), getVelocityForPacket());
-                    for (Player viewer : getViewers()) {
-                        if (hookWater && clientInfo != null && clientInfo.isLegacy(viewer) == !modernOrder) {
-                            continue; // their generation predicts this physics
-                        }
-                        if (viewer instanceof io.github.term4.minestommechanics.platform.player.OptimizedPlayer op
-                                && !op.compat().hookPredictionEscort()) continue;
-                        viewer.sendPacket(sync);
-                        viewer.sendPacket(vel);
+            if (waterDense && (waterSyncedAt == null || pos.distanceSquared(waterSyncedAt) > 1.0e-8)) {
+                waterSyncedAt = pos;
+                var clientInfo = io.github.term4.minestommechanics.MinestomMechanics.getInstance().clientInfo();
+                var sync = new EntityPositionSyncPacket(getEntityId(), pos, Vec.ZERO, pos.yaw(), pos.pitch(), isOnGround());
+                var vel = new EntityVelocityPacket(getEntityId(), getVelocityForPacket());
+                for (Player viewer : getViewers()) {
+                    if (hookWater && clientInfo != null && clientInfo.isLegacy(viewer) == !modernOrder) {
+                        continue; // their generation predicts this physics
                     }
+                    if (viewer instanceof io.github.term4.minestommechanics.platform.player.OptimizedPlayer op
+                            && !op.compat().hookPredictionEscort()) continue;
+                    viewer.sendPacket(sync);
+                    viewer.sendPacket(vel);
                 }
             }
         }
@@ -375,8 +372,7 @@ public class FishingBobberEntity extends ManagedProjectile {
                 || holder.getItemInOffHand().material() == Material.FISHING_ROD;
     }
 
-    /** Reels the line in: pulls the hooked entity toward the angler per {@code rodPull}, removes the bobber, and
-     *  returns the rod durability cost ({@code rodDurability}: hooked entity / stuck in ground / else 0). */
+    /** Reels the line in and removes the bobber; returns the {@code rodDurability} cost (hooked entity / ground / 0). */
     public int retrieve() {
         int cost = 0;
         if (hookedValid()) {

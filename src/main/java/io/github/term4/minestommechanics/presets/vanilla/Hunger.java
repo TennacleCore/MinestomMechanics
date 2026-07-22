@@ -5,10 +5,9 @@ import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
 
 /**
- * Modern hunger ({@code FoodData.tick} + the {@code ServerPlayer}/{@code Player} action costs; the full catalog with
- * source refs is docs/exhaustion-sources.md): saturation fast regen at food 20 (heal {@code min(sat,6)/6} every 10
- * ticks, exhaustion = the spent saturation), else 1 per 80 ticks at food 18+. Walking is free (removed in 1.11) - the
- * key stays unpriced.
+ * Modern hunger ({@code FoodData.tick} + the {@code ServerPlayer} action costs; full catalog with source refs in
+ * docs/exhaustion-sources.md): saturation fast regen at food 20 (heal {@code min(sat,6)/6} every 10 ticks, exhaustion =
+ * the spent saturation), else 1 per 80 ticks at food 18+. Walking is free (removed in 1.11) - the key stays unpriced.
  */
 public final class Hunger {
 

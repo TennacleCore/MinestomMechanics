@@ -32,9 +32,8 @@ public final class ItemSpawnEvent implements CancellableEvent {
 
     public DroppedItemEntity item() { return item; }
     public Cause cause() { return cause; }
-    /** The player responsible (breaker / dropper), or {@code null} for a {@link Cause#SERVER} spawn. */
+    /** The breaker/dropper, or {@code null} for a {@link Cause#SERVER} spawn. */
     public @Nullable Player player() { return player; }
-    /** The world the item spawns into. */
     public MechanicsWorld world() { return world; }
     public Instance instance() { return world.instance(); }
     public Pos position() { return position; }

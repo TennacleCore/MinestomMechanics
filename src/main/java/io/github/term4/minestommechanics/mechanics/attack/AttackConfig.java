@@ -11,8 +11,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 
 /**
- * Immutable attack config. Use {@link #builder()}, {@link #toBuilder()}. Deliberately minimal - the {@link #ruleset}
- * processor owns the attack behavior, so the config only selects it, gates the pipeline, and picks the crit rule.
+ * Immutable attack config. Use {@link #builder()}, {@link #toBuilder()}. Minimal by design - the {@link #ruleset}
+ * processor owns the attack behavior; this only selects it.
  */
 @GenerateBuilder
 public final class AttackConfig extends Config<AttackContext, AttackConfig> {
@@ -26,9 +26,8 @@ public final class AttackConfig extends Config<AttackContext, AttackConfig> {
     /** Arms the {@link FakeHits} swing fill for attackers in this scope; {@code null} = off (the compat layer may still fill bare fists). */
     public final @Nullable FakeHitConfig fakeHits;
     /**
-     * Attacker self-slowdown applied to the attacker's own tracked horizontal velocity on a landed sprint/enchant hit
-     * (vanilla {@code motX/motZ *= 0.6}). Affects only their next knockback's friction fold, never the damage/KB dealt.
-     * {@code 1.0} = none; vanilla {@link #VANILLA_FULL_HIT_SCALE}.
+     * Attacker self-slowdown on their own tracked horizontal velocity; affects only their next knockback's friction
+     * fold, never the damage/KB dealt. {@code 1.0} = none; vanilla {@link #VANILLA_FULL_HIT_SCALE}.
      */
     public final FieldValue<AttackContext, Double> fullHitScale;
 

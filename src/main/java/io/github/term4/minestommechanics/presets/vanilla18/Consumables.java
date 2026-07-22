@@ -8,10 +8,8 @@ import net.kyori.adventure.key.Key;
 import net.minestom.server.potion.PotionEffect;
 
 /**
- * Vanilla 1.8 consumables: the golden apples with 1.8-source effects (regular = Regen II 5s + Absorption I 2m;
- * enchanted "notch" = Regen V 30s + Resistance 5m + Fire Resistance 5m + Absorption I 2m; both 4 food + 9.6
- * saturation - the modern preset's enchanted is Regen II + Absorption IV), the 1.8 pufferfish (Poison IV - modern is
- * II), and the 1.8 {@code canEat} gate (creative never eats) on every food incl. the component floor.
+ * Vanilla 1.8 consumables: 1.8-source golden apple and pufferfish effects, plus the 1.8 {@code canEat} gate (creative
+ * never eats) on every food incl. the component floor.
  */
 public final class Consumables {
 
@@ -21,7 +19,7 @@ public final class Consumables {
         return ConsumableConfig.builder()
                 .typeConfigs(
                         ConsumableTypeConfig.builder(VanillaConsumables.GOLDEN_APPLE.key())
-                                .canConsume(ctx -> VanillaConsumables.legacyCanEat(ctx, true)) // golden apples are always-edible; 1.8 still blocks creative
+                                .canConsume(ctx -> VanillaConsumables.legacyCanEat(ctx, true)) // always-edible, but 1.8 still blocks creative
                                 .behavior(VanillaConsumables.effectFood(4, 9.6f,
                                         VanillaConsumables.eff(PotionEffect.REGENERATION, 2, 100),
                                         VanillaConsumables.eff(PotionEffect.ABSORPTION, 1, 2400)))
@@ -52,7 +50,6 @@ public final class Consumables {
                 .build();
     }
 
-    /** The 1.8 eat gate for a food whose behavior lives on its type. */
     private static ConsumableTypeConfig food(Key key) {
         return ConsumableTypeConfig.builder(key).canConsume(ctx -> VanillaConsumables.legacyCanEat(ctx, false)).build();
     }

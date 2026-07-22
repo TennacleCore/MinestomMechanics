@@ -10,11 +10,10 @@ import java.util.Set;
  * {@link io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem#mitigate pipeline} skips. Two layers
  * that {@link #merge merge}: broad stage flags from the damage TYPE (void skips everything, fall skips armor), and
  * targeted keys from the attacking ITEM (a "god killer" ignoring only {@code minecraft:resistance}).
- * Deliberately not "true damage" - vanilla players read that as armor-only, and this is broader/granular.
+ * Deliberately not "true damage" - that reads as armor-only.
  */
 public final class Bypass {
 
-    /** No bypass - every stage applies. */
     public static final Bypass NONE = builder().build();
 
     private final boolean all;
@@ -35,25 +34,20 @@ public final class Bypass {
         this.enchantKeys = Set.copyOf(b.enchantKeys);
     }
 
-    /** Whether the whole armor stage is skipped (broad flag). The caller also checks {@link #attribute} for the armor attribute. */
+    /** The caller also checks {@link #attribute} for the armor attribute. */
     public boolean armorStage() { return all || armor; }
 
-    /** Whether the whole resistance/effect stage is skipped (broad flag). */
     public boolean effectStage() { return all || effects; }
 
-    /** Whether the whole EPF/enchant stage is skipped (broad flag). */
     public boolean enchantStage() { return all || enchants; }
 
-    /** Whether the specific attribute {@code key} is bypassed (targeted). */
     public boolean attribute(Key key) { return attributeKeys.contains(key); }
 
-    /** Whether the specific effect {@code key} is bypassed (targeted). */
     public boolean effect(Key key) { return effectKeys.contains(key); }
 
-    /** Whether the specific enchant {@code key} is bypassed (targeted). */
     public boolean enchant(Key key) { return enchantKeys.contains(key); }
 
-    /** Union of two specs (OR the broad flags, union the targeted sets) - combines the type-level and item-level bypass. */
+    /** OR the broad flags, union the targeted sets. */
     public Bypass merge(Bypass o) {
         if (o == null || o == NONE) return this;
         if (this == NONE) return o;
@@ -79,20 +73,16 @@ public final class Bypass {
         private final Set<Key> effectKeys = new HashSet<>();
         private final Set<Key> enchantKeys = new HashSet<>();
 
-        /** Skip every mitigation stage (armor + resistance + EPF). */
+        /** Skip every mitigation stage. */
         public Builder all() { return all(true); }
         public Builder all(boolean v) { this.all = v; return this; }
-        /** Skip the whole armor stage. */
         public Builder armor(boolean v) { this.armor = v; return this; }
-        /** Skip the whole resistance/effect stage. */
+        /** Skip the resistance/effect stage. */
         public Builder effects(boolean v) { this.effects = v; return this; }
-        /** Skip the whole EPF/enchant stage. */
+        /** Skip the EPF/enchant stage. */
         public Builder enchants(boolean v) { this.enchants = v; return this; }
-        /** Bypass these specific attributes (e.g. {@code minecraft:armor}). */
         public Builder attribute(Key... keys) { for (Key k : keys) attributeKeys.add(k); return this; }
-        /** Bypass these specific effects (e.g. a god-killer ignoring only {@code minecraft:resistance}). */
         public Builder effect(Key... keys) { for (Key k : keys) effectKeys.add(k); return this; }
-        /** Bypass these specific enchants (e.g. only {@code minecraft:protection}). */
         public Builder enchant(Key... keys) { for (Key k : keys) enchantKeys.add(k); return this; }
 
         public Bypass build() { return new Bypass(this); }

@@ -9,9 +9,8 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * Depth Strider (enchant) - faster movement through water. An {@link ArmorSource} (worn-boots enchant), pushed onto the
- * wearer's {@code WATER_MOVEMENT_EFFICIENCY} while equipped: {@code +1/3 × level} {@code ADD_VALUE} (26's
- * {@code water_movement_efficiency} data effect; full at level 3). Consumed by the wearer's movement (Minestom physics / the client), so no separate calc.
+ * Depth Strider - {@code +1/3 × level} on the wearer's {@code WATER_MOVEMENT_EFFICIENCY} (full at level 3). Consumed by
+ * Minestom physics / the client, so there is no separate calc.
  */
 public final class DepthStrider {
 

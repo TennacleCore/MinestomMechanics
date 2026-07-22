@@ -17,7 +17,6 @@ import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerMoveEvent;
 import net.minestom.server.event.trait.PlayerEvent;
-import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
 import net.minestom.server.network.packet.server.play.PlayerPositionAndLookPacket;
@@ -25,22 +24,17 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The {@code PlayerMoveEvent} home for the compat movement restrictions (speed ones are modern-clients-only; the
- * knockback i-frame window is always skipped so a hit still launches). {@code restrictMovement} rejects a move that
- * NEWLY puts the pose-aware hitbox into a solid block (a stuck player can still slide out), set back without an
- * absolute-view snap (camera kept). {@code restrictSprintSneak}/{@code restrictSprintUse} strip the sprint modifier
- * while the CLIENT believes it's sprinting and sneaking/using (needs {@code SprintTracker}); restored when they stop.
- * {@code restrictSwimSpeed} spams a reduced velocity while sprint-swimming (Hypixel's approach; vertical damped harder
- * since holding space re-adds swim-up). Installed once; inert unless a player's config enables a restriction.
+ * The {@code PlayerMoveEvent} home for the compat movement restrictions. Speed restrictions are modern-clients-only and
+ * always skip the knockback i-frame window so a hit still launches; {@code restrictMovement} rejects only a move that
+ * NEWLY puts the hitbox into a solid block (a stuck player can still slide out), set back without an absolute-view snap
+ * (camera kept). Installed once; inert unless a player's config enables a restriction.
  */
 public final class CompatMovement {
 
-    /** Below this squared move, the dampen is a no-op (look-only). */
     private static final double MIN_MOVE_SQ = 1.0e-8;
 
     private CompatMovement() {}
 
-    /** Installs the move-restriction listener. Inert unless a player enables a {@code restrictMovement}/{@code restrictSprint*}/{@code restrictSwimSpeed} knob. */
     public static void install(MinestomMechanics mm) {
         EventNode<@NotNull PlayerEvent> node = EventNode.type("mm:compat-movement", EventFilter.PLAYER);
         // resolve the trackers lazily - install runs before they're created in init()
@@ -52,9 +46,8 @@ public final class CompatMovement {
         Player player = event.getPlayer();
         if (!(player instanceof OptimizedPlayer op)) return;
         CompatState c = op.compat();
-        // The collision revert exists only to stop the squeeze-to-fit crawl; a DISABLE_CRAWL_POSE Animatium client already
-        // prevents it natively (its crawl box = standing box), so skip the server revert for it - otherwise the revert
-        // false-positives on its fast 1.8 fluid descent into a pool (box briefly overshoots the floor) and bounces it off water.
+        // DISABLE_CRAWL_POSE clients block the squeeze-to-fit crawl natively; the revert would then only false-positive
+        // on their fast 1.8 fluid descent (box briefly overshoots the floor) and bounce them off water
         boolean collision = c.restrictMovement() && !c.handlesNatively(AnimatiumFeature.DISABLE_CRAWL_POSE);
         boolean speed = c.anySpeedRestriction();
         if (!collision && !speed) return;
@@ -63,14 +56,11 @@ public final class CompatMovement {
         Pos from = player.getPosition();
         Pos to = event.getNewPosition();
         if (to.samePoint(from)) return; // look-only change: the hitbox didn't move
-        Instance instance = player.getInstance();
-        if (instance == null) return;
-        MechanicsWorld world = MechanicsWorld.viewed(player); // the blocks the CLIENT renders - a spectator walks the viewed world, not the base
-        // a view-only observer (block view != binding) plays in no world the revert protects, and their client can
-        // legitimately disagree mid-resync (a rejected read-only dig they walked into) - never bounce them
+        if (player.getInstance() == null) return;
+        MechanicsWorld world = MechanicsWorld.viewed(player); // the blocks the CLIENT renders, not the base world
+        // a view-only observer (block view != binding) can legitimately disagree mid-resync - never bounce them
         if (collision && world != MechanicsWorld.of(player)) collision = false;
 
-        // Collision restriction: reject a move that newly enters a block (revert fully to from, kill momentum).
         if (collision && entersNewCollision(world, player.getBoundingBox(), from, to)) {
             boolean rotated = to.yaw() != from.yaw() || to.pitch() != from.pitch();
             // a non-rotating revert-to-from has no view delta to trip the early-out, so nudge the yaw one ULP (invisible)
@@ -81,11 +71,9 @@ public final class CompatMovement {
             return;
         }
 
-        // Speed restrictions - modern clients only; skip the knockback i-frame window (a hit's velocity would be clamped away).
+        // skip the knockback i-frame window: a hit's velocity would be clamped away
         if (!speed || clientInfo.isLegacy(player) || DamageSystem.isInvulnerableToDamage(player)) return;
-        // swim cap only when swim-POSED (sprint + in water, the ClientEye proxy) - plain in-water stays natural (bobbing/floating).
-        // Skipped for Animatium clients running old_fluid_physics: they already move at 1.8 speed natively, and the dampen would
-        // fight the 1.8 current (e.g. cap the falling-water down-push). Non-Animatium modern clients keep the dampen.
+        // OLD_FLUID_PHYSICS clients already move at 1.8 speed natively; the dampen would fight the 1.8 current
         if (c.restrictSwimSpeed() && player.isSprinting() && inWater(player, world)
                 && !c.handlesNatively(AnimatiumFeature.OLD_FLUID_PHYSICS)) {
             dampenSwim(player, c, from, to);
@@ -95,26 +83,26 @@ public final class CompatMovement {
     }
 
     /**
-     * Sneak/use 1.8 parity via the sprint state itself: while the CLIENT believes it's sprinting (so we still act after the
-     * forced-off state), {@code setSprinting(false)} drops the server's {@code +0.3} sprint speed modifier + the sprint flag
-     * when sneaking/using, and restores it otherwise. Tracked sprint (not {@code isSprinting()}, which we force off) keeps it
-     * accurate; {@code setSprinting} doesn't fire the sprint events, so the tracker stays clean.
+     * Sneak/use 1.8 parity via the sprint state itself: while the CLIENT believes it's sprinting, {@code setSprinting(false)}
+     * drops the server's {@code +0.3} sprint speed modifier + the sprint flag when sneaking/using, and restores it otherwise.
+     * Reads tracked sprint, not {@code isSprinting()} (which we force off); {@code setSprinting} fires no sprint events, so
+     * the tracker stays clean.
      */
     private static void restrictSprint(Player player, CompatState c, @Nullable SprintTracker sprintTracker) {
-        if (!SprintTracker.isClientSprinting(sprintTracker, player)) return; // client isn't sprinting -> nothing to strip/restore
-        // skip the state Animatium fixes natively (it forces sprint off client-side, no rubber-band)
+        if (!SprintTracker.isClientSprinting(sprintTracker, player)) return;
+        // skip what Animatium fixes natively (forces sprint off client-side, no rubber-band)
         boolean strip = (c.restrictSprintSneak() && player.isSneaking() && !c.handlesNatively(AnimatiumFeature.FIX_SPRINT_SNEAKING))
                 || (c.restrictSprintUse() && player.isUsingItem() && !c.handlesNatively(AnimatiumFeature.FIX_SPRINT_ITEM_USE));
         if (strip) {
             if (player.isSprinting()) { player.setSprinting(false); c.setSprintStripped(true); }
         } else if (c.sprintStripped()) {
-            // restore ONLY the sprint WE stripped for sneak/use - a combat sprint-reset didn't set the flag, so the 1.8 w-tap requirement is kept
+            // restore ONLY the sprint WE stripped - a combat sprint-reset didn't set the flag, keeping the 1.8 w-tap requirement
             if (!player.isSprinting()) player.setSprinting(true);
             c.setSprintStripped(false);
         }
     }
 
-    /** Hypixel-style swim cap: spam a reduced velocity (blocks/tick) to the client each move, damping horizontal AND (harder) vertical swim - smoother than a position setback. Divisors from {@code CompatConfig.swimFactor}/{@code swimVerticalFactor}. */
+    /** Hypixel-style swim cap: spam a reduced velocity each move instead of a position setback; vertical damps harder since holding space re-adds swim-up. */
     private static void dampenSwim(Player player, CompatState c, Pos from, Pos to) {
         double dx = to.x() - from.x(), dy = to.y() - from.y(), dz = to.z() - from.z();
         if (dx * dx + dy * dy + dz * dz <= MIN_MOVE_SQ) return;
@@ -122,7 +110,7 @@ public final class CompatMovement {
         player.sendPacket(new EntityVelocityPacket(player.getEntityId(), velocity));
     }
 
-    /** Whether the player's feet are in water (position-based, like {@code ClientEye.inWater}); 1.8 slows all in-water movement, so this also covers surface swimming + wading. */
+    /** Feet in water; 1.8 slows all in-water movement, so this also covers surface swimming + wading. */
     private static boolean inWater(Player p, MechanicsWorld world) {
         Pos pos = p.getPosition();
         try {
@@ -134,9 +122,8 @@ public final class CompatMovement {
     }
 
     /**
-     * Whether the move newly puts {@code box} into a solid block it wasn't already overlapping at {@code from}. A block the
-     * box already overlaps at {@code from} is ignored (so a player stuck in a block can slide out); only freshly entering a
-     * block - crawling in from open ground or along a tunnel - is caught. Normal (non-colliding) movement is never affected.
+     * Whether the move newly puts {@code box} into a solid block it wasn't already overlapping at {@code from} - a block it
+     * already overlaps is ignored, so a player stuck in a block can still slide out.
      */
     private static boolean entersNewCollision(MechanicsWorld world, BoundingBox box, Pos from, Pos to) {
         var blocks = box.getBlocks(to);
@@ -148,14 +135,13 @@ public final class CompatMovement {
             } catch (Exception ignored) {
                 continue; // unloaded chunk -> no collision
             }
-            // passable (non-blocksMotion) blocks - ladder/vine/plant/carpet/... - are meant to be occupied, never obstacles
-            // (same test as the self-placement fix); vanilla ladders carry a wall-side slab, which was setting climb moves back.
-            // scaffolding's dynamic shape Minestom doesn't model, so skip it too.
+            // passable blocks are meant to be occupied (vanilla ladders carry a wall-side slab, which was setting climb
+            // moves back); scaffolding's dynamic shape Minestom doesn't model
             if (block == null || BlockContact.isPassable(block) || block.id() == Block.SCAFFOLDING.id()) continue;
             var shape = block.registry().collisionShape();
-            if (!shape.intersectBox(to.sub(bp.blockX(), bp.blockY(), bp.blockZ()), box)) continue;  // not colliding at the destination
-            if (shape.intersectBox(from.sub(bp.blockX(), bp.blockY(), bp.blockZ()), box)) continue;  // already inside at the source -> not new (allow sliding out)
-            return true;                                                                             // newly entered a solid block
+            if (!shape.intersectBox(to.sub(bp.blockX(), bp.blockY(), bp.blockZ()), box)) continue;
+            if (shape.intersectBox(from.sub(bp.blockX(), bp.blockY(), bp.blockZ()), box)) continue; // already inside -> allow sliding out
+            return true;
         }
         return false;
     }

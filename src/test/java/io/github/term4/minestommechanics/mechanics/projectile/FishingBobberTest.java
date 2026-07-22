@@ -134,19 +134,52 @@ class FishingBobberTest extends HeadlessServerTest {
         shooter.remove();
     }
 
-    /** TPS scaling (clientTps 40 vs server 20): drag^2, gravity x4 - incl. the acceleration channel the bobber's
-     *  gravity rides (and the fireball's thrust). Spawn velocity re-rates via fromClientVelocity (x2). */
+    /**
+     * ABOVE the server rate the flight runs vanilla's own model: {@code /tick rate} never stretches a step, it
+     * runs the native tick more often ({@code TickRateManager} only changes the wall-clock period). At clientTps
+     * 40 on a 20 server that is TWO native steps per server tick - native drag, native gravity, native launch
+     * velocity - so the arc matches a 40 TPS client exactly instead of drifting (~0.5 blocks/s when stretched).
+     */
     @Test
-    void physicsScalesWithClientTps() {
+    void aboveServerRateTheFlightSubStepsAtNativeConstants() {
         TickScaler.setGlobal(TickScalingConfig.builder().clientTps(40).build());
         try {
             LivingEntity shooter = angler(new Pos(88.5, 150, 8.5, 37.0f, 12.5f));
             ProjectileEntity bobber = launch(Vanilla18.projectiles(), shooter);
             Pos spawn = bobber.getSpawnPosition();
             assertNotNull(spawn);
+            Vec v = bobber.velocityBt(); // native: the speed comes from the step COUNT, not a scaled value
+            double px = spawn.x(), py = spawn.y(), pz = spawn.z();
+            double vx = v.x(), vy = v.y(), vz = v.z();
+            for (int tick = 1; tick <= 5; tick++) {
+                for (int step = 0; step < 2; step++) { // 40/20 = two vanilla ticks per server tick
+                    px += vx; py += vy; pz += vz;
+                    vx *= DRAG_092F; vy = (vy - GRAVITY_004F) * DRAG_092F; vz *= DRAG_092F;
+                }
+                bobber.tick(tick * 50L);
+                assertEquals(px, bobber.getPosition().x(), "x @ tick " + tick);
+                assertEquals(py, bobber.getPosition().y(), "y @ tick " + tick);
+                assertEquals(pz, bobber.getPosition().z(), "z @ tick " + tick);
+            }
+            bobber.remove();
+            shooter.remove();
+        } finally {
+            TickScaler.setGlobal(null);
+        }
+    }
+
+    /** AT OR BELOW the server rate nothing sub-steps - the single stretched step stands, so 20 and under are untouched. */
+    @Test
+    void belowServerRateKeepsTheStretchedStep() {
+        TickScaler.setGlobal(TickScalingConfig.builder().clientTps(10).build());
+        try {
+            LivingEntity shooter = angler(new Pos(88.5, 150, 8.5, 37.0f, 12.5f));
+            ProjectileEntity bobber = launch(Vanilla18.projectiles(), shooter);
+            Pos spawn = bobber.getSpawnPosition();
+            assertNotNull(spawn);
             Vec v = bobber.velocityBt();
-            double drag = Math.pow(DRAG_092F, 2.0);
-            double gravity = GRAVITY_004F * 4;
+            double drag = Math.pow(DRAG_092F, 0.5);      // drag^s
+            double gravity = GRAVITY_004F * 0.5 * 0.5;   // gravity x s²
             double px = spawn.x(), py = spawn.y(), pz = spawn.z();
             double vx = v.x(), vy = v.y(), vz = v.z();
             for (int tick = 1; tick <= 5; tick++) {
@@ -511,8 +544,7 @@ class FishingBobberTest extends HeadlessServerTest {
     @Test
     void mmc18SilentWireIsFullyClientPredicted() {
         var viewer = FakePlayer.connect(instance, new Pos(120.5, 150, 8.5), "SilentWire");
-        // the silent contract is the 1.8 viewer's (modern viewers ride hookModernSync - see
-        // silentWireSyncsModernViewersOnly)
+        // the silent contract is the 1.8 viewer's; modern viewers ride hookModernSync
         MinestomMechanics.getInstance().clientInfo().setProxyDetails(viewer.player, "{\"version\":47}");
         LivingEntity shooter = angler(new Pos(120.5, 150, 10.5, 37.0f, 12.5f));
         viewer.sent.clear();
@@ -618,7 +650,7 @@ class FishingBobberTest extends HeadlessServerTest {
         bobber.remove();
         shooter.remove();
     }
-    private static long countSyncs(io.github.term4.minestommechanics.testsupport.FakePlayer viewer, int id) {
+    private static long countSyncs(FakePlayer viewer, int id) {
         return viewer.sent.stream()
                 .map(pk -> net.minestom.server.network.packet.server.SendablePacket
                         .extractServerPacket(net.minestom.server.network.ConnectionState.PLAY, pk))
@@ -637,9 +669,9 @@ class FishingBobberTest extends HeadlessServerTest {
         for (int x = 895; x <= 905; x++)
             for (int y = 130; y <= 140; y++)
                 for (int z = 146; z <= 147; z++)
-                    instance.setBlock(x, y, z, net.minestom.server.instance.block.Block.WATER);
+                    instance.setBlock(x, y, z, Block.WATER);
         LivingEntity thinAngler = angler(new Pos(900.5, 135, 140.5, 0, 0));
-        ProjectileEntity thin = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), thinAngler);
+        ProjectileEntity thin = launch(Projectiles.config(), thinAngler);
         double maxZ = 0;
         for (int t = 1; t <= 30 && !thin.isRemoved(); t++) {
             thin.tick(t * 50L);
@@ -650,9 +682,9 @@ class FishingBobberTest extends HeadlessServerTest {
         for (int x = 890; x <= 930; x++)
             for (int y = 58; y <= 64; y++)
                 for (int z = 140; z <= 180; z++)
-                    instance.setBlock(x, y, z, net.minestom.server.instance.block.Block.WATER);
+                    instance.setBlock(x, y, z, Block.WATER);
         LivingEntity poolAngler = angler(new Pos(910.5, 66, 150.5, 0, 10));
-        ProjectileEntity pool = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), poolAngler);
+        ProjectileEntity pool = launch(Projectiles.config(), poolAngler);
         double poolEndY = 0;
         for (int t = 1; t <= 60 && !pool.isRemoved(); t++) {
             pool.tick(t * 50L);
@@ -677,16 +709,14 @@ class FishingBobberTest extends HeadlessServerTest {
         for (int x = 900; x <= 910; x++)
             for (int y = 60; y <= 64; y++)
                 for (int z = 148; z <= 162; z++)
-                    instance.setBlock(x, y, z, net.minestom.server.instance.block.Block.WATER);
-        var modern = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance,
-                new Pos(905.5, 70, 143.5), "ModernRodViewer");
-        var legacy = io.github.term4.minestommechanics.testsupport.FakePlayer.connect(instance,
-                new Pos(905.5, 70, 141.5), "LegacyRodViewer");
+                    instance.setBlock(x, y, z, Block.WATER);
+        var modern = FakePlayer.connect(instance, new Pos(905.5, 70, 143.5), "ModernRodViewer");
+        var legacy = FakePlayer.connect(instance, new Pos(905.5, 70, 141.5), "LegacyRodViewer");
         MinestomMechanics.getInstance().clientInfo().setProxyDetails(legacy.player, "{\"version\":47}");
 
         // cast DOWN into the hook-water pool (y 58..64): air first, water contact within a few ticks
         LivingEntity shooter = angler(new Pos(905.5, 70, 145.5, 0, 35));
-        ProjectileEntity bobber = launch(io.github.term4.minestommechanics.presets.mmc18.Projectiles.config(), shooter);
+        ProjectileEntity bobber = launch(Projectiles.config(), shooter);
         int id = bobber.getEntityId();
         modern.sent.clear();
         legacy.sent.clear();

@@ -5,9 +5,8 @@ import io.github.term4.minestommechanics.mechanics.hunger.HungerConfig;
 import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
 
 /**
- * 1.8 hunger ({@code FoodMetaData.a} + the {@code EntityHuman} action costs; the full catalog with pristine-source
- * refs is docs/exhaustion-sources.md): heal 1 per 80 ticks at food 18+, NO saturation fast regen (1.9+), and 1.8
- * charges plain walking.
+ * 1.8 hunger ({@code FoodMetaData.a} + the {@code EntityHuman} action costs; full catalog with source refs in
+ * docs/exhaustion-sources.md): no saturation fast regen (1.9+), and 1.8 charges plain walking.
  */
 public final class Hunger {
 

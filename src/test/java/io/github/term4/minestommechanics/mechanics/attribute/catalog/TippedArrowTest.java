@@ -14,11 +14,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * The tipped-arrow framework's two logic pieces: the {@link VanillaPotions} base-potion → effects table (what an arrow's
- * {@code potion_contents.potion} resolves to), and the {@link io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.InstantDamage}
- * handler that makes a harming payload actually hurt. The capture→hit arrow plumbing is verified in-game (like Power/Punch/Flame).
- */
+/** Tipped-arrow logic: the {@link VanillaPotions} base-potion table and the harming payload's damage handler. */
 class TippedArrowTest extends HeadlessServerTest {
 
     @Test
@@ -39,7 +35,6 @@ class TippedArrowTest extends HeadlessServerTest {
     void harmingPayloadDealsDamage() {
         LivingEntity e = zombie(new Pos(0, 64, 120));
         float before = e.getHealth();
-        // applying INSTANT_DAMAGE routes through the attribute system's potion lifecycle → the InstantDamage source behavior
         e.addEffect(new Potion(PotionEffect.INSTANT_DAMAGE, 0, 1, (byte) 0));
         assertTrue(e.getHealth() < before, "harming (instant damage) reduces health (" + e.getHealth() + " < " + before + ")");
     }

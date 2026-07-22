@@ -13,10 +13,9 @@ import java.util.function.BiConsumer;
 
 /**
  * 1.8 self-placement: vanilla 1.8 excludes the placer from the placement collision check (place a ladder into your own
- * body); Minestom doesn't, so the block desyncs. Arms {@link OptimizedPlayer#setSelfPlacing} per-placement - only the
- * placer, only during their own placement, and only for PASSABLE blocks (a motion-blocking block into your own hitbox
- * is never a legit clutch - stricter than 1.8, an anti-cheat guard). Wraps the stock listener by default; an app that
- * replaces the placement listener (e.g. a shard library's world-scoped one) re-installs with it as the delegate, LAST.
+ * body); Minestom doesn't, so the block desyncs. Arms {@link OptimizedPlayer#setSelfPlacing} per placement - the placer
+ * only, and only for PASSABLE blocks (stricter than 1.8: a motion-blocking block into your own hitbox is never a legit
+ * clutch). Wraps the stock listener; an app that replaces the placement listener re-installs with it as the delegate, LAST.
  */
 public final class SelfPlacementFix {
 
@@ -33,14 +32,13 @@ public final class SelfPlacementFix {
                 wrap(delegate)::accept);
     }
 
-    /** {@code delegate} wrapped with the exclusion, uninstalled - for hosts that own the listener slot (a shard
-     *  library's placement-decorator seam), where registration order must not matter. */
+    /** {@code delegate} wrapped with the exclusion but NOT installed - for hosts that own the listener slot, where
+     *  registration order must not matter. */
     public static @NotNull BiConsumer<ClientPlayerBlockPlacementPacket, Player> wrap(
             @NotNull BiConsumer<ClientPlayerBlockPlacementPacket, Player> delegate) {
         return (packet, player) -> wrapped(delegate, packet, player);
     }
 
-    /** Arms {@link OptimizedPlayer#setSelfPlacing} for a passable block placement, then delegates (try/finally, like {@code MetaFix.wrapListener}). */
     private static void wrapped(BiConsumer<ClientPlayerBlockPlacementPacket, Player> delegate,
                                 ClientPlayerBlockPlacementPacket packet, Player player) {
         OptimizedPlayer op = player instanceof OptimizedPlayer o
@@ -53,12 +51,7 @@ public final class SelfPlacementFix {
         }
     }
 
-    /**
-     * Whether placing {@code m} should exclude the placer: a placeable, {@link BlockContact#isPassable passable} block
-     * (ladders, vines, cobwebs, ...). The {@code isBlock()} guard is required - a non-block item (sword/bucket/food
-     * right-clicking a block) has a {@code null} {@link Material#block()}; a movement-blocking or non-block material is
-     * left to the stock self-collision check anyway.
-     */
+    /** The {@code isBlock()} guard is required: a non-block item right-clicking a block has a {@code null} {@link Material#block()}. */
     private static boolean excludesPlacer(Material m) {
         return m.isBlock() && BlockContact.isPassable(m.block());
     }

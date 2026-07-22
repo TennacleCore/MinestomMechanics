@@ -11,9 +11,8 @@ import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The consume main phase: fired when a use COMPLETES, before the behavior runs and the item is consumed. Cancel and
- * nothing applies (no effects, no restore, no item decrement); {@link #behavior(ConsumableBehavior)} swaps the
- * resolved behavior for this consume only.
+ * The consume main phase: fired when a use completes, before the behavior runs and the item is consumed. Cancel and
+ * nothing applies (no effects, no restore, no item decrement).
  */
 public final class ConsumeEvent extends CancellableMechanicsEvent<ConsumableContext> {
 
@@ -28,7 +27,7 @@ public final class ConsumeEvent extends CancellableMechanicsEvent<ConsumableCont
     public PlayerHand hand() { return finalSnap().hand(); }
     public Consumable consumable() { return finalSnap().consumable(); }
 
-    /** The behavior override for this consume, or {@code null} = the resolved one. */
+    /** Per-consume override ({@code null} = the resolved behavior). */
     public @Nullable ConsumableBehavior behavior() { return behavior; }
     public void behavior(@Nullable ConsumableBehavior behavior) { this.behavior = behavior; }
 }

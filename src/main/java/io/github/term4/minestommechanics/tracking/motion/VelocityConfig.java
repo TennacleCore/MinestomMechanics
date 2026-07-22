@@ -7,24 +7,19 @@ import org.jetbrains.annotations.Nullable;
  * (per-context conditionality lives one level up). Gravity/drag/friction are read live from the entity, not here.
  * Build with {@link #builder()}.
  *
- * @param seed            fallback takeoff motY (vanilla {@link #JUMP_VELOCITY}); the ticked sim always uses {@link #JUMP_VELOCITY}.
- * @param launchOffset    arc phase correction ({@link #DEFAULT_LAUNCH_OFFSET}); debug knob.
- * @param clampX          near-zero clamp for the folded x ({@link #CLAMP}).
- * @param clampY          near-zero clamp for motY; {@code 0} disables (selects the sim's apex-reseed variant).
- * @param clampZ          near-zero clamp for the folded z.
+ * @param seed            fallback takeoff motY; the ticked sim always uses {@link #JUMP_VELOCITY}.
+ * @param launchOffset    arc phase correction; debug knob.
+ * @param clampY          near-zero clamp for motY; {@code 0} disables, selecting the sim's apex-reseed variant.
  * @param groundTicks     fall-prediction depth for {@link MotionTracker#onGround} ({@code 0} = raw client flag).
  * @param maxAirTicks     fallback only: caps the air clock; {@code null} = unbounded.
- * @param entityPush      fold the {@code Entity.collide} push residual (disable where player collision is off).
- * @param fluidPhysics    built-in water/lava drag + buoyancy handling (default on; off also disables {@link #flowPush}).
- * @param climbPhysics    built-in ladder/vine/climbable handling (default on).
- * @param webPhysics      built-in cobweb handling - zeroes motion (default on).
+ * @param entityPush      fold the {@code Entity.collide} push residual; disable where player collision is off.
+ * @param fluidPhysics    water/lava drag + buoyancy; off also disables {@link #flowPush}.
+ * @param webPhysics      cobweb handling - zeroes motion.
  * @param flowPush        fold the water-flow current residual (simulated rules only).
- * @param flowModel       which {@link FluidFlow.Model} the flow residual uses (1.8 vs 26.1).
- * @param flowLava        whether MODERN flow also pushes in lava (26 yes; Hypixel no). No effect on LEGACY.
- * @param climbModel      which {@link ClimbModel} the climb handling uses (1.8 vs 26.1).
- * @param modernBlockPhysics 26-only block velocity (sweet-berry/powder-snow stuck + bed bounce); default off (1.8).
- * @param motYOnMovePacket advance the motY sim only on ticks with a client move packet (MineMen: a lag-frozen
- *                         victim's motY holds until its next move); default off = every tick (vanilla/Hypixel).
+ * @param flowLava        whether MODERN flow also pushes in lava (26 yes, Hypixel no); no effect on LEGACY.
+ * @param modernBlockPhysics 26-only block velocity (sweet-berry/powder-snow stuck + bed bounce).
+ * @param motYOnMovePacket advance the motY sim only on ticks with a client move packet, so a lag-frozen victim's
+ *                         motY holds until its next move (MineMen); off = every tick (vanilla/Hypixel).
  */
 public record VelocityConfig(
         double seed,
@@ -46,21 +41,20 @@ public record VelocityConfig(
         boolean motYOnMovePacket
 ) {
 
-    /** Vanilla gravity (b/t^2): the {@code motY -= 0.08} step. */
+    /** Vanilla {@code motY -= 0.08} (b/t^2). */
     public static final double GRAVITY = 0.08;
-    /** Vanilla vertical air drag: the {@code motY *= 0.98} step. */
+    /** Vanilla {@code motY *= 0.98}. */
     public static final double DRAG_V = 0.98;
-    /** Vanilla horizontal air drag ({@code motX/motZ *= 0.91} airborne). */
+    /** Vanilla {@code motX/motZ *= 0.91} airborne. */
     public static final double DRAG_H = 0.91;
-    /** Vanilla jump takeoff velocity ({@code bF()} {@code 0.42F} widened to double); the default {@link #seed}. Float-exact for the hurt-broadcast wire short. */
+    /** {@code bF()}'s {@code 0.42F} widened to double - float-exact for the hurt-broadcast wire short. */
     public static final double JUMP_VELOCITY = 0.41999998688697815;
-    /** Vanilla near-zero motion clamp ({@code m()} zeroes {@code |mot| < 0.005} each tick). */
+    /** Vanilla {@code m()} zeroes {@code |mot| < 0.005} each tick. */
     public static final double CLAMP = 0.005;
 
-    /** Air-tick phase correction ({@code -1}): the hit packet is processed one tick before the victim's move, so the fold reads {@code ticksInAir - 1}. */
+    /** The hit packet is processed one tick before the victim's move, so the fold reads {@code ticksInAir - 1}. */
     public static final int DEFAULT_LAUNCH_OFFSET = -1;
 
-    /** Vanilla defaults (0.42 seed, -1 offset, 0.005 clamps, fluid/climb/web on, entity push + flow folded). */
     public static VelocityConfig defaults() { return builder().build(); }
 
     public Builder toBuilder() { return new Builder(this); }
@@ -116,23 +110,14 @@ public record VelocityConfig(
         public Builder groundTicks(int v) { groundTicks = v; return this; }
         public Builder maxAirTicks(@Nullable Integer v) { maxAirTicks = v; return this; }
         public Builder entityPush(boolean v) { entityPush = v; return this; }
-        /** Enable/disable the tracker's built-in fluid (water/lava) reconstruction handling. See {@link VelocityConfig#fluidPhysics}. */
         public Builder fluidPhysics(boolean v) { fluidPhysics = v; return this; }
-        /** Enable/disable the tracker's built-in climb (ladder/vine/climbable) reconstruction handling. See {@link VelocityConfig#climbPhysics}. */
         public Builder climbPhysics(boolean v) { climbPhysics = v; return this; }
-        /** Enable/disable the tracker's built-in cobweb reconstruction handling. See {@link VelocityConfig#webPhysics}. */
         public Builder webPhysics(boolean v) { webPhysics = v; return this; }
-        /** Enable/disable folding the water-flow residual (vanilla 1.8's {@code 0.014} current). See {@link VelocityConfig#flowPush}. */
         public Builder flowPush(boolean v) { flowPush = v; return this; }
-        /** Select the fluid-flow model ({@link FluidFlow.Model#LEGACY 1.8} vs {@link FluidFlow.Model#MODERN 26.1}). See {@link VelocityConfig#flowModel}. */
         public Builder flowModel(FluidFlow.Model v) { flowModel = v; return this; }
-        /** Enable/disable the {@link FluidFlow.Model#MODERN} lava current (26 pushes in lava; Hypixel does not). See {@link VelocityConfig#flowLava}. */
         public Builder flowLava(boolean v) { flowLava = v; return this; }
-        /** Select the ladder/climb model ({@link ClimbModel#LEGACY 1.8} vs {@link ClimbModel#MODERN 26.1}). See {@link VelocityConfig#climbModel}. */
         public Builder climbModel(ClimbModel v) { climbModel = v; return this; }
-        /** Enable/disable the 26-only block velocity behaviors (sweet-berry/powder-snow stuck + bed bounce). See {@link VelocityConfig#modernBlockPhysics}. */
         public Builder modernBlockPhysics(boolean v) { modernBlockPhysics = v; return this; }
-        /** Advance the motY sim only on ticks with a client move packet (MineMen) vs every tick. See {@link VelocityConfig#motYOnMovePacket}. */
         public Builder motYOnMovePacket(boolean v) { motYOnMovePacket = v; return this; }
 
         // the attacker self-slowdown lives on AttackConfig.fullHitScale (an attack-time mutation), not here

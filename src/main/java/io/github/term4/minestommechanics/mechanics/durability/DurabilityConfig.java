@@ -6,8 +6,8 @@ import org.jetbrains.annotations.Nullable;
  * Config for item durability (damage-on-use). Assigned per scope via the
  * {@link io.github.term4.minestommechanics.MechanicsProfile} {@code durability} member.
  *
- * <p><b>Stub.</b> Only {@link #enabled} exists today; the per-use damage amounts (attack / mine / block-hit / armor-hit),
- * Unbreaking handling, and on-break behavior land with the durability logic.
+ * <p><b>Stub:</b> only {@link #enabled} exists today; per-use damage amounts, Unbreaking, and on-break behavior land
+ * with the durability logic.
  */
 public final class DurabilityConfig {
 
@@ -15,10 +15,10 @@ public final class DurabilityConfig {
 
     private DurabilityConfig(Builder b) { this.enabled = b.enabled; }
 
-    /** Whether durability damage is applied (unset = active; set {@code false} to disable). */
+    /** Unset = active. */
     public @Nullable Boolean enabled() { return enabled; }
 
-    /** Merges this config over {@code base} (this if set, else base). */
+    /** Merges this config over {@code base}. */
     public DurabilityConfig fromBase(DurabilityConfig base) {
         return new Builder().enabled(enabled != null ? enabled : base.enabled).build();
     }

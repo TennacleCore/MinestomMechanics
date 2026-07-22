@@ -27,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The registry-based effect layer: {@link EffectRegistry} (register/override) + the generic {@link Effects#play}. */
 class EffectsTest extends HeadlessServerTest {
 
     @AfterEach
@@ -38,7 +37,7 @@ class EffectsTest extends HeadlessServerTest {
                 MechanicsProfile.builder().set(MechanicsKeys.EFFECTS, reg).build());
     }
 
-    // ARROW_CRIT is a positional particle (world broadcast), so the source itself receives it - a reliable test audience.
+    // ARROW_CRIT is a positional particle, so the source itself receives it
     private static int arrowCrits(FakePlayer p) {
         return (int) p.sent(ParticlePacket.class).stream().filter(e -> e.particle() == Particle.CRIT).count();
     }
@@ -82,10 +81,10 @@ class EffectsTest extends HeadlessServerTest {
     void noRegistryOrUnregisteredKeyIsANoOp() {
         FakePlayer p = FakePlayer.connect(instance, new Pos(6.5, 65, 6.5), "FxP2");
         try {
-            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(p.player)); // no registry set
+            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(p.player));
             assertEquals(0, arrowCrits(p), "no scope registry -> nothing plays");
             useRegistry(EffectRegistry.empty());
-            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(p.player)); // key not registered
+            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(p.player));
             assertEquals(0, arrowCrits(p), "an unregistered key -> nothing plays");
         } finally {
             p.player.remove();
@@ -118,7 +117,7 @@ class EffectsTest extends HeadlessServerTest {
             a.player.remove();
         }
 
-        useRegistry(Effects.vanilla18().register(Effects.ARROW_CRIT, Effect.NONE)); // disabled in the registry...
+        useRegistry(Effects.vanilla18().register(Effects.ARROW_CRIT, Effect.NONE));
         FakePlayer b = FakePlayer.connect(instance, new Pos(9.5, 65, 9.5), "FxP5");
         EventListener<EffectEvent> swapper = EventListener.of(EffectEvent.class,
                 e -> e.effect(Effect.particle(Particle.CRIT, 1, 0.0, 0f)));
@@ -139,7 +138,7 @@ class EffectsTest extends HeadlessServerTest {
         LivingEntity victim = zombie(new Pos(11.5, 65, 10.5));
         try {
             Effects.play(services, Effects.CRIT, EffectContext.of(attacker.player, victim));
-            // the attacker's own 1.8 client predicts the crit locally, so the server must not echo it back
+            // the 1.8 client predicts its own crit locally
             assertEquals(0, critAnims(attacker), "the crit is not sent to the attacker itself");
         } finally {
             attacker.player.remove();
@@ -155,7 +154,7 @@ class EffectsTest extends HeadlessServerTest {
         try {
             assertTrue(eater.player.getViewers().contains(viewer.player), "a nearby player tracks the eater");
             Effects.play(services, Effects.EAT, EffectContext.of(eater.player));
-            // the client self-predicts its own chew from the eating metadata, so the server sends it to viewers only
+            // the client self-predicts its chew from the eating metadata
             assertEquals(0, eatSounds(eater), "the eater self-predicts, so gets no server chew");
             assertEquals(1, eatSounds(viewer), "a nearby viewer hears the chew");
         } finally {
@@ -172,7 +171,6 @@ class EffectsTest extends HeadlessServerTest {
         try {
             assertTrue(eater.player.getViewers().contains(viewer.player), "a nearby player tracks the eater");
             Effects.play(services, Effects.EAT, EffectContext.of(eater.player));
-            // modern excludes the eater too - the client self-predicts, echoing it back would double
             assertEquals(0, eatSounds(eater), "the modern eater gets no server chew (no double)");
             assertEquals(1, eatSounds(viewer), "a nearby viewer hears the chew");
         } finally {
@@ -197,7 +195,7 @@ class EffectsTest extends HeadlessServerTest {
         try {
             assertTrue(thrower.player.getViewers().contains(viewer.player), "a nearby player tracks the thrower");
             Effects.play(services, Effects.THROW_SNOWBALL, EffectContext.of(thrower.player));
-            // the 1.8 client does NOT self-predict the throw (unlike the chew), so the server must send it to the thrower too
+            // 1.8 does NOT self-predict the throw (unlike the chew)
             assertEquals(1, sounds(thrower, SoundEvent.ENTITY_SNOWBALL_THROW), "the thrower hears its own throw");
             assertEquals(1, sounds(viewer, SoundEvent.ENTITY_SNOWBALL_THROW), "a nearby viewer hears the throw");
         } finally {
@@ -211,11 +209,11 @@ class EffectsTest extends HeadlessServerTest {
         FakePlayer shooter = FakePlayer.connect(instance, new Pos(5.5, 65, 5.5), "Shooter");
         FakePlayer bystander = FakePlayer.connect(instance, new Pos(7.5, 65, 5.5), "Bystander");
         try {
-            useRegistry(Effects.vanilla18()); // ARROW_HIT_PLAYER unregistered -> the ding is off
+            useRegistry(Effects.vanilla18());
             Effects.play(services, Effects.ARROW_HIT_PLAYER, EffectContext.of(shooter.player, bystander.player));
             assertEquals(0, sounds(shooter, SoundEvent.ENTITY_ARROW_HIT_PLAYER), "vanilla does not ding");
 
-            useRegistry(Effects.vanilla18().register(Effects.ARROW_HIT_PLAYER, Effects.arrowHitMarker())); // a PvP preset enables it
+            useRegistry(Effects.vanilla18().register(Effects.ARROW_HIT_PLAYER, Effects.arrowHitMarker()));
             Effects.play(services, Effects.ARROW_HIT_PLAYER, EffectContext.of(shooter.player, bystander.player));
             assertEquals(1, sounds(shooter, SoundEvent.ENTITY_ARROW_HIT_PLAYER), "the shooter hears the ding");
             assertEquals(0, sounds(bystander, SoundEvent.ENTITY_ARROW_HIT_PLAYER), "only the shooter, not a bystander");

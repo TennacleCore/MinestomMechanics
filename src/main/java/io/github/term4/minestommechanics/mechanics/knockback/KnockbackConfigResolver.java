@@ -55,8 +55,8 @@ public final class KnockbackConfigResolver {
             return rule != null ? rule : VelocityRule.DEFAULT;
         }
         /**
-         * The resolved victim velocity (b/t) - the same value the friction fold uses - by estimating {@link #velocityRule()}
-         * for the target ({@link Vec#ZERO} when none). Lets a custom {@link KnockbackComponent} read it without pinning a rule onto the config.
+         * The victim velocity (b/t) the friction fold uses, estimated from {@link #velocityRule()} ({@link Vec#ZERO}
+         * without a target). Lets a custom {@link KnockbackComponent} read it without pinning a rule onto the config.
          */
         public Vec victimVelocity() {
             Entity t = snap.target();

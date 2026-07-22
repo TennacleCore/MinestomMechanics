@@ -140,8 +140,7 @@ public final class ViaBridgeRpc {
         int id;
         do {
             id = nextRequestId.getAndIncrement();
-            if (id == 0) id = nextRequestId.getAndIncrement();
-        } while (id == 0);
+        } while (id == 0); // 0 is the reserved unsolicited-frame id
         return id;
     }
 

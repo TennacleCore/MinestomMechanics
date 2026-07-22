@@ -3,9 +3,8 @@ package io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant;
 import net.kyori.adventure.key.Key;
 
 /**
- * Infinity (enchant) - the bow does not consume arrows (still needs at least one in the quiver), and the arrows it fires
- * can't be picked up in survival. A bow-domain enchant, not a {@link io.github.term4.minestommechanics.mechanics.attribute.source.Source};
- * {@code Bow} reads its level off the held bow. Identity key only - 1.8 and 26 are the same.
+ * Infinity - the bow consumes no arrows (but still needs one in the quiver) and its arrows can't be picked up in
+ * survival. Identity key only: {@code Bow} reads the level off the held bow. Same in 1.8 and 26.
  */
 public final class Infinity {
     public static final Key KEY = Key.key("minecraft:infinity");

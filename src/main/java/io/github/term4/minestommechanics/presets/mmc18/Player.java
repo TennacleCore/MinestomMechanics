@@ -8,7 +8,6 @@ public final class Player {
 
     private Player() {}
 
-    /** PlayerConfig: the vanilla 1.8 base with a 1-tick position broadcast. */
     public static PlayerConfig config() {
         return PlayerConfig.builder(Vanilla18.player())
                 .positionBroadcastInterval(1)

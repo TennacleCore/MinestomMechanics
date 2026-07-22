@@ -25,9 +25,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * the silent-wire splash, and the pseudo-hook rod ({@link PseudoHook}).
  * Fireball flight measured from the 2026-07-01 MineMen flight logs (fireball_flight.py): spawn at the shot eye, first tick
  * moves {@link #LAUNCH}, then the velocity snaps to {@link #CRUISE} and rides the vanilla propulsion curve
- * ((v+0.1)·0.95 → 1.0884…). A direct hit is the vanilla 6.0 CONTACT hit with the mmc18 hurt-KB away from the fireball
- * (FBF captures); the same-tick splash then lands in the contact's i-frame window (FBF's ×0.05 damage = blocked,
- * normal-mode falloff = overdamage remainder + push).
+ * ((v+0.1)·0.95 → 1.0884…). A direct hit is the vanilla 6.0 CONTACT hit with the mmc18 hurt-KB away from the fireball;
+ * the same-tick splash then lands in the contact's i-frame window (FBF's ×0.05 damage = blocked, normal-mode falloff =
+ * overdamage remainder + push).
  */
 public final class Projectiles {
 
@@ -36,16 +36,13 @@ public final class Projectiles {
     // measured: wire launch 0.5645 × drag = 0.5363 first-tick move; cruise 1.0457 b/t from tick 2
     private static final double LAUNCH = 0.5645 * 0.95;
     private static final double CRUISE = 1.0457;
-    /** Measured MineMen fireball radius (vanilla ghast = 1). */
+    // measured radius; vanilla ghast = 1
     private static final double POWER = 2.0;
-    /** Direct-hit contact damage (vanilla {@code EntityLargeFireball} 6.0; FBF captures show it unchanged). */
+    // vanilla EntityLargeFireball 6.0, unchanged in the FBF captures
     private static final double CONTACT_DAMAGE = 6.0;
 
-    /**
-     * Snaps to cruise speed after the first move (onSpawn fires post-move; a spawn-tick wall detonation never gets
-     * here). A behavior owns detonation timing ({@code FireballEntity} skips its bare same-tick detonate), so
-     * onImpact detonates same-tick like vanilla/MineMen.
-     */
+    // onSpawn fires post-move, so this snaps to cruise after the first move; onImpact detonates same-tick because a
+    // behavior takes FireballEntity's bare same-tick detonate away
     private static final ProjectileBehavior MINEMEN_FLIGHT = new ProjectileBehavior() {
         @Override public void onSpawn(ManagedProjectile p) {
             Vec v = p.getVelocity();
@@ -79,7 +76,7 @@ public final class Projectiles {
                 .speed(0.55).spread(0.0)
                 .syncInterval(0).velocitySyncInterval(0)
                 .build();
-        // rod: fully client-predicted silent wire (lockstep spawn on the 1.8 grid) + the pseudo-hook behavior.
+        // rod: fully client-predicted silent wire (lockstep spawn on the 1.8 grid).
         // capture 2026-07-06: spread collapsed onto the magnitude - speed 1.5*(1+N(0,0.0075)), direction exact
         ProjectileTypeConfig bobber = ProjectileTypeConfig.builder(base.typeConfig(FishingBobber.KEY))
                 .speed(ctx -> 1.5 * (1 + ThreadLocalRandom.current().nextGaussian() * 0.007499999832361937))
@@ -93,20 +90,21 @@ public final class Projectiles {
                 .knockbackSource(ProjectileTypeConfig.KnockbackSource.SHOOTER)
                 .rodPull(new ProjectileTypeConfig.RodPull(0.1, 0.08, false, false))
                 .build();
-        // capture 2026-07-06: vanilla launch/flight, zero spread + the 0.05 wire vy floor (potions/hook exempt;
-        // arrows unmeasured, left vanilla)
-        ProjectileTypeConfig snowball = ProjectileTypeConfig.builder(Snowball.KEY)
-                .spread(0.0).wireMotYFloor(0.05).knockback(Knockback.projectile()).build();
-        ProjectileTypeConfig egg = ProjectileTypeConfig.builder(Egg.KEY)
-                .spread(0.0).wireMotYFloor(0.05).knockback(Knockback.projectile()).build();
-        ProjectileTypeConfig pearl = ProjectileTypeConfig.builder(base.typeConfig(Pearl.KEY))
-                .spread(0.0).wireMotYFloor(0.05).knockback(Knockback.projectile()).build();
+        ProjectileTypeConfig snowball = thrown(ProjectileTypeConfig.builder(Snowball.KEY));
+        ProjectileTypeConfig egg = thrown(ProjectileTypeConfig.builder(Egg.KEY));
+        ProjectileTypeConfig pearl = thrown(ProjectileTypeConfig.builder(base.typeConfig(Pearl.KEY)));
         ProjectileTypeConfig arrow = ProjectileTypeConfig.builder(base.typeConfig(Arrow.KEY))
                 .knockback(Knockback.arrow()).build();
         return ProjectileConfig.builder(base)
                 .typeConfigs(fireball, splash, bobber, snowball, egg, pearl, arrow)
-                .shootables(new PseudoHook.Installer()) // the re-flash-on-move listener
+                .shootables(new PseudoHook.Installer())
                 .useItemAimSync(true) // MineMen launches on the CLICK-time aim (in-game: flick-throws never desync)
                 .build();
+    }
+
+    // capture 2026-07-06: vanilla launch/flight, zero spread + the 0.05 wire vy floor (potions/hook exempt;
+    // arrows unmeasured, left vanilla)
+    private static ProjectileTypeConfig thrown(ProjectileTypeConfig.Builder builder) {
+        return builder.spread(0.0).wireMotYFloor(0.05).knockback(Knockback.projectile()).build();
     }
 }

@@ -11,11 +11,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Golden/characterization pins for {@link MeleeDamage#snapshot} - the final baked melee amount = 1.8 weapon damage ×
- * (crit ? 1.5 : 1) - including item resolution and the main-hand fallback. The raw weapon values are pinned by
- * {@code ItemRegistryParityTest}; this pins the snapshot integration (crit multiplier + the configured
- * {@code player_attack} path through the installed {@code DamageSystem}). The weapon damage feeds {@code attackDamage}
- * (channel A, now via the ItemRegistry) and crit is an offense stage - the products below must hold. See docs/attributes-design.md.
+ * {@link MeleeDamage#snapshot} bakes 1.8 weapon damage × (crit ? 1.5 : 1). Raw weapon values are pinned by
+ * {@code ItemRegistryParityTest}. See docs/attributes-design.md.
  */
 class MeleeDamageCharacterizationTest extends HeadlessServerTest {
 
@@ -60,7 +57,6 @@ class MeleeDamageCharacterizationTest extends HeadlessServerTest {
         LivingEntity atk = attacker();
         atk.setItemInMainHand(ItemStack.of(Material.IRON_AXE));
         try {
-            // null item arg -> resolves the attacker's held weapon (iron axe = 5.0)
             DamageSnapshot snap = MeleeDamage.INSTANCE.snapshot(atk, target(), false, null, services);
             assertEquals(5.0f, snap.amount(), EPS);
         } finally {

@@ -9,8 +9,8 @@ import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.attribute.Attribute;
 
 /**
- * Regeneration (potion) - heals {@code +1} health every {@code max(1, 50 >> amplifier)} ticks (so amplifier >= 6 heals
- * every tick, not never - vanilla's {@code interval <= 0 ? true} branch). Identical in 1.8 + 26.
+ * Regeneration - heals {@code +1} every {@code max(1, 50 >> amplifier)} ticks, so amplifier >= 6 heals every tick, not
+ * never (vanilla's {@code interval <= 0 ? true} branch). Identical in 1.8 and 26.
  */
 public final class Regeneration {
 

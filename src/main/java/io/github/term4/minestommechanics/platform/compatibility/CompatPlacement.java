@@ -15,25 +15,22 @@ import net.minestom.server.event.trait.PlayerEvent;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Server-side 1.8 block-placement rules. Two independent restrictions, each gated by its own {@code CompatConfig} knob:
+ * Server-side 1.8 block-placement rules, each gated by its own {@code CompatConfig} knob.
  *
  * <p><b>Reach ({@code blockPlaceReach}):</b> cancels a placement whose clicked point is farther than the reach from the
- * player's <em>server</em> eye (the 1.8 preset under {@code legacyHitbox}: 1.54 sneaking vs modern 1.27 crouch). Closes the
- * modern sneak-bridge over-reach (the lower crouch eye out-reaches 1.8). Skipped only for legacy and creative/spectator
- * clients; an honest Animatium client aims from the 1.8 eye (= the server model), so the check is a no-op for it - kept
- * live to cover a spoofed handshake.
+ * player's <em>server</em> eye (the 1.8 preset under {@code legacyHitbox}), closing the modern sneak-bridge over-reach
+ * (the lower crouch eye out-reaches 1.8). An honest Animatium client aims from the 1.8 eye, so the check is a no-op for
+ * it - kept live to cover a spoofed handshake.
  *
- * <p><b>Air placement ({@code oldPlacement}):</b> refuses a placement whose clicked cell is air - the server half of the 1.8
- * "don't place against air" rule (Animatium enforces the client half via {@code OLD_PLACEMENT}). A live raycast only block-hits
- * a <em>solid</em> cell, so an air target = the client aimed at a cell it just broke (the creative "quick replace" floating block). Catches any non-Animatium client that still sends it.
+ * <p><b>Air placement ({@code oldPlacement}):</b> refuses a placement whose clicked cell is air - the server half of the
+ * 1.8 "don't place against air" rule (Animatium enforces the client half via {@code OLD_PLACEMENT}).
  *
- * <p>Installed once when the player provider is on; each rule is inert unless the player's config enables it.
+ * <p>Installed once; each rule is inert unless the player's config enables it.
  */
 public final class CompatPlacement {
 
     private CompatPlacement() {}
 
-    /** Installs the placement listeners. Each rule is inert unless the player's {@code CompatConfig} enables it. */
     public static void install(MinestomMechanics mm) {
         EventNode<@NotNull PlayerEvent> node = EventNode.type("mm:compat-placement", EventFilter.PLAYER);
         // resolve the client-info tracker lazily - install runs before it's created in init()
@@ -42,7 +39,7 @@ public final class CompatPlacement {
         mm.install(node);
     }
 
-    /** 1.8 refused to place against an air cell. An air clicked-block (a live raycast never block-hits air) = the client aimed at a cell it just broke - block the item use to refuse the floating quick-replace. */
+    /** A live raycast never block-hits air, so an air clicked-block = the client aimed at a cell it just broke (creative quick-replace). */
     private static void onInteract(PlayerBlockInteractEvent event) {
         if (!(event.getPlayer() instanceof OptimizedPlayer op)) return;
         // the event's block is the base-map read; a virtual-world member's clicked block may exist only in their world
@@ -56,8 +53,7 @@ public final class CompatPlacement {
         if (!(player instanceof OptimizedPlayer op)) return;
         Double reach = op.compat().blockPlaceReach();
         if (reach == null) return;
-        // Only modern survival clients can sneak-bridge past 1.8 reach; legacy/creative/spectator already aim correctly.
-        // An Animatium client aims from the 1.8 eye (= the server model), so the check passes for it - no exemption needed.
+        // only modern survival clients can sneak-bridge past 1.8 reach; legacy/creative/spectator already aim correctly
         if (clientInfo.isLegacy(player)
                 || player.getGameMode() == GameMode.CREATIVE
                 || player.getGameMode() == GameMode.SPECTATOR) {
@@ -65,7 +61,7 @@ public final class CompatPlacement {
         }
         // exact clicked point = the support block (one step back along the clicked face) + the cursor offset on its face
         Point hit = event.getBlockPosition().relative(event.getBlockFace().getOppositeFace()).add(event.getCursorPosition());
-        Point eye = player.getPosition().add(0, player.getEyeHeight(), 0); // value (b) server eye = 1.8 preset under legacyHitbox
+        Point eye = player.getPosition().add(0, player.getEyeHeight(), 0); // value (b) server eye
         if (eye.distanceSquared(hit) > reach * reach) event.setCancelled(true);
     }
 }

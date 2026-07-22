@@ -16,10 +16,7 @@ import io.github.term4.minestommechanics.mechanics.damage.types.starvation.Starv
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.potion.PotionEffect;
 
-/**
- * Vanilla 1.8 damage config (invul window, overdamage, hurt knockback, and every environmental damage type). The
- * canonical 1.8 values, consumed both by the {@link Vanilla18} preset profile and by {@code DamageSystem} as its fallback.
- */
+/** Vanilla 1.8 damage config; also the {@code DamageSystem} fallback. */
 public final class Damage {
 
     private Damage() {}
@@ -44,26 +41,26 @@ public final class Damage {
                 .build();
     }
 
-    /** Vanilla 1.8 drowning: 2.0 at air {@code <= -20}, air snaps to max instantly out of water ({@code AirRefill.LEGACY}). */
+    /** Damages at air {@code <= -20}; 1.8 air snaps back to max instantly out of water. */
     private static BreathingConfig drownDamage() {
         return BreathingConfig.builder()
                 .key(DrowningDamage.KEY)
                 .baseAmount(2.0)
                 .airRefill(BreathingConfig.AirRefill.LEGACY)
-                .bypassArmor(true) // drowning ignores armor in 1.8 (DROWN.setIgnoreArmor) - also makes it unblockable
+                .bypassArmor(true) // 1.8 DROWN.setIgnoreArmor; also makes it unblockable
                 .build();
     }
 
-    /** Vanilla suffocation: 1.0 per tick while the head is in a solid block (same 1.8 + 26). */
+    /** Per tick while the head is in a solid block. */
     private static DamageTypeConfig suffocationDamage() {
-        // STUCK (in_wall) ignores armor in 1.8 (setIgnoreArmor) - also makes it unblockable
+        // 1.8 STUCK.setIgnoreArmor; also makes it unblockable
         return DamageTypeConfig.builder(SuffocationDamage.KEY).baseAmount(1.0).bypassArmor(true).build();
     }
 
     private static FallDamageConfig fallDamage() {
         return FallDamageConfig.builder()
                 .formula(FallDamageConfig.Formula.LEGACY_CEIL)
-                .bypassArmor(true) // fall ignores armor in 1.8 (DamageSource.FALL); only Feather Falling (EPF) reduces it. Also unblockable.
+                .bypassArmor(true) // 1.8 DamageSource.FALL ignores armor; only Feather Falling (EPF) reduces it. Also unblockable.
                 // 1.8 has no SAFE_FALL_DISTANCE attribute: Jump Boost subtracts (amp+1) blocks directly (EntityLiving.e)
                 .threshold(ctx -> {
                     if (ctx.snap().target() instanceof LivingEntity le) {
@@ -82,7 +79,7 @@ public final class Damage {
                 .igniteTicks(160)
                 .igniteWarmupInvulMult(2)
                 .contactIntervalTicks(1)
-                .exhaustion(0.3f) // in_fire keeps the 0.3 default; on_fire (burn ticks) is armor-bypassing = free
+                .exhaustion(0.3f) // on_fire (burn ticks) is free
                 .build();
     }
 
@@ -102,7 +99,7 @@ public final class Damage {
                 .key(BurningDamage.KEY)
                 .baseAmount(1.0)
                 .intervalTicks(20)
-                .bypassArmor(true) // on_fire (burn tick) ignores armor in 1.8 (BURN.setIgnoreArmor); in_fire/lava don't. Also unblockable.
+                .bypassArmor(true) // 1.8 BURN.setIgnoreArmor; in_fire/lava don't. Also unblockable.
                 .build();
     }
 
@@ -110,12 +107,12 @@ public final class Damage {
         return DamageTypeConfig.builder(CactusDamage.KEY).baseAmount(1.0).exhaustion(0.3f).build();
     }
 
-    /** Vanilla starvation: 1.0 per 80 ticks at food 0 (the hunger food tick produces it); STARVE ignores armor + charges no exhaustion. */
+    /** Produced by the hunger food tick; STARVE ignores armor and charges no exhaustion. */
     private static DamageTypeConfig starvationDamage() {
         return DamageTypeConfig.builder(StarvationDamage.KEY).baseAmount(1.0).bypassArmor(true).build();
     }
 
     private static MeleeDamageConfig playerAttackDamage() {
-        return MeleeDamageConfig.builder().critMultiplier(1.5).exhaustion(0.3f).build(); // vanilla crit x1.5 (both versions)
+        return MeleeDamageConfig.builder().critMultiplier(1.5).exhaustion(0.3f).build();
     }
 }

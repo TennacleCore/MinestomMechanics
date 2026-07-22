@@ -21,11 +21,10 @@ import java.util.Map;
  * item's base {@code potion} through this (the tipped-arrow framework, the drinkable-potion consumable); a potion's own
  * {@code customEffects} are used directly and don't need a row.
  *
- * <p><b>Version-invariant.</b> The recipe (which effect + duration/amplifier) is the same in 1.8 and 26 for every shared
- * potion (Swiftness 3600/9600/1800, Regeneration 900/1800/450, Poison 900/1800/432, ...); what differs by version is each
- * <em>effect's mechanic</em>, which lives in the {@code LEGACY}/{@code MODERN} effect sources, not here. The 26-only
- * potions (Turtle Master, Slow Falling, Luck, Strong Slowness) are simply never reachable by a 1.8/Via client, so one
- * table serves both. The vanilla 1/8 tipped-arrow scaling is NOT baked here - it's the arrow's {@code potion_duration_scale}.
+ * <p><b>Version-invariant.</b> The recipe is the same in 1.8 and 26 for every shared potion; what differs is each
+ * <em>effect's mechanic</em>, which lives in the {@code LEGACY}/{@code MODERN} effect sources. The 26-only potions
+ * (Turtle Master, Slow Falling, Luck, Strong Slowness) are unreachable by a 1.8/Via client, so one table serves both.
+ * The 1/8 tipped-arrow scaling is NOT baked in - it's the arrow's {@code potion_duration_scale}.
  */
 public final class VanillaPotions {
     private VanillaPotions() {}
@@ -76,15 +75,14 @@ public final class VanillaPotions {
             Map.entry(PotionType.LONG_SLOW_FALLING, List.of(effect(PotionEffect.SLOW_FALLING, 0, 4800)))
     );
 
-    /** The concrete effects for a vanilla base potion type, or empty for an effectless base (water / mundane / thick / awkward) or an unmapped type. */
+    /** Empty for an effectless base (water / mundane / thick / awkward) or an unmapped type. */
     public static List<CustomPotionEffect> effects(PotionType potion) {
         return TABLE.getOrDefault(potion, List.of());
     }
 
     /**
-     * The full effect payload of a potion item's {@code potion_contents}: its custom effects plus the base potion's rows.
-     * The shared resolve for every potion consumer (drinkable, tipped arrow, splash); empty for a non-potion item or a
-     * water bottle.
+     * The full effect payload of a potion item's {@code potion_contents}: custom effects plus the base potion's rows.
+     * Empty for a non-potion item or a water bottle.
      */
     public static List<CustomPotionEffect> payload(@Nullable ItemStack item) {
         PotionContents pc = item != null ? item.get(DataComponents.POTION_CONTENTS) : null;
@@ -113,7 +111,7 @@ public final class VanillaPotions {
         living.addEffect(potion);
     }
 
-    /** 1.8 drinkable potion damage values (the 1.8 wire encoding of potion identity); splash = {@code + 8192}. */
+    /** 1.8 drinkable potion damage values (its wire encoding of potion identity); splash = {@code + 8192}. */
     private static final Map<PotionType, Integer> LEGACY_VALUES = Map.ofEntries(
             Map.entry(PotionType.NIGHT_VISION, 8198), Map.entry(PotionType.LONG_NIGHT_VISION, 8262),
             Map.entry(PotionType.INVISIBILITY, 8206), Map.entry(PotionType.LONG_INVISIBILITY, 8270),
@@ -130,8 +128,8 @@ public final class VanillaPotions {
             Map.entry(PotionType.WEAKNESS, 8200), Map.entry(PotionType.LONG_WEAKNESS, 8264));
 
     /**
-     * The 1.8 SPLASH damage value for a base potion - what a real 1.8 server carries on the wire (a 1.8 client reads
-     * it straight from level event 2002, which Via passes through untranslated). Splash water for an unmapped type.
+     * The 1.8 SPLASH damage value - what a real 1.8 server carries on the wire; the client reads it straight from level
+     * event 2002, which Via passes through untranslated. Splash water for an unmapped type.
      */
     public static int legacySplashValue(@Nullable PotionType potion) {
         Integer drinkable = potion != null ? LEGACY_VALUES.get(potion) : null;

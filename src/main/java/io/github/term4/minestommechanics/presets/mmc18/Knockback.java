@@ -24,7 +24,7 @@ public final class Knockback {
 
     private Knockback() {}
 
-    /** Recent-sprint window (ticks): gates the sprint bonus/enchant (attacker) and the axial factor (victim). */
+    // gates the sprint bonus/enchant (attacker) and the axial factor (victim)
     static final int SPRINT_BUFFER = 5;
 
     public static KnockbackConfig melee() {
@@ -46,8 +46,8 @@ public final class Knockback {
 
     /**
      * MineMen projectile hit (bow/snowball/egg/pearl): the non-sprint melee profile - constant {@code B} horizontal (a
-     * sprinting shooter gets no bonus), same vertical model - with Punch at +0.6/level (measured: 0.5274 -> 1.1274 -> 1.7274)
-     * summed along the base's shooter-relative direction. Self-hit direction pending capture (bow = pure yaw; snowball/rod TBD).
+     * sprinting shooter gets no bonus), same vertical model - with Punch at +0.6/level (measured: 0.5274 -> 1.1274 ->
+     * 1.7274) summed along the base's shooter-relative direction.
      */
     public static KnockbackConfig projectile() {
         return projectileBase()
@@ -71,8 +71,8 @@ public final class Knockback {
     }
 
     /**
-     * MineMen rod hit, SHOOTER-relative (like vanilla - 1.8 {@code damageEntity} reads the indirect source, the angler):
-     * the old lib's tuned values - H 0.525, V 0.365 capped 0.45 - on the vanilla 1.8 fold. Pending capture confirmation.
+     * MineMen rod hit, SHOOTER-relative (1.8 {@code damageEntity} reads the indirect source, the angler): the old lib's
+     * tuned values on the vanilla 1.8 fold. Pending capture confirmation.
      */
     public static KnockbackConfig rod() {
         return KnockbackConfig.builder(Vanilla18.knockback())
@@ -84,9 +84,8 @@ public final class Knockback {
     }
 
     /**
-     * The hurt-KB an explosion folds before its radial push: the melee profile ({@code B} horizontal, same vertical),
-     * direction purely positional away from the damager entity (the fireball/TNT at detonation). The melee-gated
-     * components self-disable on the non-melee snapshot.
+     * The hurt-KB an explosion folds before its radial push: the melee profile, direction purely positional away from
+     * the damager. The melee-gated components self-disable on the non-melee snapshot.
      */
     public static KnockbackConfig explosionHurt() {
         return KnockbackConfig.builder(melee())
@@ -100,11 +99,8 @@ public final class Knockback {
     private static final double SPRINT_BONUS = 0.3271;
     private static final double ENCHANT_PER_LEVEL = 0.37979;
 
-    /**
-     * {@code B(L)} = base + sprint bonus + enchant, carried on the {@code horizontal} (x1) field so the sum stays intact -
-     * {@code extraHorizontal x extraLevel} is uniform per level, so it couldn't give the sprint its own strength. Sprint
-     * bonus and enchant are both gated on a sprinting attacker.
-     */
+    // B(L) = base + sprint bonus + enchant, carried on the horizontal (x1) field: extraHorizontal x extraLevel is
+    // uniform per level, so it couldn't give the sprint its own strength
     private static double baseStrength(KnockbackContext ctx) {
         Entity attacker = ctx.snap().source();
         double b = HORIZONTAL_BASE;
@@ -115,12 +111,8 @@ public final class Knockback {
     // axial
     private static final double AXIAL = 1.0 / 9.0;
 
-    /**
-     * Scales horizontal by {@code 1 -/+ 1/9} from the victim's facing vs the attacker's: fleeing (same way) -> 8/9,
-     * charging (toward) -> 10/9. The sprint gate means the victim is moving along their yaw, so yaw stands in for the
-     * motion direction - no reconstructed velocity (MineMen tracker / fluid physics) needed. Gated on a sprinting
-     * attacker AND the victim's CLIENT-side sprint buffer.
-     */
+    // 1 -/+ 1/9 from the victim's facing vs the attacker's: fleeing -> 8/9, charging -> 10/9. The sprint gate means the
+    // victim moves along their yaw, so yaw stands in for the motion direction - no reconstructed velocity needed
     @Nullable
     private static Vec axialFactor(KnockbackContext ctx, Vec kb) {
         var snap = ctx.snap();
@@ -131,11 +123,6 @@ public final class Knockback {
         Vec victimFacing = Directions.fromYaw(target.getPosition().yaw());
         Vec attackerFacing = Directions.fromYaw(attacker.getPosition().yaw());
         double proj = victimFacing.x() * attackerFacing.x() + victimFacing.z() * attackerFacing.z();   // cos(victim yaw - attacker yaw)
-        /*
-        push-direction variant (needs the reconstructed victim velocity):
-        Vec vel = ctx.victimVelocity();
-        double proj = vel.x() * kb.x() + vel.z() * kb.z();
-         */
         if (proj == 0) return null;
         double a = proj > 0 ? 1.0 - AXIAL : 1.0 + AXIAL;
         return new Vec(kb.x() * a, kb.y(), kb.z() * a);
@@ -146,11 +133,8 @@ public final class Knockback {
     private static final double RANGE_SLOPE = 0.47;
     private static final double RANGE_FLOOR = 2.0 / 3.0;
 
-    /**
-     * Scales horizontal by {@code min(1, 1 - 0.47*(d - 3.03))}, then floors the result at {@code 2/3 * B(L)}, only for a
-     * recently-sprinting attacker. The floor is on the FINAL magnitude and independent of the axial factor - fleeing and
-     * stationary victims both bottom out at 2/3*B at range.
-     */
+    // min(1, 1 - 0.47*(d - 3.03)) on horizontal, floored at 2/3 * B(L); the floor is on the FINAL magnitude and
+    // independent of the axial factor
     @Nullable
     private static Vec rangeReduction(KnockbackContext ctx, Vec kb) {
         var snap = ctx.snap();
@@ -169,23 +153,18 @@ public final class Knockback {
         return new Vec(kb.x() * s, kb.y(), kb.z() * s);
     }
 
-    /** Normal (server-state) recent sprint - the attacker gate for the sprint bonus, enchant, and axial. A queued
-     *  {@link Attack} flush on a projectile-hit victim reads non-sprinting (measured: it lands at the plain base). */
+    // a queued Attack flush on a projectile-hit victim reads non-sprinting (measured: it lands at the plain base)
     private static boolean recentlySprinting(KnockbackContext ctx, Entity e) {
         if (Attack.flushingNonSprint(ctx.snap().target())) return false;
         return SprintTracker.wasRecentlySprinting(ctx.services().sprintTracker(),
-                e, TickScaler.duration(SPRINT_BUFFER, KnockbackSystem.KEY));
+                e, TickScaler.duration(e, SPRINT_BUFFER, KnockbackSystem.KEY));
     }
 
-    // MineMen's fixed degenerate-direction diagonal (yaw 135): the position stand-in whenever the real relative
-    // position is meaningless - point-blank explosions AND projectile self-hits
+    // MineMen's fixed yaw-135 stand-in wherever the relative position is meaningless (point-blank blasts, self-hits)
     private static final Vec DEGENERATE_DIAGONAL = new Vec(-1, 0, -1).normalize();
 
-    /**
-     * MineMen's degenerate-direction fallback: damager horizontally on top of the victim (every self-fireball; vanilla's
-     * {@code d0*d0+d1*d1 < 1e-4} threshold) -> the fixed world diagonal at full {@code B}, replacing vanilla's random pick.
-     * Verified yaw/position-independent, always (-2983,-2983) shorts.
-     */
+    // damager horizontally on top of the victim (vanilla's d0*d0+d1*d1 < 1e-4) -> the fixed diagonal at full B, not
+    // vanilla's random pick; verified yaw/position-independent, always (-2983,-2983) shorts
     @Nullable
     private static Vec pointBlankFallback(KnockbackContext ctx, Vec kb) {
         var snap = ctx.snap();
@@ -198,18 +177,14 @@ public final class Knockback {
         return new Vec(DEGENERATE_DIAGONAL.x() * HORIZONTAL_BASE, kb.y(), DEGENERATE_DIAGONAL.z() * HORIZONTAL_BASE);
     }
 
-    /** Self-hit strength: base + Punch's 0.6/level. Priced inside the self components because the pipeline folds the
-     *  extra BEFORE components run - the horizontal replace would wipe it (and its direction is degenerate on self). */
+    // Punch is priced here, not by the pipeline: the extra folds BEFORE components run, so the horizontal replace
+    // would wipe it
     private static double selfStrength(KnockbackContext ctx) {
         return HORIZONTAL_BASE + 0.6 * ctx.snap().extraKnockback();
     }
 
-    /**
-     * Projectile SELF-hit horizontal: {@code (B/2)(diagonal + look)} - the melee 50/50 position+look blend with the
-     * position half falling back to the fixed diagonal (attacker == victim). Capture-solved (snowball+rod selfhit
-     * sessions 2026-07-17, 30 hits): kbYaw = the bisector of yaw-135 and the live look, |h| = B*cos(delta/2) to +-0.002,
-     * vertical stays the melee cap.
-     */
+    // (B/2)(diagonal + look): the melee 50/50 position+look blend with the position half on the fixed diagonal.
+    // Capture-solved (snowball+rod selfhit 2026-07-17, 30 hits): |h| = B*cos(delta/2) to +-0.002, vertical unchanged
     @Nullable
     private static Vec selfHitBlend(KnockbackContext ctx, Vec kb) {
         var snap = ctx.snap();
@@ -220,7 +195,7 @@ public final class Knockback {
         return new Vec((DEGENERATE_DIAGONAL.x() + look.x()) * h, kb.y(), (DEGENERATE_DIAGONAL.z() + look.z()) * h);
     }
 
-    /** Bow SELF-hit horizontal: the full strength 100% along the live look (user-verified on MineMen). */
+    // full strength 100% along the live look (user-verified on MineMen)
     @Nullable
     private static Vec selfHitLook(KnockbackContext ctx, Vec kb) {
         var snap = ctx.snap();
@@ -231,10 +206,10 @@ public final class Knockback {
         return new Vec(look.x() * h, kb.y(), look.z() * h);
     }
 
-    /** Victim's CLIENT-side sprint buffer (what the client reports, even if the server disagrees) - the victim gate for axial. */
+    // what the client reports, even if the server disagrees
     private static boolean clientRecentlySprinting(KnockbackContext ctx, Entity e) {
         return SprintTracker.wasClientRecentlySprinting(ctx.services().sprintTracker(),
-                e, TickScaler.duration(SPRINT_BUFFER, KnockbackSystem.KEY));
+                e, TickScaler.duration(e, SPRINT_BUFFER, KnockbackSystem.KEY));
     }
 
     private static final int VERTICAL_DECAY_N = 7;
@@ -243,7 +218,7 @@ public final class Knockback {
     private static final double VERTICAL_FRIC = VERTICAL_DECAY_N * VelocityConfig.DRAG_V;                  // 6.86
     private static final double VERTICAL_HOLD_RELEASE = -VelocityConfig.JUMP_VELOCITY;                     // -0.42
 
-    /** Pins vertical to the cap while the victim's reconstructed VY is still above the release threshold (launch arc); the config's {@code frictionV} handles the decay below it. */
+    // pins vertical to the cap through the launch arc; frictionV handles the decay below the release threshold
     @Nullable
     private static Vec verticalLaunchHold(KnockbackContext ctx, Vec kb) {
         return ctx.victimVelocity().y() <= VERTICAL_HOLD_RELEASE ? null : new Vec(kb.x(), VERTICAL_CAP, kb.z());

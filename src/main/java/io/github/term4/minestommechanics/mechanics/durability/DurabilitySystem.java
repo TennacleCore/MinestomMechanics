@@ -12,15 +12,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Item durability (damage-on-use). Mirrors the other systems; per-scope config via {@code DURABILITY}.
+ * Item durability (damage-on-use). Per-scope config via {@code DURABILITY}.
  *
- * <p><b>Stub.</b> The API surface is in place - {@link #install}, scope resolution, and the {@link #damage} entry point
- * combat/mining/Thorns will call - but no durability is consumed yet (TODO).
+ * <p><b>Stub:</b> the API surface is in place, but no durability is consumed yet (TODO).
  */
 public final class DurabilitySystem implements MechanicsModule {
 
     private final MinestomMechanics mm;
-    private final DurabilityConfig config; // install config (the resolution fallback)
+    private final DurabilityConfig config;
     private final EventNode<@NotNull Event> node;
 
     public DurabilitySystem(MinestomMechanics mm, DurabilityConfig config) {
@@ -29,24 +28,22 @@ public final class DurabilitySystem implements MechanicsModule {
         this.node = EventNode.all("mm:durability");
     }
 
-    /** This system's listener node ({@code mm:durability}). */
     public EventNode<@NotNull Event> node() { return node; }
     public DurabilityConfig config() { return config; }
 
-    /** Effective durability config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
+    /** Effective config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
     public DurabilityConfig configFor(@Nullable Entity subject) {
         DurabilityConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.DURABILITY);
         return scoped != null ? scoped : config;
     }
 
-    /** Whether durability damage is enabled for {@code subject} - active by default (an installed config is on unless it sets {@code enabled(false)}). */
+    /** Active by default; only an explicit {@code enabled(false)} disables. */
     public boolean enabled(@Nullable Entity subject) {
         return !Boolean.FALSE.equals(configFor(subject).enabled());
     }
 
     /**
-     * Applies {@code amount} durability damage to {@code holder}'s item in {@code slot} (the combat/mining/Thorns entry point).
-     * <b>Stub:</b> a no-op until the durability logic lands.
+     * The combat/mining/Thorns entry point. <b>Stub:</b> a no-op until the durability logic lands.
      */
     public void damage(LivingEntity holder, EquipmentSlot slot, int amount) {
         if (!enabled(holder)) return;
@@ -58,7 +55,6 @@ public final class DurabilitySystem implements MechanicsModule {
         return install(mm, DurabilityConfig.builder().build());
     }
 
-    /** Installs the durability system: registers on {@code mm} and installs the event node. */
     public static DurabilitySystem install(MinestomMechanics mm, DurabilityConfig cfg) {
         DurabilitySystem system = new DurabilitySystem(mm, cfg);
         mm.register(system);

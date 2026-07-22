@@ -4,13 +4,12 @@ import io.github.term4.minestommechanics.platform.fixes.FixToggle;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Enables {@link InventorySync}: the vanilla remote-slot echo suppression Minestom omits. When on, a slot update the
- * client already predicts is dropped instead of re-sent, so a laggy move-and-revert no longer flickers (and no stray
- * held-slot echo interrupts an eat). Server-wide, so it reads the install config, not the per-scope profile.
+ * Enables {@link InventorySync}: the vanilla remote-slot echo suppression Minestom omits - a slot update the client
+ * already predicts is dropped instead of re-sent. Server-wide, so it reads the install config, not the per-scope
+ * profile.
  *
- * <p><b>Experimental.</b> Re-implements Minestom's whole player-inventory click model (a mirror + a line-for-line port
- * of every click type) to know what the client already shows; a Minestom click-logic change can drift the port (worst
- * case a slot flickers, never a stuck desync). Opt-in, and verify per deployment.
+ * <p><b>Experimental</b>: a click-logic change upstream can drift the ported click model (worst case a slot flickers,
+ * never a stuck desync). Verify per deployment.
  */
 public final class InventorySyncFixConfig implements FixToggle {
 
@@ -18,7 +17,6 @@ public final class InventorySyncFixConfig implements FixToggle {
 
     private InventorySyncFixConfig(Builder b) { this.enabled = b.enabled; }
 
-    /** Whether inventory slot echoes are suppressed against the client's predicted state; {@code null} = off. */
     public @Nullable Boolean enabled() { return enabled; }
 
     /** Merges this config over {@code base}: this config's set knob wins, unset falls back to {@code base}. */

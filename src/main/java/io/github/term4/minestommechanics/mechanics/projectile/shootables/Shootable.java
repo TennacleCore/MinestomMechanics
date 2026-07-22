@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A pluggable launcher: an item that fires a projectile (bow, crossbow, rod), as opposed to a thrown item that is the
  * projectile (snowball/egg/pearl). Mounts its item listeners under the projectile node and launches via
- * {@link ProjectileSystem#launch} - the projectile-side analog of {@code HitDetection}.
+ * {@link ProjectileSystem#launch}.
  */
 @FunctionalInterface
 public interface Shootable {

@@ -21,8 +21,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * The action exhaustion sources - detection only, values are preset {@code exhaustionCost} rules (unpriced = inert).
  * Movement categorization mirrors vanilla: eye-in-water 3D, touching-water horizontal, else the packet-flag ground
- * branch. The jump IS vanilla's server-side detection (grounded + rising + packet airborne, 1.8
- * {@code PlayerConnection:236}) - ground knockback charges there too, as in vanilla.
+ * branch. The jump IS vanilla's server-side detection (1.8 {@code PlayerConnection:236}) - ground knockback charges
+ * there too, as in vanilla.
  */
 final class ExhaustionSources {
 
@@ -51,7 +51,7 @@ final class ExhaustionSources {
 
     private static void onMove(HungerSystem hunger, PlayerMoveEvent e) {
         Player p = e.getPlayer();
-        Pos from = p.getPosition(); // pre-move; getNewPosition is the target
+        Pos from = p.getPosition(); // pre-move
         Pos to = e.getNewPosition();
         double dx = to.x() - from.x(), dy = to.y() - from.y(), dz = to.z() - from.z();
         if (p.isOnGround() && !e.isOnGround() && dy > 0) // grounded + rising + packet airborne = vanilla's jump
@@ -68,12 +68,12 @@ final class ExhaustionSources {
     }
 
     private static void onDamage(HungerSystem hunger, DamageAppliedEvent e) {
-        // victim side: the damage type's exhaustion, only when the post-mitigation damage is non-zero (vanilla gate)
+        // vanilla gates the victim's charge on non-zero post-mitigation damage
         if (e.target() instanceof Player victim && e.dealt() != 0) {
             DamageContext ctx = DamageContext.of(e.snapshot(), e.services());
             hunger.chargePriced(victim, HungerSystem.DAMAGE_TAKEN_COST, ctx.typeConfig().exhaustion(ctx));
         }
-        // attacker side: a landed melee hit (vanilla charges on damageEntity == true - i-frame-eaten hits are free)
+        // vanilla charges the attacker on damageEntity == true - i-frame-eaten hits are free
         if (e.type() instanceof MeleeDamage && e.outcome().landed() && e.source() instanceof Player attacker)
             hunger.chargePriced(attacker, HungerSystem.ATTACK_COST, 1f);
     }

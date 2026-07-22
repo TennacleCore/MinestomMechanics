@@ -16,7 +16,6 @@ import net.kyori.adventure.key.Key;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.entity.EquipmentSlot;
 import net.minestom.server.entity.LivingEntity;
-import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.tag.Tag;
@@ -68,13 +67,13 @@ public final class DrowningDamage extends DamageType implements EnvironmentalTic
         }
     }
 
-    /** Clears the tracked air so it defaults back to full next tick (e.g. on death/respawn - a respawned entity breathes freely), and refills the HUD bubbles. */
+    /** Clears the tracked air so it defaults back to full next tick, and refills the HUD bubbles. */
     public static void resetAir(LivingEntity entity) {
         entity.removeTag(AIR);
         entity.getEntityMeta().setAirTicks(MAX_AIR);
     }
 
-    /** Stores the tracked air and mirrors it to the {@code AIR_TICKS} metadata so the client's bubble HUD reflects it (Minestom never ticks air itself, so without this the bubbles never move). The metadata layer dedups same-value writes, so this is a no-op out of water. */
+    /** Mirrors the tracked air to {@code AIR_TICKS} metadata - Minestom never ticks air, so without this the bubbles never move (same-value writes are deduped there). */
     private static void setAir(LivingEntity living, int air) {
         living.setTag(AIR, air);
         living.getEntityMeta().setAirTicks(air);
@@ -82,8 +81,7 @@ public final class DrowningDamage extends DamageType implements EnvironmentalTic
 
     @Override
     public void tick(LivingEntity living, DamageSystem sys) {
-        Instance inst = living.getInstance();
-        if (inst == null) return;
+        if (living.getInstance() == null) return;
 
         DamageSnapshot snap = DamageSnapshot.of(living, this);
         DamageContext ctx = sys.contextFor(snap);

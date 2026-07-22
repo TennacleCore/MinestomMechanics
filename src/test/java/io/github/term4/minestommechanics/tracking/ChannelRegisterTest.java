@@ -18,7 +18,7 @@ class ChannelRegisterTest extends HeadlessServerTest {
     @Test
     void spawnAnnouncesReceivableChannels() {
         MinestomMechanics mm = MinestomMechanics.getInstance();
-        CompatAnimatium.install(mm); // idempotent handler put; guarantees the channel is registered here
+        CompatAnimatium.install(mm); // idempotent; ensures the channel is registered
         FakePlayer viewer = FakePlayer.connect(instance, new Pos(0.5, 42, 0.5), "RegisterViewer");
         try {
             boolean announced = viewer.sent.stream().anyMatch(p ->

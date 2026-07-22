@@ -4,9 +4,8 @@ import net.kyori.adventure.key.Key;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A gameplay attribute a {@link io.github.term4.minestommechanics.mechanics.attribute.source.Source Source} can modify - either a {@link Vanilla} one backed by a Minestom attribute
- * (client-facing; Minestom does its own base+modifier math) or a {@link Custom} one we resolve ourselves (a key, e.g. a
- * pipeline term like melee flat-add). One uniform handle so a modifier can target anything.
+ * A gameplay attribute a {@link io.github.term4.minestommechanics.mechanics.attribute.source.Source Source} can modify:
+ * {@link Vanilla} (Minestom-backed, client-facing, Minestom does the base+modifier math) or {@link Custom} (resolved here).
  *
  * <p>Inside this package the Minestom type is referenced fully-qualified to avoid the clash with this {@code Attribute}.
  */
@@ -14,12 +13,10 @@ public sealed interface Attribute permits Attribute.Vanilla, Attribute.Custom {
 
     Key key();
 
-    /** A Minestom-backed vanilla attribute. */
     record Vanilla(net.minestom.server.entity.attribute.Attribute handle) implements Attribute {
         @Override public Key key() { return handle.key(); }
     }
 
-    /** A custom attribute we own; not known to Minestom. */
     record Custom(Key key) implements Attribute {}
 
     /** The wrapped Minestom attribute, or {@code null} for a {@link Custom} one. */
@@ -31,7 +28,6 @@ public sealed interface Attribute permits Attribute.Vanilla, Attribute.Custom {
 
     static Attribute custom(String id) { return new Custom(Key.key(id)); }
 
-    // Vanilla (Minestom-backed)
     Attribute ATTACK_DAMAGE = of(net.minestom.server.entity.attribute.Attribute.ATTACK_DAMAGE);
     Attribute ATTACK_SPEED = of(net.minestom.server.entity.attribute.Attribute.ATTACK_SPEED);
     Attribute KNOCKBACK_RESISTANCE = of(net.minestom.server.entity.attribute.Attribute.KNOCKBACK_RESISTANCE);
@@ -42,6 +38,5 @@ public sealed interface Attribute permits Attribute.Vanilla, Attribute.Custom {
     Attribute SUBMERGED_MINING_SPEED = of(net.minestom.server.entity.attribute.Attribute.SUBMERGED_MINING_SPEED);
     Attribute WATER_MOVEMENT_EFFICIENCY = of(net.minestom.server.entity.attribute.Attribute.WATER_MOVEMENT_EFFICIENCY);
 
-    // Custom (ours): server-authored pipeline terms
-    Attribute MELEE_FLAT_ADD = custom("mm:melee_flat_add"); // flat melee damage added after crit (Sharpness etc.)
+    Attribute MELEE_FLAT_ADD = custom("mm:melee_flat_add"); // added after crit
 }

@@ -6,18 +6,14 @@ import io.github.term4.minestommechanics.effect.Effects;
 import io.github.term4.minestommechanics.vri.DroppedItemEntity;
 
 /**
- * Modern (26.1+) preset - the (incomplete) composed, pure-mechanics {@link MechanicsProfile}, built from the config
- * classes in this package ({@link Damage}, {@link Explosion}, {@link Projectiles}, {@link Attributes}, {@link Consumables},
- * {@link Movement}, and {@code Items}). Damage / explosion / projectiles / attributes / consumables / velocity are
- * implemented; attack, knockback, player, and blocking are still TODO. Assign with {@code mm.profiles().setGlobal(Vanilla.profile())}.
- *
- * <p>Carries mechanics only - no compat or fixes (those install separately). Includes the item registry ({@link Items}).
+ * Modern (26.1+) preset - the composed, pure-mechanics {@link MechanicsProfile} built from the config classes in this
+ * package. Mechanics only - no compat or fixes (those install separately). Incomplete: attack, knockback, player, and
+ * blocking are still TODO. Assign with {@code mm.profiles().setGlobal(Vanilla.profile())}.
  */
 public final class Vanilla {
 
     private Vanilla() {}
 
-    /** The (incomplete) modern 26.1 mechanics profile. */
     public static MechanicsProfile profile() {
         return MechanicsProfile.builder()
                 .set(MechanicsKeys.DAMAGE, Damage.config())

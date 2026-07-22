@@ -19,20 +19,17 @@ import io.github.term4.minestommechanics.mechanics.attribute.catalog.effect.Spee
 
 /**
  * Vanilla attribute-{@link Source} bundles shared across presets - the version-agnostic enchants/effects both
- * {@code Vanilla18} and {@code Vanilla} register, grouped so a preset's {@code attributes()} composes named groups (like
- * {@code damage.types.VanillaTypes}). Version-specific variants ({@code Strength.LEGACY}/{@code .MODERN}, Absorption,
- * modern-only Haste/Mining Fatigue/Jump Boost) stay inline in the preset, since the version lives in what's registered.
+ * {@code Vanilla18} and {@code Vanilla} register. Version-specific variants ({@code Strength.LEGACY}/{@code .MODERN},
+ * Absorption, modern-only Haste/Mining Fatigue/Jump Boost) stay inline in the preset.
  */
 public final class VanillaAttributes {
     private VanillaAttributes() {}
 
-    /** Version-agnostic enchants, same instance in every preset (conditional-weapon + utility). */
     public static Source[] enchants() {
         return new Source[]{Smite.INSTANCE, Bane.INSTANCE, Efficiency.INSTANCE, AquaAffinity.INSTANCE,
                 DepthStrider.INSTANCE, FireAspect.INSTANCE};
     }
 
-    /** Version-agnostic potion effects: server-side movement/health + client-rendered (Blindness, Night Vision). */
     public static Source[] effects() {
         return new Source[]{Speed.INSTANCE, Slowness.INSTANCE, Invisibility.INSTANCE, Regeneration.INSTANCE,
                 InstantHealth.INSTANCE, InstantDamage.INSTANCE, Blindness.INSTANCE, NightVision.INSTANCE,

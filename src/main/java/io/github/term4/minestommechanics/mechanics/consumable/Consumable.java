@@ -11,13 +11,12 @@ import java.util.Set;
 
 /**
  * A consumable <em>type</em>: its identity ({@link #key} + the {@link Material}(s) it triggers on) and its
- * {@link #defaultConfig()} baseline. Mirrors {@code ProjectileType}/{@code DamageType} - version-agnostic; per-version
- * behavior/effects come from the active {@link ConsumableConfig}'s per-type override (so {@code Vanilla18} vs {@code Vanilla}
- * give the same registered apple different effects). A custom consumable is one instance + a {@code register(...)}.
+ * {@link #defaultConfig()} baseline. Version-agnostic - per-version behavior/effects come from the active
+ * {@link ConsumableConfig}'s per-type override.
  */
 public final class Consumable {
 
-    /** Vanilla consume duration: 32 ticks (1.6s) for food and drink. */
+    /** 1.6s, food and drink alike. */
     public static final int VANILLA_CONSUME_TICKS = 32;
 
     private final Key key;
@@ -33,11 +32,10 @@ public final class Consumable {
     }
 
     public Key key() { return key; }
-    /** The materials whose use triggers this consumable. */
     public Set<Material> materials() { return materials; }
-    /** The type's baseline config (consume ticks / behavior); the resolver layers scope overrides over it. */
+    /** Baseline; the resolver layers scope overrides over it. */
     public ConsumableTypeConfig defaultConfig() { return defaultConfig; }
-    /** The item left after consuming one (potion -&gt; glass bottle), or {@code null} to fall back to the item's {@code use_remainder} (then nothing). */
+    /** Item left after consuming one, or {@code null} to fall back to the item's {@code use_remainder}. */
     public @Nullable Material remainder() { return remainder; }
 
     public static Builder builder(Key key, Material... materials) { return new Builder(key, materials); }
@@ -56,12 +54,12 @@ public final class Consumable {
             this.materials = new ArrayList<>(List.of(materials));
         }
 
-        /** Sets the whole baseline config directly (keyed by this consumable's key). Mutually exclusive with the knob setters. */
+        /** Mutually exclusive with the knob setters below. */
         public Builder defaultConfig(ConsumableTypeConfig cfg) { this.defaultConfig = cfg; return this; }
         public Builder consumeTicks(int v) { this.consumeTicks = v; return this; }
         public Builder behavior(ConsumableBehavior v) { this.behavior = v; return this; }
         public Builder particles(ParticleVisibility v) { this.particles = v; return this; }
-        /** The item left after consuming one (e.g. {@code GLASS_BOTTLE} for a potion); overrides the item's {@code use_remainder}. */
+        /** Overrides the item's {@code use_remainder}. */
         public Builder remainder(Material v) { this.remainder = v; return this; }
 
         public Consumable build() {

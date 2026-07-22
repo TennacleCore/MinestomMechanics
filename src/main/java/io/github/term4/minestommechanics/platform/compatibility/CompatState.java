@@ -7,8 +7,10 @@ import net.minestom.server.item.Material;
 import net.minestom.server.item.component.AttackRange;
 import net.minestom.server.item.component.BlocksAttacks;
 import net.minestom.server.utils.Unit;
+import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
 import io.github.term4.minestommechanics.platform.PacketShapes;
 import net.minestom.server.network.packet.server.SendablePacket;
+import net.minestom.server.network.packet.server.play.EntityEquipmentPacket;
 import net.minestom.server.network.packet.server.play.SetCursorItemPacket;
 import net.minestom.server.network.packet.server.play.SetPlayerInventorySlotPacket;
 import net.minestom.server.network.packet.server.play.SetSlotPacket;
@@ -18,6 +20,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -31,14 +34,12 @@ public final class CompatState {
     /** All-off policy (a modern client left untouched). */
     private static final CompatConfig OFF = CompatConfig.builder().build();
 
-    /** Every vanilla throwable whose modern client-side {@code use()} returns {@code SUCCESS} (source-verified) - i.e.
-     *  swings; {@link #reskinThrowable} shows them as {@code PAPER} instead. A CLIENT-behavior fact, deliberately NOT
-     *  derived from the projectile system's registered types (those are per-scope preset config; the swing happens
-     *  client-side whether or not the preset throws the item). */
+    /** Vanilla throwables whose modern client-side {@code use()} returns {@code SUCCESS} (source-verified), i.e. swings.
+     *  A CLIENT-behavior fact, deliberately NOT derived from the projectile system's registered types - the swing happens
+     *  client-side whether or not the preset throws the item. */
     private static final Set<Material> THROW_ON_USE = Set.of(Material.SNOWBALL, Material.EGG, Material.ENDER_PEARL,
             Material.WIND_CHARGE, Material.SPLASH_POTION, Material.LINGERING_POTION, Material.EXPERIENCE_BOTTLE);
 
-    /** Swords by registry key; the {@link #swordBlockingPose()} stamp target. */
     private static final Set<Material> SWORDS = Material.values().stream()
             .filter(m -> m.key().value().endsWith("_sword")).collect(Collectors.toUnmodifiableSet());
 
@@ -64,32 +65,26 @@ public final class CompatState {
     }
 
     public @NotNull Set<EntityPose> disabledPoses() { return policy.disabledPoses != null ? policy.disabledPoses : Set.of(); }
-    /** Whether moves into hitbox-block collision are rejected (enforced by {@code CompatMovement}). */
     public boolean restrictMovement() { return on(policy.restrictMovement); }
-    /** Whether the server hitbox/eye height stay at 1.8 dimensions regardless of pose (no crouch shrink). */
+    /** Server hitbox/eye height stay at 1.8 dimensions regardless of pose (no crouch shrink). */
     public boolean legacyHitbox() { return on(policy.legacyHitbox); }
-    /** {@code attack_range.hitbox_margin} stamped on the client's view of held items; {@code null} = untouched. */
+    /** {@code attack_range.hitbox_margin} for the client's view of held items; {@code null} = untouched. */
     public @Nullable Float attackHitboxMargin() { return policy.attackHitboxMargin; }
-    /** Whether the offhand is disabled (enforced by {@code CompatOffhand}). */
     public boolean disableOffhand() { return on(policy.disableOffhand); }
-    /** Sprint clamps while sneaking / using an item / in water (enforced by {@code CompatMovement}). */
     public boolean restrictSprintSneak() { return on(policy.restrictSprintSneak); }
     public boolean restrictSprintUse() { return on(policy.restrictSprintUse); }
     public boolean restrictSwimSpeed() { return on(policy.restrictSwimSpeed); }
-    /** Swim-dampen divisors for {@link #restrictSwimSpeed()} (horizontal / vertical); defaults when unset. */
     public double swimFactor() { return policy.swimFactor != null ? policy.swimFactor : 1.25; }
     public double swimVerticalFactor() { return policy.swimVerticalFactor != null ? policy.swimVerticalFactor : 3.0; }
-    /** Max blocks from the server eye to a placement's clicked point (enforced by {@code CompatPlacement}); {@code null} = unmanaged. */
+    /** Max blocks from the server eye to a placement's clicked point; {@code null} = unmanaged. */
     public @Nullable Double blockPlaceReach() { return policy.blockPlaceReach; }
-    /** 1.8 placement: refuse a placement whose clicked cell is air (enforced by {@code CompatPlacement}). */
     public boolean oldPlacement() { return on(policy.oldPlacement); }
 
     private static boolean on(@Nullable Boolean v) { return Boolean.TRUE.equals(v); }
 
-    /** Default ON (a display fix): unset means escorted. */
     public boolean hookPredictionEscort() { return policy.hookPredictionEscort == null || policy.hookPredictionEscort; }
 
-    /** Whether compat removed the modern attack cooldown; tracked so a profile swap restores the saved base only on a real change. */
+    /** Tracked so a profile swap restores the saved base only on a real change. */
     public boolean attackCooldownRemoved() { return attackCooldownRemoved; }
     public void setAttackCooldownRemoved(boolean v) { this.attackCooldownRemoved = v; }
 
@@ -97,31 +92,27 @@ public final class CompatState {
     public double savedAttackSpeedBase() { return savedAttackSpeedBase; }
     public void setSavedAttackSpeedBase(double v) { this.savedAttackSpeedBase = v; }
 
-    /** Whether any speed restriction is enabled (lets {@code CompatMovement} skip players with none). */
     public boolean anySpeedRestriction() { return restrictSprintSneak() || restrictSprintUse() || restrictSwimSpeed(); }
 
     /** Whether {@code CompatMovement} forced sprint off and owes a restore (so a combat sprint-reset isn't undone). */
     public boolean sprintStripped() { return sprintStripped; }
     public void setSprintStripped(boolean v) { this.sprintStripped = v; }
 
-    /** Whether {@code pose} is disabled (forced to {@code STANDING}). */
     public boolean isPoseDisabled(@NotNull EntityPose pose) { return disabledPoses().contains(pose); }
 
-    /** Records the Animatium features this client applies natively (sent by {@code CompatAnimatium}); the enforcers gate the matching hack off via {@link #handlesNatively}. */
+    /** The Animatium features this client applies natively (empty for non-Animatium clients); the enforcers gate the matching hack off via {@link #handlesNatively}. */
     public void setNativeFeatures(@NotNull Set<AnimatiumFeature> features) { this.nativeFeatures = features; }
-    /** The Animatium features this client applies natively (empty for non-Animatium clients). */
     public @NotNull Set<AnimatiumFeature> nativeFeatures() { return nativeFeatures; }
 
     /** Whether the {@code animatium:info} handshake arrived - distinguishes a feature-less Animatium client from a non-Animatium one (both have empty {@link #nativeFeatures}). */
     public boolean isAnimatiumClient() { return animatiumClient; }
     public void setAnimatiumClient(boolean v) { this.animatiumClient = v; }
 
-    /** Records the features the client's Animatium build advertised it can natively handle (from the {@code animatium:info} capability bits). */
     public void setSupportedFeatures(@NotNull Set<AnimatiumFeature> features) { this.supportedFeatures = features; }
-    /** Whether the client advertised native support for {@code feature} (decoder present) - required before sending a wire-format feature like {@link AnimatiumFeature#SHORTS_VELOCITY}. */
+    /** Whether the client advertised a decoder for {@code feature} - required before sending a wire-format one like {@link AnimatiumFeature#SHORTS_VELOCITY}. */
     public boolean supports(@NotNull AnimatiumFeature feature) { return supportedFeatures.contains(feature); }
 
-    /** Whether this player's client applies {@code feature} (or {@link AnimatiumFeature#ALL}) natively, so the matching server-side hack should be skipped for it. */
+    /** Whether the client applies {@code feature} natively, so the matching server-side hack should be skipped for it. */
     public boolean handlesNatively(@NotNull AnimatiumFeature feature) {
         return nativeFeatures.contains(AnimatiumFeature.ALL) || nativeFeatures.contains(feature);
     }
@@ -130,16 +121,14 @@ public final class CompatState {
     public boolean legacyClient() { return legacyClient; }
     public void setLegacyClient(boolean v) { this.legacyClient = v; }
 
-    /** Records the disabled pose the client believes it's in (called by setPose when intercepting a disabled pose). */
     public void recordInterceptedPose(@NotNull EntityPose pose) { this.interceptedPose = pose; }
 
-    /** Clears the intercepted pose; called once per tick before pose recomputation (updatePose). */
+    /** Called once per tick before pose recomputation. */
     public void resetInterceptedPose() { this.interceptedPose = null; }
 
     /**
-     * The pose the CLIENT believes it's in: the disabled pose intercepted this tick (e.g. crawl = {@code SWIMMING}), else
-     * the authoritative {@code serverPose}. Lets the compat/reach layer read the client's belief while the server stays
-     * STANDING - the pose analogue of the echo fix's client-vs-server split.
+     * The pose the CLIENT believes it's in: the disabled pose intercepted this tick (crawl = {@code SWIMMING}), else the
+     * authoritative {@code serverPose}. Lets the compat/reach layer read the client's belief while the server stays STANDING.
      */
     public @NotNull EntityPose clientPose(@NotNull EntityPose serverPose) {
         return interceptedPose != null ? interceptedPose : serverPose;
@@ -147,8 +136,7 @@ public final class CompatState {
 
     /**
      * The server-treated eye height (value (b) of the eye model): with {@code legacyHitbox} on, the fixed 1.8 preset
-     * ({@link ClientEye#LEGACY_SNEAKING} sneaking; the standing default already matches), so a crouching modern client
-     * still spawns/drowns at the 1.8 eye. Off, {@code nativeEye} (Minestom's native value).
+     * (the standing default already matches), so a crouching modern client still spawns/drowns at the 1.8 eye.
      */
     public double eyeHeight(double nativeEye, @NotNull EntityPose pose) {
         return legacyHitbox() && pose == EntityPose.SNEAKING ? ClientEye.LEGACY_SNEAKING : nativeEye;
@@ -169,29 +157,28 @@ public final class CompatState {
         return on(policy.fistRayHits) && stampsAttackRange();
     }
 
-    /** Whether this client's swords get the {@code blocks_attacks} view stamp (the 1.8 block pose). Animatium shows the old animation natively; 1.8 clients block natively. */
+    /** Animatium only RESTYLES an existing block pose, so it needs the stamp like any modern client; 1.8 clients block
+     *  natively and the component is junk through Via. */
     public boolean swordBlockingPose() {
-        return on(policy.swordBlockingPose) && !legacyClient && !animatiumClient;
+        return on(policy.swordBlockingPose) && !legacyClient;
     }
 
-    /** Whether this client's item view has {@code glider} stripped (no client-side glide attempt; 1.8 has no elytra).
-     *  Animatium disables the glide natively too - the strip is harmless doubled, and covers a spoofed handshake. */
+    /** Animatium disables the glide natively too - the strip is harmless doubled, and covers a spoofed handshake. */
     public boolean stripsGlider() {
         return on(policy.disableElytraFlight) && !legacyClient;
     }
 
-    /** Whether this client's item view has {@code use_cooldown} stripped - the modern client self-applies it (ender
-     *  pearl 1s etc.) even without server packets; 1.8 has no item cooldowns. NOT Animatium-excluded (not one of its features). */
+    /** Not Animatium-excluded (not one of its features). */
     public boolean stripsUseCooldowns() {
         return on(policy.removeUseCooldowns) && !legacyClient;
     }
 
-    /** Whether this player joins the shared lib team for no-push ({@code SharedTeam}); every client version enrolls - the OTHER side of a pair predicts its own push. */
+    /** Every client version enrolls in the shared no-push team - the OTHER side of a pair predicts its own push. */
     public boolean noEntityPush() {
         return on(policy.disableEntityPush);
     }
 
-    /** The melee reach the attack-box advertises (stamped on items, used by the bare-fist ray); {@code null} policy = 3 (1.8). */
+    /** The melee reach the attack-box advertises (stamped on items, used by the bare-fist ray); unset = 3 (1.8). */
     public float attackReach() {
         return policy.attackReach != null ? policy.attackReach : 3f;
     }
@@ -208,26 +195,34 @@ public final class CompatState {
                 suppressesThrowSwing(), swordBlockingPose(), stripsGlider(), stripsUseCooldowns());
     }
 
+    /** Whether {@link #rewriteItems} would change anything - lets senders keep the grouped/cached fast path. */
+    public boolean rewritesItems() {
+        return stampsAttackRange() || suppressesThrowSwing() || swordBlockingPose() || stripsGlider() || stripsUseCooldowns();
+    }
+
     /**
-     * Applies this client's view-only item rewrites - the {@code attack_range} stamp and the throwable reskin - to an
-     * outgoing packet; server items stay clean. Must cover every item-carrying packet or a slot/cursor update (pickup,
-     * held swap, drag) reaches the client unrewritten until the next full {@link WindowItemsPacket}.
+     * Applies this client's view-only item rewrites to an outgoing packet; server items stay clean. Must cover every
+     * item-carrying packet or a slot/cursor update (pickup, held swap, drag) reaches the client unrewritten until the
+     * next full {@link WindowItemsPacket}.
      */
     public @NotNull SendablePacket rewriteItems(@NotNull SendablePacket packet) {
-        if (!stampsAttackRange() && !suppressesThrowSwing() && !swordBlockingPose() && !stripsGlider() && !stripsUseCooldowns()) return packet;
+        if (!rewritesItems()) return packet;
         return switch (PacketShapes.unwrapStateless(packet)) {
             case SetSlotPacket p -> new SetSlotPacket(p.windowId(), p.stateId(), p.slot(), rewrite(p.itemStack()));
             case SetPlayerInventorySlotPacket p -> new SetPlayerInventorySlotPacket(p.slot(), rewrite(p.itemStack()));
             case WindowItemsPacket p -> new WindowItemsPacket(p.windowId(), p.stateId(), p.items().stream().map(this::rewrite).toList(), rewrite(p.carriedItem()));
             case SetCursorItemPacket p -> new SetCursorItemPacket(rewrite(p.itemStack()));
+            // another player's held item: a modern client reads the block POSE off blocks_attacks, so without the stamp
+            // it never renders anyone else blocking. The other rewrites are the viewer's own first-person concern.
+            case EntityEquipmentPacket p when swordBlockingPose() -> new EntityEquipmentPacket(p.entityId(),
+                    p.equipments().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> blockPose(e.getValue()))));
             case null, default -> packet;
         };
     }
 
     /**
      * Inbound counterpart to {@link #rewriteItems}: undoes what an affected client echoes back through creative
-     * (client-authoritative slots), so a view-only rewrite never becomes server state - from where it would spread to
-     * drops and other viewers.
+     * (client-authoritative slots), so a view-only rewrite never becomes server state.
      */
     public @NotNull ItemStack sanitizeInboundItem(@NotNull ItemStack item) {
         ItemStack out = item;
@@ -248,17 +243,22 @@ public final class CompatState {
     private ItemStack rewrite(ItemStack item) {
         if (stampsAttackRange()) item = withAttackRange(item);
         if (suppressesThrowSwing()) item = reskinThrowable(item);
-        if (swordBlockingPose() && SWORDS.contains(item.material()) && item.get(DataComponents.BLOCKS_ATTACKS) == null) {
-            item = item.with(DataComponents.BLOCKS_ATTACKS, BLOCK_POSE);
-        }
+        if (swordBlockingPose()) item = blockPose(item);
         if (stripsGlider() && item.get(DataComponents.GLIDER) != null) item = item.without(DataComponents.GLIDER);
         if (stripsUseCooldowns() && item.get(DataComponents.USE_COOLDOWN) != null) item = item.without(DataComponents.USE_COOLDOWN);
         return item;
     }
 
+    /** Honours the per-item opt-out: stamping one would have the client predict a raise the server then refuses. */
+    private ItemStack blockPose(ItemStack item) {
+        if (!SWORDS.contains(item.material()) || item.get(DataComponents.BLOCKS_ATTACKS) != null
+                || Boolean.FALSE.equals(item.getTag(BlockingSystem.BLOCKABLE))) return item;
+        return item.with(DataComponents.BLOCKS_ATTACKS, BLOCK_POSE);
+    }
+
     private ItemStack withAttackRange(ItemStack item) {
-        // respect an item's own attack_range (minigame weapon, spear); vanilla non-spear items ship none, so 1.8-parity
-        // items still get the compat box. Also keeps a creative-echoed stamp from being re-stamped onto itself.
+        // respect an item's own attack_range (minigame weapon, spear); also keeps a creative-echoed stamp
+        // from being re-stamped onto itself
         if (item.isAir() || item.get(DataComponents.ATTACK_RANGE) != null) return item;
         return item.with(DataComponents.ATTACK_RANGE, new AttackRange(0f, attackReach(), 0f, 5f, policy.attackHitboxMargin, 1f));
     }
@@ -266,9 +266,8 @@ public final class CompatState {
     private ItemStack reskinThrowable(ItemStack item) {
         Material original = item.material();
         if (!THROW_ON_USE.contains(original)) return item;
-        // PAPER's use() PASSes -> no client swing, use_item still sent. withMaterial keeps every real component; name and
-        // stack are re-applied as the original's EFFECTIVE values (get() resolves override-or-default) so paper's
-        // "Paper"/64 never show.
+        // PAPER's use() PASSes -> no client swing, use_item still sent. Name and stack are re-applied as the original's
+        // EFFECTIVE values (get() resolves override-or-default) so paper's "Paper"/64 never show.
         return item.withMaterial(Material.PAPER)
                 .withItemModel(original.key().asString())
                 .with(DataComponents.ITEM_NAME, item.get(DataComponents.ITEM_NAME))

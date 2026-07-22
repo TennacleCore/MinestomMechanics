@@ -18,14 +18,13 @@ public final class DamageCalculator {
         this.defaults = defaults;
     }
 
-    /** Resolves the config for a snapshot, merging the snapshot's config (if any) over the defaults. */
+    /** Merges the snapshot's config (if any) over the defaults, then resolves it. */
     public ResolvedDamageConfig resolveConfig(DamageSnapshot snap) {
         DamageConfig base = snap.config() != null ? snap.config() : defaults;
         DamageConfig merged = base.fromBase(defaults);
         return DamageConfigResolver.resolve(merged, DamageContext.of(snap, services));
     }
 
-    /** Computes the base damage amount (type-specific modifiers are applied by the producer). */
     public DamageResult compute(DamageSnapshot snap) {
         ResolvedDamageConfig cfg = resolveConfig(snap);
         return new DamageResult(cfg.baseAmount());

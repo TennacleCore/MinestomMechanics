@@ -8,13 +8,12 @@ import java.util.Map;
 import java.util.OptionalDouble;
 
 /**
- * The gameplay stats for one item, with legacy and modern values side by side. A stat unset for a version falls back to
- * the {@link ItemStat}'s Minestom-derived default (see {@link ItemRegistry}), so you only store what diverges from
- * vanilla/Minestom. Build with {@link #of(Material)}.
+ * The gameplay stats for one item, legacy and modern side by side. A stat unset for a version falls back to the
+ * {@link ItemStat}'s Minestom-derived default, so only store what diverges from vanilla/Minestom.
  */
 public final class ItemDef {
 
-    /** Which value set a stat belongs to (1.8 vs 26); the active one is chosen by the {@link ItemRegistry}. */
+    /** 1.8 vs 26 value set; the active one is picked by the {@link ItemRegistry}. */
     public enum Version { LEGACY, MODERN }
 
     private final Material material;
@@ -41,7 +40,7 @@ public final class ItemDef {
 
         private Builder(Material material) { this.material = material; }
 
-        /** Set both versions to the same value (use when 1.8 and 26 agree). */
+        /** Same value for both versions. */
         public Builder both(ItemStat stat, double value) { return legacy(stat, value).modern(stat, value); }
         public Builder legacy(ItemStat stat, double value) { return set(Version.LEGACY, stat, value); }
         public Builder modern(ItemStat stat, double value) { return set(Version.MODERN, stat, value); }

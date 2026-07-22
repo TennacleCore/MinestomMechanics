@@ -16,8 +16,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The main attack phase: fired when a hit is detected and its config resolved, before the ruleset runs. Bracketed by
- * {@link PreAttackEvent} (raw detection) and {@link AttackAppliedEvent} (after the ruleset); carries per-hit overrides
- * for the ruleset, crit verdict, and item.
+ * {@link PreAttackEvent} (raw detection) and {@link AttackAppliedEvent} (after the ruleset).
  */
 // TODO: allow mobs/other entities, or manual firing
 public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot> {
@@ -36,7 +35,7 @@ public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot>
     public @Nullable AttackConfig config() { return finalSnap().config(); }
     public void config(AttackConfig config) { finalSnap(finalSnap().withConfig(config)); }
 
-    /** Effective values for this hit, re-resolved from {@link #finalSnap()} each call (reflects listener changes). */
+    /** Re-resolved from {@link #finalSnap()} each call, so it reflects listener changes. */
     public AttackConfigResolver.ResolvedAttackConfig resolvedConfig() {
         AttackSnapshot s = finalSnap();
         return s.config() != null
@@ -65,17 +64,16 @@ public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot>
     /** The attacker's gameplay world. */
     public MechanicsWorld world() { return MechanicsWorld.of(attacker()); }
 
-    /** Attacker is off the ground and descending (a crit precondition). */
+    /** Off the ground and descending. */
     public boolean attackerFalling() {
         return MotionTracker.isFalling(attacker());
     }
 
-    /** Attacker is a flying player. */
     public boolean attackerFlying() {
         return attacker() instanceof Player p && p.isFlying();
     }
 
-    /** Attacker is blinded (vanilla blindness suppresses crits). */
+    /** Vanilla blindness suppresses crits. */
     public boolean attackerBlind() {
         return attacker().getEffectLevel(PotionEffect.BLINDNESS) >= 0;
     }
@@ -95,12 +93,12 @@ public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot>
 
     /**
      * Decides whether a hit is critical (the melee type applies the multiplier). Must not call
-     * {@link AttackEvent#critical()} (infinite recursion).
+     * {@link AttackEvent#critical()} - infinite recursion.
      */
     @FunctionalInterface
     public interface CriticalRule {
 
-        /** Default when a config sets none. */
+        /** Used when a config sets none. */
         CriticalRule DEFAULT = vanilla();
 
         boolean isCritical(AttackEvent event);
@@ -117,10 +115,9 @@ public final class AttackEvent extends CancellableMechanicsEvent<AttackSnapshot>
     @FunctionalInterface
     public interface AttackRule {
 
-        /** Processes the finalized attack (target may be null for swing/raytraced emulated attacks). */
+        /** Target may be null for swing/raytraced emulated attacks. */
         void processAttack(AttackEvent event);
 
-        /** Factory that creates an {@link AttackRule} bound to the active services. */
         @FunctionalInterface
         interface Ruleset {
             AttackRule create(Services services);

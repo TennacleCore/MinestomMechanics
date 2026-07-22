@@ -7,9 +7,9 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Delivers incremental slot/cursor refreshes bare: the {@link net.minestom.server.Viewable#sendPacketToViewers} default
- * (used by {@code sendSlotRefresh}) wraps them in a shared {@code CachedPacket} the per-client item rewrite
- * ({@link OptimizedPlayer#sendPacket}) can't unwrap - so a stamp/reskin reverted after the first throw/drop until a
- * full (bare) {@code WindowItems} resend. A player inventory has one viewer; the shared cache buys nothing.
+ * wraps them in a shared {@code CachedPacket} the per-client item rewrite ({@link OptimizedPlayer#sendPacket}) can't
+ * unwrap - so a stamp/reskin reverted after the first throw/drop until a full {@code WindowItems} resend. A player
+ * inventory has one viewer; the shared cache buys nothing.
  */
 public final class PerViewerInventory extends PlayerInventory {
 

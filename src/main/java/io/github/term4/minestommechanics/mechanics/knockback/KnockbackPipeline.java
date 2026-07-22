@@ -92,7 +92,7 @@ public final class KnockbackPipeline {
 
     /** The vanilla stage order, as a fresh mutable list - edit it to insert/remove/reorder. */
     public static List<Stage> vanilla() {
-        return new ArrayList<>(List.of(FRICTION, BASE_BOUNDS, COMBINE_EXTRA, EXTRA_BOUNDS, COMPONENTS, AIRBORNE_GATE));
+        return new ArrayList<>(VANILLA);
     }
 
     /** Runs {@code stages} (or {@link #vanilla()} when {@code null}) over {@code state}; returns the final vector. */

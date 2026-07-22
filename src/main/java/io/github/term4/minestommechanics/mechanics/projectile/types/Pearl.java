@@ -12,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Ender pearl throwable: spawns a {@link PearlEntity} that teleports its shooter to the impact (+5 fall damage for a
- * player). Config-free; the self-pass-through comes from {@code Vanilla18.pearl()}. Throw/consume wiring is inherited from {@link ThrowableItemType}.
+ * player). Config-free; the self-pass-through comes from {@code Vanilla18.pearl()}.
  */
 public final class Pearl extends ThrowableItemType {
 

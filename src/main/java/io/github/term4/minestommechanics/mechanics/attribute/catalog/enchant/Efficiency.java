@@ -9,10 +9,8 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * Efficiency (enchant) - {@code level² + 1} mining speed on {@link Attribute#MINING_EFFICIENCY} ({@code ADD_VALUE}).
- * Identical in 1.8 ({@code i² + 1} in the dig formula) and 26 ({@code mining_efficiency}), so one variant. A
- * {@link HeldSource}, pushed onto the holder's {@code MINING_EFFICIENCY} while held (mining is client-computed). The
- * "only when the tool is effective" gate lives in the dig calculator.
+ * Efficiency - {@code level² + 1} on {@link Attribute#MINING_EFFICIENCY}. Identical in 1.8 ({@code i² + 1} in the dig
+ * formula) and 26, so one variant. The "only when the tool is effective" gate lives in the dig calculator.
  */
 public final class Efficiency {
 

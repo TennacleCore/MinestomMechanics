@@ -12,10 +12,8 @@ import java.util.function.Function;
 /**
  * Immutable blocking config, assignable per scope via the {@link io.github.term4.minestommechanics.MechanicsProfile}
  * {@code blocking} member. A {@code Material} blocks iff it has an entry in {@link #materials} - that map is both "which
- * items block" and their per-item config; {@link #defaults} supplies shared knobs every entry inherits.
- *
- * <p>So a server disables blocking with an empty config (or {@code defaults(enabled(false))}), retunes per profile, or
- * maps materials to different {@link BlockingBehavior}s. The behavior is the unit; items map to it here.
+ * items block" and their per-item config; {@link #defaults} supplies shared knobs every entry inherits. An empty config
+ * disables blocking.
  */
 public final class BlockingConfig extends Config<BlockingContext, BlockingConfig> {
 

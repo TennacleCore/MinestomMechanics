@@ -19,11 +19,11 @@ import java.util.Set;
 /**
  * Animatium integration: an Animatium client applies 1.8 behaviour natively, so instead of server-side hacks we tell it
  * which features to apply and skip those hacks. Detection is the {@code animatium:info} plugin message on join (routed by
- * {@link ClientInfoTracker}); on receipt we resolve the feature set for the
- * player's {@link CompatConfig}, send {@code animatium:set_server_features}, and record it on {@link CompatState} so the enforcers gate off for it.
+ * {@link ClientInfoTracker}); on receipt the feature set for the player's {@link CompatConfig} is sent and recorded on
+ * {@link CompatState} so the enforcers gate off for it.
  *
  * <p>The set is <em>derived</em> from the compat knobs ({@link #derive}) or overridden by {@code CompatConfig.animatiumFeatures}.
- * Features Animatium can't yet do natively (pose disabling, fluids, typed eye height) stay server-side hacks for everyone (Track 2: a fork/PR).
+ * Features Animatium can't yet do natively (pose disabling, fluids, typed eye height) stay server-side hacks for everyone.
  */
 public final class CompatAnimatium {
 
@@ -34,12 +34,11 @@ public final class CompatAnimatium {
 
     private CompatAnimatium() {}
 
-    /** Routes the {@code animatium:info} handshake through {@link ClientInfoTracker}. Needs the player provider (the feature set is recorded on {@code OptimizedPlayer.compat()}). */
+    /** Routes the {@code animatium:info} handshake through {@link ClientInfoTracker}. Needs the player provider. */
     public static void install(MinestomMechanics mm) {
         mm.clientInfo().onPluginMessage(INFO_CHANNEL, (player, data) -> onInfo(mm, player, data));
     }
 
-    /** An Animatium client identified itself: record its advertised native-feature capabilities, then resolve + send its feature set (re-sent later by {@link #applyFeatures}). */
     private static void onInfo(MinestomMechanics mm, Player player, byte[] info) {
         if (!(player instanceof OptimizedPlayer op)) return;
         op.compat().setAnimatiumClient(true);
@@ -51,17 +50,16 @@ public final class CompatAnimatium {
 
     /**
      * (Re)resolves and sends an Animatium client's feature set, recording it on {@link CompatState} for the enforcers to gate
-     * on. Called on the {@code animatium:info} handshake and again whenever {@code PlayerConfigApplier} re-applies the player's
-     * config (kit/profile swap, instance/world change) - the client only handshakes once on join, so the server must re-push
-     * the set itself. No-op for non-Animatium clients (so a vanilla client is never wrongly marked as handling features natively).
+     * on. Also called whenever {@code PlayerConfigApplier} re-applies the player's config - the client only handshakes once on
+     * join, so the server must re-push the set itself. No-op for non-Animatium clients.
      */
     public static void applyFeatures(MinestomMechanics mm, Player player) {
         if (!(player instanceof OptimizedPlayer op)) return;
         CompatConfig cfg = mm.profiles().resolve(player, MechanicsKeys.COMPAT);
         boolean debug = cfg != null && Boolean.TRUE.equals(cfg.animatiumDebug);
         if (!op.compat().isAnimatiumClient()) {
-            // the debug knob's other answer: WHY nothing was sent. On join one skip line is NORMAL even for
-            // an Animatium client - the first config apply precedes the mod's handshake, which then re-applies
+            // on join one skip line is NORMAL even for an Animatium client - the first config apply
+            // precedes the mod's handshake, which then re-applies
             if (debug) player.sendMessage(Component.text(
                     "[animatium] skipped: no animatium:info from this client (yet)", NamedTextColor.GRAY));
             return;
@@ -77,12 +75,11 @@ public final class CompatAnimatium {
         }
     }
 
-    /** The features to send: the explicit {@code animatiumFeatures} override if set, else the knob-derived set. */
     static Set<AnimatiumFeature> resolve(CompatConfig cfg) {
         return cfg.animatiumFeatures != null ? cfg.animatiumFeatures : derive(cfg);
     }
 
-    /** Maps the enabled compat knobs to their native Animatium equivalents (the default, when no override is set). */
+    /** Maps the enabled compat knobs to their native Animatium equivalents. */
     static Set<AnimatiumFeature> derive(CompatConfig cfg) {
         EnumSet<AnimatiumFeature> set = EnumSet.noneOf(AnimatiumFeature.class);
         if (cfg.attackHitboxMargin != null) set.add(AnimatiumFeature.PICK_INFLATION);
@@ -90,8 +87,7 @@ public final class CompatAnimatium {
         if (Boolean.TRUE.equals(cfg.restrictSprintUse)) set.add(AnimatiumFeature.FIX_SPRINT_ITEM_USE);
         if (Boolean.TRUE.equals(cfg.restrictSprintSneak)) set.add(AnimatiumFeature.FIX_SPRINT_SNEAKING);
         if (cfg.disabledPoses != null) {
-            // Minecraft has no crawl pose: in-water swim AND the squeeze-crawl are both Pose.SWIMMING, so disabling SWIMMING
-            // server-side maps to both client bits (the mod tells them apart by isSwimming vs the fit fallback).
+            // in-water swim AND the squeeze-crawl are both Pose.SWIMMING, so disabling it maps to both client bits
             if (cfg.disabledPoses.contains(EntityPose.SWIMMING)) {
                 set.add(AnimatiumFeature.DISABLE_SWIM_POSE);
                 set.add(AnimatiumFeature.DISABLE_CRAWL_POSE);
@@ -103,7 +99,7 @@ public final class CompatAnimatium {
         if (Boolean.TRUE.equals(cfg.oldFlight)) set.add(AnimatiumFeature.OLD_FLIGHT);
         if (Boolean.TRUE.equals(cfg.leftClickItemUsage)) set.add(AnimatiumFeature.LEFT_CLICK_ITEM_USAGE);
         if (Boolean.TRUE.equals(cfg.disableAutoSneak)) set.add(AnimatiumFeature.DISABLE_AUTO_SNEAK);
-        // oldPhysics is the bundle default; each per-aspect knob overrides it (null = follow the bundle).
+        // oldPhysics is the bundle default; each per-aspect knob overrides it (null = follow the bundle)
         boolean physics = Boolean.TRUE.equals(cfg.oldPhysics);
         if (physicsAspect(cfg.oldMomentum, physics)) set.add(AnimatiumFeature.OLD_MOMENTUM);
         if (physicsAspect(cfg.disableBedBounce, physics)) set.add(AnimatiumFeature.DISABLE_BED_BOUNCE);
@@ -116,12 +112,11 @@ public final class CompatAnimatium {
         return set;
     }
 
-    /** A per-aspect physics knob's effective value: explicit {@code true}/{@code false} overrides, {@code null} follows the {@code oldPhysics} bundle. */
     private static boolean physicsAspect(@Nullable Boolean knob, boolean bundle) {
         return knob != null ? knob : bundle;
     }
 
-    /** Drops wire-format features the client didn't advertise support for - sending those to a client that can't decode them corrupts the stream. */
+    /** Drops wire-format features the client didn't advertise - a client that can't decode them gets a corrupt stream. */
     private static Set<AnimatiumFeature> gateWireFeatures(Set<AnimatiumFeature> features, CompatState state) {
         if (!features.contains(AnimatiumFeature.SHORTS_VELOCITY) || state.supports(AnimatiumFeature.SHORTS_VELOCITY)) {
             return features;
@@ -132,9 +127,8 @@ public final class CompatAnimatium {
     }
 
     /**
-     * The {@link AnimatiumFeature}s an Animatium client advertised it handles natively, parsed from its {@code animatium:info}
-     * payload ({@code double version}, optional dev string, then a length-prefixed {@code BitSet.toByteArray()}). Empty for a
-     * client that sends no capability field (upstream/old Animatium) or a malformed payload.
+     * The features a client advertised, from its {@code animatium:info} payload ({@code double version}, optional dev string,
+     * then a length-prefixed {@code BitSet.toByteArray()}). Empty for an upstream/old Animatium or a malformed payload.
      */
     private static Set<AnimatiumFeature> parseSupportedFeatures(byte[] info) {
         try {
@@ -154,7 +148,7 @@ public final class CompatAnimatium {
         }
     }
 
-    /** Packs the feature bits into the {@code set_server_features} payload ({@code BitSet.toByteArray}, the inverse of Animatium's {@code BitSet.valueOf}). */
+    /** {@code BitSet.toByteArray} - the inverse of Animatium's {@code BitSet.valueOf}. */
     private static byte[] encode(Set<AnimatiumFeature> features) {
         BitSet bits = new BitSet();
         for (AnimatiumFeature f : features) bits.set(f.bit);

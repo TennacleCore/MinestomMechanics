@@ -9,8 +9,8 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * Haste (potion). {@link #MODERN} is {@code +0.1 × level} attack-speed ({@code ADD_MULTIPLIED_TOTAL}, 26). 1.8 Haste is
- * a dig-speed mechanic (no attribute) - needs the mining system, so no LEGACY variant here yet.
+ * Haste. {@link #MODERN} is 26's {@code +0.1 × level} attack speed. 1.8 Haste is a dig-speed mechanic with no attribute
+ * (needs the mining system), so there is no LEGACY variant yet.
  */
 public final class Haste {
 

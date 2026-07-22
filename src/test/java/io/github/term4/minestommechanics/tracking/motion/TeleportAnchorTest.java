@@ -13,9 +13,9 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * The move-delta reconstruction is anchored to the previous move packet, so a teleport must re-anchor (or the first
- * post-teleport packet reads the whole jump as one tick of motion) while leaving the pre-teleport delta in place - the
- * client keeps its real motion through a teleport. Pearls, /tp, and shard hops are all this case.
+ * Move deltas are anchored to the previous move packet, so a teleport must re-anchor or the first post-teleport
+ * packet reads the whole jump as one tick of motion - while leaving the pre-teleport delta in place, since the client
+ * keeps its real motion through a teleport. Pearls, /tp and shard hops are all this case.
  */
 class TeleportAnchorTest extends HeadlessServerTest {
 

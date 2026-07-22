@@ -21,18 +21,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Vanilla: even a 0-damage thrown hit goes through damageEntity - hurt flash + the invul window that gates further hits. */
 class ProjectileInvulTest extends HeadlessServerTest {
 
+    private static ProjectileEntity snowballAt(LivingEntity shooter, ProjectileConfig config) {
+        var snap = ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config);
+        ProjectileEntity ball = new ProjectileSystem(MinestomMechanics.getInstance(), config).launch(snap);
+        assertNotNull(ball);
+        awaitSpawn(ball);
+        return ball;
+    }
+
+    private static void tickUntilImpact(ProjectileEntity ball) {
+        for (int tick = 1; tick <= 10 && !ball.isRemoved(); tick++) ball.tick(tick * 50L);
+    }
+
     @Test
     void thrownHitOpensTheInvulWindowOnPlayers() {
         LivingEntity shooter = zombie(new Pos(12.5, 64, 9.5, 0.0f, 0.0f));
         var victim = FakePlayer.connect(instance,
                 new Pos(12.5, 64, 13.5), "InvulVictim");
-        var config = Vanilla18.projectiles();
-        var snap = ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config);
-        ProjectileEntity ball = new ProjectileSystem(MinestomMechanics.getInstance(), config).launch(snap);
-        assertNotNull(ball);
-        awaitSpawn(ball);
+        ProjectileEntity ball = snowballAt(shooter, Vanilla18.projectiles());
         try {
-            for (int tick = 1; tick <= 10 && !ball.isRemoved(); tick++) ball.tick(tick * 50L);
+            tickUntilImpact(ball);
             assertTrue(ball.isRemoved(), "snowball hit the player");
             assertTrue(DamageSystem.isInvulnerableToDamage(victim.player), "a thrown hit opens the player's i-frame window");
         } finally {
@@ -47,13 +55,9 @@ class ProjectileInvulTest extends HeadlessServerTest {
         LivingEntity shooter = zombie(new Pos(9.5, 64, 9.5, 0.0f, 0.0f));
         var victim = FakePlayer.connect(instance,
                 new Pos(9.5, 64, 13.5), "Mmc18Victim");
-        var config = Projectiles.config();
-        var snap = ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config);
-        ProjectileEntity ball = new ProjectileSystem(MinestomMechanics.getInstance(), config).launch(snap);
-        assertNotNull(ball);
-        awaitSpawn(ball);
+        ProjectileEntity ball = snowballAt(shooter, Projectiles.config());
         try {
-            for (int tick = 1; tick <= 10 && !ball.isRemoved(); tick++) ball.tick(tick * 50L);
+            tickUntilImpact(ball);
             assertTrue(ball.isRemoved(), "mmc18 snowball hit the player");
             assertTrue(DamageSystem.isInvulnerableToDamage(victim.player), "the mmc18 snowball inherits the thrown invul window");
         } finally {
@@ -67,13 +71,9 @@ class ProjectileInvulTest extends HeadlessServerTest {
     void thrownHitOpensTheInvulWindow() {
         LivingEntity shooter = zombie(new Pos(12.5, 64, 2.5, 0.0f, 0.0f));
         LivingEntity victim = zombie(new Pos(12.5, 64, 6.5));
-        var config = Vanilla18.projectiles();
-        var snap = ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config);
-        ProjectileEntity ball = new ProjectileSystem(MinestomMechanics.getInstance(), config).launch(snap);
-        assertNotNull(ball);
-        awaitSpawn(ball);
+        ProjectileEntity ball = snowballAt(shooter, Vanilla18.projectiles());
         try {
-            for (int tick = 1; tick <= 10 && !ball.isRemoved(); tick++) ball.tick(tick * 50L);
+            tickUntilImpact(ball);
             assertTrue(ball.isRemoved(), "snowball hit the victim");
             assertTrue(DamageSystem.isInvulnerableToDamage(victim), "a thrown hit opens the i-frame window");
 

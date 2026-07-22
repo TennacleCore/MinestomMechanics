@@ -5,8 +5,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Strips empty (AIR) slots from outgoing {@code EntityEquipmentPacket}s, matching vanilla ({@link LegacyEquipmentFix}).
- * Rides the OptimizedPlayer send-packet override: install-level toggle, not per-scope; vanilla-parity for every client.
- * Temporary - removable once branch {@code fix/skip-empty-equipment-slots} is on the pinned dependency.
+ * Rides the OptimizedPlayer send-packet override: install-level toggle, not per-scope; applies to every client.
  */
 public final class LegacyEquipmentFixConfig implements FixToggle {
 
@@ -14,7 +13,6 @@ public final class LegacyEquipmentFixConfig implements FixToggle {
 
     private LegacyEquipmentFixConfig(Builder b) { this.enabled = b.enabled; }
 
-    /** Whether empty equipment slots are stripped from outgoing equipment packets; {@code null} = off. */
     public @Nullable Boolean enabled() { return enabled; }
 
     /** Merges this config over {@code base}: this config's set knob wins, unset falls back to {@code base}. */

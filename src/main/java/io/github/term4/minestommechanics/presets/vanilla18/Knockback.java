@@ -2,19 +2,15 @@ package io.github.term4.minestommechanics.presets.vanilla18;
 
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 
-/**
- * Vanilla 1.8 knockback configs - the canonical 1.8 values, consumed both by the {@link Vanilla18} preset profile and by
- * the systems that fall back to them ({@code KnockbackSystem}, {@code DamageSystem}).
- */
+/** Vanilla 1.8 knockback configs; also the {@code KnockbackSystem} / {@code DamageSystem} fallbacks. */
 public final class Knockback {
 
     private Knockback() {}
 
     /**
-     * Melee knockback with every vanilla 1.8 value set except {@code velocity}, which is deliberately unset so the
-     * friction fold reads the scoped rule ({@code MechanicsProfile.velocity(...)}). TODO(modern): 1.20+ KB differs -
-     * grounded-only vertical fold, vertical add = power (not 0.4), resistance scales instead of gating, 0.003 clamp +
-     * apex micro-step.
+     * Every vanilla 1.8 value except {@code velocity}, left unset so the friction fold reads the scoped rule
+     * ({@code MechanicsProfile.velocity(...)}). TODO(modern): 1.20+ KB differs - grounded-only vertical fold, vertical
+     * add = power (not 0.4), resistance scales instead of gating, 0.003 clamp + apex micro-step.
      */
     public static KnockbackConfig melee() {
         return KnockbackConfig.builder()
@@ -41,8 +37,8 @@ public final class Knockback {
     }
 
     /**
-     * Projectile knockback: in 1.8 a thrown projectile uses the thrower's {@link #melee() melee knockback}, as a non-melee
-     * hit (no sprint bonus). Punch is 0.6/level (EntityArrow), not melee Knockback's 0.5.
+     * In 1.8 a thrown projectile uses the thrower's {@link #melee() melee knockback} as a non-melee hit (no sprint
+     * bonus). Punch is 0.6/level (EntityArrow), not melee Knockback's 0.5.
      */
     public static KnockbackConfig projectile() {
         return KnockbackConfig.builder(melee())
@@ -51,9 +47,9 @@ public final class Knockback {
     }
 
     /**
-     * Generic damage-tick "knockback" (fire, cactus, fall, ...): vanilla broadcasts the victim's server-tracked velocity
-     * with no impulse, so this config is all zeroes with a 1:1 friction fold - the velocity rule is the broadcast. Bounds
-     * are explicitly cleared (the melee {@code 0.4} vertical cap must not clip a jump's {@code 0.42} seed).
+     * Damage-tick "knockback" (fire, cactus, fall, ...): vanilla broadcasts the victim's server-tracked velocity with no
+     * impulse, so all zeroes with a 1:1 friction fold - the velocity rule is the broadcast. Bounds cleared so the melee
+     * {@code 0.4} vertical cap can't clip a jump's {@code 0.42} seed.
      */
     public static KnockbackConfig hurt() {
         return KnockbackConfig.builder()
@@ -78,7 +74,7 @@ public final class Knockback {
                 .frictionV(1.0)
                 .frictionModeH(KnockbackConfig.FrictionMode.FACTOR)
                 .frictionModeV(KnockbackConfig.FrictionMode.FACTOR)
-                // velocity deliberately unset: the broadcast folds the scoped rule (MechanicsProfile.velocity).
+                // velocity unset: the broadcast folds the scoped rule
                 .quantizeVelocity(true)
                 .build();
     }

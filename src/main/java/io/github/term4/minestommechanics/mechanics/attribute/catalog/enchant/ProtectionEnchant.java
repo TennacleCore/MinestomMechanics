@@ -7,11 +7,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Set;
 
 /**
- * The five vanilla armor protection enchants - the EPF (enchantment protection factor) contributors. Each carries its
- * key, the damage {@link ProtectionCategory category} that gates it ({@code null} = general "all"), and the per-version
- * per-piece term: 1.8 floors {@code (6+lvl²)/3 × typeMult} ({@code EnchantmentProtection.a}, {@code MathHelper.d} = floor);
- * 26 adds a flat {@code lvl × perLevel} ({@code damage_protection} data effect). Definitions only - the version formula +
- * aggregation live in {@link io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionConfig}.
+ * The five vanilla armor protection enchants - the EPF contributors. Each carries its key, the
+ * {@link ProtectionCategory category} that gates it ({@code null} = general "all"), and the per-version per-piece term.
+ * Definitions only; the aggregation lives in {@link io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionConfig}.
  */
 public enum ProtectionEnchant {
     PROTECTION(Key.key("minecraft:protection"), null, 0.75F, 1),
@@ -32,25 +30,24 @@ public enum ProtectionEnchant {
         this.modernPerLevel = modernPerLevel;
     }
 
-    /** The enchant's registry key. */
     public Key key() { return key; }
 
-    /** The damage category that gates this enchant, or {@code null} for general Protection (applies to all). */
+    /** {@code null} for general Protection. */
     public @Nullable ProtectionCategory category() { return category; }
 
-    /** Whether this enchant reduces damage of the given categories: general always, specialized only when its category is present. */
+    /** General always applies; specialized only when its category is present. */
     public boolean applies(Set<ProtectionCategory> categories) {
         return category == null || categories.contains(category);
     }
 
-    /** 1.8 per-piece EPF: {@code floor((6 + lvl²)/3 × typeMult)} (float math, {@code MathHelper.d} = floor). */
+    /** 1.8 {@code EnchantmentProtection.a}: {@code floor((6 + lvl²)/3 × typeMult)}, float math. */
     public int legacyPerPiece(int level) {
         if (level <= 0) return 0;
         float f = (float) (6 + level * level) / 3.0F * legacyMult;
         return (int) Math.floor(f);
     }
 
-    /** 26 per-piece EPF: flat {@code lvl × perLevel}. */
+    /** 26 {@code damage_protection}: flat {@code lvl × perLevel}. */
     public int modernPerPiece(int level) {
         return level <= 0 ? 0 : level * modernPerLevel;
     }

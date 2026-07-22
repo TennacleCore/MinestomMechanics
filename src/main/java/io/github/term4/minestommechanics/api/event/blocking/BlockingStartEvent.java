@@ -7,9 +7,8 @@ import net.minestom.server.event.trait.CancellableEvent;
 import net.minestom.server.item.ItemStack;
 
 /**
- * Fired when a player begins blocking (raises a blockable item). Cancel to deny the block (never enters the state).
- * A shield only becomes effective after its block-delay; per-hit reduction is {@link BlockingDamageEvent}, the lower is
- * {@link BlockingStopEvent}.
+ * Fired when a player raises a blockable item. Cancel to deny the block (the state is never entered). A shield only
+ * becomes effective after its block-delay.
  */
 public final class BlockingStartEvent implements CancellableEvent {
 

@@ -8,11 +8,9 @@ import net.minestom.server.potion.CustomPotionEffect;
 import java.util.List;
 
 /**
- * Tipped-arrow framework: resolves an arrow item's {@code potion_contents} into the on-hit effect payload and stamps it on
- * the {@link ArrowEntity}. Called by a launcher with the actual ammo (a bow's {@code snap.item()} is the bow, not the
- * arrow, so the launcher - which consumed the ammo - drives this). Vanilla {@code Arrow}: base {@code potion} resolved via
- * {@link VanillaPotions} + {@code customEffects}, scaled on hit by the item's {@code potion_duration_scale} (default 1.0;
- * a crafted vanilla tipped arrow bakes 0.125 = 1/8). A non-potion item (plain arrow) is a no-op.
+ * Resolves an arrow item's {@code potion_contents} into the on-hit effect payload and stamps it on the
+ * {@link ArrowEntity}. Called by a launcher with the actual ammo - a bow's {@code snap.item()} is the bow, not the
+ * arrow. Scaled on hit by the item's {@code potion_duration_scale} (a crafted vanilla tipped arrow bakes 0.125 = 1/8).
  */
 public final class TippedArrows {
     private TippedArrows() {}

@@ -10,14 +10,9 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Golden/characterization pins for {@link KnockbackCalculator#compute} under the vanilla-1.8 config
- * ({@link Knockback#melee()}), across sprint/no-sprint, the dirCtx branches (source / explicit direction / origin-look-at),
- * a diagonal, and the velocity friction fold. The attribute refactor folds {@code extraLevel} into a {@code KB_BONUS}
- * slot and the built-in steps into named seams; the resulting LEGACY stages must reproduce these vectors 1:1.
- *
- * <p>Values are b/s (the compute output is already {@code × tps}). Captured from current behavior. Note: knockback
- * resistance is NOT read here - it lives in the (probabilistic) {@code DamageSystem.applyHurtKnockback} gate and will be
- * pinned when it becomes the flavor-tagged KB stage in step 1. See docs/attributes-design.md.
+ * Characterization pins for {@link KnockbackCalculator#compute} under {@link Knockback#melee()}. Values are b/s (the
+ * compute output is already {@code × tps}). Knockback resistance is NOT read here - it lives in
+ * {@code DamageSystem.applyHurtKnockback}. See docs/attributes-design.md.
  */
 class KnockbackCalculatorCharacterizationTest extends HeadlessServerTest {
 

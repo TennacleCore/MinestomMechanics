@@ -24,12 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class SafeFallDistanceTest extends HeadlessServerTest {
 
-    /** The real modern fall config (Vanilla preset), so this guards the actual wiring not a copy. */
+    /** The preset's own config, so this guards the wiring rather than a copy of the formula. */
     private static FallDamageConfig modernFall() {
         return (FallDamageConfig) io.github.term4.minestommechanics.presets.vanilla.Damage.config().typeConfig(FallDamage.KEY);
     }
 
-    /** The real 1.8 fall config (Vanilla18 preset). */
     private static FallDamageConfig legacyFall() {
         return (FallDamageConfig) Damage.config().typeConfig(FallDamage.KEY);
     }

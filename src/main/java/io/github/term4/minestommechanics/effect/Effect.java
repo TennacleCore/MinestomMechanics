@@ -7,17 +7,16 @@ import net.minestom.server.sound.SoundEvent;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A pluggable audiovisual effect: given an {@link EffectContext} (where + who), it emits sounds / particles / entity
- * animations to the shard-scoped audience. The unit of the effect layer - registered per {@link Effects effect key} (or
- * a custom key) in an {@link EffectRegistry}, or composed from the built-in factories. Runs on the caller's thread (the
- * shard's clock); its only side effect is packet sends, which are thread-safe.
+ * A pluggable audiovisual effect: given an {@link EffectContext} (where + who), emits sounds / particles / entity
+ * animations to the shard-scoped audience. Registered per {@link Effects effect key} in an {@link EffectRegistry}. Runs
+ * on the caller's thread (the shard's clock); its only side effect is packet sends, which are thread-safe.
  */
 @FunctionalInterface
 public interface Effect {
 
     void play(@NotNull EffectContext ctx);
 
-    /** Plays nothing - register a key to this ({@code registry.register(key, Effect.NONE)}) to silence that effect. */
+    /** Plays nothing - register a key to this to silence that effect. */
     Effect NONE = ctx -> {};
 
     /** A positional sound at the context position, to the shard audience. */
@@ -30,12 +29,12 @@ public interface Effect {
         return ctx -> ctx.particle(particle, count, spread, spread, spread, speed);
     }
 
-    /** An entity animation on the context source (its own sparkle), to its viewers + itself. */
+    /** An entity animation on the context source, to its viewers + itself. */
     static @NotNull Effect entityAnimation(EntityAnimationPacket.@NotNull Animation animation) {
         return ctx -> ctx.entityAnimation(animation);
     }
 
-    /** A hit animation on the context target (the vanilla crit / magic-crit sparkle), to the source's viewers - not the source (it predicts its own). */
+    /** A hit animation on the context target, to the source's viewers - not the source (it predicts its own). */
     static @NotNull Effect hitAnimation(EntityAnimationPacket.@NotNull Animation animation) {
         return ctx -> ctx.hitAnimation(animation);
     }
@@ -45,7 +44,7 @@ public interface Effect {
         return ctx -> ctx.hitAnimationAll(animation);
     }
 
-    /** This effect, then {@code next} (compose several plays into one). */
+    /** This effect, then {@code next}. */
     default @NotNull Effect and(@NotNull Effect next) {
         return ctx -> { play(ctx); next.play(ctx); };
     }

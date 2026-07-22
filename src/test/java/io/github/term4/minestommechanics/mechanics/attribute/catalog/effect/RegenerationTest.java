@@ -10,10 +10,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-/**
- * Regeneration: heals {@code +1} every {@code 50 >> amplifier} ticks (identical in 1.8 + 26). The interval + heal are
- * tested on the behavior directly; the periodic dispatch is exercised by ticking an entity with a 1-tick-interval level.
- */
+/** Regeneration heals {@code +1} every {@code 50 >> amplifier} ticks (identical in 1.8 + 26). */
 class RegenerationTest extends HeadlessServerTest {
 
     @Test
@@ -34,7 +31,7 @@ class RegenerationTest extends HeadlessServerTest {
         float max = (float) e.getAttributeValue(net.minestom.server.entity.attribute.Attribute.MAX_HEALTH);
         e.setHealth(max);
         Regeneration.INSTANCE.behavior().onTick(e, 1);
-        assertEquals(max, e.getHealth(), 1e-4); // capped, no over-heal
+        assertEquals(max, e.getHealth(), 1e-4);
     }
 
     @Test
@@ -45,7 +42,7 @@ class RegenerationTest extends HeadlessServerTest {
         assertNotNull(regen, "regeneration effect");
         e.addEffect(new Potion(regen, (byte) 5, 200)); // amplifier 5 -> interval 50>>5 = 1 (heals each tick)
         try {
-            e.tick(0L); // fires EntityTickEvent -> AttributeSystem.tickEffects -> onTick
+            e.tick(0L); // EntityTickEvent -> AttributeSystem.tickEffects
             assertEquals(6f, e.getHealth(), 1e-4);
         } finally {
             e.removeEffect(regen);

@@ -19,11 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Explosion math + system integration: the pure calculator falls off with distance (and returns {@code null} past
- * {@code 2·power}), and a full explosion knocks/damages closer entities harder while routing damage through the
- * {@link io.github.term4.minestommechanics.mechanics.damage.DamageSystem}.
- */
+/** Explosion falloff: the calculator returns {@code null} past {@code 2·power}, and closer entities are hit harder. */
 class ExplosionTest extends HeadlessServerTest {
 
     @Test
@@ -67,7 +63,6 @@ class ExplosionTest extends HeadlessServerTest {
         assertNotNull(tFar.knockback());
         assertTrue(tNear.knockback().length() > tFar.knockback().length(), "closer knockback should be stronger");
         assertTrue(tNear.damage() > tFar.damage(), "closer damage should be higher");
-        // damage actually landed through the DamageSystem
         assertTrue(near.getHealth() < 20f, "near zombie should have taken damage");
         assertTrue(far.getHealth() < 20f, "far zombie should have taken damage");
     }

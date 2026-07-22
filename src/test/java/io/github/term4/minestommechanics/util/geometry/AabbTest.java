@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** The shared box math: nearest-point distance + the ray-AABB slab test. */
 class AabbTest {
 
-    private static final Aabb UNIT = new Aabb(0, 0, 0, 1, 1, 1); // 1x1x1 box at the origin
+    private static final Aabb UNIT = new Aabb(0, 0, 0, 1, 1, 1);
 
     @Test
     void nearestDistanceInsideIsZeroOutsideIsEuclidean() {
@@ -21,7 +21,7 @@ class AabbTest {
 
     @Test
     void ofPlacesTheBoxAtPosAndGrowsByThePad() {
-        BoundingBox bb = new BoundingBox(0.6, 1.8, 0.6); // a player box (centred on x/z, feet at y)
+        BoundingBox bb = new BoundingBox(0.6, 1.8, 0.6); // player box: centred on x/z, feet at y
         Aabb grown = Aabb.of(bb, new Pos(5, 64, 5), 0.1);
         assertEquals(5 + bb.minX() - 0.1, grown.minX(), 1e-9);
         assertEquals(64 + bb.minY() - 0.1, grown.minY(), 1e-9);
@@ -30,7 +30,6 @@ class AabbTest {
 
     @Test
     void rayHitsBoxHeadOnReportsEntryDistance() {
-        // from x=-2 aiming +x at the box centre line: entry at x=0 => distance 2
         double d = UNIT.rayDistance(-2, 0.5, 0.5, 1, 0, 0, 10);
         assertEquals(2.0, d, 1e-9, "entry distance along the ray");
     }

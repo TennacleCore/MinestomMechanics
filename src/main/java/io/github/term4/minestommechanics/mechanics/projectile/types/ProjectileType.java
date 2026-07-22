@@ -16,15 +16,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Base for a projectile type in the {@code ProjectileSystem} (the analog of {@code DamageType}): identifies a
- * projectile, maps to a Minestom {@link EntityType}, optionally carries intrinsic {@link #defaultConfig() defaults},
- * and - for self-driven types - wires its launch trigger in {@link #enable}. {@link #createEntity} produces the flying
- * entity (default a generic {@link ManagedProjectile}); subclasses with extra behavior (arrow) override it.
+ * Base for a projectile type: identifies a projectile, maps to a Minestom {@link EntityType}, optionally carries
+ * intrinsic {@link #defaultConfig() defaults}, and - for self-driven types - wires its launch trigger in
+ * {@link #enable}. {@link #createEntity} produces the flying entity (default a generic {@link ManagedProjectile}).
  */
 public abstract class ProjectileType {
 
-    /** Empty intrinsic config: a config-free type carries no tuning - it all comes from the active
-     *  {@code ProjectileConfig} (generic defaults + per-type override). */
+    /** A config-free type carries no tuning - it all comes from the active {@code ProjectileConfig}. */
     private static final ProjectileTypeConfig NO_DEFAULTS = ProjectileTypeConfig.builder().build();
 
     private final Key key;
@@ -59,10 +57,7 @@ public abstract class ProjectileType {
     public EntityType entityType() { return entityType; }
     public @NotNull ProjectileTypeConfig defaultConfig() { return defaultConfig; }
 
-    /**
-     * Creates the flying entity for a launch. {@code effectiveConfig} is the merged per-type config (the hit knobs
-     * resolve from it at impact). Default: a generic {@link ManagedProjectile}.
-     */
+    /** Creates the flying entity for a launch; {@code effectiveConfig} is the merged per-type config. */
     public ProjectileEntity createEntity(@Nullable Entity shooter, ProjectileSnapshot snap, ProjectileTypeConfig effectiveConfig) {
         return new ManagedProjectile(shooter, entityType, snap, effectiveConfig);
     }

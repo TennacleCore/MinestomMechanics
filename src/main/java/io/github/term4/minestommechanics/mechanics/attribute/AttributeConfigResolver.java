@@ -19,9 +19,8 @@ public final class AttributeConfigResolver {
     private AttributeConfigResolver() {}
 
     /**
-     * Resolution + query context for one entity (and in-context item) under the scope-resolved {@code config}. Active
-     * sources are scanned lazily off {@link AttributeSystem}; each source's modifiers pass the config's per-source
-     * {@link AttributeConfig#tuningFor tuning} before they fold.
+     * Resolution + query context for one entity (and in-context item). Active sources are scanned lazily off
+     * {@link AttributeSystem}; modifiers pass {@link AttributeConfig#tuningFor tuning} before they fold.
      */
     public record AttributeContext(LivingEntity entity, @Nullable ItemStack item, AttributeConfig config, Services services,
                                    Map<FactKey<?>, Object> facts) {
@@ -30,11 +29,11 @@ public final class AttributeConfigResolver {
             return new AttributeContext(entity, item, config, services, Map.of());
         }
 
-        /** The optional fact for {@code key} (e.g. {@code CombatFacts.TARGET}), or {@code null} if the calling domain didn't set it. */
+        /** {@code null} if the calling domain didn't set it. */
         @SuppressWarnings("unchecked")
         public <T> @Nullable T fact(FactKey<T> key) { return (T) facts.get(key); }
 
-        /** A copy of this context with {@code key -> value} added (a no-op if {@code value} is null) - the domain drops in its facts. */
+        /** A copy with {@code key -> value} added; a no-op if {@code value} is null. */
         public <T> AttributeContext with(FactKey<T> key, @Nullable T value) {
             if (value == null) return this;
             Map<FactKey<?>, Object> next = new HashMap<>(facts);
@@ -49,15 +48,11 @@ public final class AttributeConfigResolver {
             return sys.activeSources(entity, item);
         }
 
-        /** A source's modifiers after the scope's per-source tuning (disable -> empty, scale, etc.). */
         private List<Source.Mod> tuned(AttributeSystem.Active a) {
             return config.tuningFor(a.source().key()).apply(this, a.source().modifiers(a.level(), this));
         }
 
-        /**
-         * {@code base} folded with the active (tuned) modifiers for {@code attr} via the shared 3-operation math
-         * (add -> multiply-base -> multiply-total). Works for vanilla (server-authored base) and custom attributes (base 0).
-         */
+        /** {@code base} folded with the active modifiers for {@code attr}; custom attributes pass base 0. */
         public double value(Attribute attr, double base) {
             double add = 0, multBase = 0, multTotal = 1;
             for (AttributeSystem.Active a : active()) {
@@ -73,7 +68,7 @@ public final class AttributeConfigResolver {
             return (base + add) * (1 + multBase) * multTotal;
         }
 
-        /** The active level (amplifier + 1) of the potion effect {@code effectKey} on this entity, or 0 if absent. */
+        /** Amplifier + 1, or 0 if absent. */
         public int effectLevel(Key effectKey) {
             for (TimedPotion tp : entity.getActiveEffects()) {
                 if (tp.potion().effect().key().equals(effectKey)) return tp.potion().amplifier() + 1;
@@ -95,6 +90,5 @@ public final class AttributeConfigResolver {
         return fv != null ? fv.resolve(ctx) : null;
     }
 
-    /** Resolved config with plain values (nullable when unset). */
     public record ResolvedAttributeConfig(@Nullable Boolean enabled) {}
 }

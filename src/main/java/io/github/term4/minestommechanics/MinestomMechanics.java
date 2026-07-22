@@ -41,44 +41,39 @@ public final class MinestomMechanics {
     private static final Logger LOG = LoggerFactory.getLogger(MinestomMechanics.class);
     private static final MinestomMechanics INSTANCE = new MinestomMechanics();
 
-    // Server level options (defaults)
-    /** Listens for player details sent via the ViaVersion proxy message. Default: true */
+    /** Listens for player details sent via the ViaVersion proxy message. */
     public boolean viaProxyDetails = true;
 
-    /** Tracks each player's sprint status. Default: true */
     public boolean installSprintTracker = true;
-    /** Tracks per-entity air-time, launch state, and position-delta motion (drives knockback velocity). Default: true */
+    /** Tracks per-entity air-time, launch state, and position-delta motion (drives knockback velocity). */
     public boolean installMotionTracker = true;
     /** Removes the pose-change stutter (sneak/sprint/...) 1.9+ clients show under high ping. Requires {@link #installPlayerProvider}. */
     public boolean metaFix = true;
     /**
-     * Installs the {@code OptimizedPlayer} provider and scoped {@code PlayerConfig} application (e.g.
-     * {@code positionBroadcastInterval}). Independent of {@link #metaFix}. Disable only if you set your own player
-     * provider; extend {@code OptimizedPlayer} there to keep PlayerConfig support. Default: true
+     * Installs the {@code OptimizedPlayer} provider and scoped {@code PlayerConfig} application. Independent of
+     * {@link #metaFix}. Disable only if you set your own player provider; extend {@code OptimizedPlayer} there to keep
+     * PlayerConfig support.
      */
     public boolean installPlayerProvider = true;
 
-    // Node tree: mm:root -> api-events / trackers / system nodes. trackersNode is built in init().
     private final EventNode<@NotNull Event> root = EventNode.all("mm:root");
     private final EventNode<@NotNull Event> apiEvents = EventNode.all("mm:api-events");
     private EventNode<@NotNull Event> trackersNode;
 
-    // Server level services
     private ClientInfoTracker clientInfo;
     private final MechanicsProfiles profiles = new MechanicsProfiles();
 
-    // Core trackers (optional, mounted under mm:trackers)
     private @Nullable SprintTracker sprintTracker;
     private @Nullable MotionTracker motionTracker;
 
-    /** Installed systems, keyed by concrete type. Populated at install (boot); read during gameplay. */
+    /** Installed systems, keyed by concrete type. */
     private final Map<Class<? extends MechanicsModule>, MechanicsModule> modules = new ConcurrentHashMap<>();
 
     private volatile boolean initialized = false;
 
     private MinestomMechanics() {}
 
-    /** The JVM-wide library instance - the blessed lookup for code that can't be handed {@link Services} (entity factories). */
+    /** The JVM-wide library instance; the lookup for code that can't be handed {@link Services} (entity factories). */
     public static MinestomMechanics getInstance() { return INSTANCE; }
 
     /** Registers an installed system; later retrievable via {@link #module(Class)}. Called from each system's {@code install}. */
@@ -88,7 +83,6 @@ public final class MinestomMechanics {
         if (previous != null && previous.node() != null) uninstall(previous.node());
     }
 
-    /** The installed system of the given type, or {@code null} if it was not installed. */
     public <M extends MechanicsModule> @Nullable M module(Class<M> type) {
         return type.cast(modules.get(type));
     }
@@ -96,10 +90,7 @@ public final class MinestomMechanics {
     public @Nullable SprintTracker sprintTracker() { return sprintTracker; }
     public @Nullable MotionTracker motionTracker() { return motionTracker; }
 
-    /**
-     * Initialize with current options (or defaults if no options specified). Synchronized (a concurrent caller waits
-     * for the full install), and a failed init resets the flag instead of latching a partial installation.
-     */
+    /** Installs with the current options; a failed init resets the flag instead of latching a partial installation. */
     public synchronized void init() {
         if (initialized) return;
         initialized = true; // inside the lock; the internal mounts assert it
@@ -122,24 +113,21 @@ public final class MinestomMechanics {
         if (installPlayerProvider) {
             MinecraftServer.getConnectionManager().setPlayerProvider((conn, profile) ->
                     new OptimizedPlayer(conn, profile));
-            // scoped PlayerConfig -> OptimizedPlayer, at spawn + on every profile change
             PlayerConfigApplier.install(this);
-            // compat movement: hitbox-collision + 1.8 speed clamps
             CompatMovement.install(this);
-            // compat offhand (inert unless CompatConfig.disableOffhand)
+            // inert unless CompatConfig.disableOffhand
             CompatOffhand.install(this);
-            // compat block-placement reach (inert unless CompatConfig.blockPlaceReach)
+            // inert unless CompatConfig.blockPlaceReach
             CompatPlacement.install(this);
-            // seal the attack_range stamp: strip it from a stamped client's creative-echoed items (never becomes server state)
+            // strips attack_range off creative-echoed items, so the client-view stamp never becomes server state
             CompatCreativeGuard.install(this);
         }
-        // the one lib scoreboard team (no-push + arrow-visibility roster); features enroll, this cleans up on disconnect
+        // the one lib scoreboard team; features enroll, this cleans up on disconnect
         SharedTeam.install(this);
-        // swing fake-hit fill (inert unless a scope arms AttackConfig.fakeHits or compat gates CompatConfig.fistRayHits)
+        // inert unless AttackConfig.fakeHits or CompatConfig.fistRayHits
         FakeHits.install(this);
-        // block-place + footstep sounds Minestom doesn't emit (broadcast to everyone; any client)
+        // block-place + footstep sounds Minestom doesn't emit
         WorldSounds.install(this);
-        // global scaling drives physics + static-context durations; a player-scoped change re-applies to that player only
         profiles.onChange(changed -> {
             if (changed != null) {
                 if (installPlayerProvider) PlayerConfigApplier.apply(this, changed);
@@ -149,20 +137,20 @@ public final class MinestomMechanics {
             if (installPlayerProvider) PlayerConfigApplier.applyAll(this);
         });
         refreshGlobalScaling();
+        // per-subject scope: one world can run dilated (simulated TPS) while the rest doesn't
+        TickScaler.resolver(subject -> profiles.resolve(subject, MechanicsKeys.TICK_SCALING));
 
         MinecraftServer.getGlobalEventHandler().addChild(root);
         root.addChild(apiEvents);
 
-        // trackers: per-player state off events, each mounts under mm:trackers
         trackersNode = EventNode.all("mm:trackers");
         root.addChild(trackersNode);
 
         clientInfo = new ClientInfoTracker(viaProxyDetails);
         if (installSprintTracker) mountTracker(sprintTracker = new SprintTracker());
         if (installMotionTracker) mountTracker(motionTracker = new MotionTracker(profiles));
-        // client-info hub also routes Animatium handshakes, so mount it when either is wanted
+        // the client-info hub also routes Animatium handshakes
         if (viaProxyDetails || installPlayerProvider) mountTracker(clientInfo);
-        // Animatium: detect via animatium:info, send the native feature set, gate the matching hacks off. Needs the player provider.
         if (installPlayerProvider) {
             CompatAnimatium.install(this);
             ViaBridgeRpc.install(this);
@@ -170,54 +158,42 @@ public final class MinestomMechanics {
         }
     }
 
-    /** Mounts a tracker under {@code mm:trackers} (init-time or lazily from installed systems). */
+    /** Starts a tracker and mounts it under {@code mm:trackers}. */
     public void mountTracker(Tracker tracker) {
         ensureInitialized();
-        mount(trackersNode, tracker);
-    }
-
-    /** Starts a tracker and mounts its listener node. */
-    private static void mount(EventNode<@NotNull Event> trackers, Tracker tracker) {
         tracker.start();
-        trackers.addChild(tracker.node());
+        trackersNode.addChild(tracker.node());
     }
 
-    /** Access registered MinestomMechanics services. */
     public Services services() {
         ensureInitialized();
         return new Services(this);
     }
 
-    /** Access client info (e.g. protocol version) stamped by the client info tracker */
     public ClientInfoTracker clientInfo() {
         ensureInitialized();
         return clientInfo;
     }
 
     /**
-     * A per-player view of client-side info: protocol version, Animatium status, and an end-user typed store
-     * ({@link ClientProfile#get}/{@link ClientProfile#set} keyed by {@code ClientKey}) for custom data. A fresh
-     * lightweight view each call.
+     * A per-player view of client-side info: protocol version, Animatium status, and a typed store keyed by
+     * {@code ClientKey} for custom data. A fresh lightweight view each call.
      */
     public ClientProfile client(@NotNull Player player) {
         ensureInitialized();
         return clientInfo.of(player);
     }
 
-    /**
-     * Scoped config profiles (player / instance / global). Assignable any time - including before
-     * {@link #init()} - and swappable at runtime; systems consult them per hit.
-     */
+    /** Scoped config profiles; assignable before {@link #init()} and swappable at runtime. */
     public MechanicsProfiles profiles() { return profiles; }
 
-    /** Pushes the global scope's scaling config into {@link TickScaler} (physics + static-context durations read it). */
     private void refreshGlobalScaling() {
         TickScaler.setGlobal(profiles.resolve(null, MechanicsKeys.TICK_SCALING));
     }
 
     /**
-     * Convenience node for MinestomMechanics API event listeners. API events are dispatched through the
-     * global handler, so listening here or on {@code MinecraftServer.getGlobalEventHandler()} both work.
+     * Convenience node for MinestomMechanics API event listeners. API events dispatch through the global handler, so
+     * listening here or on {@code MinecraftServer.getGlobalEventHandler()} both work.
      */
     public EventNode<@NotNull Event> events() {
         ensureInitialized();
@@ -230,12 +206,10 @@ public final class MinestomMechanics {
         root.addChild(node);
     }
 
-    /** Removes a node installed via {@link #install} (a re-installed system detaches its predecessor's). */
     public void uninstall(EventNode<? extends @NotNull Event> node) {
         root.removeChild(node);
     }
 
-    /** Throws until {@link #init()} has run; guards the public entry points. */
     private void ensureInitialized() {
         if (!initialized) throw new IllegalStateException("MinestomMechanics has not been initialized");
     }

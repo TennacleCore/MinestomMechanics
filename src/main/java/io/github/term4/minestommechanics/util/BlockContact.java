@@ -15,10 +15,9 @@ import java.util.function.Predicate;
 /**
  * Block occupancy / collision-shape contact tests for hazard producers.
  *
- * <p>{@link #scan}/{@link #touching} walk full block cells - use for fluids and fire, which fill
- * the cell but often have no collision shape. {@link #scanShapes}/{@link #touchingShapes} test
- * registry collision shapes - use for cactus and similar, whose damage hitbox is smaller than the
- * cell. Unloaded chunks and out-of-range Y are skipped.
+ * <p>{@link #scan}/{@link #touching} walk full block cells - for fluids and fire, which fill the cell but often have no
+ * collision shape. {@link #scanShapes}/{@link #touchingShapes} test registry collision shapes - for cactus and similar,
+ * whose damage hitbox is smaller than the cell. Unloaded chunks and out-of-range Y are skipped.
  */
 public final class BlockContact {
 
@@ -33,8 +32,6 @@ public final class BlockContact {
         Block feet = MechanicsWorld.viewed(entity).getBlock(entity.getPosition(), Block.Getter.Condition.TYPE);
         return feet != null && (feet.compare(Block.LADDER) || feet.compare(Block.VINE));
     }
-
-    // cell occupancy (fluids, fire)
 
     /** True when any overlapped cell matches (vanilla inset). */
     public static boolean touching(Entity entity, Predicate<Block> match) {
@@ -53,7 +50,7 @@ public final class BlockContact {
     /** Visits overlapped cells until {@code visitor} returns {@code true}. */
     public static boolean scan(Entity entity, double inset, Predicate<Block> visitor) {
         if (entity.getInstance() == null) return false;
-        // the blocks PHYSICALLY around the entity: a spectator's contacts follow the viewed world, not the base
+        // contacts follow the VIEWED world (a spectator's), not the base
         return scanCells(MechanicsWorld.viewed(entity), entity.getPosition(), entity.getBoundingBox(), inset, visitor);
     }
 
@@ -84,8 +81,6 @@ public final class BlockContact {
         }
         return false;
     }
-
-    // collision shapes
 
     /** True when the entity intersects any block whose shape matches (vanilla inset). */
     public static boolean touchingShapes(Entity entity, Predicate<Block> match) {
@@ -140,7 +135,7 @@ public final class BlockContact {
 
             boolean hit = shape != null && shape.intersectBox(relative, box);
             if (!hit) {
-                // Empty / missing shape: fall back to full cube (same as an opaque block).
+                // missing shape: treat as a full cube
                 hit = intersects(ex0, ey0, ez0, ex1, ey1, ez1,
                         x, y, z, x + 1.0, y + 1.0, z + 1.0);
             }
@@ -235,8 +230,7 @@ public final class BlockContact {
         );
     }
 
-    /** Whether {@code block} is a full solid cube - its collision shape fully covers all six faces (dirt/stone yes,
-     *  stairs/slabs/fences no); false when it has no collision shape. */
+    /** Collision shape covers all six faces (dirt/stone yes, stairs/slabs/fences no); false without a collision shape. */
     public static boolean isFullCube(Block block) {
         Shape shape = block.registry().collisionShape();
         if (shape == null) return false;

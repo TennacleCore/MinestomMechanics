@@ -12,15 +12,15 @@ import java.util.Set;
  */
 public final class CompatConfig {
 
-    /** Poses the server forces back to {@code STANDING} (e.g. {@code SWIMMING}, {@code FALL_FLYING}); the gameplay half is {@link #restrictMovement}. Empty = none disabled. */
+    /** Poses the server forces back to {@code STANDING}; the gameplay half is {@link #restrictMovement}. Empty = none disabled. */
     public final @Nullable Set<EntityPose> disabledPoses;
-    /** Reject a move that newly places the SERVER hitbox in block collision - a client rendering itself crawling/swimming can't traverse a gap its server hitbox can't fit. With {@link #legacyHitbox} the 1.5-block sneak gap is restricted too. */
+    /** Reject a move that newly places the SERVER hitbox in block collision - a client rendering itself crawling can't traverse a gap its server hitbox can't fit. */
     public final @Nullable Boolean restrictMovement;
-    /** Keep the server box at standing dimensions (no crouch shrink) + 1.8 eye heights (1.54 sneaking) for collision / drowning / projectile spawn. The client still renders its own pose. */
+    /** Server box stays at standing dimensions (no crouch shrink) + 1.8 eye heights (1.54 sneaking); the client still renders its own pose. */
     public final @Nullable Boolean legacyHitbox;
     /** {@code attack_range.hitbox_margin} stamped on the client's view of held items (1.8 = {@code 0.1f}, modern 0.3). Held-item only - bare-hand hardcodes 0 client-side. */
     public final @Nullable Float attackHitboxMargin;
-    /** Disable the offhand (F-swap + offhand-slot clicks cancelled); no effect on 1.8 clients. */
+    /** F-swap + offhand-slot clicks cancelled; no effect on 1.8 clients. */
     public final @Nullable Boolean disableOffhand;
     /** Cancel the sprint speed boost while sneaking (1.8 can't sprint-sneak). */
     public final @Nullable Boolean restrictSprintSneak;
@@ -36,25 +36,24 @@ public final class CompatConfig {
     public final @Nullable Float attackReach;
     /** Max blocks from the SERVER eye to a placement's clicked point; farther is cancelled (modern sneak-bridge over-reach). Pair with {@link #legacyHitbox}. */
     public final @Nullable Double blockPlaceReach;
-    /** 1.8 block placement: no placing against an air cell. Enforced client-side (Animatium) AND server-side ({@code CompatPlacement}, any client). */
+    /** No placing against an air cell. Enforced client-side (Animatium) AND server-side ({@code CompatPlacement}, any client). */
     public final @Nullable Boolean oldPlacement;
     /** Remove the modern attack cooldown + crosshair indicator (huge {@code ATTACK_SPEED}). Server-side, any client. */
     public final @Nullable Boolean removeAttackCooldown;
-    /** No arm-swing when a modern client throws a projectile (1.8 doesn't swing on use): its inventory VIEW shows a non-usable reskin; the server item stays the real snowball/egg/pearl. */
+    /** No arm-swing when a modern client throws a projectile: its inventory VIEW shows a non-usable reskin; the server item stays the real snowball/egg/pearl. */
     public final @Nullable Boolean suppressThrowSwing;
-    /** Server-side ray fill for a modern client's bare-fist swings: {@link #attackHitboxMargin} only rides items, so an empty hand still picks with margin 0 - a swing that missed by the margin lands on the last player they hit. */
+    /** Server-side ray fill for a modern client's bare-fist swings: {@link #attackHitboxMargin} only rides items, so an empty hand still picks with margin 0. */
     public final @Nullable Boolean fistRayHits;
-    /** 1.8 sword-block pose for modern clients: {@code blocks_attacks} stamped on swords in the client's VIEW, so a right-click hold shows the native block animation; the server's blocking system stays damage-authoritative. */
+    /** {@code blocks_attacks} stamped on swords in a modern client's VIEW, so a right-click hold shows the native block animation; the server's blocking system stays damage-authoritative. */
     public final @Nullable Boolean swordBlockingPose;
-    /** No item cooldowns (1.8 has none): {@code use_cooldown} stripped from a modern client's item VIEW - the client self-applies it (ender pearl 1s) even without server packets. */
+    /** {@code use_cooldown} stripped from a modern client's item VIEW - the client self-applies it (ender pearl 1s) even without server packets. */
     public final @Nullable Boolean removeUseCooldowns;
 
     /** 1.8 water/lava movement (drag/gravity, no swim sprint/buoyancy, no lava current). */
     public final @Nullable Boolean legacyFluids;
-    /** No elytra glide (1.8 has no elytra): every modern client gets {@code glider} stripped from its item VIEW, so the client never attempts it (Animatium also disables natively - harmless doubled). */
+    /** {@code glider} stripped from every modern client's item VIEW, so the client never attempts a glide (Animatium also disables natively - harmless doubled). */
     public final @Nullable Boolean disableElytraFlight;
-    /** Opt-out for the hook prediction escort (default ON): on a silent hook wire, a viewer whose client
-     *  generation cannot predict the hook's water physics gets a dense server wire through the water window. */
+    /** Opt-out for the hook prediction escort (default ON): on a silent hook wire, a viewer that can't predict the hook's water physics gets a dense server wire through the water window. */
     public final @Nullable Boolean hookPredictionEscort;
     /** 1.8 creative/spectator flight (sneaking while flying slows horizontal). */
     public final @Nullable Boolean oldFlight;
@@ -72,7 +71,7 @@ public final class CompatConfig {
     public final @Nullable Boolean disableHoneyPhysics;
     /** No bubble-column push; {@code null} follows {@link #oldPhysics}. */
     public final @Nullable Boolean disableBubbleColumn;
-    /** No entity-collision shove: the shared no-push collision TEAM for any modern client + the Animatium native feature. NOT 1.8 parity (1.8 has no push) - a preference. An app running its own teams must disable this and set collisionRule NEVER on its teams. */
+    /** No entity-collision shove: a shared no-push TEAM for any modern client + the Animatium native feature. An app running its own teams must disable this and set collisionRule NEVER on them. */
     public final @Nullable Boolean disableEntityPush;
     /** Byte-exact 1.8 velocity (3 shorts) for clients advertising {@code SHORTS_VELOCITY}; never sent to clients without the decoder. */
     public final @Nullable Boolean nativeShortVelocity;
@@ -122,7 +121,7 @@ public final class CompatConfig {
     public static Builder builder() { return builder(null); }
     public static Builder builder(@Nullable CompatConfig base) { return base != null ? new Builder(base) : new Builder(); }
 
-    /** Setters mirror the field docs; sets are defensively copied. */
+    /** Sets are defensively copied. */
     public static final class Builder {
         private @Nullable Set<EntityPose> disabledPoses;
         private @Nullable Boolean restrictMovement;

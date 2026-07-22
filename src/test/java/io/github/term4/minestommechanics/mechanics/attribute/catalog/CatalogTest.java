@@ -19,10 +19,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Pure unit tests for the source catalog - each version variant's modifiers at exact vanilla constants, independent of
- * any calculator. Guards each entry as it's added.
- */
+/** Each catalog variant's modifiers at exact vanilla constants, independent of any calculator. */
 class CatalogTest {
 
     @Test
@@ -92,7 +89,7 @@ class CatalogTest {
 
     @Test
     void efficiencyIsLevelSquaredPlusOneOnMiningEfficiency() {
-        // identical in 1.8 (i²+1, EntityHuman) and 26 (mining_efficiency levels_squared+1) -> 2, 5, 10, 17, 26
+        // identical in 1.8 (i²+1, EntityHuman) and 26 (mining_efficiency levels_squared+1)
         for (int lvl = 1; lvl <= 5; lvl++) {
             Source.Mod m = only(Efficiency.INSTANCE.modifiers(lvl));
             assertEquals(Attribute.MINING_EFFICIENCY, m.attribute());
@@ -112,7 +109,6 @@ class CatalogTest {
 
     @Test
     void fireAspectIsAnOnHitWithNoAttributeModifiers() {
-        // a side-effect enchant: contributes no attribute value, fires via the on-hit dispatch instead
         assertTrue(FireAspect.INSTANCE.modifiers(2).isEmpty());
         assertTrue(FireAspect.INSTANCE instanceof OnHit);
         assertEquals(FireAspect.KEY, FireAspect.INSTANCE.key());

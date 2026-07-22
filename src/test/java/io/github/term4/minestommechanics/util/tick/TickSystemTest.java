@@ -25,9 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link TickSystem} dispatch contract: phase order ({@code PRE_DISPATCH → DEFAULT → POST}) and per-interval gating.
- * Headless has no tick loop, so the instance clock is positioned directly and {@code dispatch} is invoked by reflection
- * (mirroring the rest of the suite). Markers record into a sink; the boot-registered tickables run too but don't touch it.
+ * Dispatch contract: phase order ({@code PRE_DISPATCH → DEFAULT → POST}) and per-interval gating. Headless has no
+ * tick loop, so the instance clock is positioned directly and {@code dispatch} is invoked by reflection.
  */
 class TickSystemTest extends HeadlessServerTest {
 
@@ -62,7 +61,7 @@ class TickSystemTest extends HeadlessServerTest {
 
     @Test
     void worldPassRunsOnTheGivenClock() {
-        TickSystem.tickWorld(MechanicsWorld.of(instance), 9); // 9 % 3 == 0 -> D3 fires on the WORLD clock
+        TickSystem.tickWorld(MechanicsWorld.of(instance), 9); // 9 % 3 == 0 -> D3 fires, on the WORLD clock
         assertEquals(List.of("A", "B", "D3", "C"), SINK);
     }
 

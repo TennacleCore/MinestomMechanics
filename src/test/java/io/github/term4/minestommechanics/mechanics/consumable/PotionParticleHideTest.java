@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The "hide potion effect particles" stub: {@link ParticleVisibility} flags, and that HIDDEN reaches viewers as a no-swirl effect. */
+/** {@link ParticleVisibility} flag bytes, and that HIDDEN reaches viewers as a no-swirl effect. */
 class PotionParticleHideTest extends HeadlessServerTest {
 
     @Test
@@ -25,7 +25,6 @@ class PotionParticleHideTest extends HeadlessServerTest {
             assertTrue(potion(v).hasIcon(), v + " keeps the HUD icon");
     }
 
-    /** The flag byte is what the client reads: a HIDDEN effect must reach the eater's viewers as a no-particles effect. */
     @Test
     void hiddenEffectReachesViewersWithoutTheSwirl() {
         FakePlayer target = FakePlayer.connect(instance, new Pos(5.5, 65, 5.5), "Sipper");

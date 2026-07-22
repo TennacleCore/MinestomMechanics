@@ -3,10 +3,9 @@ package io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant;
 import net.kyori.adventure.key.Key;
 
 /**
- * Power (enchant) - more arrow damage. A projectile-domain enchant, not a {@link
- * io.github.term4.minestommechanics.mechanics.attribute.source.Source}: the projectile captures its level off the launcher
- * and adds {@code 0.5 × level + 0.5} to the hit damage (vanilla 1.8 + 26). Captured generically off any launcher (a preset
- * can put Power on non-arrow projectiles). Identity key only.
+ * Power - identity key only, not a {@link io.github.term4.minestommechanics.mechanics.attribute.source.Source}: the
+ * projectile captures the level off the launcher and adds {@code 0.5 × level + 0.5} to the hit damage. Captured off any
+ * launcher, so a preset can put Power on non-arrow projectiles.
  */
 public final class Power {
     public static final Key KEY = Key.key("minecraft:power");

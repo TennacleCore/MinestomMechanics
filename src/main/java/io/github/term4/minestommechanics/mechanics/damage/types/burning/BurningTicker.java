@@ -104,14 +104,14 @@ final class BurningTicker implements EnvironmentalTickProducer {
             if (ignite != null && ignite > 0) {
                 int invul = resolvedInvul(sys, ctx, bc);
                 // fire duration + warmup are real-time windows; Minestom decrements fireTicks at server TPS, so scale them (identity at 20)
-                int warmup = TickScaler.duration(bc.resolveIgniteWarmup(ctx, invul), DamageSystem.KEY);
-                int scaledIgnite = TickScaler.duration(ignite, DamageSystem.KEY);
+                int warmup = TickScaler.duration(living, bc.resolveIgniteWarmup(ctx, invul), DamageSystem.KEY);
+                int scaledIgnite = TickScaler.duration(living, ignite, DamageSystem.KEY);
                 boolean pin = living.getFireTicks() > 0 || contactTicks >= warmup;
                 if (pin && living.getFireTicks() < scaledIgnite) living.setFireTicks(scaledIgnite);
             }
         }
 
-        int interval = TickScaler.duration(interval(bc.contactIntervalTicks(ctx), DEFAULT_CONTACT_INTERVAL), DamageSystem.KEY);
+        int interval = TickScaler.duration(living, interval(bc.contactIntervalTicks(ctx), DEFAULT_CONTACT_INTERVAL), DamageSystem.KEY);
         if ((contactTicks - 1) % interval != 0) return;
 
         if (DamageSystem.absorbedByWindow(living, ctx.baseAmount())) return;
@@ -131,7 +131,7 @@ final class BurningTicker implements EnvironmentalTickProducer {
             return;
         }
 
-        int interval = TickScaler.duration(cfg instanceof BurningConfig bc
+        int interval = TickScaler.duration(living, cfg instanceof BurningConfig bc
                 ? interval(bc.intervalTicks(ctx), DEFAULT_BURN_INTERVAL)
                 : DEFAULT_BURN_INTERVAL, DamageSystem.KEY);
         if (fireTicks % interval != 0) return;

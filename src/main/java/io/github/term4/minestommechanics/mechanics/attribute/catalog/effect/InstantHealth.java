@@ -9,8 +9,8 @@ import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.attribute.Attribute;
 
 /**
- * Instant Health (potion) - heals {@code 4 << amplifier} on apply, capped at max health (1.8 + 26 identical). Direct-apply
- * only; splash proximity-scaling / undead inversion live on the potion-throw path.
+ * Instant Health - heals {@code 4 << amplifier} on apply, capped at max health (identical 1.8/26). Splash
+ * proximity-scaling / undead inversion live on the potion-throw path.
  */
 public final class InstantHealth {
 
@@ -22,7 +22,7 @@ public final class InstantHealth {
         @Override public void onApply(Entity entity, int level) {
             if (!(entity instanceof LivingEntity living)) return;
             float max = (float) living.getAttributeValue(Attribute.MAX_HEALTH);
-            float heal = 4 << (level - 1); // 4 << amplifier
+            float heal = 4 << (level - 1);
             living.setHealth(Math.min(living.getHealth() + heal, max));
         }
     };

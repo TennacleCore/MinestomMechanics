@@ -2,8 +2,7 @@ package io.github.term4.minestommechanics.mechanics.damage.types.breathing;
 
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
-import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
+import io.github.term4.minestommechanics.mechanics.damage.DamageProducers;
 import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
 import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalDamageTicker;
 import io.github.term4.minestommechanics.mechanics.damage.EnvironmentalTickProducer;
@@ -15,7 +14,6 @@ import net.kyori.adventure.key.Key;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.LivingEntity;
-import net.minestom.server.instance.Instance;
 
 /**
  * Suffocation ({@code minecraft:in_wall}). Vanilla 1.8 ({@code inBlock} -&gt; {@code STUCK}) and 26 ({@code isInWall} -&gt;
@@ -53,14 +51,8 @@ public final class SuffocationDamage extends DamageType implements Environmental
 
     @Override
     public void tick(LivingEntity living, DamageSystem sys) {
-        Instance inst = living.getInstance();
-        if (inst == null || !inWall(living, inst)) return;
-
-        DamageSnapshot snap = DamageSnapshot.of(living, this);
-        DamageContext ctx = sys.contextFor(snap);
-        if (!ctx.typeConfig().enabled(ctx)) return;
-        if (DamageSystem.absorbedByWindow(living, ctx.baseAmount())) return;
-        sys.apply(snap);
+        if (living.getInstance() == null || !inWall(living)) return;
+        DamageProducers.emit(sys, living, this);
     }
 
     /**
@@ -72,7 +64,7 @@ public final class SuffocationDamage extends DamageType implements Environmental
      * expose: a transparent full cube (glass) wrongly suffocates. Only a per-block {@code isSuffocating} override would
      * close the gap - {@code blocksMotion} wouldn't (glass blocks motion and is a full cube).
      */
-    private static boolean inWall(LivingEntity living, Instance inst) {
+    private static boolean inWall(LivingEntity living) {
         double eye = living.getEyeHeight();
         double half = living.getBoundingBox().width() * 0.4; // width * 0.8, split either side of the eye centre
         BoundingBox eyePlane = new BoundingBox(

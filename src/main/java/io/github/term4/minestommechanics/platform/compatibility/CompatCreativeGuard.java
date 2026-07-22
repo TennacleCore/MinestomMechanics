@@ -12,8 +12,7 @@ import org.jetbrains.annotations.NotNull;
  * Seals the client-view item rewrites ({@link CompatState#rewriteItems}) against the one path that leaks them into
  * server state: creative slots are client-authoritative, so an affected client echoes the rewritten item back
  * ({@link CreativeInventoryActionEvent}) and the server would store the phantom, from where it spreads to drops and
- * other viewers. {@link CompatState#sanitizeInboundItem} undoes it on the creative set + drop; inert for unaffected
- * clients. Needs the {@link OptimizedPlayer} provider.
+ * other viewers. Inert for unaffected clients; needs the {@link OptimizedPlayer} provider.
  */
 public final class CompatCreativeGuard {
 

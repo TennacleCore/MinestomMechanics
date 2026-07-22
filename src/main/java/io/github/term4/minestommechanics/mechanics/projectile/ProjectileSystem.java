@@ -61,8 +61,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Projectile system: resolves a {@link ProjectileSnapshot} into a spawn + velocity, fires {@link ProjectileLaunchEvent},
- * and spawns the entity. Mirrors {@code DamageSystem} - types with a {@code typeConfigs} entry enable at install (the
- * per-type {@code enabled} knob gates per launch). Self-driven types wire their item triggers in {@link ProjectileType#enable}.
+ * and spawns the entity. Types with a {@code typeConfigs} entry enable at install (the per-type {@code enabled} knob
+ * gates per launch); self-driven types wire their item triggers in {@link ProjectileType#enable}.
  */
 public final class ProjectileSystem implements MechanicsModule {
 
@@ -81,10 +81,9 @@ public final class ProjectileSystem implements MechanicsModule {
         this.config = config;
         this.services = mm.services();
         this.node = EventNode.all("mm:projectile");
-        // melee/left-click deflection: attacking a deflectable projectile (a fireball) redirects it along the attacker's look
         node.addListener(EntityAttackEvent.class, e -> {
             if (!(e.getTarget() instanceof ProjectileEntity target)) return;
-            // viewing is not being (DamageProducers doctrine): a spectator's punch must not steer what it only watches
+            // viewing is not being: a spectator's punch must not steer what it only watches
             if (e.getEntity() instanceof Player p && MechanicsWorld.viewed(p) != MechanicsWorld.of(p)) return;
             target.deflectBy(e.getEntity());
         });
@@ -100,25 +99,23 @@ public final class ProjectileSystem implements MechanicsModule {
         return scoped != null ? scoped : config;
     }
 
-    /**
-     * Launches a projectile from a snapshot: resolves config, computes spawn + velocity (snapshot overrides win, else
-     * aim x speed x power + spread + momentum), fires the cancellable {@link ProjectileLaunchEvent}, then spawns the
-     * entity. {@code null} if the type is disabled, cancelled, or the shooter has no instance.
-     */
+    /** Launches a projectile from a snapshot. {@code null} if the type is disabled, cancelled, or the shooter has no instance. */
     public @Nullable ProjectileEntity launch(ProjectileSnapshot snap) {
-        ProjectileSnapshot working = snap.config() != null ? snap : snap.withConfig(configFor(snap.shooter()));
-        ProjectileContext ctx = ProjectileContext.of(working, services);
+        ProjectileContext ctx = contextFor(snap);
         ProjectileTypeConfig effectiveConfig = ctx.typeConfig();
         ResolvedFlight flight = ProjectileConfigResolver.resolveFlight(effectiveConfig, ctx);
         if (!flight.enabled()) return null;
-        return launch(working, effectiveConfig, flight);
+        return launch(ctx.snap(), effectiveConfig, flight);
     }
 
-    /** The launch-time flight values for {@code snap} under its effective config chain (what {@link #launch} will use); lets a launcher read a knob (e.g. the bow's {@code critChance}) without re-resolving by hand. */
+    /** The flight values {@link #launch} would use for {@code snap} - a launcher reading one knob (the bow's {@code critChance}) without re-resolving by hand. */
     public ResolvedFlight resolveFlight(ProjectileSnapshot snap) {
-        ProjectileSnapshot working = snap.config() != null ? snap : snap.withConfig(configFor(snap.shooter()));
-        ProjectileContext ctx = ProjectileContext.of(working, services);
+        ProjectileContext ctx = contextFor(snap);
         return ProjectileConfigResolver.resolveFlight(ctx.typeConfig(), ctx);
+    }
+
+    private ProjectileContext contextFor(ProjectileSnapshot snap) {
+        return ProjectileContext.of(snap.config() != null ? snap : snap.withConfig(configFor(snap.shooter())), services);
     }
 
     private @Nullable ProjectileEntity launch(ProjectileSnapshot working, ProjectileTypeConfig effectiveConfig, ResolvedFlight flight) {
@@ -139,8 +136,8 @@ public final class ProjectileSystem implements MechanicsModule {
         if (behavior != null && entity instanceof ManagedProjectile mp) mp.setBehavior(behavior);
         stampWorldSeams(entity, working, effectiveConfig, flight, behavior);
 
-        // wire lockstep: snap the spawn state onto what the predicting client decodes (per WireGrid); server-
-        // authoritative projectiles (fireball) keep full precision - the 1/32 truncation leaked horizontal KB
+        // snap the spawn state onto what the predicting client decodes (per WireGrid); server-authoritative
+        // projectiles (fireball) keep full precision - the 1/32 truncation leaked horizontal KB
         Vec spawnVel = event.velocity();
         Pos spawnAt = event.spawnPos().withView(Directions.yaw(spawnVel), Directions.pitch(spawnVel));
         boolean lockstep = flight.wireLockstep() != null ? flight.wireLockstep() : flight.velocitySyncInterval() <= 0;
@@ -156,9 +153,8 @@ public final class ProjectileSystem implements MechanicsModule {
     }
 
     /**
-     * World-system seams: the fork copy + save descriptor stamps, with the CURRENT velocity read at copy/save time.
-     * Bobbers get no DEFAULT stamps (a forked/saved copy is an orphan - the rod tracks ITS instance); move a live
-     * bobber cross-world instead, or a game with re-attach logic stamps its own.
+     * Fork-copy + save-descriptor stamps, velocity read at copy/save time. Bobbers get none: a forked/saved copy is an
+     * orphan (the rod tracks ITS instance) - move a live bobber cross-world, or stamp your own re-attach logic.
      */
     private void stampWorldSeams(ProjectileEntity entity, ProjectileSnapshot working, ProjectileTypeConfig effectiveConfig,
                                  ResolvedFlight flight, @Nullable ProjectileBehavior behavior) {
@@ -189,9 +185,8 @@ public final class ProjectileSystem implements MechanicsModule {
     }
 
     /**
-     * Rebuilds a saved projectile - the load-side reviver for {@code "mm:projectile"} descriptors. The launch
-     * build path minus the event and spawn, resolved against the shooter's (or global) profile; the shooter
-     * re-links when still online. {@code null} if the type key is unknown to this server.
+     * Load-side reviver for {@code "mm:projectile"} descriptors: the launch build path minus the event and spawn.
+     * {@code null} if the type key is unknown to this server.
      */
     public @Nullable ProjectileEntity fromSave(@NotNull CompoundBinaryTag data) {
         ProjectileType type = ProjectileType.byKey(Key.key(data.getString("type")));
@@ -214,15 +209,15 @@ public final class ProjectileSystem implements MechanicsModule {
         return entity;
     }
 
-    /** Truncates a spawn position to the 1.8 wire grid (1/32) so the server simulates from where a 1.8 client predicts. See {@link #launch}. */
+    /** Truncates to the 1.8 wire grid (1/32) so the server simulates from where a 1.8 client predicts. */
     private static Pos quantizeToWireGrid(Pos p) {
         return new Pos((int) (p.x() * 32.0) / 32.0, (int) (p.y() * 32.0) / 32.0, (int) (p.z() * 32.0) / 32.0, p.yaw(), p.pitch());
     }
 
     /**
-     * Snaps a spawn velocity (client b/t) onto what the predicting client decodes: the spawn packet's LP encoding, plus
-     * the Via re-encode to 1.8 shorts for a legacy client. Neither encode is invertible on its grid, so iterate to a
-     * fixed point - re-encoding the sim value must reproduce it, or the sim runs a wire unit off the client's.
+     * Snaps a spawn velocity (client b/t) onto what the client decodes: the spawn packet's LP encoding, plus the Via
+     * re-encode to 1.8 shorts. Neither encode is invertible, so iterate to a fixed point - re-encoding the sim value
+     * must reproduce it, or the sim runs a wire unit off the client's.
      */
     private static Vec quantizeToWireVelocity(Vec bt, boolean legacyShorts) {
         Vec v = bt;
@@ -240,18 +235,19 @@ public final class ProjectileSystem implements MechanicsModule {
         return v;
     }
 
-    /** Stamps the resolved flight config onto a freshly created entity (physics, sync, immunity, behavior, pickup). */
     private static void stampFlight(ProjectileEntity entity, ResolvedFlight flight, ProjectileSnapshot snap) {
+        // pre-spawn: the entity resolves no scope yet, so its windows scale in the shooter's (see scopeSubject)
+        Entity scope = snap.shooter() != null ? snap.shooter() : entity;
         entity.setBoundingBox(flight.boundingBox().width(), flight.boundingBox().height(), flight.boundingBox().depth());
         entity.setAerodynamics(new Aerodynamics(flight.gravity(), flight.horizontalDrag(), flight.verticalDrag()));
         entity.setWaterPhysics(flight.waterDrag(), flight.waterPush(), flight.waterModel());
         entity.setBroadcastMovement(flight.broadcastMovement());
-        entity.setSynchronizationTicks(TickScaler.duration(flight.syncInterval(), KEY));
-        entity.setVelocitySyncInterval(TickScaler.duration(flight.velocitySyncInterval(), KEY));
+        entity.setSynchronizationTicks(TickScaler.clientTicks(scope, flight.syncInterval()));
+        entity.setVelocitySyncInterval(TickScaler.clientTicks(scope, flight.velocitySyncInterval()));
         // Minestom seeds nextSynchronizationTick at 20 and setSynchronizationTicks doesn't reset it - a denser
         // cadence would stay silent until tick 20 (the fireball froze ~1s, then snapped downrange)
         if (flight.velocitySyncInterval() > 0) entity.synchronizeNextTick();
-        entity.setShooterImmunityTicks(TickScaler.duration(flight.shooterImmunityTicks(), KEY));
+        entity.setShooterImmunityTicks(TickScaler.duration(scope, flight.shooterImmunityTicks(), KEY));
         entity.setEntityHitGrow(flight.entityHitGrow());
         entity.setPhysicsOrder(flight.physicsOrder());
         entity.setLeftOwnerImmunity(flight.leftOwnerImmunity());
@@ -265,11 +261,9 @@ public final class ProjectileSystem implements MechanicsModule {
             if (flight.pickupBox() != null) arrow.setPickupBox(flight.pickupBox());
         }
         if (entity instanceof FireballEntity fireball) fireball.setExplosionPower((float) flight.explosionPower());
-        // read off the launch item for ANY projectile - a preset may put Power/Punch/Flame on non-bows
+        // any projectile, not just bows - a preset may put Power/Punch/Flame on other launch items
         entity.setProjectileEnchants(Enchants.level(snap.item(), Power.KEY), Enchants.level(snap.item(), Punch.KEY), Enchants.level(snap.item(), Flame.KEY));
     }
-
-    // Projectile spawn
 
     private static Pos spawnPos(Entity shooter, ResolvedFlight cfg) {
         Pos eye = shooter.getPosition().add(0, shooter.getEyeHeight(), 0);
@@ -304,8 +298,6 @@ public final class ProjectileSystem implements MechanicsModule {
         return vel;
     }
 
-    // Registry
-
     /** Registers a type (data only; not enabled). No-op if its key is already registered. */
     public ProjectileSystem register(ProjectileType type) { types.putIfAbsent(type.key(), type); return this; }
 
@@ -339,9 +331,8 @@ public final class ProjectileSystem implements MechanicsModule {
     }
 
     /**
-     * Installs reading the GLOBAL profile's {@link ProjectileConfig}: its {@code typeConfigs} enable the self-launching
-     * types and its {@code shootables} (item launchers, e.g. {@code new Bow()}) are mounted. Set the profile before
-     * installing. Per-hit physics still resolves per-scope; only these one-time registrations are read here.
+     * Installs from the GLOBAL profile's {@link ProjectileConfig} - set the profile before installing. Only the
+     * one-time registrations ({@code typeConfigs}, {@code shootables}) are read here; physics still resolves per-scope.
      */
     public static ProjectileSystem install(MinestomMechanics mm) {
         ProjectileConfig global = mm.profiles().resolve(null, MechanicsKeys.PROJECTILES);

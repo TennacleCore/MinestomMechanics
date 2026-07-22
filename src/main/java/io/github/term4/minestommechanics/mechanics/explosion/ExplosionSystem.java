@@ -137,14 +137,14 @@ public final class ExplosionSystem implements MechanicsModule {
             // sourceless = the exploding world itself acts
             if (source != null ? !WorldPolicy.canAffect(source, entity) : !MechanicsWorld.of(entity).equals(world)) continue;
             boolean living = entity instanceof LivingEntity;
-            boolean kbTarget = isKnockbackTarget(entity, resolved); // players + non-living physics entities by default
+            boolean kbTarget = isKnockbackTarget(entity, resolved);
             if (!living && !kbTarget) continue;
             if (entity == source && !resolved.affectsSource()) continue;
             double distance = entity.getPosition().distance(center);
             if (distance > doubleRadius) continue;
             // default = STANDING eye even when sneaking (Hypixel); pushEye overrides (MineMen = sneak-aware getHeadHeight).
             // Non-living TNT = feet/0 (vanilla), not the 0.15 registry eye.
-            double headHeight = !(entity instanceof LivingEntity) ? 0.0
+            double headHeight = !living ? 0.0
                     : resolved.pushEye() != null ? resolved.pushEye().apply(entity)
                     : entity.getEntityType().registry().eyeHeight();
             Point eyeOrigin = entity.getPosition().add(0, headHeight, 0);

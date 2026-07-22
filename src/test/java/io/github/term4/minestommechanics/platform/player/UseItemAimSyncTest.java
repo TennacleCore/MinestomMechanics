@@ -17,8 +17,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * The use-item aim-sync hold: a gated use packet waits for its tick's flying packet and takes the click aim from it
- * (a 1.8 client sends use-then-look within one tick, so Via's fill is one look stale - the flick-throw desync).
+ * A 1.8 client sends use-then-look within one tick, so Via's aim fill is one look stale (the flick-throw desync).
+ * The hold waits for that tick's flying packet and takes the click aim from it.
  */
 class UseItemAimSyncTest {
 
@@ -48,7 +48,7 @@ class UseItemAimSyncTest {
 
     @Test
     void idleFlyingReleasesUnpatched() {
-        // no rotation that tick = the aim didn't change at the click; the stored (Via-filled) aim is already right
+        // no rotation that tick = the aim didn't change at the click, so the Via-filled aim is already right
         ClientPlayerPositionStatusPacket idle = new ClientPlayerPositionStatusPacket((byte) 1);
         feed(true, USE, idle);
         assertEquals(List.of(USE, idle), out);
@@ -79,7 +79,7 @@ class UseItemAimSyncTest {
     @Test
     void staleHoldReleasesOnTimeout() throws InterruptedException {
         feed(true, USE);
-        Thread.sleep(150); // past the 100ms hold cap (a vanilla client would have sent a flying packet within 50ms)
+        Thread.sleep(150); // past the 100ms hold cap
         ClientAnimationPacket swing = new ClientAnimationPacket(PlayerHand.MAIN);
         feed(true, swing);
         assertEquals(List.of(USE, swing), out);

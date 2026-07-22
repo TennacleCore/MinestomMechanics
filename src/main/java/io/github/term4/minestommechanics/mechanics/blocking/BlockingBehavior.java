@@ -8,8 +8,8 @@ import io.github.term4.minestommechanics.mechanics.blocking.BlockingConfigResolv
  * {@code ConsumableBehavior} idiom). An item maps to a behavior via the scope {@link BlockingConfig}. Sword vs shield are
  * two behaviors, not two item types; a server can map any material to {@link #SWORD}, {@link #SHIELD}, or a custom one.
  *
- * <p>Reduction math is shared ({@link #reduced}: vanilla's {@code damage - clamp(base + factor*damage)}); behaviors differ
- * in <em>applicability</em> - the 1.8 sword blocks any non-armor-bypassing hit from any direction; the modern shield gates on a frontal arc, use-delay, and per-type bypasses.
+ * <p>Reduction math is shared ({@link #reduced}); behaviors differ in <em>applicability</em> - the 1.8 sword blocks any
+ * non-armor-bypassing hit from any direction, the modern shield gates on a frontal arc, use-delay and per-type bypasses.
  */
 @FunctionalInterface
 public interface BlockingBehavior {

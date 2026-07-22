@@ -12,9 +12,8 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Guards that both preset catalogs register the requested potions. LEGACY ({@link Attributes#config()}) carries every
- * effect whose 1.8 form is attribute/behavior-based; MODERN ({@link Vanilla#attributes()}) additionally carries Haste /
- * Mining Fatigue / Jump Boost (attribute-based only in 26). ({@code vanilla18.Attributes#config()} / {@code vanilla.Attributes#config()}.)
+ * Both preset catalogs register the requested potions. LEGACY carries every effect whose 1.8 form is
+ * attribute/behavior-based; MODERN adds Haste / Mining Fatigue / Jump Boost (attribute-based only in 26).
  */
 class PresetAttributesTest {
 

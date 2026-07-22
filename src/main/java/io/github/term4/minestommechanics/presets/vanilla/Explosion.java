@@ -8,10 +8,9 @@ public final class Explosion {
 
     private Explosion() {}
 
-    /** power 4.0 = the TNT default radius. */
     public static ExplosionConfig config() {
         return ExplosionConfig.builder()
-                .power(4.0)
+                .power(4.0) // TNT default radius
                 .damageConstant(7.0)
                 .floorDamage(false)
                 .knockbackMultiplier(1.0)

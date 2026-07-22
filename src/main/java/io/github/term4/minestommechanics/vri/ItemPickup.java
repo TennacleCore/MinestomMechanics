@@ -36,7 +36,7 @@ public final class ItemPickup {
                 return;
             }
             if (player.getInstance() == null) return;
-            // vanilla random.pop; the pitch/volume live in the ITEM_PICKUP effect, resolved from the item's scope + world
+            // pitch/volume live in the ITEM_PICKUP effect, resolved from the item's scope + world
             MinestomMechanics mm = MinestomMechanics.getInstance();
             if (mm.isInitialized()) Effects.play(mm.services(), Effects.ITEM_PICKUP, EffectContext.of(e.getItemEntity()));
         });

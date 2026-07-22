@@ -10,10 +10,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
-/**
- * Reads an enchantment level off an item's {@code ENCHANTMENTS} component by {@link Key} - the shared reader, so the
- * component walk lives in one place instead of being re-copied per consumer.
- */
+/** Reads an enchantment level off an item's {@code ENCHANTMENTS} component by {@link Key}. */
 public final class Enchants {
 
     private Enchants() {}

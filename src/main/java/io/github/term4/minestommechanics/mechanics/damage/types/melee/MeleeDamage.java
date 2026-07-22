@@ -23,7 +23,6 @@ import org.jetbrains.annotations.Nullable;
 public final class MeleeDamage extends DamageType {
 
     public static final Key KEY = Key.key("minecraft:player_attack");
-    /** Builder defaults: 1.8 weapon-table base amount, 1.5x crit. */
     private static final MeleeDamageConfig DEFAULT = MeleeDamageConfig.builder().critMultiplier(1.5).build();
     public static final MeleeDamage INSTANCE = new MeleeDamage();
 
@@ -45,7 +44,6 @@ public final class MeleeDamage extends DamageType {
         DamageContext ctx = dmg != null ? dmg.contextFor(prelim) : DamageContext.of(prelim, services);
         MeleeDamageConfig cfg = ctx.typeConfig() instanceof MeleeDamageConfig p ? p : DEFAULT;
 
-        // attackDamage: the 1.8 weapon table is the base, folded with attack-damage modifiers (Strength)
         Double tableBase = cfg.baseAmount(ctx);
         float amount = tableBase != null ? tableBase.floatValue() : 0f;
 
@@ -55,13 +53,11 @@ public final class MeleeDamage extends DamageType {
                 : null;
         if (actx != null) amount = (float) actx.value(Attribute.ATTACK_DAMAGE, amount);
 
-        // crit: ×multiplier (1.8 = 1.5), before the flat-add per vanilla order
         if (critical) {
             Double crit = cfg.critMultiplier(ctx);
             if (crit != null) amount *= crit.floatValue();
         }
 
-        // melee flat-add (Sharpness etc.), after crit
         if (actx != null) amount += (float) actx.value(Attribute.MELEE_FLAT_ADD, 0);
 
         return prelim.withAmount(amount);

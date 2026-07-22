@@ -26,7 +26,6 @@ import net.minestom.server.event.entity.EntityTeleportEvent;
 import net.minestom.server.event.entity.EntityTickEvent;
 import net.minestom.server.event.player.PlayerMoveEvent;
 import net.minestom.server.event.player.PlayerSpawnEvent;
-import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
@@ -57,7 +56,6 @@ public final class FallDamage extends DamageType {
 
     private @Nullable EventNode<@NotNull Event> node;
     private @Nullable DamageSystem system;
-    /** The landing-poll registration; cancelled on {@link #disable}. */
     private @Nullable TickSystem.Registration pollHook;
 
     private FallDamage() {
@@ -113,9 +111,8 @@ public final class FallDamage extends DamageType {
         Player p = e.getPlayer();
         Pos newPos = e.getNewPosition();
 
-        // exempt (dead/creative/spectator/flying): drop the distance AND the prev-baseline. Clearing prev is what stops the
-        // quick-respawn phantom damage - a dead player's death-fall position would otherwise be the baseline for the first
-        // live move after respawn, giving a huge dy. Set prev only for a non-exempt player.
+        // clearing prev too is what stops quick-respawn phantom damage: a dead player's death-fall position would
+        // otherwise be the baseline for the first live move after respawn, giving a huge dy
         if (DamageProducers.exempt(p)) {
             p.removeTag(FALL_DISTANCE);
             p.removeTag(PREV);
@@ -123,13 +120,11 @@ public final class FallDamage extends DamageType {
         }
         PrevMove prev = p.getTag(PREV);
         p.setTag(PREV, new PrevMove(newPos.y(), e.isOnGround()));
-        if (prev == null) return; // need a baseline first
-        // Land on the CLIENT's onGround flag (vanilla-faithful: Entity.checkFallDamage lands on the authoritative onGround,
-        // which for a player is the move packet's flag). NOT MotionTracker.simCollided - the server collision sim
-        // false-positives mid-fall (it trips a tick early during fast falls), firing fall damage above the real ground; the
-        // status-only-landing fallback (pollLandings) also rides the client flag, so nothing is missed.
-        // newPos, not getPosition(): the player's position isn't committed until after this event, so the landing-block
-        // (slime) check must use the move's destination - at high fall speed getPosition() is many blocks up.
+        if (prev == null) return;
+        // land on the CLIENT's onGround flag (vanilla Entity.checkFallDamage), NOT MotionTracker.simCollided - the server
+        // sim trips a tick early during fast falls, firing fall damage above the real ground.
+        // newPos, not getPosition(): the position isn't committed until after this event, so at high fall speed the
+        // landing-block (slime) check would look many blocks up.
         accumulate(p, newPos, newPos.y() - prev.y(), e.isOnGround());
     }
 
@@ -157,11 +152,10 @@ public final class FallDamage extends DamageType {
         }
     }
 
-    /** One observation step: apply the environment rules (water/climbing zero, lava halves), then land or accumulate. {@code pos} is the landing position (the move destination for players). */
+    /** One observation step; {@code pos} is the landing position (the move destination for players). */
     private void accumulate(LivingEntity living, Point pos, double dy, boolean onGround) {
         float dist = fallDistance(living);
 
-        // only consulted mid-fall
         if (dist > 0 || dy < 0) {
             boolean[] contact = new boolean[2]; // water, lava
             BlockContact.scan(living, block -> {
@@ -191,8 +185,7 @@ public final class FallDamage extends DamageType {
      *  ({@link io.github.term4.minestommechanics.tracking.motion.MotionTracker} does the velocity half); the block is under the landing feet. */
     private static boolean bounceNegatesFall(LivingEntity living, Point pos) {
         if (living instanceof Player p && p.isSneaking()) return false;
-        Instance inst = living.getInstance();
-        if (inst == null) return false;
+        if (living.getInstance() == null) return false;
         Block below = MechanicsWorld.viewed(living).getBlock(pos.sub(0, 0.5000001, 0), Block.Getter.Condition.TYPE);
         return below != null && below.compare(Block.SLIME_BLOCK);
     }

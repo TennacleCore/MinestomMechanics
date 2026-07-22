@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Fall distance accrues from y-deltas against a PREV baseline, so a teleport must re-anchor the baseline (or the jump
  * itself reads as a fall) while KEEPING the accumulated distance (vanilla does not reset fall distance on teleport).
- * The downward-teleport case is what a shard hop or /tp does - phantom lethal fall damage without the re-anchor.
  */
 class FallBaselineTest extends HeadlessServerTest {
 

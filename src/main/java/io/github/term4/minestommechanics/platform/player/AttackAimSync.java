@@ -13,14 +13,12 @@ import java.util.function.Consumer;
 
 /**
  * <b>Experimental</b>: syncs an attacker's knockback aim to the click - the attack analog of {@link UseItemAimSync},
- * gated by {@code KnockbackConfig.experimentalAimSync}. Melee knockback's aim-weighted part (the sprint /
- * Knockback-enchant EXTRA, aimed along the attacker's yaw, plus any base {@code KnockbackConfig.yawWeight}) reads the
- * attacker's server look when the attack packet is processed; the attack packet carries no rotation and lands a beat
- * before the same-tick flying packet on EVERY client version (the client sends attack during input dispatch, look during
- * its entity tick), so that component fires along the STALE look. Only the LOOK of that flying packet is applied before
- * the held attack - the attacker's position stays pre-move, so the position-delta base is untouched (vanilla-exact); a
- * position+rotation packet is split into a synthetic look-only update for that. Real servers keep the one-packet lag, so
- * no preset enables it.
+ * gated by {@code KnockbackConfig.experimentalAimSync}. Knockback's aim-weighted part reads the attacker's server look
+ * when the attack packet is processed; the attack packet carries no rotation and lands a beat before the same-tick
+ * flying packet on EVERY client version (attack goes out during input dispatch, look during the entity tick), so that
+ * component fires along the STALE look. Only the LOOK of that flying packet is applied before the held attack - the
+ * position stays pre-move, so the position-delta base is untouched (vanilla-exact); a position+rotation packet is split
+ * into a synthetic look-only update for that. Real servers keep the one-packet lag, so no preset enables it.
  *
  * <p>Runs on the connection's read thread (single-threaded per player). A flying packet without rotation releases the
  * attack unchanged ahead of the move - the look didn't change that tick, so the stored aim is already the click aim.

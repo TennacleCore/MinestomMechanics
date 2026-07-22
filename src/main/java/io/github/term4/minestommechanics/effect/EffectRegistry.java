@@ -9,10 +9,8 @@ import java.util.Map;
 
 /**
  * An immutable registry of {@link Effect}s by {@link Key} - the {@code MechanicsKeys.EFFECTS} profile value, resolved
- * per scope like {@link io.github.term4.minestommechanics.item.ItemRegistry}. A preset provides one
- * ({@link Effects#vanilla18()}); {@link #register} returns a NEW registry (copy-on-write) so overrides compose without
- * mutation, and {@link Effect#NONE} silences one effect. Mechanics play through {@link Effects#play} - customize the
- * registry, not event listeners.
+ * per scope. A preset provides one ({@link Effects#vanilla18()}); {@link #register} returns a NEW registry so overrides
+ * compose without mutation, and {@link Effect#NONE} silences one effect.
  */
 public final class EffectRegistry {
 
@@ -22,7 +20,7 @@ public final class EffectRegistry {
 
     private EffectRegistry(Map<Key, Effect> effects) { this.effects = Map.copyOf(effects); }
 
-    /** A registry with no effects (nothing plays until keys are {@link #register registered}). */
+    /** A registry with no effects - nothing plays until keys are {@link #register registered}. */
     public static @NotNull EffectRegistry empty() { return EMPTY; }
 
     /** The effect registered for {@code key}, or {@code null}. */

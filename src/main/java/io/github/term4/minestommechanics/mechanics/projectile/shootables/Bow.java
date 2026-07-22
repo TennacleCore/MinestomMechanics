@@ -24,8 +24,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Bow launcher ({@link Shootable}): a drawn-bow release fires an arrow. The bow item and the {@link Arrow} projectile
- * are distinct - the arrow type stays pure identity, the bow lives here. Pass {@code new Bow()} to {@link ProjectileSystem#install}.
+ * Bow launcher ({@link Shootable}): a drawn-bow release fires an {@link Arrow}. Pass {@code new Bow()} to
+ * {@link ProjectileSystem#install}.
  *
  * <p>Vanilla 1.8: draw power {@code (s^2 + 2s)/3} capped at 1, {@code < 0.1} fires nothing, full draw is critical
  * (chance = the arrow type's {@code critChance} knob); consumes one arrow (unless creative); the arrow launches at
@@ -67,19 +67,18 @@ public final class Bow implements Shootable {
         Effects.play(system.services(), Effects.BOW_SHOOT, EffectContext.of(p));
         if (proj instanceof ArrowEntity arrow) {
             arrow.setCritical(power >= 1f && rollCrit(system.resolveFlight(snap).critChance()));
-            // A consumed (survival) shot -> ALLOWED (collector keeps the arrow); a kept shot (creative / Infinity) -> CREATIVE_ONLY (no pickup).
+            // a kept shot (creative / Infinity) must not hand the collector a free arrow
             arrow.setPickup(keepArrow ? ArrowEntity.Pickup.CREATIVE_ONLY : ArrowEntity.Pickup.ALLOWED);
             TippedArrows.apply(arrow, arrowItem);
         }
     }
 
-    /** Rolls the full-draw crit chance: always at {@code >= 1}, never at {@code <= 0}, else a per-shot roll. */
     private static boolean rollCrit(double chance) {
         if (chance >= 1.0) return true;
         return chance > 0.0 && ThreadLocalRandom.current().nextDouble() < chance;
     }
 
-    /** Vanilla bow power curve: {@code (f*f + 2f)/3} capped at 1, where {@code f} is the draw in real seconds (draw ticks / server TPS, not a hardcoded 20) so charge is TPS-invariant. */
+    /** Vanilla bow power curve over the draw in real SECONDS (ticks / server TPS, not a hardcoded 20), so charge is TPS-invariant. */
     private static float drawPower(long useDurationTicks) {
         float f = useDurationTicks / (float) ServerFlag.SERVER_TICKS_PER_SECOND;
         float power = (f * f + 2 * f) / 3.0f;

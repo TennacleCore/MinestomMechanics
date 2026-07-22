@@ -9,9 +9,8 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * Strength (potion) - an attack-damage modifier. {@link #LEGACY} is 1.8's multiplicative {@code ×(1 + 1.3 × level)}
- * ({@code MobEffectAttackDamage}, op {@code ADD_MULTIPLIED_TOTAL}); {@link #MODERN} is the 1.9+ flat {@code +3 × level}
- * ({@code ADD_VALUE}).
+ * Strength. {@link #LEGACY} is 1.8's multiplicative {@code ×(1 + 1.3 × level)} ({@code MobEffectAttackDamage});
+ * {@link #MODERN} is the 1.9+ flat {@code +3 × level}.
  */
 public final class Strength {
 

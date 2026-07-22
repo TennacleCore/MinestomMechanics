@@ -16,7 +16,7 @@ public final class CooldownConfig {
 
     private CooldownConfig(Builder b) { this.ticks = Map.copyOf(b.ticks); }
 
-    /** The cooldown for {@code material} in vanilla ticks, or {@code null} for none. */
+    /** Vanilla ticks, or {@code null} for none. */
     public @Nullable Integer ticks(Material material) { return ticks.get(material); }
 
     public static Builder builder() { return new Builder(); }

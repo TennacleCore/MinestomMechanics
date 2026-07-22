@@ -32,10 +32,14 @@ class HungerRegenTest extends HeadlessServerTest {
         for (int i = 0; i < times; i++) EventDispatcher.call(new InstanceTickEvent(inst, 0, 0));
     }
 
+    private static Player player(Instance inst, String name) {
+        return FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), name).player;
+    }
+
     @Test
     void legacyHealsOnePerEightyTicks() {
         Instance inst = instance(Hunger.config());
-        Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "LegacyRegen").player;
+        Player p = player(inst, "LegacyRegen");
         p.setHealth(10f);
 
         tick(inst, 79);
@@ -48,7 +52,7 @@ class HungerRegenTest extends HeadlessServerTest {
     @Test
     void modernSaturationFastRegenHealsEveryTenTicks() {
         Instance inst = instance(io.github.term4.minestommechanics.presets.vanilla.Hunger.config());
-        Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "ModernRegen").player;
+        Player p = player(inst, "ModernRegen");
         p.setHealth(10f);
         // defaults: food 20, saturation 5 -> fast path heals min(5,6)/6 on the 10th tick at 5.0 exhaustion
         tick(inst, 9);
@@ -61,7 +65,7 @@ class HungerRegenTest extends HeadlessServerTest {
     @Test
     void belowThresholdNeverRegens() {
         Instance inst = instance(Hunger.config());
-        Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "NoFood").player;
+        Player p = player(inst, "NoFood");
         p.setHealth(10f);
         p.setFood(17);
         tick(inst, 200);
@@ -72,7 +76,7 @@ class HungerRegenTest extends HeadlessServerTest {
     void naturalRegenToggleOff() {
         Instance inst = instance(HungerConfig.builder(
                 Hunger.config()).naturalRegen(false).build());
-        Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "NoRegen").player;
+        Player p = player(inst, "NoRegen");
         p.setHealth(10f);
         tick(inst, 200);
         assertEquals(10f, p.getHealth(), 1e-6, "toggle off - no regen at full food");
@@ -81,7 +85,7 @@ class HungerRegenTest extends HeadlessServerTest {
     @Test
     void exhaustionDrainsSaturationThenFood() {
         Instance inst = instance(Hunger.config());
-        Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "Drain").player;
+        Player p = player(inst, "Drain");
         HungerSystem hunger = mm.module(HungerSystem.class);
         p.setFoodSaturation(1f);
         hunger.exhaust(p, Key.key("test:drain"), 4.5f); // a custom source at default scale
@@ -97,7 +101,7 @@ class HungerRegenTest extends HeadlessServerTest {
     void globalScaleZeroRegensWithoutEverDepleting() { // the BedWars shape
         Instance inst = instance(HungerConfig.builder(
                 Hunger.config()).exhaustionScale(0f).build());
-        Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "BedWars").player;
+        Player p = player(inst, "BedWars");
         p.setHealth(1f);
         tick(inst, 160);
         assertEquals(3f, p.getHealth(), 1e-6, "regen keeps healing");
@@ -110,7 +114,7 @@ class HungerRegenTest extends HeadlessServerTest {
     void perSourceCostRuleAffectsOnlyThatSource() {
         Instance inst = instance(HungerConfig.builder(Hunger.config())
                 .exhaustionCost(HungerSystem.REGEN_COST, ExhaustionCost.free()).build());
-        Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "FreeRegen").player;
+        Player p = player(inst, "FreeRegen");
         p.setHealth(10f);
         tick(inst, 80);
         assertEquals(11f, p.getHealth(), 1e-6);
@@ -123,7 +127,7 @@ class HungerRegenTest extends HeadlessServerTest {
     void scaledRuleKeepsTheFastPathDynamic() {
         Instance inst = instance(HungerConfig.builder(io.github.term4.minestommechanics.presets.vanilla.Hunger.config())
                 .exhaustionCost(HungerSystem.SATURATION_REGEN_COST, ExhaustionCost.scaled(0.5f)).build());
-        Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "HalfCost").player;
+        Player p = player(inst, "HalfCost");
         p.setHealth(10f);
         tick(inst, 10); // spends min(5,6)=5 saturation -> half cost = 2.5
         assertEquals(10f + 5f / 6f, p.getHealth(), 1e-5, "heal amount unchanged");
@@ -133,7 +137,7 @@ class HungerRegenTest extends HeadlessServerTest {
     @Test
     void restoreCapsFoodAndSaturation() {
         Instance inst = instance(Hunger.config());
-        Player p = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5), "Restore").player;
+        Player p = player(inst, "Restore");
         p.setFood(14);
         p.setFoodSaturation(0f);
         mm.module(HungerSystem.class).restore(p, 4, 9.6f); // golden apple

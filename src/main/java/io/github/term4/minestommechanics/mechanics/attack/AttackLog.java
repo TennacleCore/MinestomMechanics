@@ -30,13 +30,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p><b>Reach guard.</b> Cancels a {@link PreAttackEvent} whose {@link #optimalReach} exceeds {@code maxReach}, mirroring
  * vanilla's server check ({@code Player.isWithinEntityInteractionRange} = {@code box.distanceToSqr(eyePosition)} vs
- * {@code entityInteractionRange 3.0 + buffer 3.0 = 6.0}): a nearest-point, rotation-INDEPENDENT distance, never a ray
- * along the attacker's aim. Aim is deliberately unused - vanilla doesn't use it either, and the server's view of the
- * attacker's yaw/pitch lags the client at high flick speeds, so an aim ray would falsely reject legitimate hits. The
- * result is a lower bound on true reach (past it a hit is impossible regardless of aim - safe to drop synchronously).
- * Two leniency refinements over vanilla: the target box grows by the attacker's real client hitbox margin (1.8's 0.1 /
- * a modern client's {@code attack_range}) rather than a flat buffer, and the eye takes the min over client-perceived
- * candidates (1.8 vs modern). Keep {@code maxReach} generous (only kill clearly-impossible hits).
+ * {@code entityInteractionRange 3.0 + buffer 3.0 = 6.0}): nearest-point, rotation-INDEPENDENT, never a ray along the
+ * attacker's aim - the server's view of yaw/pitch lags the client at high flick speeds, so an aim ray would falsely
+ * reject legitimate hits. Two leniencies over vanilla: the target box grows by the attacker's real client hitbox margin
+ * (1.8's 0.1 / a modern client's {@code attack_range}) rather than a flat buffer, and the eye takes the min over
+ * client-perceived candidates. Keep {@code maxReach} generous (only kill clearly-impossible hits).
  *
  * <p><b>Obstruction.</b> {@link #obstructed} is a query only - nothing enforces it. Vanilla melee does NOT line-of-sight
  * server-side (the client's entity-pick clips against blocks); this mirrors that clip. The precise lag-compensated reach
@@ -121,18 +119,14 @@ public final class AttackLog {
     }
 
     /**
-     * Whether {@code player} is mid block-break - a SEPARATE flag from {@link #obstructed} (an action, not geometry). The
-     * consumer decides what it means: MMC bars a modern client's swing fake-hit while breaking (the left-click drives the
-     * break) but not a 1.8 client's. Requires {@link #installDigTracking}; {@code false} if untracked.
+     * Whether {@code player} is mid block-break - an action flag, not geometry; the consumer decides what it means.
+     * Requires {@link #installDigTracking}; {@code false} if untracked.
      */
     public static boolean digging(Player player) {
         return Boolean.TRUE.equals(player.getTag(DIGGING));
     }
 
-    /**
-     * The attack-box growth this attacker's client applies to targets: 1.8 grows 0.1 natively; a modern client grows by
-     * its compat-stamped {@code attack_range} margin - read from the same CompatState as the attack-box feature, so the two don't diverge.
-     */
+    /** 1.8 grows the attack box 0.1 natively; a modern client grows by its compat-stamped {@code attack_range} margin (same CompatState as the attack-box feature, so the two can't diverge). */
     private static double hitPad(Player attacker, ClientInfoTracker clientInfo) {
         double nativePad = ClientVersion.isLegacy(clientInfo.getProtocol(attacker)) ? 0.1 : 0.0;
         Float margin = attacker instanceof OptimizedPlayer op ? op.compat().attackHitboxMargin() : null;

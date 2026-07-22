@@ -9,9 +9,8 @@ import net.minestom.server.item.component.Food;
 
 /**
  * The unregistered-item floor: an item with a {@code food} component eats with its registry values (value-identical
- * to the 1.8 table, diffed against the pristine ItemFood ctors). Synthesized by {@link ConsumableSystem} when no
- * registered type matches; per-scope config rides {@link #KEY} like any type, {@link ConsumableConfig#componentFoods()}
- * turns it off.
+ * to the 1.8 table, diffed against the pristine ItemFood ctors). Per-scope config rides {@link #KEY} like any type,
+ * {@link ConsumableConfig#componentFoods()} turns it off.
  */
 public final class ComponentFood {
 
@@ -40,7 +39,7 @@ public final class ComponentFood {
         return c != null ? c.consumeTicks() : Consumable.VANILLA_CONSUME_TICKS;
     }
 
-    /** The item's {@code food.can_always_eat} flag - the {@code alwaysEdible} input for the canConsume gates. */
+    /** The {@code alwaysEdible} input for the canConsume gates. */
     public static boolean alwaysEdible(ItemStack item) {
         Food f = item.get(DataComponents.FOOD);
         return f != null && f.canAlwaysEat();

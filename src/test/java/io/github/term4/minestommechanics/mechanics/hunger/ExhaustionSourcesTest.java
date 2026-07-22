@@ -31,10 +31,7 @@ import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/**
- * The action exhaustion sources against the pristine-source vanilla values (docs/exhaustion-sources.md). Detection
- * reports quantities; every value asserted here comes from the preset's {@code exhaustionCost} rules.
- */
+/** Action exhaustion sources against the pristine-source vanilla values (docs/exhaustion-sources.md). */
 class ExhaustionSourcesTest extends HeadlessServerTest {
 
     @BeforeAll

@@ -12,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-/** Resolves {@link ExplosionConfig} with context into plain values. Mirrors KnockbackConfigResolver. */
+/** Resolves {@link ExplosionConfig} with context into plain values. */
 public final class ExplosionConfigResolver {
 
     private ExplosionConfigResolver() {}

@@ -7,7 +7,6 @@ public final class Player {
 
     private Player() {}
 
-    /** PlayerConfig with vanilla 1.8 values: position broadcast every 2 ticks. */
     public static PlayerConfig config() {
         return PlayerConfig.builder()
                 .positionBroadcastInterval(2)

@@ -59,7 +59,7 @@ public final class AttackSystem implements MechanicsModule {
             if (pre.isCancelled()) return;
             snap = pre.finalSnap();
         }
-        // config: snapshot -> attacker scope -> install (none = inert, empty = vanilla floor)
+        // none = inert, empty = vanilla floor
         AttackConfig effective = snap.config();
         if (effective == null) {
             AttackConfig scoped = profiles.resolve(snap.attacker(), MechanicsKeys.ATTACK);
@@ -70,7 +70,7 @@ public final class AttackSystem implements MechanicsModule {
 
         AttackEvent api = new AttackEvent(snap, services);
         EventDispatcher.call(api);
-        // enabled is read live, so a listener can swap in an enabled config to let the hit through
+        // enabled read live: a listener can swap in an enabled config to let the hit through
         if (api.isCancelled() || !api.process() || !api.resolvedConfig().enabled()) return;
 
         AttackEvent.AttackRule proc = api.processor() != null

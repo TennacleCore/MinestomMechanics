@@ -5,11 +5,11 @@ import net.minestom.server.entity.Entity;
 
 /**
  * Combat-domain facts the attack path drops onto an {@code AttributeContext}, for victim-conditional enchants (Smite/Bane).
- * A neutral {@link Entity} value, so a catalog enchant reads the target without importing the damage package (package isolation).
+ * A neutral {@link Entity} value, so a catalog enchant reads the target without importing the damage package.
  */
 public final class CombatFacts {
     private CombatFacts() {}
 
-    /** The entity being attacked (the melee/projectile victim). Absent outside a combat read. */
+    /** Absent outside a combat read. */
     public static final FactKey<Entity> TARGET = new FactKey<>("mm:combat/target");
 }

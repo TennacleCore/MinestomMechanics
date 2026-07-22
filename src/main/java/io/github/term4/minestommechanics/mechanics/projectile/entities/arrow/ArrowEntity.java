@@ -43,7 +43,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class ArrowEntity extends ManagedProjectile {
 
-    /** Vanilla pickup cooldown: the arrow can't be collected for this many ticks after sticking (vanilla {@code 7}; {@code shakeTicks} knob). */
+    /** Vanilla {@code 7}. */
     private int shakeTicks = 7;
 
     // Pickup geometry (ProjectileTypeConfig.pickupBox, stamped at launch; default vanilla). Collected when the arrow's
@@ -80,13 +80,12 @@ public class ArrowEntity extends ManagedProjectile {
         if (getEntityMeta() instanceof AbstractArrowMeta meta) meta.setCritical(critical);
     }
 
-    /** Server-sent crit particles at the arrow's real position - the optional {@code deflectParticles} cosmetic trail ({@link #deflectVisible}). */
+    /** The optional {@code deflectParticles} cosmetic trail ({@link #deflectVisible}). */
     private void spawnDeflectTrail() {
         Pos p = getPosition();
         sendPacketToViewersAndSelf(new ParticlePacket(Particle.CRIT, p.x(), p.y(), p.z(), 0.05f, 0.05f, 0.05f, 0f, 2));
     }
 
-    /** Sets who may collect this arrow (the bow passes {@link Pickup#ALLOWED} survival / {@link Pickup#CREATIVE_ONLY} creative). */
     public void setPickup(Pickup pickup) { this.pickup = pickup; }
 
     public void setPickupBox(ProjectileTypeConfig.PickupBox box) {
@@ -117,16 +116,15 @@ public class ArrowEntity extends ManagedProjectile {
 
     public void setShakeTicks(int ticks) { this.shakeTicks = ticks; }
 
-    /** On a living hit: adds one "stuck arrow" (vanilla cosmetic arrows in the body; see {@link StuckArrows}), ignites with Flame, and applies any tipped-arrow effects. Block hits are ignored. */
     @Override
     protected void onImpact(@Nullable Entity hitEntity) {
-        if (hitEntity != null) Effects.play(services(), Effects.ARROW_HIT, EffectContext.of(this)); // the thunk (block hits go through onStuck)
+        if (hitEntity != null) Effects.play(services(), Effects.ARROW_HIT, EffectContext.of(this)); // block hits go through onStuck
         if (!(hitEntity instanceof LivingEntity le)) return;
-        // hit-marker "ding" to the shooter (registry-gated: on for PvP presets, off for vanilla); a real target, not a self-hit
+        // hit-marker "ding" to the shooter, on a real target - not a self-hit
         if (shooter instanceof Player && shooter != le) Effects.play(services(), Effects.ARROW_HIT_PLAYER, EffectContext.of(shooter, le));
         StuckArrows.add(le, 1);
-        // Flame: ignite the struck entity (vanilla fixed 5s; fire ticks decrement at server TPS, so scale it)
-        if (flameLevel() > 0) le.setFireTicks(TickScaler.duration(Flame.FIRE_TICKS, ProjectileSystem.KEY));
+        // vanilla fixed 5s; fire ticks decrement at server TPS, so scale it
+        if (flameLevel() > 0) le.setFireTicks(TickScaler.duration(le, Flame.FIRE_TICKS, ProjectileSystem.KEY));
         applyOnHitEffects(le);
     }
 
@@ -135,10 +133,7 @@ public class ArrowEntity extends ManagedProjectile {
         this.potionDurationScale = durationScale;
     }
 
-    /**
-     * Applies the tipped-arrow effects (vanilla {@code Arrow.doPostHurtEffects}): each effect's duration scaled by the
-     * item's {@code potion_duration_scale}, then {@code addEffect} - routing through the attribute potion lifecycle (TPS scaling, source behavior, e.g. {@code InstantDamage}).
-     */
+    /** Vanilla {@code Arrow.doPostHurtEffects}, routed through the attribute potion lifecycle (TPS scaling, source behavior). */
     private void applyOnHitEffects(LivingEntity le) {
         for (CustomPotionEffect e : onHitEffects) {
             int duration = Math.max(1, Math.round(e.duration() * potionDurationScale));
@@ -146,16 +141,14 @@ public class ArrowEntity extends ManagedProjectile {
         }
     }
 
-    /** Starts the pickup cooldown when the arrow sticks in a block, and flags inGround for new viewers. */
     @Override
     protected boolean onStuck() {
-        shake = TickScaler.duration(shakeTicks, ProjectileSystem.KEY); // pickup cooldown decrements per server tick, so scale it
+        shake = TickScaler.duration(this, shakeTicks, ProjectileSystem.KEY); // decrements per server tick, so scale it
         if (getEntityMeta() instanceof AbstractArrowMeta meta) meta.setInGround(true);
-        Effects.play(services(), Effects.ARROW_HIT, EffectContext.of(this)); // the thunk on sticking in a block
+        Effects.play(services(), Effects.ARROW_HIT, EffectContext.of(this));
         return super.onStuck();
     }
 
-    /** Clears the inGround flag when the block is broken out from under the arrow (resume flight on all clients). */
     @Override
     protected void onUnstuck() {
         if (getEntityMeta() instanceof AbstractArrowMeta meta) meta.setInGround(false);
@@ -172,19 +165,17 @@ public class ArrowEntity extends ManagedProjectile {
         var instance = getInstance();
         if (instance == null) return;
         Pos arrow = getPosition();
-        // query nearby players only, then test the exact box intersection + pickup mode (the radius is just the pre-filter)
         Player[] collected = {null};
         MechanicsWorld.of(this).nearbyPlayers(arrow, pickupScanRange, p -> {
             if (collected[0] == null && WorldPolicy.canAffect(p, this) && canCollect(p) && withinPickupBox(arrow, p)) collected[0] = p;
         });
         Player p = collected[0];
         if (p == null) return;
-        // ALLOWED gives a survival collector the arrow item; a full inventory means no pickup (vanilla EntityArrow.d gates
-        // on inventory.pickup succeeding). Creative takes none. TODO: offhand
+        // vanilla EntityArrow.d gates on inventory.pickup succeeding; creative takes no item. TODO: offhand
         if (pickup == Pickup.ALLOWED && p.getGameMode() != GameMode.CREATIVE
                 && !p.getInventory().addItemStack(ItemStack.of(Material.ARROW))) return; // inventory full -> arrow stays stuck
-        // pickup animation: the arrow flies into the collector before remove() sends the destroy
-        Effects.play(services(), Effects.ITEM_PICKUP, EffectContext.of(this)); // the pickup pop (vanilla Player.take)
+        // the arrow flies into the collector before remove() sends the destroy
+        Effects.play(services(), Effects.ITEM_PICKUP, EffectContext.of(this));
         sendPacketToViewersAndSelf(new CollectItemPacket(getEntityId(), p.getEntityId(), 1));
         remove();
     }

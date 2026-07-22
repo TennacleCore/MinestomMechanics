@@ -20,7 +20,7 @@ import java.util.Map;
  * the server happily honors a use packet from a client that ignores its own overlay. This system is the authority:
  * consumers ({@code ThrowableItemType} etc.) gate on {@link #tryUse}, which also sends the client overlay
  * ({@code set_cooldown}). Legacy 1.8 clients have no cooldown wire - enforcement still applies, the overlay just
- * doesn't render (a legacy visual analog may come later if there's demand).
+ * doesn't render.
  */
 public final class CooldownSystem implements MechanicsModule {
 
@@ -48,7 +48,6 @@ public final class CooldownSystem implements MechanicsModule {
         return system;
     }
 
-    /** Whether {@code material} is currently on cooldown for {@code player}. */
     public boolean isOnCooldown(Player player, Material material) {
         Map<String, Long> active = player.getTag(ACTIVE);
         if (active == null) return false;
@@ -57,9 +56,8 @@ public final class CooldownSystem implements MechanicsModule {
     }
 
     /**
-     * Gates a use: {@code false} while on cooldown (the caller skips the action); otherwise arms the configured
-     * cooldown (server clock, TPS-scaled) + sends the client overlay, and returns {@code true}. No config for the
-     * material = always allowed.
+     * Gates a use: {@code false} while on cooldown, else arms the cooldown (server clock, TPS-scaled) + sends the
+     * client overlay. No config for the material = always allowed.
      */
     public boolean tryUse(Player player, Material material) {
         CooldownConfig cfg = mm.profiles().resolve(player, MechanicsKeys.COOLDOWNS);

@@ -29,15 +29,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Item blocking (sword block / shield) - a thin damage hook over the scope {@link BlockingConfig}. Driven by the item's
- * {@code blocks_attacks} component: the client predicts the block (every version), Minestom turns it into a use time, and
- * the server is "blocking" while {@link Player#isUsingItem()}. So an item blocks when it (a) carries the component,
- * (b) has a config-blockable material, and (c) isn't opted out via {@link #BLOCKABLE}. The reduction is applied before
- * armor (vanilla order) by {@link DamageSystem#apply} via {@link #reduce}; <em>how</em> is the resolved {@link BlockingBehavior}'s call.
+ * Item blocking (sword block / shield) - a thin damage hook over the scope {@link BlockingConfig}. An item blocks when
+ * its material is configured blockable and it isn't opted out via {@link #BLOCKABLE}; the server is "blocking" while
+ * {@link Player#isUsingItem()}. The reduction is applied before armor (vanilla order) by {@link DamageSystem#apply} via
+ * {@link #reduce}; <em>how</em> is the resolved {@link BlockingBehavior}'s call.
  *
- * <p>Blocking is <b>not</b> forced for a plain (component-less) blockable material - a modern client can't block a plain
- * sword, so forcing it server-side would desync. Add the component to make a sword block ({@code VanillaBlocking.withBlocking});
- * the config still gates which materials block + how. Movement slowdown is client-predicted, nothing applied server-side.
+ * <p>The {@code blocks_attacks} component is the CLIENT's prediction trigger, not the server's authorization - a 1.8
+ * profile marks every sword blockable and none of them carry it. Modern clients need it in their VIEW to predict the
+ * raise (the compat layer stamps it per-viewer, honouring the opt-out); 1.8 clients block natively. Movement slowdown
+ * is client-predicted, nothing applied server-side.
  */
 public final class BlockingSystem implements MechanicsModule {
 
@@ -59,28 +59,34 @@ public final class BlockingSystem implements MechanicsModule {
         node.addListener(PlayerFinishItemUseEvent.class, e -> onStopUsing(e.getPlayer(), e.getHand(), e.getItemStack()));
     }
 
+    /** Vanilla's hold-forever use time for a raised block (what Minestom grants a {@code blocks_attacks} item). */
+    private static final int BLOCK_USE_TICKS = 72000;
+
     private void onUse(PlayerUseItemEvent e) {
-        // Only blocks_attacks items reach a block use-state (the client predicts it); bow/food/etc. aren't ours.
         ItemStack item = e.getItemStack();
-        if (!item.has(DataComponents.BLOCKS_ATTACKS)) return;
         Player player = e.getPlayer();
-        if (blockable(item, configFor(player))) {
-            BlockingStartEvent start = new BlockingStartEvent(player, e.getHand(), item);
-            EventDispatcher.call(start);
-            if (start.isCancelled()) e.setItemUseTime(0); // a listener denied the block
-        } else {
-            e.setItemUseTime(0); // a component item we won't block (opted out / not configured) - no phantom block
+        if (!blockable(item, configFor(player))) {
+            // a component item we won't block (opted out / not configured) - no phantom block
+            if (item.has(DataComponents.BLOCKS_ATTACKS)) e.setItemUseTime(0);
+            return;
         }
+        BlockingStartEvent start = new BlockingStartEvent(player, e.getHand(), item);
+        EventDispatcher.call(start);
+        if (start.isCancelled()) {
+            e.setItemUseTime(0);
+            return;
+        }
+        // Minestom only grants a use time to a blocks_attacks item, so an unstamped-but-configured sword starts here;
+        // the already-using guard mirrors UseItemListener's, so an off-hand use can't open a second block
+        if (e.getItemUseTime() <= 0 && !player.isUsingItem()) e.setItemUseTime(BLOCK_USE_TICKS);
     }
 
-    /** Fires {@link BlockingStopEvent} when a player ends a block use (released, finished, or interrupted). */
     private void onStopUsing(Player player, PlayerHand hand, ItemStack item) {
-        if (item.has(DataComponents.BLOCKS_ATTACKS) && blockable(item, configFor(player))) {
+        if (blockable(item, configFor(player))) {
             EventDispatcher.call(new BlockingStopEvent(player, hand, item));
         }
     }
 
-    /** Whether {@code item} blocks under {@code cfg}: not opted out via {@link #BLOCKABLE}, and its material is configured blockable. */
     private boolean blockable(ItemStack item, @Nullable BlockingConfig cfg) {
         return !Boolean.FALSE.equals(item.getTag(BLOCKABLE)) && cfg != null && cfg.blocks(item.material());
     }
@@ -118,11 +124,11 @@ public final class BlockingSystem implements MechanicsModule {
         if (!r.enabled()) return amount;
 
         float reduced = r.behavior().apply(ctx, r, amount);
-        if (reduced >= amount) return amount; // a block never increases damage
+        if (reduced >= amount) return amount;
         BlockingDamageEvent ev = new BlockingDamageEvent(p, damage.snap().source(), amount, reduced,
                 damage.snap().type().minecraftType());
         EventDispatcher.call(ev);
-        if (ev.isCancelled()) return amount; // a listener vetoed the block (e.g. a piercing weapon)
+        if (ev.isCancelled()) return amount;
         return reduced;
     }
 

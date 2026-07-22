@@ -23,10 +23,9 @@ import net.minestom.server.network.NetworkBuffer;
 import org.junit.jupiter.api.BeforeAll;
 
 /**
- * Minimal headless harness for entity-backed golden tests: boots a single {@link MinecraftServer} process (registries +
- * dispatcher, no socket) and the vanilla-1.8 {@link MinestomMechanics} systems once per JVM, then exposes a loaded flat
- * instance to place entities in. The calculators under test are pure functions of entity/config state, so no ticking is
- * needed - tests read {@code compute}/{@code snapshot} directly. See docs/attributes-design.md (step 0 harness).
+ * Headless harness: one {@link MinecraftServer} process (registries + dispatcher, no socket) and the vanilla-1.8
+ * {@link MinestomMechanics} systems per JVM, plus a loaded flat instance. Nothing ticks - the calculators under test
+ * are pure functions of entity/config state. See docs/attributes-design.md (step 0 harness).
  */
 public abstract class HeadlessServerTest {
 
@@ -39,7 +38,7 @@ public abstract class HeadlessServerTest {
         if (mm != null) return; // one server per JVM, shared by every subclass
 
         MinecraftServer.init();
-        // entity registration/ticking partition threads (EnvImpl does the same); lets setInstance(...).join() complete
+        // entity registration/ticking partition threads (as EnvImpl does); lets setInstance(...).join() complete
         MinecraftServer.process().dispatcher().start();
 
         mm = MinestomMechanics.getInstance();
@@ -52,8 +51,7 @@ public abstract class HeadlessServerTest {
         instance = MinecraftServer.getInstanceManager().createInstanceContainer();
         instance.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
         instance.loadChunk(0, 0).join();
-        // Item-stat lookups resolve from the profile; scope them to this instance so tests that swap the GLOBAL profile
-        // (e.g. AttributeTuningTest's setGlobal(null)) don't wipe the registry for entities placed here.
+        // item stats resolve from the profile: scope them here so a test swapping the GLOBAL profile doesn't wipe them
         mm.profiles().setInstance(instance, MechanicsProfile.builder().set(MechanicsKeys.ITEMS, Items.registry()).build());
     }
 
@@ -66,19 +64,19 @@ public abstract class HeadlessServerTest {
         return inst;
     }
 
-    /** A stationary zombie placed at {@code pos} (yaw/pitch from the {@link Pos}); non-player, so its tracked velocity is zero. */
+    /** A stationary zombie at {@code pos}; non-player, so its tracked velocity is zero. */
     protected static LivingEntity zombie(Pos pos) {
         LivingEntity e = new LivingEntity(EntityType.ZOMBIE);
         e.setInstance(instance, pos).join();
         return e;
     }
 
-    /** A zombie not bound to any instance: {@link Entity#getPosition()} is the origin, tracked velocity zero. */
+    /** Unbound to any instance: {@link Entity#getPosition()} is the origin, tracked velocity zero. */
     protected static LivingEntity looseZombie() {
         return new LivingEntity(EntityType.ZOMBIE);
     }
 
-    /** Waits (max 2s) for an entity's async {@code setInstance} to land - the launch join for projectile tests. */
+    /** Waits (max 2s) for an entity's async {@code setInstance} to land. */
     protected static void awaitSpawn(Entity e) {
         long deadline = System.currentTimeMillis() + 2000;
         while (e.getInstance() == null && System.currentTimeMillis() < deadline) Thread.onSpinWait();

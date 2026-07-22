@@ -35,16 +35,16 @@ public final class Damage {
                 .build();
     }
 
-    /** Vanilla starvation: 1.0 per 80 ticks at food 0 (the hunger food tick produces it); starve is in BYPASSES_ARMOR + charges no exhaustion. */
+    /** Produced by the hunger food tick; starve is in BYPASSES_ARMOR and charges no exhaustion. */
     private static DamageTypeConfig starvationDamage() {
         return DamageTypeConfig.builder(StarvationDamage.KEY).baseAmount(1.0).bypassArmor(true).build();
     }
 
     private static MeleeDamageConfig playerAttackDamage() {
-        return MeleeDamageConfig.builder().critMultiplier(1.5).exhaustion(0.1f).build(); // vanilla crit x1.5 (both versions)
+        return MeleeDamageConfig.builder().critMultiplier(1.5).exhaustion(0.1f).build();
     }
 
-    /** Modern (26) drowning: 2.0 at air {@code <= -20}, air recovers {@code +4}/tick ({@code AirRefill.MODERN}). */
+    /** Damages at air {@code <= -20}; modern air recovers {@code +4}/tick. */
     private static BreathingConfig drownDamage() {
         return BreathingConfig.builder()
                 .key(DrowningDamage.KEY)
@@ -53,7 +53,7 @@ public final class Damage {
                 .build();
     }
 
-    /** Vanilla suffocation: 1.0 per tick while the head is in a solid block (same 1.8 + 26). */
+    /** Per tick while the head is in a solid block. */
     private static DamageTypeConfig suffocationDamage() {
         return DamageTypeConfig.builder(SuffocationDamage.KEY).baseAmount(1.0).build();
     }
@@ -61,8 +61,8 @@ public final class Damage {
     private static FallDamageConfig fallDamage() {
         return FallDamageConfig.builder()
                 .formula(FallDamageConfig.Formula.MODERN_FLOOR)
-                .bypassArmor(true) // fall is in the BYPASSES_ARMOR tag (26); only Feather Falling (EPF) reduces it
-                // safe distance is the victim's SAFE_FALL_DISTANCE attribute (default 3.0); Jump Boost pushes +1/level onto it
+                .bypassArmor(true) // 26 BYPASSES_ARMOR tag; only Feather Falling (EPF) reduces it
+                // Jump Boost pushes +1/level onto SAFE_FALL_DISTANCE
                 .threshold(ctx -> ctx.snap().target() instanceof LivingEntity le
                         ? le.getAttributeValue(Attribute.SAFE_FALL_DISTANCE) : 3.0)
                 .damageModifier(1.0)
@@ -77,7 +77,7 @@ public final class Damage {
                 .igniteTicks(160)
                 .igniteWarmupInvulMult(3)
                 .contactIntervalTicks(1)
-                .exhaustion(0.1f) // in_fire charges 0.1 (DamageTypes registry); on_fire (burn ticks) is 0.0
+                .exhaustion(0.1f) // DamageTypes registry; on_fire (burn ticks) is 0.0
                 .build();
     }
 
@@ -98,7 +98,7 @@ public final class Damage {
                 .baseAmount(1.0)
                 .intervalTicks(20)
                 .skipBurnWhileInLava(true)
-                .bypassArmor(true) // on_fire is in the BYPASSES_ARMOR tag (26); in_fire/lava aren't
+                .bypassArmor(true) // 26 BYPASSES_ARMOR tag; in_fire/lava aren't
                 .build();
     }
 }

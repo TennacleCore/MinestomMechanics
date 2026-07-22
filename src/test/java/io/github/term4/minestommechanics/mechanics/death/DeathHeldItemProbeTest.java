@@ -18,9 +18,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The server side is clean on death: killing a player holding an item sends NO inventory packet that clears the held
- * slot. So the 1.8 "held item still disappears on the death screen" residual (after the ViaRewind status-3 fix) is a
- * Via/client artifact, not a server-sent inventory clear.
+ * Death sends no inventory clear, so the 1.8 "held item disappears on the death screen" residual (after the ViaRewind
+ * status-3 fix) is a Via/client artifact.
  */
 class DeathHeldItemProbeTest extends HeadlessServerTest {
 

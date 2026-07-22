@@ -75,8 +75,8 @@ public final class BlockBreakProgress {
             Player miner = ctx.instance().getPlayerByUuid(entry.getKey());
             if (miner == null) { digs.remove(entry.getKey()); continue; } // left the dig's instance
             if (!ctx.owns(miner)) continue;
-            // the MINER's world - an overlay block over base air reads AIR instance-wide, killing the dig.
-            // negative elapsed = the stamp is from another clock (mid-dig shard transfer): drop, the client resynced
+            // the MINER's world: an overlay block over base air reads AIR instance-wide, killing the dig.
+            // negative elapsed = a stamp from another clock (mid-dig shard transfer), and the client already resynced
             if (MechanicsWorld.viewed(miner).getBlock(dig.pos()).isAir() || TickSystem.tick(miner) < dig.startTick()) {
                 digs.remove(entry.getKey());
                 broadcast(miner, dig, CLEAR_STAGE);
@@ -86,7 +86,6 @@ public final class BlockBreakProgress {
         }
     }
 
-    /** Sends the current stage if it changed; returns the dig carrying it. */
     private Dig update(Player miner, Dig dig) {
         byte stage = stage(miner, dig);
         if (stage == dig.lastStage()) return dig;
@@ -95,7 +94,7 @@ public final class BlockBreakProgress {
     }
 
     private static byte stage(Player miner, Dig dig) {
-        Block block = MechanicsWorld.viewed(miner).getBlock(dig.pos()); // the block the digger's CLIENT digs - an overlay block cracks at its own speed
+        Block block = MechanicsWorld.viewed(miner).getBlock(dig.pos()); // an overlay block cracks at its own speed
         int breakTicks = BlockBreakCalculation.breakTicks(block, miner);
         if (breakTicks == BlockBreakCalculation.UNBREAKABLE) return 0;
         long ticksSpent = TickSystem.tick(miner) - dig.startTick();

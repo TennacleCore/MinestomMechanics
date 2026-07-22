@@ -18,7 +18,7 @@ import org.jetbrains.annotations.Nullable;
 /** Access to the systems registered on MinestomMechanics. */
 public record Services(MinestomMechanics mm) {
 
-    // Accessors read the live registry, so lookups are lazy per hit and install order doesn't matter; null = not installed.
+    // live registry lookups: install order doesn't matter, null = not installed
     public @Nullable SprintTracker sprintTracker() { return mm.sprintTracker(); }
     public @Nullable MotionTracker motionTracker() { return mm.motionTracker(); }
     public @Nullable AttackSystem attack() { return mm.module(AttackSystem.class); }
@@ -32,7 +32,6 @@ public record Services(MinestomMechanics mm) {
     public @Nullable HungerSystem hunger() { return mm.module(HungerSystem.class); }
     public @Nullable ConsumableSystem consumables() { return mm.module(ConsumableSystem.class); }
     public @Nullable BlockingSystem blocking() { return mm.module(BlockingSystem.class); }
-    /** Scoped config profiles (player / instance / global). */
     public MechanicsProfiles profiles() { return mm.profiles(); }
 
 }

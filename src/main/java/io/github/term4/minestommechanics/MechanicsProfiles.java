@@ -6,19 +6,19 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.tag.Tag;
+import net.minestom.server.tag.Taggable;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Scoped {@link MechanicsProfile} registry: assign profiles per player, per world (a virtual game world), per instance, or globally,
- * and swap them at runtime (configs are immutable, so a swap takes effect on the next hit; the {@code player} platform
- * member is pushed by {@code PlayerConfigApplier} on change). Resolution is per <em>member</em>, highest scope first:
+ * Scoped {@link MechanicsProfile} registry: assign profiles per player, per world (a virtual game world), per instance,
+ * or globally. Configs are immutable, so a runtime swap takes effect on the next hit. Every assignment takes
+ * {@code null} to clear. Resolution is per <em>member</em>, highest scope first:
  * <pre>player profile -> world profile -> instance profile -> global profile -> the system's install config</pre>
  * so a partial profile (e.g. knockback only) overrides just that system. Resolve a single member with {@link #resolve};
  * a hit reading several members should use {@link #resolved} to walk the scopes once.
  *
- * <p><b>Scope subject.</b> Attack resolves against the <em>attacker</em> (hit detection/ruleset is the attacker's
- * action); damage and knockback resolve against the <em>victim</em> (whose mechanics they are). In the usual minigame
- * case both share the instance, so the distinction only matters for player overrides.
+ * <p><b>Scope subject.</b> Attack resolves against the <em>attacker</em>; damage and knockback resolve against the
+ * <em>victim</em>. Both usually share the instance, so the distinction only matters for player overrides.
  *
  * <p>Player and instance assignments live in transient tags, so they clean up with their holder (a player's profile
  * drops on disconnect).
@@ -28,7 +28,7 @@ public final class MechanicsProfiles {
     private static final Tag<MechanicsProfile> PROFILE = Tag.Transient("mm:profile");
 
     private volatile @Nullable MechanicsProfile global;
-    /** Notified after an assignment changes with the affected player, or {@code null} for a wider scope (global/world/instance). */
+    // fires with the affected player, or null for a wider scope (global/world/instance)
     private volatile @Nullable Consumer<@Nullable Player> changeHook;
 
     MechanicsProfiles() {}
@@ -40,44 +40,65 @@ public final class MechanicsProfiles {
         if (hook != null) hook.accept(player);
     }
 
-    /** Sets (or with {@code null} clears) the server-wide fallback profile. */
+    /** The server-wide fallback profile. */
     public void setGlobal(@Nullable MechanicsProfile profile) {
         this.global = profile;
         changed(null);
     }
     public @Nullable MechanicsProfile global() { return global; }
 
-    /** Re-fires the change hook (the player platform push) - call after moving a player between worlds. */
+    /** Re-fires the change hook - call after moving a player between worlds. */
     public void refresh() { changed(null); }
 
-    /** Sets (or with {@code null} clears) the profile for a world - per-game mechanics (above instance scope). */
+    private static void assign(Taggable holder, @Nullable MechanicsProfile profile) {
+        if (profile == null) holder.removeTag(PROFILE);
+        else holder.setTag(PROFILE, profile);
+    }
+
     public void setWorld(MechanicsWorld world, @Nullable MechanicsProfile profile) {
-        if (profile == null) world.removeTag(PROFILE);
-        else world.setTag(PROFILE, profile);
+        assign(world, profile);
         changed(null);
     }
     public @Nullable MechanicsProfile world(MechanicsWorld world) { return world.getTag(PROFILE); }
 
-    /** Sets (or with {@code null} clears) the profile for an instance (world/dimension). */
     public void setInstance(Instance instance, @Nullable MechanicsProfile profile) {
-        if (profile == null) instance.removeTag(PROFILE);
-        else instance.setTag(PROFILE, profile);
+        assign(instance, profile);
         changed(null);
     }
     public @Nullable MechanicsProfile instance(Instance instance) { return instance.getTag(PROFILE); }
 
-    /** Sets (or with {@code null} clears) the profile for a single player (highest precedence). */
     public void setPlayer(Player player, @Nullable MechanicsProfile profile) {
-        if (profile == null) player.removeTag(PROFILE);
-        else player.setTag(PROFILE, profile);
+        assign(player, profile);
         changed(player);
     }
     public @Nullable MechanicsProfile player(Player player) { return player.getTag(PROFILE); }
 
-    /**
-     * The effective value of {@code key} for {@code subject}: player scope, else world, else instance, else global,
-     * else {@code null}. For a hit that reads several members, prefer {@link #resolved} (one scope walk for all keys).
-     */
+    // single-member assignment: merges into the scope's existing profile instead of replacing it
+
+    private static MechanicsProfile with(@Nullable MechanicsProfile base, ConfigKey<?> key, @Nullable Object value) {
+        MechanicsProfile.Builder b = base != null ? base.toBuilder() : MechanicsProfile.builder();
+        @SuppressWarnings("unchecked")
+        ConfigKey<Object> typed = (ConfigKey<Object>) key;
+        return b.set(typed, value).build();
+    }
+
+    public <C> void setGlobal(ConfigKey<C> key, @Nullable C value) {
+        setGlobal(with(global, key, value));
+    }
+
+    public <C> void setWorld(MechanicsWorld world, ConfigKey<C> key, @Nullable C value) {
+        setWorld(world, with(world(world), key, value));
+    }
+
+    public <C> void setInstance(Instance instance, ConfigKey<C> key, @Nullable C value) {
+        setInstance(instance, with(instance(instance), key, value));
+    }
+
+    public <C> void setPlayer(Player player, ConfigKey<C> key, @Nullable C value) {
+        setPlayer(player, with(player(player), key, value));
+    }
+
+    /** The effective value of {@code key} for {@code subject}. For a hit reading several members, prefer {@link #resolved}. */
     public <C> @Nullable C resolve(@Nullable Entity subject, ConfigKey<C> key) {
         if (subject != null) {
             if (subject instanceof Player p) {
@@ -99,10 +120,7 @@ public final class MechanicsProfiles {
         return profile != null ? profile.get(key) : null;
     }
 
-    /**
-     * Captures {@code subject}'s resolution scopes (player / world / instance / global) once, then answers any key off
-     * that snapshot. Use it when a single hit reads several members, to avoid re-walking the scopes per member.
-     */
+    /** Snapshots {@code subject}'s scopes once, then answers any key off it - one scope walk for a whole hit. */
     public Resolved resolved(@Nullable Entity subject) {
         MechanicsProfile player = subject instanceof Player p ? p.getTag(PROFILE) : null;
         MechanicsProfile world = null;
@@ -117,7 +135,7 @@ public final class MechanicsProfiles {
         return new Resolved(player, world, instance, global);
     }
 
-    /** A one-shot resolution view over fixed player / world / instance / global scopes; resolve any key with {@link #get}. */
+    /** A one-shot resolution view over fixed player / world / instance / global scopes. */
     public static final class Resolved {
         private final @Nullable MechanicsProfile player;
         private final @Nullable MechanicsProfile world;
@@ -132,7 +150,6 @@ public final class MechanicsProfiles {
             this.global = global;
         }
 
-        /** The effective value of {@code key}: player, else world, else instance, else global; {@code null} if no scope sets it. */
         public <C> @Nullable C get(ConfigKey<C> key) {
             C v;
             if (player != null && (v = player.get(key)) != null) return v;

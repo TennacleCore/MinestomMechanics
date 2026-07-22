@@ -9,8 +9,8 @@ import net.minestom.server.entity.attribute.AttributeOperation;
 import java.util.List;
 
 /**
- * Slowness (potion) - {@code -0.15 × level} movement-speed {@code ADD_MULTIPLIED_TOTAL}. Identical in 1.8 and 26, so one
- * variant. The mirror of {@link Speed}; also the effect Bane of Arthropods applies on an arthropod hit.
+ * Slowness - {@code -0.15 × level} movement speed. Identical in 1.8 and 26, so one variant. Also what Bane of
+ * Arthropods applies on an arthropod hit.
  */
 public final class Slowness {
 

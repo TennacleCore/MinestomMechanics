@@ -13,9 +13,8 @@ import io.github.term4.minestommechanics.mechanics.attribute.defense.ArmorConfig
 import io.github.term4.minestommechanics.mechanics.attribute.defense.ProtectionConfig;
 
 /**
- * Modern (26.1) attribute config: MODERN flavor + the modern source variants. Unlike {@code vanilla18.Attributes}, this
- * includes Haste / Mining Fatigue (attack-speed) and Jump Boost (safe-fall-distance), which are attribute-based in 26 but
- * dig-speed / jump-velocity mechanics in 1.8 (so absent from the legacy catalog until those systems exist).
+ * Modern (26.1) attribute config. Unlike {@code vanilla18.Attributes} it includes Haste / Mining Fatigue and Jump Boost,
+ * which are attribute-based in 26 but dig-speed / jump-velocity mechanics in 1.8.
  */
 public final class Attributes {
 
@@ -23,7 +22,7 @@ public final class Attributes {
 
     public static AttributeConfig config() {
         return AttributeConfig.builder()
-                .sources(Strength.MODERN, Weakness.MODERN, Sharpness.MODERN, Absorption.MODERN) // 26 version variants
+                .sources(Strength.MODERN, Weakness.MODERN, Sharpness.MODERN, Absorption.MODERN)
                 .sources(VanillaAttributes.enchants())
                 .sources(VanillaAttributes.effects())
                 .sources(Haste.MODERN, MiningFatigue.MODERN, JumpBoost.MODERN) // modern-only: Via strips these for 1.8

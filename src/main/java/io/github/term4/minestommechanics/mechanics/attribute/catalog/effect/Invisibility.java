@@ -6,10 +6,7 @@ import io.github.term4.minestommechanics.mechanics.attribute.source.Source;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.Entity;
 
-/**
- * Invisibility (potion) - no attribute modifier; a behavior toggling the entity's invisible flag (Minestom only stores
- * the effect). Version-agnostic.
- */
+/** Invisibility - Minestom only stores the effect, so the flag is toggled here. */
 public final class Invisibility {
 
     public static final Key KEY = Key.key("minecraft:invisibility");

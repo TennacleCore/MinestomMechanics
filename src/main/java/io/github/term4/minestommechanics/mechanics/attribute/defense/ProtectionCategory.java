@@ -6,12 +6,12 @@ package io.github.term4.minestommechanics.mechanics.attribute.defense;
  * {@code DamageSource}) / damage-type tags (26 {@code is_fire}/{@code is_fall}/{@code is_explosion}/{@code is_projectile}).
  */
 public enum ProtectionCategory {
-    /** Fire-source damage (in-fire / on-fire / lava): Fire Protection applies. */
+    /** Fire Protection. */
     FIRE,
-    /** Fall damage: Feather Falling applies. */
+    /** Feather Falling. */
     FALL,
-    /** Explosion damage: Blast Protection applies. */
+    /** Blast Protection. */
     EXPLOSION,
-    /** Projectile damage (arrows, thrown): Projectile Protection applies. */
+    /** Projectile Protection. */
     PROJECTILE
 }

@@ -5,9 +5,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Pins {@link MotionTracker#jumpSeed} - the takeoff motY = the jump_strength base plus Jump Boost's float-exact
- * {@code +0.1/level} (vanilla {@code bF()} / {@code getJumpPower} add a separate float term, not an attribute).
- * No effect ({@code -1}) is the bare base; a tuned base passes straight through.
+ * Takeoff motY = the jump_strength base plus Jump Boost's float-exact {@code +0.1/level} - vanilla
+ * {@code bF()}/{@code getJumpPower} add a separate float term, not an attribute.
  */
 class JumpVelocityTest {
 
@@ -28,7 +27,7 @@ class JumpVelocityTest {
 
     @Test
     void passesAnArbitraryBaseThrough() {
-        // the helper is pure in its base; the +0.1/level term stays float-exact (0.1f widens to 0.10000000149...)
+        // the +0.1/level term stays float-exact (0.1f widens to 0.10000000149...)
         assertEquals(0.5 + (double) (1f * 0.1f), MotionTracker.jumpSeed(0.5, 0), 0.0);
     }
 }

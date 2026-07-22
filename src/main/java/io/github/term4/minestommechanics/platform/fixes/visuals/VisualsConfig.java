@@ -4,9 +4,8 @@ import io.github.term4.minestommechanics.platform.fixes.visuals.legacy_1_8.Legac
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Visual fixes config - the {@code visuals} member of
- * {@link io.github.term4.minestommechanics.platform.fixes.FixesConfig}. Groups the client-visual fixes (papering
- * over how a client renders something, not gameplay).
+ * The {@code visuals} member of {@link io.github.term4.minestommechanics.platform.fixes.FixesConfig}: fixes for how a
+ * client renders something, not gameplay.
  */
 public final class VisualsConfig {
 
@@ -14,7 +13,6 @@ public final class VisualsConfig {
 
     private VisualsConfig(Builder b) { this.legacyArrowVisibility = b.legacyArrowVisibility; }
 
-    /** The 1.8 legacy arrow-visibility config, or {@code null} if unset. */
     public @Nullable LegacyArrowVisibilityConfig legacyArrowVisibility() { return legacyArrowVisibility; }
 
     /** Merges this config over {@code base} (each member: this if set, else base; both set -&gt; member-merged). */

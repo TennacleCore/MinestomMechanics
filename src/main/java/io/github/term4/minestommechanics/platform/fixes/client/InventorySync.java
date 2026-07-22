@@ -12,7 +12,10 @@ import net.minestom.server.event.player.PlayerRespawnEvent;
 import net.minestom.server.inventory.PlayerInventory;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.component.Equippable;
+import net.minestom.server.entity.PlayerHand;
 import net.minestom.server.network.packet.client.play.ClientClickWindowPacket;
+import net.minestom.server.network.packet.client.play.ClientPlayerBlockPlacementPacket;
+import net.minestom.server.network.packet.client.play.ClientUseItemPacket;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.ServerPacket;
 import net.minestom.server.network.packet.server.play.JoinGamePacket;
@@ -36,40 +39,43 @@ import java.util.Set;
  * prediction) - and a stray held-slot echo resets an in-progress eat. Vanilla instead mirrors what the client believes
  * each slot holds and sends only genuine corrections.
  *
- * <p>We rebuild that mirror by replaying the client's deterministic prediction for the basic click modes
- * ({@link ClientClickWindowPacket.ClickType#PICKUP PICKUP} / {@link ClientClickWindowPacket.ClickType#SWAP SWAP} /
- * {@link ClientClickWindowPacket.ClickType#THROW THROW}) - version-independent, and legacy clicks arrive with the
- * client's predicted slots stripped by Via anyway. An outgoing slot echo that matches the mirror is dropped; a mismatch
- * (a rejected click, a server-side change) is sent and re-anchors the mirror, so a wrong guess costs a redundant echo,
- * never a stuck desync. The full {@link WindowItemsPacket} re-baselines everything. Unhandled modes (shift / drag /
- * double-click) fall through untouched.
+ * <p>We rebuild that mirror by replaying the client's deterministic prediction per click mode. An outgoing slot echo
+ * that matches the mirror is dropped; a mismatch (a rejected click, a server-side change) is sent and re-anchors the
+ * mirror, so a wrong guess costs a redundant echo, never a stuck desync. The full {@link WindowItemsPacket}
+ * re-baselines everything.
  *
- * <p><b>Experimental</b> ({@link InventorySyncFixConfig}): a full port of Minestom's click model, so a click-logic
- * change upstream can drift it - a drifted guess only costs a redundant echo, never a stuck desync.
+ * <p><b>Experimental</b> ({@link InventorySyncFixConfig}): a port of Minestom's click model, so a click-logic change
+ * upstream can drift it.
  */
 public final class InventorySync {
 
     private static volatile boolean enabled;
 
-    /** {@code true} once {@link #install} has armed the fix. */
     public static boolean enabled() { return enabled; }
 
     /** Arms the fix and registers the click-prediction listener; call once from {@code FixesSystem.install}. */
     public static void install(EventNode<? super Event> node) {
         enabled = true;
         node.addListener(PlayerPacketEvent.class, e -> {
-            if (!enabled || !(e.getPacket() instanceof ClientClickWindowPacket click)) return;
-            if (e.getPlayer() instanceof OptimizedPlayer op)
-                op.inventorySync().onClick(click, MinestomMechanics.getInstance().clientInfo().isLegacy(e.getPlayer()));
+            if (!enabled || !(e.getPlayer() instanceof OptimizedPlayer op)) return;
+            switch (e.getPacket()) {
+                case ClientClickWindowPacket click ->
+                        op.inventorySync().onClick(click, MinestomMechanics.getInstance().clientInfo().isLegacy(op));
+                case ClientPlayerBlockPlacementPacket p -> op.inventorySync().onPredictedUse(held(op, p.hand()));
+                case ClientUseItemPacket p -> op.inventorySync().onPredictedUse(held(op, p.hand()));
+                default -> {}
+            }
         });
-        // Minestom resends the inventory after every client-rebuild flow (dimension change, skin, first spawn) EXCEPT
-        // the death respawn - fill that gap. The RespawnPacket precedes this event and already forgot the mirror
-        // ({@code filter}), so this update passes.
+        // Minestom resends the inventory after every client-rebuild flow EXCEPT the death respawn - fill that gap
+        // (the preceding RespawnPacket already forgot the mirror, so this update passes)
         node.addListener(PlayerRespawnEvent.class, e -> e.getPlayer().getInventory().update(e.getPlayer()));
     }
 
     /** The client's believed slot contents, Minestom slot indexing (0-8 hotbar, 9-35 main, 36-40 craft, 41-44 armor, 45 offhand). */
     private final ItemStack[] believed = new ItemStack[PlayerInventory.INVENTORY_SIZE];
+
+    /** Slot the client predicted outside the click model ({@link #onPredictedUse}), or -1. */
+    private int unverifiedSlot = -1;
     private ItemStack believedCursor = ItemStack.AIR;
     /** Slots accumulated across a drag's start/add/end packets, mirroring Minestom's {@code ClickPreprocessor}. */
     private final Set<Integer> leftDrag = new LinkedHashSet<>();
@@ -78,12 +84,22 @@ public final class InventorySync {
 
     public InventorySync() { Arrays.fill(believed, ItemStack.AIR); }
 
-    /** Forgets the mirror; call under {@link #lock}. The client just rebuilt its play state and shows nothing. */
+    /** Forgets the mirror; call under {@link #lock}. */
     private void forget() {
         Arrays.fill(believed, ItemStack.AIR);
         believedCursor = ItemStack.AIR;
+        unverifiedSlot = -1;
         leftDrag.clear();
         rightDrag.clear();
+    }
+
+    /**
+     * The client predicted a change we do not model (a placement or use shrinks the held stack), so drop nothing for
+     * {@code slot} until a server packet re-anchors it. Without this a refused placement is a STUCK desync: the refusal
+     * carries the original stack, which the stale mirror matches and eats.
+     */
+    void onPredictedUse(int slot) {
+        synchronized (lock) { unverifiedSlot = slot; }
     }
 
     // ------------------------------------------------------------------ incoming: replay the client's prediction
@@ -109,15 +125,14 @@ public final class InventorySync {
                 if (slot >= 0 && hotbar >= 0) { ItemStack t = believed[slot]; believed[slot] = believed[hotbar]; believed[hotbar] = t; }
             }
             case THROW -> {
-                // Never predicted for a legacy client: ViaBackwards replays 1.8 hotbar drops as throw-clicks the client
-                // never made (drops are client-predicted only since 1.13.1), so the echo must pass to repaint the count.
-                // A real 1.8 GUI throw then costs one redundant echo - correct either way.
+                // never predicted for a legacy client: ViaBackwards replays 1.8 hotbar drops as throw-clicks the client
+                // never made, so the echo must pass to repaint the count (a real 1.8 GUI throw costs one redundant echo)
                 if (legacyClient) return;
                 final int slot = slot(wireSlot);
                 if (slot < 0 || believed[slot].isAir()) return;
                 believed[slot] = button == 1 ? ItemStack.AIR : decrement(believed[slot]); // ctrl-Q drops the whole stack
             }
-            case QUICK_CRAFT -> { // drag: accumulate slots across start(0/4)/add(1/5), distribute on end(2/6); middle(8/9/10) = creative clone, skip
+            case QUICK_CRAFT -> { // drag: accumulate across start(0/4)/add(1/5), distribute on end(2/6); middle(8/9/10) skipped
                 switch (button) {
                     case 0 -> leftDrag.clear();
                     case 4 -> rightDrag.clear();
@@ -138,7 +153,6 @@ public final class InventorySync {
     private void shiftMove(int slot) {
         final ItemStack clicked = believed[slot];
         if (clicked.isAir()) return;
-        // Equippable straight to its slot (Minestom's armour/off-hand shift-equip), unless from the crafting grid
         final boolean craftingGrid = slot >= PlayerInventoryUtils.CRAFT_RESULT && slot <= PlayerInventoryUtils.CRAFT_SLOT_4;
         final Equippable eq = clicked.get(DataComponents.EQUIPPABLE);
         if (eq != null && !craftingGrid) {
@@ -174,7 +188,7 @@ public final class InventorySync {
 
     /** Merges then fills {@code moving} across {@code [start,end)} step {@code step} (skipping {@code exclude}); returns the leftover, sets {@code moved}. */
     private ItemStack add(ItemStack moving, int start, int end, int step, int exclude, boolean[] moved) {
-        for (int i = start; step > 0 ? i < end : i > end; i += step) { // pass 1: top off existing similar stacks
+        for (int i = start; step > 0 ? i < end : i > end; i += step) { // top off existing similar stacks
             if (i == exclude || i < 0 || i >= believed.length) continue;
             final ItemStack in = believed[i];
             if (in.isAir() || !moving.isSimilar(in) || in.amount() >= in.maxStackSize()) continue;
@@ -189,7 +203,7 @@ public final class InventorySync {
                 return ItemStack.AIR;
             }
         }
-        for (int i = start; step > 0 ? i < end : i > end; i += step) { // pass 2: drop into empty slots
+        for (int i = start; step > 0 ? i < end : i > end; i += step) { // then drop into empty slots
             if (i == exclude || i < 0 || i >= believed.length || !believed[i].isAir()) continue;
             if (moving.amount() > moving.maxStackSize()) {
                 believed[i] = moving.withAmount(moving.maxStackSize());
@@ -273,7 +287,7 @@ public final class InventorySync {
             final int move = right ? 1 : Math.min(room, cursor.amount());
             believed[slot] = in.withAmount(in.amount() + move);
             believedCursor = shrink(cursor, move);
-        } else { // different item: swap slot and cursor
+        } else {
             believed[slot] = cursor;
             believedCursor = in;
         }
@@ -306,9 +320,8 @@ public final class InventorySync {
                     baseline(p);
                     yield packet;
                 }
-                // the client rebuilds its play state on these (death respawn, dimension change, skin change,
-                // (re)configuration) and forgets its inventory - forget the mirror with it, so the flow's follow-up
-                // resend passes instead of being dropped as a mirror match
+                // the client forgets its inventory on these (respawn, dimension/skin change, (re)configuration) -
+                // forget the mirror with it, so the flow's follow-up resend isn't dropped as a mirror match
                 case RespawnPacket ignored -> { forget(); yield packet; }
                 case JoinGamePacket ignored -> { forget(); yield packet; }
                 case StartConfigurationPacket ignored -> { forget(); yield packet; }
@@ -320,14 +333,15 @@ public final class InventorySync {
     /** {@code true} = send (mirror re-anchored to {@code item}); {@code false} = drop (already matches). */
     private boolean reconcile(int slot, ItemStack item) {
         if (slot < 0 || slot >= believed.length) return true;
-        if (item.equals(believed[slot])) return false;
+        if (slot == unverifiedSlot) unverifiedSlot = -1;
+        else if (item.equals(believed[slot])) return false;
         believed[slot] = item;
         return true;
     }
 
     /** Whether {@code packet} carries exactly what the mirror already holds - a redundant full resync safe to drop. */
     private boolean redundant(WindowItemsPacket packet) {
-        if (!packet.carriedItem().equals(believedCursor)) return false;
+        if (unverifiedSlot >= 0 || !packet.carriedItem().equals(believedCursor)) return false;
         final List<ItemStack> items = packet.items();
         for (int wire = 0; wire < items.size(); wire++) {
             final int slot = PlayerInventoryUtils.convertWindow0SlotToMinestomSlot(wire);
@@ -343,9 +357,14 @@ public final class InventorySync {
             if (slot >= 0 && slot < believed.length) believed[slot] = items.get(wire);
         }
         believedCursor = packet.carriedItem();
+        unverifiedSlot = -1;
     }
 
     // ------------------------------------------------------------------ helpers
+
+    private static int held(OptimizedPlayer player, PlayerHand hand) {
+        return hand == PlayerHand.OFF ? PlayerInventoryUtils.OFFHAND_SLOT : player.getHeldSlot();
+    }
 
     private static int slot(short wireSlot) {
         if (wireSlot < 0) return -1;

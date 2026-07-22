@@ -52,10 +52,6 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
     /** {@link #ENTITY_COPY}'s disk twin: an NBT descriptor for world saves; {@code "id"} names its reviver. */
     Tag<Supplier<CompoundBinaryTag>> ENTITY_SAVE = Tag.Transient("mm:entity-save");
 
-    /** Replay-parked marker (name-shared with the replay lib): a parked twin's own sim must not act -
-     *  no sticking, no hits, no fuse, no wire; the track drives it. */
-    Tag<Boolean> REPLAY_PARKED = Tag.Transient("replay:parked");
-
     /** The world wrapping {@code instance} (cached on the instance itself). */
     static @NotNull MechanicsWorld of(@NotNull Instance instance) {
         MechanicsWorld world = instance.getTag(TAG);
@@ -103,17 +99,17 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
         return entity instanceof Player p ? viewed(p) : of(entity);
     }
 
-    /** Whether an external world ticker owns {@code entity}'s tick (see {@link Resolver#externallyTicked}). */
+    /** See {@link Resolver#externallyTicked}. */
     static boolean externallyTicked(@NotNull Entity entity) {
         return Holder.RESOLVER.externallyTicked(entity);
     }
 
-    /** The external owner's clock for {@code entity}, or {@code -1} when the server owns its tick. */
+    /** {@code -1} when the server owns the tick. */
     static long externalTick(@NotNull Entity entity) {
         return Holder.RESOLVER.externalTick(entity);
     }
 
-    /** Whether the current thread may run {@code entity}'s tick (see {@link Resolver#ownsCurrentTick}). */
+    /** See {@link Resolver#ownsCurrentTick}. */
     static boolean ownsCurrentTick(@NotNull Entity entity) {
         return Holder.RESOLVER.ownsCurrentTick(entity);
     }
@@ -154,7 +150,7 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
         Resolver DEFAULT = entity -> entity.getTag(ENTITY_TAG);
     }
 
-    /** Installs the binding resolver server-wide (see {@link Resolver}); returns the previous one so a wrapper can delegate to it. */
+    /** Returns the previous resolver so a wrapper can delegate to it. */
     static @NotNull Resolver resolver(@NotNull Resolver resolver) {
         Resolver previous = Holder.RESOLVER;
         Holder.RESOLVER = resolver;
@@ -188,7 +184,6 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
 
     boolean isChunkLoaded(int chunkX, int chunkZ);
 
-    /** The world's dimension (Y bounds, ambient light). */
     @NotNull DimensionType dimension();
 
     /** Swept box move against the world; unloaded chunks read SOLID (the safe default - exposure rays, movement). */
@@ -236,7 +231,6 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
 
     @Override default @NotNull Iterable<? extends Audience> audiences() { return players(); }
 
-    /** This world's weather. */
     @NotNull Weather weather();
 
     /** Per-world weather on a virtual world (its viewers get it); the instance's on a plain one. */
@@ -250,6 +244,5 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
 
     long worldAge();
 
-    /** Runs {@code task} on this world's next tick. */
     void scheduleNextTick(@NotNull Consumer<MechanicsWorld> task);
 }

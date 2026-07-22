@@ -7,7 +7,7 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.item.ItemStack;
 
-/** Applied: the behavior ran and the item was consumed. Observation only (lazy, like the damage triad's Applied). */
+/** Fired after the behavior ran and the item was consumed - informational. */
 public final class ConsumeAppliedEvent implements Event {
 
     private final ConsumableContext snapshot;

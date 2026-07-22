@@ -15,7 +15,6 @@ public final class Hypixel {
 
     private Hypixel() {}
 
-    /** The Hypixel mechanics profile: the 1.8 baseline with Hypixel's velocity/damage/knockback/explosion deltas and the measured fireball. */
     public static MechanicsProfile profile() {
         return Vanilla18.profile().toBuilder()
                 .set(MechanicsKeys.DAMAGE, Damage.config())
@@ -23,7 +22,7 @@ public final class Hypixel {
                 .set(MechanicsKeys.VELOCITY, Movement.velocity())
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.PROJECTILES, Projectiles.config())
-                // arrow hit-marker ding to the shooter (mmc18/hypixel/scrims18 enable it; vanilla presets don't)
+                // arrow hit-marker ding to the shooter; vanilla presets don't
                 .set(MechanicsKeys.EFFECTS, Effects.vanilla18().register(Effects.ARROW_HIT_PLAYER, Effects.arrowHitMarker()))
                 .build();
     }

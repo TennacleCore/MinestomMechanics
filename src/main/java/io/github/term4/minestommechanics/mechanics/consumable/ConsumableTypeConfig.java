@@ -14,19 +14,20 @@ import java.util.function.Function;
  * Per-consumable config, keyed by {@link #key()}: every value is a {@link FieldValue} resolved against a
  * {@link ConsumableContext} (constant or per-consume lambda), unset fields falling back per-type override -&gt;
  * {@link ConsumableConfig#defaults()} -&gt; the type's {@code defaultConfig()} -&gt; hard fallbacks. The {@link #behavior}
- * knob is where presets supply the version-specific effects/hunger, so one {@link Consumable} identity gets 1.8 vs 26 behavior by scope.
+ * knob is where presets supply the version-specific effects/hunger, so one {@link Consumable} identity gets 1.8 vs 26
+ * behavior by scope.
  */
 @GenerateBuilder
 public final class ConsumableTypeConfig extends Config<ConsumableContext, ConsumableTypeConfig> {
 
     /**
      * How a consumable's applied effects render: {@link #SHOWN} (vanilla swirl + HUD icon), {@link #HIDDEN} (icon only,
-     * no swirl), or {@link #CUSTOM} (no vanilla swirl; reserved for the platform particle system). Read via {@code ctx.particles()}.
+     * no swirl), or {@link #CUSTOM} (no vanilla swirl; reserved for the platform particle system).
      */
     public enum ParticleVisibility {
         SHOWN, HIDDEN, CUSTOM;
 
-        /** The {@code Potion} flag byte under this visibility: the HUD icon is always on; the vanilla swirl shows only for {@link #SHOWN}. */
+        /** The HUD icon is always on; the vanilla swirl shows only for {@link #SHOWN}. */
         public byte potionFlags() {
             boolean swirl = this == SHOWN;
             // TODO(particles): CUSTOM suppresses the vanilla swirl like HIDDEN until the platform particle system renders custom particles here.
@@ -34,19 +35,19 @@ public final class ConsumableTypeConfig extends Config<ConsumableContext, Consum
         }
     }
 
-    /** Type identity (not a knob): the key this config is registered under. */
+    /** Type identity, not a knob. */
     public final @Nullable Key key;
 
-    /** Whether this consumable consumes (default {@code true}); {@code false} disables it for the scope. */
+    /** Default {@code true}; {@code false} disables this consumable for the scope. */
     public final @Nullable FieldValue<ConsumableContext, Boolean> enabled;
-    /** May {@code user} start using it now (vanilla {@code Consumable.canConsume}); default {@code true} (drinks/custom).
-     *  Food supplies the version's {@code canEat} (1.8 blocks creative, 26 allows it); a blocked use never enters the eating state. */
+    /** May {@code user} start using it now (vanilla {@code Consumable.canConsume}); default {@code true}. Food supplies
+     *  the version's {@code canEat} (1.8 blocks creative, 26 allows it); a blocked use never enters the eating state. */
     public final @Nullable FieldValue<ConsumableContext, Boolean> canConsume;
-    /** Consume duration in ticks (vanilla {@code 32} = 1.6s). */
+    /** Default {@link Consumable#VANILLA_CONSUME_TICKS}. */
     public final @Nullable FieldValue<ConsumableContext, Integer> consumeTicks;
-    /** The {@link ConsumableBehavior} run on the use lifecycle (effects / hunger / custom). Default {@link ConsumableBehavior#NONE}. */
+    /** Default {@link ConsumableBehavior#NONE}. */
     public final @Nullable FieldValue<ConsumableContext, ConsumableBehavior> behavior;
-    /** How this consumable's applied effects render (swirl / icon). Default {@link ParticleVisibility#SHOWN}. Read by the built-in effect behaviors via {@code ctx.particles()}. */
+    /** Default {@link ParticleVisibility#SHOWN}; read by the built-in effect behaviors via {@code ctx.particles()}. */
     public final @Nullable FieldValue<ConsumableContext, ParticleVisibility> particles;
 
     ConsumableTypeConfig(Builder b) {
@@ -61,7 +62,7 @@ public final class ConsumableTypeConfig extends Config<ConsumableContext, Consum
 
     public Key key() { return key; }
 
-    /** Merges this config over {@code base}: this config's set fields win, unset fields fall back per resolution. */
+    /** Merges this config over {@code base}. */
     public ConsumableTypeConfig fromBase(ConsumableTypeConfig base) {
         Builder b = new Builder(key != null ? key : base.key);
         b.mergeKnobs(this, base);

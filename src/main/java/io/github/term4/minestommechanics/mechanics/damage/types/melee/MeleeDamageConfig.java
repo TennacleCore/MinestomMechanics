@@ -61,7 +61,7 @@ public final class MeleeDamageConfig extends DamageTypeConfig {
     public static final class Builder extends MeleeDamageConfigBuilderBase<Builder> {
 
         @Override protected Builder self() { return this; }
-        // default base amount = the held weapon's ATTACK_DAMAGE via the ItemRegistry; invul/overdamage stay unset to inherit global
+        // invul/overdamage stay unset to inherit the global config
         private final DamageTypeConfig.Builder common = new DamageTypeConfig.Builder().key(MeleeDamage.KEY)
                 .baseAmount(MeleeDamageConfig::weaponBaseAmount);
 

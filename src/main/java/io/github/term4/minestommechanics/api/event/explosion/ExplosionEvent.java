@@ -12,13 +12,12 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 /**
- * Fired after per-entity exposure/falloff is computed, before knockback + damage apply. Cancel to abort. {@link #targets()}
- * is the live, mutable result set - a listener reads each {@link Target}'s exposure and retunes its knockback/damage (or
- * drops it). Block destruction is delegated: a listener handles it off {@link #center()} + {@link #power()}.
+ * Fired after per-entity exposure/falloff is computed, before knockback + damage apply. Cancel to abort. Block
+ * destruction is not run here: a listener handles it off {@link #center()} + {@link #power()}.
  */
 public class ExplosionEvent implements CancellableEvent {
 
-    /** One entity caught in the explosion: read-only {@code distance}/{@code exposure}, mutable {@code knockback} (the falloff push) + {@code damage}. */
+    /** One entity caught in the explosion: read-only distance/exposure, mutable knockback + damage. */
     public static final class Target {
         private final Entity entity;
         private final double distance;
@@ -35,11 +34,11 @@ public class ExplosionEvent implements CancellableEvent {
         }
 
         public @NotNull Entity entity() { return entity; }
-        /** Distance from the entity to the explosion center (blocks). */
+        /** Blocks from the explosion center. */
         public double distance() { return distance; }
         /** Raytraced line-of-sight fraction (0..1); 1.0 when exposure is disabled. */
         public float exposure() { return exposure; }
-        /** The explosion's falloff push for this entity, or {@code null} (entity exactly on the center). */
+        /** The falloff push, or {@code null} when the entity sits exactly on the center. */
         public @Nullable Vec knockback() { return knockback; }
         public void setKnockback(@Nullable Vec knockback) { this.knockback = knockback; }
         public float damage() { return damage; }
@@ -65,14 +64,14 @@ public class ExplosionEvent implements CancellableEvent {
     }
 
     public @NotNull Instance instance() { return world.instance(); }
-    /** The gameplay world the explosion runs in - a block-break/fire listener must mutate through this, or a world blast edits the base map. */
+    /** A block-break/fire listener must mutate through this, or a world blast edits the base map. */
     public @NotNull MechanicsWorld world() { return world; }
     public @NotNull Point center() { return center; }
     public float power() { return power; }
     public @Nullable Entity source() { return source; }
     public boolean fire() { return fire; }
 
-    /** The live, mutable set of affected entities and their computed effects; edit or {@code removeIf} to alter the outcome. */
+    /** Live and mutable: edit or {@code removeIf} to alter the outcome. */
     public @NotNull List<Target> targets() { return targets; }
 
     @Override public boolean isCancelled() { return cancelled; }

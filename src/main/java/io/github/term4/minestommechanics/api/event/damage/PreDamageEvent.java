@@ -13,8 +13,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The pre-damage gate: fired the moment a damage instance is proposed, <em>before</em> computation/mitigation and the
  * {@link DamageEvent}. Cancel to drop the hit entirely (it never consumes an i-frame window or runs mitigation), or
- * redirect the inputs (type / source / target / config) via {@link #finalSnap}. The final amount is not known yet -
- * use {@link DamageEvent} to adjust the computed amount.
+ * redirect the inputs (type / source / target / config) via {@link #finalSnap}. The amount isn't computed yet - adjust
+ * it in {@link DamageEvent}.
  */
 public final class PreDamageEvent extends CancellableMechanicsEvent<DamageSnapshot> {
 

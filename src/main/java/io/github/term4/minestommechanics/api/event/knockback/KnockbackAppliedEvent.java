@@ -9,8 +9,8 @@ import net.minestom.server.event.Event;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Fired after a knockback's velocity has been applied to the target - informational. Carries the {@link #velocity()}
- * actually set. The post-knockback counterpart to {@link PreKnockbackEvent} / {@link KnockbackEvent}.
+ * Fired after a knockback's velocity has been applied to the target - informational. The post-knockback counterpart to
+ * {@link PreKnockbackEvent} / {@link KnockbackEvent}.
  */
 public final class KnockbackAppliedEvent implements Event {
 
@@ -24,10 +24,8 @@ public final class KnockbackAppliedEvent implements Event {
         this.velocity = velocity;
     }
 
-    /** The snapshot the knockback was applied from. */
     public KnockbackSnapshot snapshot() { return snapshot; }
 
-    /** The active services (system lookups, scoped profiles). */
     public Services services() { return services; }
 
     /** Velocity actually applied (post-quantize when on). */

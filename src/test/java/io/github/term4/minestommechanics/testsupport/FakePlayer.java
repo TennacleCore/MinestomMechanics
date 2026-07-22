@@ -24,10 +24,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * A fully joined player over a packet-capturing connection, for integration tests inside the shared
- * {@link HeadlessServerTest} process (Minestom's {@code TestConnection} spins its own {@code Env} server, which
- * clashes with the one-per-JVM harness). Same join flow as {@code TestConnectionImpl}: create through the
- * ConnectionManager (so the installed OptimizedPlayer provider applies), run configuration -> play off-thread.
+ * A fully joined player over a packet-capturing connection, for tests inside the shared {@link HeadlessServerTest}
+ * process - Minestom's {@code TestConnection} spins its own {@code Env} server, which clashes with the one-per-JVM
+ * harness. Join flow mirrors {@code TestConnectionImpl}, going through the ConnectionManager so the installed
+ * OptimizedPlayer provider applies.
  */
 public final class FakePlayer {
 
@@ -64,15 +64,14 @@ public final class FakePlayer {
         return holder[0];
     }
 
-    /** The captured packets of {@code type}, in send order (broadcast CachedPacket wrappers unwrapped). */
+    /** In send order, with broadcast CachedPacket wrappers unwrapped. */
     public <T extends SendablePacket> List<T> sent(Class<T> type) {
         return sent.stream()
                 .map(p -> (SendablePacket) SendablePacket.extractServerPacket(ConnectionState.PLAY, p))
                 .filter(type::isInstance).map(type::cast).toList();
     }
 
-    /** The captured spawn/metadata/velocity/teleport packets for entity {@code entityId}, in send order
-     *  (broadcasts arrive as CachedPacket - unwrapped here). */
+    /** Spawn/metadata/velocity/teleport packets for {@code entityId}, in send order, CachedPacket unwrapped. */
     public List<ServerPacket> packetsFor(int entityId) {
         return sent.stream()
                 .map(p -> SendablePacket.extractServerPacket(ConnectionState.PLAY, p))

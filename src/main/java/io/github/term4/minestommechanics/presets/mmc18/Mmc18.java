@@ -18,7 +18,6 @@ public final class Mmc18 {
 
     private Mmc18() {}
 
-    /** The mmc18 mechanics profile: the vanilla 1.8 baseline with the MMC combat / movement / explosion / projectile deltas. */
     public static MechanicsProfile profile() {
         return Vanilla18.profile().toBuilder()
                 .set(MechanicsKeys.ATTACK, Attack.config())
@@ -30,7 +29,7 @@ public final class Mmc18 {
                         VelocityConfig.builder().motYOnMovePacket(true).build()))
                 .set(MechanicsKeys.EXPLOSION, Explosion.fireballFight())
                 .set(MechanicsKeys.PROJECTILES, Projectiles.config())
-                // arrow hit-marker ding to the shooter (mmc18/hypixel/scrims18 enable it; vanilla presets don't)
+                // arrow hit-marker ding to the shooter; vanilla presets don't
                 .set(MechanicsKeys.EFFECTS, Effects.vanilla18().register(Effects.ARROW_HIT_PLAYER, Effects.arrowHitMarker()))
                 .build();
     }

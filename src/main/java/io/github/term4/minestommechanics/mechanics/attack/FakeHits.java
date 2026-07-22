@@ -55,7 +55,7 @@ public final class FakeHits {
         volatile long swingTick = Long.MIN_VALUE;        // MIN_VALUE = no armed window (attacker clock)
         volatile FakeHitConfig armedRule;                // the rule that armed swingTick (read by the move-look rays)
         volatile long lastPacketTick = Long.MIN_VALUE;    // the client's own attack packet - a real hit, no fill needed
-        volatile long lastNonAttackTick = Long.MIN_VALUE; // a drop's, right-click use's, or (modern) dig action's swing is never an attack
+        volatile long lastNonAttackTick = Long.MIN_VALUE;
     }
     /** An entry exists only for armed attackers with recorded combat, so the listeners are inert for everyone else. */
     private static final Map<Player, Swing> swings = new ConcurrentHashMap<>();
@@ -65,8 +65,8 @@ public final class FakeHits {
     public static void install(MinestomMechanics mm) {
         AttackLog.installDigTracking(mm);
         EventNode<@NotNull Event> node = EventNode.all("mm:fake-hits");
-        // recorded off the damage pipeline (not the attack events) so hits landing outside AttackSystem.apply -
-        // a preset's queued-hit flush - still re-arm; FRESH means the victim's window just opened
+        // off the damage pipeline, not the attack events, so hits landing outside AttackSystem.apply (a preset's
+        // queued-hit flush) still re-arm
         node.addListener(DamageAppliedEvent.class, e -> {
             if (e.outcome() != DamageSystem.DamageOutcome.FRESH_DAMAGE || !(e.snapshot().type() instanceof MeleeDamage)) return;
             if (!(e.snapshot().source() instanceof Player atk) || !(e.snapshot().target() instanceof Player victim) || victim == atk) return;
@@ -99,7 +99,7 @@ public final class FakeHits {
             Swing s = swings.get(atk);
             if (s == null || s.swingTick == Long.MIN_VALUE) return;
             FakeHitConfig rule = s.armedRule;
-            // the look window tracks the client's real-time packet cadence, so it scales to live TPS like the arm windows
+            // tracks the client's real-time packet cadence, so it scales to live TPS like the arm windows
             long look = rule == null ? 0 : TickScaler.duration(rule.lookWindow(), mm.profiles().resolve(atk, MechanicsKeys.TICK_SCALING), DamageSystem.KEY);
             if (rule == null || TickSystem.tick(atk) - s.swingTick > look) s.swingTick = Long.MIN_VALUE;
             else if (tryFill(mm, atk, s, rule, e.getNewPosition())) s.swingTick = Long.MIN_VALUE;
@@ -117,7 +117,7 @@ public final class FakeHits {
         if (!mm.clientInfo().isLegacy(p)) markNonAttack(p);
     }
 
-    /** The fill rules for {@code atk}: scope-chain {@link AttackConfig#fakeHits}, then the compat bare-fist rule - independent layers, a preset's windowed rule must not shadow the windowless fist fill. */
+    /** Independent layers: a preset's windowed rule must not shadow the windowless compat fist fill. */
     private static List<FakeHitConfig> rulesFor(MinestomMechanics mm, Player atk) {
         AttackConfig cfg = mm.profiles().resolve(atk, MechanicsKeys.ATTACK);
         if (cfg == null) {

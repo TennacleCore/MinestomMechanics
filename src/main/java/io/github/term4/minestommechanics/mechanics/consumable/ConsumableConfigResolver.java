@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.consumable;
 
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableTypeConfig.ParticleVisibility;
@@ -9,18 +10,17 @@ import net.minestom.server.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Resolves a {@link ConsumableConfig} + {@link Consumable} type into plain values against a {@link ConsumableContext}.
- * Mirrors {@code ProjectileConfigResolver}: per-type override -&gt; {@link ConsumableConfig#defaults()} -&gt; the type's
- * {@code defaultConfig()} -&gt; hard fallbacks, then resolve each knob.
+ * Resolves a {@link ConsumableConfig} + {@link Consumable} type into plain values against a {@link ConsumableContext}:
+ * per-type override -&gt; {@link ConsumableConfig#defaults()} -&gt; the type's {@code defaultConfig()} -&gt; hard
+ * fallbacks, then resolve each knob.
  */
 public final class ConsumableConfigResolver {
 
     private ConsumableConfigResolver() {}
 
     /**
-     * The context the per-consumable {@code FieldValue}s resolve against, and that the {@link ConsumableBehavior} hooks
-     * receive: the consuming {@code user}, the {@code item} being consumed and the {@code hand} holding it, the
-     * {@link Consumable} definition, and {@link Services} (so a behavior can reach hunger / attributes / etc.).
+     * What the per-consumable {@code FieldValue}s resolve against, and what the {@link ConsumableBehavior} hooks
+     * receive; {@link Services} lets a behavior reach hunger / attributes / etc.
      */
     public record ConsumableContext(Player user, ItemStack item, PlayerHand hand, Consumable consumable, @Nullable Services services) {
 
@@ -42,8 +42,8 @@ public final class ConsumableConfigResolver {
         }
 
         /**
-         * The resolved {@link ParticleVisibility} for this consume ({@code particles} knob, default {@link ParticleVisibility#SHOWN}).
-         * The built-in effect behaviors read it to flag {@code addEffect}. Resolve once per behavior (it re-reads the config).
+         * The resolved {@code particles} knob, default {@link ParticleVisibility#SHOWN}. Resolve once per behavior -
+         * it re-reads the config.
          */
         public ParticleVisibility particles() {
             ConsumableSystem sys = services != null ? services.consumables() : null;
@@ -53,13 +53,14 @@ public final class ConsumableConfigResolver {
         }
     }
 
-    /** Resolves the effective consumable values for {@code ctx} under {@code cfg}. */
     public static ResolvedConsumable resolve(@Nullable ConsumableConfig cfg, ConsumableContext ctx) {
         ConsumableTypeConfig tc = ctx.typeConfig(cfg);
         return new ResolvedConsumable(
                 or(resolve(tc.enabled, ctx), Boolean.TRUE),
                 or(resolve(tc.canConsume, ctx), Boolean.TRUE),
-                or(resolve(tc.consumeTicks, ctx), Consumable.VANILLA_CONSUME_TICKS),
+                // scaled HERE so the arm, the remaining countdown and the sound cadence all speak server ticks
+                TickScaler.duration(ctx.user(), or(resolve(tc.consumeTicks, ctx), Consumable.VANILLA_CONSUME_TICKS),
+                        ConsumableSystem.KEY),
                 or(resolve(tc.behavior, ctx), ConsumableBehavior.NONE));
     }
 

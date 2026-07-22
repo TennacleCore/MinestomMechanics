@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.platform.compatibility;
 
+import io.github.term4.minestommechanics.mechanics.blocking.catalog.VanillaBlocking;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -9,18 +10,23 @@ import net.minestom.server.item.Material;
 import net.minestom.server.item.component.AttackRange;
 import net.minestom.server.item.component.EnchantmentList;
 import net.minestom.server.item.enchant.Enchantment;
+import net.minestom.server.entity.EquipmentSlot;
+import net.minestom.server.network.packet.server.play.EntityEquipmentPacket;
 import net.minestom.server.network.packet.server.play.SetSlotPacket;
 import net.minestom.server.registry.RegistryKey;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The attack_range stamp + throwable reskin are client-view only; {@link CompatState#sanitizeInboundItem} keeps a creative echo from becoming server state. */
+/** View rewrites are client-only; {@link CompatState#sanitizeInboundItem} keeps a creative echo from becoming server state. */
 class CompatStateTest extends HeadlessServerTest {
 
     private static ItemStack stampedSword() {
@@ -30,7 +36,7 @@ class CompatStateTest extends HeadlessServerTest {
     @Test
     void sanitizeStripsEchoedStampForStampedClient() {
         CompatState s = new CompatState();
-        s.apply(Compat18.config()); // attackHitboxMargin 0.1 -> this client is stamped
+        s.apply(Compat18.config());
         assertTrue(s.stampsAttackRange());
         assertNull(s.sanitizeInboundItem(stampedSword()).get(DataComponents.ATTACK_RANGE),
                 "a stamped client's echoed attack_range is stripped");
@@ -38,7 +44,7 @@ class CompatStateTest extends HeadlessServerTest {
 
     @Test
     void sanitizeLeavesItemsAloneWhenNotStamping() {
-        CompatState s = new CompatState(); // OFF policy -> not stamped
+        CompatState s = new CompatState();
         assertFalse(s.stampsAttackRange());
         assertNotNull(s.sanitizeInboundItem(stampedSword()).get(DataComponents.ATTACK_RANGE),
                 "a non-stamped client keeps a legit attack_range");
@@ -48,7 +54,6 @@ class CompatStateTest extends HeadlessServerTest {
         return ((SetSlotPacket) s.rewriteItems(new SetSlotPacket(0, 0, (short) 36, item))).itemStack();
     }
 
-    /** A named, lored, enchanted snowball - a kit projectile. The reskin must keep every one of these, changing only the base type. */
     private static ItemStack fancySnowball() {
         return ItemStack.of(Material.SNOWBALL, 16)
                 .withCustomName(Component.text("Feather"))
@@ -59,7 +64,7 @@ class CompatStateTest extends HeadlessServerTest {
     @Test
     void reskinsThrowableToNonUsableBaseInClientView() {
         CompatState s = new CompatState();
-        s.apply(Compat18.config()); // suppressThrowSwing on
+        s.apply(Compat18.config());
         assertTrue(s.suppressesThrowSwing());
         ItemStack shown = slotItem(s, ItemStack.of(Material.SNOWBALL, 16));
         assertEquals(Material.PAPER, shown.material(), "the client sees a non-usable base (no throw swing)");
@@ -85,7 +90,7 @@ class CompatStateTest extends HeadlessServerTest {
     void restoresEchoedReskinToTrueItem() {
         CompatState s = new CompatState();
         s.apply(Compat18.config());
-        ItemStack restored = s.sanitizeInboundItem(slotItem(s, ItemStack.of(Material.SNOWBALL, 16))); // creative echo of the reskinned paper
+        ItemStack restored = s.sanitizeInboundItem(slotItem(s, ItemStack.of(Material.SNOWBALL, 16)));
         assertEquals(Material.SNOWBALL, restored.material(), "a creative-echoed reskin becomes the true snowball again");
         assertNull(restored.get(DataComponents.ITEM_MODEL), "the reskin marker is cleared (renders as a plain snowball)");
         assertEquals(ItemStack.of(Material.SNOWBALL).get(DataComponents.ITEM_NAME), restored.get(DataComponents.ITEM_NAME), "and reads as a snowball");
@@ -105,14 +110,14 @@ class CompatStateTest extends HeadlessServerTest {
 
     @Test
     void leavesThrowablesUnchangedWhenNotSuppressing() {
-        CompatState s = new CompatState(); // OFF policy
+        CompatState s = new CompatState();
         assertFalse(s.suppressesThrowSwing());
         assertEquals(Material.SNOWBALL, slotItem(s, ItemStack.of(Material.SNOWBALL)).material(),
                 "a modern client without the fix keeps the real snowball (and its vanilla throw swing)");
     }
 
-    /** An Animatium client takes the 1.8 set natively (feature push): compensations that would double or conflict with
-     *  its item-keyed behavior are excluded; harmless strips stay on (belt against a spoofed handshake). */
+    /** An Animatium client takes the 1.8 set natively: compensations that would double or conflict are excluded;
+     *  harmless strips stay on (belt against a spoofed handshake). */
     @Test
     void animatiumClientExclusionsFollowTheHarmLine() {
         CompatState s = new CompatState();
@@ -121,20 +126,21 @@ class CompatStateTest extends HeadlessServerTest {
         assertFalse(s.stampsAttackRange());
         assertFalse(s.suppressesThrowSwing());
         assertFalse(s.fistRayHits());
-        assertFalse(s.swordBlockingPose());
         assertEquals(Material.SNOWBALL, slotItem(s, ItemStack.of(Material.SNOWBALL)).material());
-        // NOT excluded - harmless doubled: use_cooldown isn't an Animatium feature, the glider strip matches its native disable
+        // NOT excluded: Animatium only RESTYLES a block pose, so without the stamp there is nothing to restyle
+        assertTrue(s.swordBlockingPose());
+        assertNotNull(slotItem(s, ItemStack.of(Material.DIAMOND_SWORD)).get(DataComponents.BLOCKS_ATTACKS));
+        // NOT excluded: use_cooldown isn't an Animatium feature, and the glider strip matches its native disable
         assertTrue(s.stripsUseCooldowns());
         assertNull(slotItem(s, ItemStack.of(Material.ENDER_PEARL)).get(DataComponents.USE_COOLDOWN));
         assertTrue(s.stripsGlider());
         assertNull(slotItem(s, ItemStack.of(Material.ELYTRA)).get(DataComponents.GLIDER));
     }
 
-    /** Elytra lose {@code glider} in the client's view (no client-side glide attempt); the creative echo gets it back. */
     @Test
     void gliderStrippedFromViewAndRestoredOnEcho() {
         CompatState s = new CompatState();
-        s.apply(Compat18.config()); // disableElytraFlight on
+        s.apply(Compat18.config());
         ItemStack shown = slotItem(s, ItemStack.of(Material.ELYTRA));
         assertNull(shown.get(DataComponents.GLIDER), "the view carries no glider");
         assertEquals(Material.ELYTRA, shown.material(), "still an elytra (worn/rendered normally)");
@@ -142,19 +148,18 @@ class CompatStateTest extends HeadlessServerTest {
         assertNotNull(restored.get(DataComponents.GLIDER), "an echoed strip never becomes a truly glide-less server item");
     }
 
-    /** The self-applied modern item cooldown ({@code use_cooldown}) is stripped from the view and restored on echo. */
     @Test
     void useCooldownStrippedFromViewAndRestoredOnEcho() {
         assertNotNull(ItemStack.of(Material.ENDER_PEARL).get(DataComponents.USE_COOLDOWN),
                 "precondition: the pinned Minestom pearl prototype carries use_cooldown");
         CompatState s = new CompatState();
-        s.apply(Compat18.config()); // removeUseCooldowns on
+        s.apply(Compat18.config());
         ItemStack shown = slotItem(s, ItemStack.of(Material.ENDER_PEARL));
         assertNull(shown.get(DataComponents.USE_COOLDOWN), "no client-self-applied cooldown (1.8 pearls spam-throw)");
         assertNotNull(s.sanitizeInboundItem(shown).get(DataComponents.USE_COOLDOWN), "the echo restores the prototype cooldown");
     }
 
-    /** Wind charges are in the reskin set too (modern-only item, but the swing suppression is universal). */
+    /** Modern-only item, but the swing suppression is universal - so it is in the reskin set too. */
     @Test
     void windChargeIsReskinned() {
         CompatState s = new CompatState();
@@ -162,7 +167,7 @@ class CompatStateTest extends HeadlessServerTest {
         assertEquals(Material.PAPER, slotItem(s, ItemStack.of(Material.WIND_CHARGE)).material());
     }
 
-    /** The applier re-sends the inventory on any view-rewrite change - a swap differing only in a same-margin knob must still flip the key. */
+    /** The applier re-sends the inventory whenever this key changes, so every view-rewrite knob must move it. */
     @Test
     void itemViewKeyTracksEveryViewRewrite() {
         CompatState s = new CompatState();
@@ -178,14 +183,55 @@ class CompatStateTest extends HeadlessServerTest {
         assertNotEquals(full, s.itemViewKey(), "compat dropped -> re-send (views revert)");
     }
 
-    /** Swords get {@code blocks_attacks} in the view (the native 1.8 block pose); the creative echo is stripped back. */
     @Test
     void swordBlockPoseStampedAndStrippedOnEcho() {
         CompatState s = new CompatState();
-        s.apply(Compat18.config()); // swordBlockingPose on
+        s.apply(Compat18.config());
         ItemStack shown = slotItem(s, ItemStack.of(Material.DIAMOND_SWORD));
         assertNotNull(shown.get(DataComponents.BLOCKS_ATTACKS), "the client sees a blockable sword");
         assertNull(slotItem(s, ItemStack.of(Material.STONE)).get(DataComponents.BLOCKS_ATTACKS), "only swords");
         assertNull(s.sanitizeInboundItem(shown).get(DataComponents.BLOCKS_ATTACKS), "the echo never becomes server state");
+    }
+
+    /**
+     * A modern client renders the third-person block pose off the held item's {@code blocks_attacks}
+     * ({@code Item.getUseAnimation} -> BLOCK), so an unstamped sword means you never see anyone else blocking.
+     */
+    @Test
+    void anotherPlayersSwordIsStampedSoTheBlockPoseRenders() {
+        CompatState s = new CompatState();
+        s.apply(Compat18.config());
+
+        var equipment = new EntityEquipmentPacket(7, Map.of(
+                EquipmentSlot.MAIN_HAND, ItemStack.of(Material.DIAMOND_SWORD),
+                EquipmentSlot.OFF_HAND, ItemStack.of(Material.STONE)));
+        var shown = (EntityEquipmentPacket) s.rewriteItems(equipment);
+
+        assertEquals(7, shown.entityId());
+        assertNotNull(shown.equipments().get(EquipmentSlot.MAIN_HAND).get(DataComponents.BLOCKS_ATTACKS),
+                "a viewer must see the component or the block pose never renders");
+        assertNull(shown.equipments().get(EquipmentSlot.OFF_HAND).get(DataComponents.BLOCKS_ATTACKS), "only swords");
+    }
+
+    /** An opted-out sword stays unstamped for viewers too - it would pose a block the server refuses. */
+    @Test
+    void anOptedOutSwordIsNotStampedForViewers() {
+        CompatState s = new CompatState();
+        s.apply(Compat18.config());
+
+        ItemStack optedOut = VanillaBlocking.nonBlocking(ItemStack.of(Material.DIAMOND_SWORD));
+        var shown = (EntityEquipmentPacket) s.rewriteItems(new EntityEquipmentPacket(7, Map.of(EquipmentSlot.MAIN_HAND, optedOut)));
+        assertNull(shown.equipments().get(EquipmentSlot.MAIN_HAND).get(DataComponents.BLOCKS_ATTACKS));
+    }
+
+    /** A legacy client blocks natively and the component is junk through Via - leave its equipment alone. */
+    @Test
+    void aLegacyViewersEquipmentIsUntouched() {
+        CompatState s = new CompatState();
+        s.apply(Compat18.config());
+        s.setLegacyClient(true);
+
+        var equipment = new EntityEquipmentPacket(7, Map.of(EquipmentSlot.MAIN_HAND, ItemStack.of(Material.DIAMOND_SWORD)));
+        assertSame(equipment, s.rewriteItems(equipment), "no stamp for a 1.8 viewer");
     }
 }

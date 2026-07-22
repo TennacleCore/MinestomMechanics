@@ -31,7 +31,7 @@ public final class ProjectileConfigResolver {
             return new ProjectileContext(snap, services, null, null, null);
         }
 
-        /** Derives the impact-time context (target / throwOrigin / hitPos set) for resolving the hit knobs. */
+        /** The impact-time context for resolving the hit knobs. */
         public ProjectileContext atHit(@Nullable Entity target, @Nullable Pos throwOrigin, @Nullable Point hitPos) {
             return new ProjectileContext(snap, services, target, throwOrigin, hitPos);
         }
@@ -42,11 +42,10 @@ public final class ProjectileConfigResolver {
 
         /** The struck entity (impact only), or {@code null} for a block hit / at launch. */
         public @Nullable Entity target() { return target; }
-        /** Whether the struck entity is the shooter itself - the native self-vs-other test for a hit lambda. */
         public boolean isSelfHit() { return target != null && target == snap.shooter(); }
-        /** The shooter's position + view at throw time (impact only); see {@code ProjectileEntity.getShooterOriginPos}. */
+        /** The shooter's position + view at throw time (impact only). */
         public @Nullable Pos throwOrigin() { return throwOrigin; }
-        /** The impact position (impact only). */
+        /** Impact only. */
         public @Nullable Point hitPos() { return hitPos; }
 
         /**

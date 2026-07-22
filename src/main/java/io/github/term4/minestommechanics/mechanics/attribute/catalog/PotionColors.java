@@ -15,7 +15,7 @@ import java.util.Map;
  */
 public final class PotionColors {
 
-    /** Vanilla {@code PotionContents.BASE_POTION_COLOR} - the colorless-potion fallback. */
+    /** Vanilla {@code PotionContents.BASE_POTION_COLOR}. */
     public static final int BASE_POTION_COLOR = -13083194;
 
     private PotionColors() {}
@@ -50,7 +50,7 @@ public final class PotionColors {
             Map.entry(PotionEffect.UNLUCK, 12624973),
             Map.entry(PotionEffect.SLOW_FALLING, 15978425));
 
-    /** 1.8 effect liquid colors where they differ ({@code MobEffectList} registrations); effects without a 1.8 row fall back to the modern table. */
+    /** 1.8 {@code MobEffectList} colors where they differ; effects without a row fall back to the modern table. */
     private static final Map<PotionEffect, Integer> LEGACY_TABLE = Map.ofEntries(
             Map.entry(PotionEffect.SPEED, 8171462),
             Map.entry(PotionEffect.SLOWNESS, 5926017),
@@ -67,12 +67,12 @@ public final class PotionColors {
             Map.entry(PotionEffect.POISON, 5149489),
             Map.entry(PotionEffect.WITHER, 3484199));
 
-    /** The splash/display color for a potion item: its {@code custom_color} if set, else the vanilla amplifier-weighted blend of {@code effects} ({@code PotionContents.getColorOptional}). */
+    /** {@code custom_color} if set, else the amplifier-weighted blend ({@code PotionContents.getColorOptional}). */
     public static int color(@org.jetbrains.annotations.Nullable PotionContents contents, List<CustomPotionEffect> effects) {
         return color(contents, effects, false);
     }
 
-    /** {@link #color} with the 1.8 palette + blend (unweighted average, 1.8 {@code PotionHelper}); for the 1.8-parity particle look on modern clients. */
+    /** {@link #color} with the 1.8 palette + unweighted blend ({@code PotionHelper}), for 1.8-parity particles on modern clients. */
     public static int legacyColor(@org.jetbrains.annotations.Nullable PotionContents contents, List<CustomPotionEffect> effects) {
         return color(contents, effects, true);
     }

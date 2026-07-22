@@ -41,7 +41,6 @@ public final class LegacyVelocityBridge {
 
     private LegacyVelocityBridge() {}
 
-    /** Installs the outgoing-velocity listener: the Animatium shorts rewrite + the ViaBridge self-echo suppression (armed per-hit by {@link #applyExact}). */
     public static void install(@NotNull MinestomMechanics minestomMechanics) {
         mm = minestomMechanics;
         EventNode<@NotNull PlayerEvent> node = EventNode.type("mm:legacy-velocity-bridge", EventFilter.PLAYER);
@@ -54,9 +53,8 @@ public final class LegacyVelocityBridge {
         if (!(e.getPacket() instanceof EntityVelocityPacket vel)) return;
         Player p = e.getPlayer();
 
-        // Animatium SHORTS_VELOCITY: the client decodes EVERY velocity packet as a 1.8 short, so rewrite all of them to the
-        // shorts wire (not just knockback) - the same thing Via does for a real 1.8 client. Gated on advertised decoder
-        // support so an ALL-features client lacking the decoder is untouched. The BufferedPacket send won't re-fire this event.
+        // gated on advertised decoder support so an ALL-features client lacking the decoder is untouched;
+        // the BufferedPacket send won't re-fire this event
         if (p instanceof OptimizedPlayer op
                 && op.compat().handlesNatively(AnimatiumFeature.SHORTS_VELOCITY)
                 && op.compat().supports(AnimatiumFeature.SHORTS_VELOCITY)) {
@@ -67,7 +65,7 @@ public final class LegacyVelocityBridge {
             return;
         }
 
-        // ViaBridge path: drop the one tagged self LpVec3 echo (the exact short is injected via the proxy RPC instead).
+        // ViaBridge path: drop the one tagged self LpVec3 echo (the exact short goes via the proxy RPC instead)
         if (Boolean.TRUE.equals(p.getTag(SUPPRESS_SELF_VELOCITY)) && vel.entityId() == p.getEntityId()) {
             e.setCancelled(true);
             p.removeTag(SUPPRESS_SELF_VELOCITY);  // one-shot

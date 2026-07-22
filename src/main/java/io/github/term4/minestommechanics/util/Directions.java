@@ -7,32 +7,28 @@ import org.jetbrains.annotations.Nullable;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 
-/** Direction math helpers (unit vectors, yaw convention, blends) shared by the mechanics. */
+/** Direction math helpers: unit vectors, yaw convention, blends. */
 public final class Directions {
 
     private Directions() {}
 
-    /** Up unit vector. */
     public static final Vec UP = new Vec(0, 1, 0);
 
-    /** Length below which a direction is considered degenerate (falls back to a random/up direction). */
+    /** Length below which a direction is degenerate (falls back to a random/up direction). */
     public static final double EPSILON = 1e-6;
 
-    /**
-     * Minecraft yaw -> horizontal facing unit vector, {@code (x, z) = (-sin(yaw), cos(yaw))}.
-     * Convention: yaw 0 -> +Z, 90 -> -X, -90 -> +X, 180 -> -Z. The y component is always 0.
-     */
+    /** Minecraft yaw -> horizontal facing unit vector. Convention: yaw 0 -> +Z, 90 -> -X, -90 -> +X, 180 -> -Z. */
     public static Vec fromYaw(double yawDeg) {
         double rad = Math.toRadians(yawDeg);
         return new Vec(-Math.sin(rad), 0, Math.cos(rad));
     }
 
-    /** Minecraft yaw (degrees) of a direction/velocity vector: {@code atan2(x, z)} (yaw 0 -&gt; +Z). */
+    /** Minecraft yaw (degrees) of a direction/velocity vector (yaw 0 -&gt; +Z). */
     public static float yaw(Vec dir) {
         return (float) Math.toDegrees(Math.atan2(dir.x(), dir.z()));
     }
 
-    /** Horizontal unit vector 90° clockwise of {@code yawDeg} (the shooter's right hand): {@code (-cos(yaw), 0, -sin(yaw))}. */
+    /** Horizontal unit vector 90° clockwise of {@code yawDeg} (the shooter's right hand). */
     public static Vec rightOf(double yawDeg) {
         double rad = Math.toRadians(yawDeg);
         return new Vec(-Math.cos(rad), 0, -Math.sin(rad));
@@ -46,8 +42,7 @@ public final class Directions {
 
     /**
      * Vanilla {@code shootFromRotation} heading (identical 1.8-26): horizontal from the UN-offset pitch, vertical from
-     * {@code pitch + pitchOffsetDeg}, normalized - NOT a rotation of the look vector (the potion's -20° keeps its full
-     * horizontal reach).
+     * {@code pitch + pitchOffsetDeg} - NOT a rotation of the look vector (the potion's -20° keeps its full horizontal reach).
      */
     public static Vec headingWithPitchOffset(double yawDeg, double pitchDeg, double pitchOffsetDeg) {
         double yaw = Math.toRadians(yawDeg), pitch = Math.toRadians(pitchDeg);
@@ -72,8 +67,8 @@ public final class Directions {
     }
 
     /**
-     * Snaps a horizontal vector onto whichever cardinal axis carries the larger magnitude, returning a unit vector
-     * with components in {@code {-1, 0, +1}}. Ties favour x; a zero vector snaps to {@code (0, 0)}.
+     * Snaps a horizontal vector onto its dominant cardinal axis, components in {@code {-1, 0, +1}}. Ties favour x; a
+     * zero vector snaps to {@code (0, 0)}.
      */
     public static Vec snapDominantAxis(Vec v) {
         return Math.abs(v.x()) >= Math.abs(v.z())

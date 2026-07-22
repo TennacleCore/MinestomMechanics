@@ -13,8 +13,7 @@ import net.minestom.server.event.player.PlayerSpawnEvent;
  * deflected / passed-through arrows. The glitch is a native 1.8 client bug ({@code EntityArrow} bounces+hides a hit it
  * can't damage); the only client lever is the {@code canAttackPlayer} null-out - same team + FF off - which survives
  * the Via chain. Server-side damage ignores teams. Per PLAYER, not per arrow (teams are pairwise - both shooter and
- * target must be enabled members); membership is resolved from {@link FixesSystem#legacyArrowVisibilityEnabled} on
- * (re)spawn. {@link #setEnabled} = global on/off.
+ * target must be members); membership resolves from {@link FixesSystem#legacyArrowVisibilityEnabled} on (re)spawn.
  */
 public final class LegacyArrowVisibility {
 
@@ -25,16 +24,15 @@ public final class LegacyArrowVisibility {
         this.system = system;
     }
 
-    /** Wires the per-player membership sync onto {@code node}: re-evaluate on every spawn (first / respawn / instance
-     *  change, so an instance-scoped config is picked up too); {@code SharedTeam} cleans up on disconnect. */
+    /** Re-evaluates membership on every spawn (first / respawn / instance change, so an instance-scoped config is
+     *  picked up too); {@code SharedTeam} cleans up on disconnect. */
     public void install(EventNode<Event> node) {
         node.addListener(PlayerSpawnEvent.class, e -> apply(e.getPlayer()));
     }
 
     /**
-     * Runtime master switch (the on/off toggle): {@code false} removes everyone from the team (the glitch returns),
-     * {@code true} re-applies the per-player config. The {@link LegacyArrowVisibilityConfig#enabled} knob still decides
-     * who is included when on. Re-evaluates all online players immediately.
+     * Runtime master switch: {@code false} removes everyone from the team (the glitch returns), {@code true} re-applies
+     * the per-player {@link LegacyArrowVisibilityConfig#enabled} knob. Re-evaluates all online players immediately.
      */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;

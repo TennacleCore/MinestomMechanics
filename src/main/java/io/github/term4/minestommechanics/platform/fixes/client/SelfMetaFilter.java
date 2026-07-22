@@ -13,12 +13,6 @@ import java.util.Set;
  * predict state (sneak, sprint, pose, item use) locally, and the server echoing it back causes a one-tick stutter.
  * Viewers always get the full packet.
  *
- * <pre>{@code
- * SelfMetaFilter filter = new SelfMetaFilter()
- *         .suppressBit((MetadataDef.Entry.BitMask) MetadataDef.IS_CROUCHING)
- *         .suppressIndex(MetadataDef.POSE);
- * }</pre>
- *
  * @see io.github.term4.minestommechanics.platform.player.OptimizedPlayer
  */
 public final class SelfMetaFilter {
@@ -81,10 +75,6 @@ public final class SelfMetaFilter {
         return result;
     }
 
-    /**
-     * Default player filter: crouching + sprinting bits, the pose index, living-entity flags (eating, blocking,
-     * bow draw), and attribute echoes. Pose suppression also covers swim/crawl stutter.
-     */
     public static SelfMetaFilter defaultPlayerFilter() {
         return new SelfMetaFilter()
                 .suppressBit((MetadataDef.Entry.BitMask) MetadataDef.IS_CROUCHING)

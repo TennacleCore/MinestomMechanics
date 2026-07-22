@@ -3,6 +3,7 @@ package io.github.term4.minestommechanics.platform.compatibility;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
+import io.github.term4.minestommechanics.testsupport.CapturingConnection;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
 import net.minestom.server.MinecraftServer;
@@ -13,19 +14,13 @@ import net.minestom.server.event.player.PlayerPacketOutEvent;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
 import net.minestom.server.network.NetworkBuffer;
 import net.minestom.server.network.packet.server.BufferedPacket;
-import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.common.PluginMessagePacket;
 import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
 import net.minestom.server.network.player.GameProfile;
-import net.minestom.server.network.player.PlayerConnection;
 import org.junit.jupiter.api.Test;
 
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.util.BitSet;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,27 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The server-side Animatium SHORTS_VELOCITY chain, end to end: the {@code animatium:info} handshake (byte layout of the
- * fork's {@code InfoPayloadPacket}) through {@code ClientInfoTracker}/{@code CompatAnimatium} gating to the outgoing
- * velocity rewrite. {@code PlayerPacketOutEvent} is dispatched directly - it only fires on the socket write path, which
- * a headless connection doesn't have.
+ * The server-side Animatium SHORTS_VELOCITY chain, handshake to velocity rewrite. {@code PlayerPacketOutEvent} is
+ * dispatched directly - it only fires on the socket write path, which a headless connection doesn't have.
  */
 class AnimatiumShortsVelocityTest extends HeadlessServerTest {
 
     private static final Vec VELOCITY_BT = new Vec(0.55, 0.4, -0.1);
-
-    static final class CapturingConnection extends PlayerConnection {
-        final List<SendablePacket> sent = new CopyOnWriteArrayList<>();
-
-        @Override
-        public void sendPacket(SendablePacket packet) { sent.add(packet); }
-
-        @Override
-        public SocketAddress getRemoteAddress() { return new InetSocketAddress("localhost", 25565); }
-
-        @Override
-        public void disconnect() {}
-    }
 
     private static OptimizedPlayer animatiumPlayer(CapturingConnection conn, boolean shortsKnob, boolean advertisesCapabilities) {
         OptimizedPlayer p = new OptimizedPlayer(conn, new GameProfile(UUID.randomUUID(), "AnimTest"));
@@ -64,7 +44,7 @@ class AnimatiumShortsVelocityTest extends HeadlessServerTest {
         return p;
     }
 
-    /** {@code animatium:info} exactly as the fork's {@code InfoPayloadPacket.write} lays it out; without capabilities = upstream/old build. */
+    /** Byte layout of the fork's {@code InfoPayloadPacket.write}; no capabilities field = upstream/old build. */
     private static byte[] infoPayload(boolean withCapabilities) {
         NetworkBuffer buf = NetworkBuffer.resizableBuffer(64, MinecraftServer.process());
         buf.write(NetworkBuffer.DOUBLE, 3.3);
@@ -100,9 +80,9 @@ class AnimatiumShortsVelocityTest extends HeadlessServerTest {
         BufferedPacket shorts = (BufferedPacket) conn.sent.stream()
                 .filter(BufferedPacket.class::isInstance).findFirst().orElseThrow();
         NetworkBuffer buf = shorts.buffer();
-        buf.readIndex(3); // [3-byte length] then, with compression, [data length (0 = uncompressed, always for 14 bytes)]
+        buf.readIndex(3); // 3-byte length, then with compression a data length (0 = uncompressed, always at 14 bytes)
         if (MinecraftServer.getCompressionThreshold() > 0) assertEquals(0, buf.read(NetworkBuffer.VAR_INT));
-        buf.read(NetworkBuffer.VAR_INT); // packet id, resolved from the registry - identity not asserted here
+        buf.read(NetworkBuffer.VAR_INT); // packet id
         assertEquals(p.getEntityId(), buf.read(NetworkBuffer.VAR_INT));
         short[] sent = { buf.read(NetworkBuffer.SHORT), buf.read(NetworkBuffer.SHORT), buf.read(NetworkBuffer.SHORT) };
         assertArrayEquals(LegacyVelocity.wireShorts(VELOCITY_BT.mul(ServerFlag.SERVER_TICKS_PER_SECOND)), sent);
@@ -136,7 +116,6 @@ class AnimatiumShortsVelocityTest extends HeadlessServerTest {
         assertTrue(conn.sent.isEmpty());
     }
 
-    /** The {@code set_server_features} BitSet pushed by the handshake. */
     private static BitSet featurePush(CapturingConnection conn) {
         PluginMessagePacket push = conn.sent.stream()
                 .filter(PluginMessagePacket.class::isInstance).map(PluginMessagePacket.class::cast)

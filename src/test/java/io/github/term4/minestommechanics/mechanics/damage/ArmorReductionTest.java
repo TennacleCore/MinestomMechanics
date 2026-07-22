@@ -16,9 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The armor defense stage. Pure-formula pins verified vs vanilla 1.8 ({@code EntityLiving.applyArmorModifier}) and 26
- * ({@code CombatRules.getDamageAfterAbsorb}), plus an integration pass: a melee hit on an armored player (zombie
- * stand-in) is reduced by the LEGACY harness's armor stage, and fall bypasses armor.
+ * Armor stage pinned vs vanilla 1.8 ({@code EntityLiving.applyArmorModifier}) and 26
+ * ({@code CombatRules.getDamageAfterAbsorb}).
  */
 class ArmorReductionTest extends HeadlessServerTest {
 

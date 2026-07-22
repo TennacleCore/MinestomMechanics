@@ -9,8 +9,7 @@ import java.util.Map;
 /**
  * Config for the hunger subsystem, assigned per scope via the {@code hunger} profile member. The PRESETS declare
  * every cost: each source charges through its {@link ExhaustionCost} entry (no entry = {@link ExhaustionCost#dynamic()}
- * for custom keys, inert for lib keys), times the global {@code exhaustionScale} - 0 freezes all depletion while
- * regen keeps healing.
+ * for custom keys, inert for lib keys), times the global {@code exhaustionScale}.
  */
 public final class HungerConfig {
 
@@ -20,7 +19,7 @@ public final class HungerConfig {
     private final @Nullable Integer regenInterval;
     private final @Nullable Boolean saturationRegen;
     private final @Nullable Float exhaustionScale;
-    /** Per-source cost rules, keyed by the {@link HungerSystem#exhaust} source (e.g. {@link HungerSystem#REGEN_COST}). */
+    /** Per-source cost rules, keyed by the {@link HungerSystem#exhaust} source. */
     public final Map<Key, ExhaustionCost> exhaustionCosts;
 
     private HungerConfig(Builder b) {
@@ -33,7 +32,7 @@ public final class HungerConfig {
         this.exhaustionCosts = Map.copyOf(b.exhaustionCosts);
     }
 
-    /** Whether hunger is simulated (unset = active; set {@code false} to disable). */
+    /** Unset = active. */
     public @Nullable Boolean enabled() { return enabled; }
 
     /** The {@code naturalRegeneration} gamerule analog (unset = on). */
@@ -54,7 +53,7 @@ public final class HungerConfig {
     /** The cost rule for {@code source}, or null = {@link ExhaustionCost#dynamic()}. */
     public @Nullable ExhaustionCost exhaustionCost(Key source) { return exhaustionCosts.get(source); }
 
-    /** Merges this config over {@code base} (this if set, else base; per-source costs overlay entry-wise). */
+    /** Merges this config over {@code base}; per-source costs overlay entry-wise. */
     public HungerConfig fromBase(HungerConfig base) {
         Map<Key, ExhaustionCost> mergedCosts = new LinkedHashMap<>(base.exhaustionCosts);
         mergedCosts.putAll(exhaustionCosts);

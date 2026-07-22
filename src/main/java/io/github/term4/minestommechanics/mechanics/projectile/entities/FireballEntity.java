@@ -23,14 +23,14 @@ import org.jetbrains.annotations.Nullable;
  */
 public class FireballEntity extends ManagedProjectile {
 
-    /** Vanilla ghast self-propulsion magnitude added along the aim each tick ({@code mot += aim·0.1; mot *= 0.95} -> terminal ~1.9). Independent of the launch speed. */
+    /** Vanilla ghast thrust along the aim each tick ({@code mot += aim·0.1; mot *= 0.95} -> terminal ~1.9). Independent of the launch speed. */
     private static final double SELF_PROPULSION = 0.1;
     /** The fireball's OWN collision box: a POINT (raytrace-like detonation), decoupled from its 1x1 hittable {@link #getBoundingBox()}. */
     private static final BoundingBox POINT = new BoundingBox(0, 0, 0);
 
-    /** Explosion power on detonation (vanilla ghast {@code yield = 1}); the launcher stamps the configured value (Hypixel = 2). */
+    /** Vanilla ghast {@code yield = 1}; Hypixel 2. */
     private float explosionPower = 1.0f;
-    /** Latches the self-propulsion vector ({@code aim·0.1}) on the first moving tick. */
+    /** Latches {@link #SELF_PROPULSION} on the first moving tick. */
     private boolean propelled;
 
     public FireballEntity(@Nullable Entity shooter, @NotNull EntityType entityType,
@@ -38,7 +38,6 @@ public class FireballEntity extends ManagedProjectile {
         super(shooter, entityType, snap, effectiveConfig);
     }
 
-    /** Sets the explosion radius/power produced on detonation (the launcher stamps the resolved value). */
     public void setExplosionPower(float power) { this.explosionPower = power; }
 
     @Override
@@ -63,7 +62,6 @@ public class FireballEntity extends ManagedProjectile {
 
     @Override
     protected void movementTick() {
-        // latch self-propulsion (aim·0.1) on the first moving tick, decoupled from launch speed
         if (!propelled && velocityBt().lengthSquared() > 1.0e-9) {
             setAcceleration(velocityBt().normalize().mul(SELF_PROPULSION));
             propelled = true;
@@ -79,7 +77,7 @@ public class FireballEntity extends ManagedProjectile {
         if (!hasBehavior() && instance != null) detonate(instance, getPosition(), hitEntity);
     }
 
-    /** Fires this fireball's explosion at {@code center} via the {@link ExplosionSystem}; {@code this} stays the source + impact-gate target, so a behavior can capture the center and schedule this a tick later. */
+    /** {@code this} stays the source + impact-gate target, so a behavior can capture the center and fire this a tick later. */
     public void detonate(@NotNull Instance instance, @NotNull Point center, @Nullable Entity hitEntity) {
         Services s = services();
         ExplosionSystem explosion = s != null ? s.explosion() : null;

@@ -8,10 +8,8 @@ import net.kyori.adventure.key.Key;
 import net.minestom.server.potion.PotionEffect;
 
 /**
- * Modern (26) consumables: the golden apples with 26-source effects (regular = Regen II 5s + Absorption I 2m;
- * enchanted = Regen II 20s + Resistance 5m + Fire Resistance 5m + Absorption IV 2m; both 4 food + 9.6 saturation -
- * 1.8's enchanted is Regen V + Absorption I), the modern pufferfish (Poison II - 1.8 is IV), and the modern
- * {@code canEat} gate (creative always eats, no item loss) on every food incl. the component floor.
+ * Modern (26) consumables: 26-source golden apple and pufferfish effects, plus the modern {@code canEat} gate (creative
+ * always eats, no item loss) on every food incl. the component floor.
  */
 public final class Consumables {
 
@@ -21,7 +19,7 @@ public final class Consumables {
         return ConsumableConfig.builder()
                 .typeConfigs(
                         ConsumableTypeConfig.builder(VanillaConsumables.GOLDEN_APPLE.key())
-                                .canConsume(ctx -> VanillaConsumables.modernCanEat(ctx, true)) // 26 lets creative eat (no item loss)
+                                .canConsume(ctx -> VanillaConsumables.modernCanEat(ctx, true)) // always-edible
                                 .behavior(VanillaConsumables.effectFood(4, 9.6f,
                                         VanillaConsumables.eff(PotionEffect.REGENERATION, 2, 100),
                                         VanillaConsumables.eff(PotionEffect.ABSORPTION, 1, 2400)))
@@ -52,7 +50,6 @@ public final class Consumables {
                 .build();
     }
 
-    /** The modern eat gate for a food whose behavior lives on its type. */
     private static ConsumableTypeConfig food(Key key) {
         return ConsumableTypeConfig.builder(key).canConsume(ctx -> VanillaConsumables.modernCanEat(ctx, false)).build();
     }

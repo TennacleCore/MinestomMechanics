@@ -21,10 +21,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * can tell client-initiated metadata changes from server-initiated ones (the flag it reads in
  * {@link OptimizedPlayer#sendPacketToViewersAndSelf}). Ported from the standalone {@code minestom-echo-fix}.
  *
- * <p>This does not set a player provider - {@code MinestomMechanics} installs the {@link OptimizedPlayer} provider
- * itself; here we only wrap the four listeners. The fix is inert unless the active player is an {@link OptimizedPlayer}
- * (i.e. the provider is on). The tick-driven pose path (crawl enter/exit) is armed separately in
- * {@link OptimizedPlayer#updatePose()}.
+ * <p>Inert unless the {@link OptimizedPlayer} provider is on - {@code MinestomMechanics} installs that, not this.
+ * The tick-driven pose path (crawl enter/exit) is armed separately in {@link OptimizedPlayer#updatePose()}.
  */
 public final class MetaFix {
 
@@ -32,31 +30,19 @@ public final class MetaFix {
 
     private MetaFix() {}
 
-    /**
-     * Wraps the four client-input listeners (sneak / sprint / use item / release item) to toggle
-     * {@link OptimizedPlayer#setProcessingClientInput} around each, so self-bound echoes are filtered while
-     * the input is handled. Idempotent: a second call is a no-op.
-     */
+    /** Wraps the sneak / sprint / use-item / release-item listeners with the echo guard. Idempotent. */
     public static void installListeners() {
         if (!installed.compareAndSet(false, true)) return;
 
-        // Sneak (via player input packet)
         wrapListener(ClientInputPacket.class, PlayerInputListener::listener);
-        // Sprint
         wrapListener(ClientEntityActionPacket.class, EntityActionListener::listener);
-        // Use item (eat, bow, shield)
         wrapListener(ClientUseItemPacket.class, UseItemListener::useItemListener);
-        // Release item
         wrapListener(ClientPlayerActionPacket.class, PlayerActionListener::playerActionListener);
     }
 
     /**
      * Wraps a custom play listener with the client-input flag, so its self-bound metadata/attribute echoes are
      * filtered for an {@link OptimizedPlayer}. Use for listeners that mutate predicted player state.
-     *
-     * @param packetClass the packet class to wrap
-     * @param consumer    the listener to wrap
-     * @param <T>         the packet type
      */
     public static <T extends ClientPacket> void wrapListener(
             Class<T> packetClass, PacketPlayListenerConsumer<@NotNull T> consumer) {

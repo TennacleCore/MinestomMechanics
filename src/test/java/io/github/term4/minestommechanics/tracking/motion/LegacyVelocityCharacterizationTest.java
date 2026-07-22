@@ -7,9 +7,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Golden/characterization pins for {@link LegacyVelocity#snap} - the 1.8 wire-grid quantization applied to outgoing
- * knockback velocity. Pure math over {@code ServerFlag.SERVER_TICKS_PER_SECOND}; pinned at the default 20 TPS (the lib
- * default). The attribute refactor must not change this. See docs/attributes-design.md.
+ * Golden pins for the 1.8 wire-grid quantization of outgoing knockback velocity. Pure math over
+ * {@code ServerFlag.SERVER_TICKS_PER_SECOND}, pinned at the default 20 TPS. See docs/attributes-design.md.
  */
 class LegacyVelocityCharacterizationTest {
 
@@ -21,7 +20,7 @@ class LegacyVelocityCharacterizationTest {
         assertEquals(expected.z(), actual.z(), EPS, "z");
     }
 
-    /** The pins below assume 20 TPS (b/s = 20 * b/t). Fail loudly if the test JVM runs another TPS. */
+    /** Every pin below assumes 20 TPS (b/s = 20 * b/t). */
     @Test
     void tpsPrecondition() {
         assertEquals(20, (int) ServerFlag.SERVER_TICKS_PER_SECOND);

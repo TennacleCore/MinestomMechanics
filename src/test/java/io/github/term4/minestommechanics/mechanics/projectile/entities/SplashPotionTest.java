@@ -27,9 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The vanilla splash model (1.8 {@code EntityPotion.a()}): distance-scaled durations, the direct-hit full intensity,
- * the 20-tick floor, and instant harming/healing through {@code HealOrHarm}. Each case gets its own far-apart impact
- * point in a dedicated chunk so the shared-instance zombies of other tests can't fall in range.
+ * The vanilla splash model (1.8 {@code EntityPotion.a()}). Each case gets its own far-apart impact point in a
+ * dedicated chunk so the shared-instance zombies of other tests can't fall in range.
  */
 class SplashPotionTest extends HeadlessServerTest {
 
@@ -42,10 +41,14 @@ class SplashPotionTest extends HeadlessServerTest {
     }
 
     private static SplashPotionEntity potionAt(Pos at, PotionType potion) {
+        return potionAt(at, potion, ProjectileTypeConfig.builder().build());
+    }
+
+    private static SplashPotionEntity potionAt(Pos at, PotionType potion, ProjectileTypeConfig config) {
         ItemStack item = ItemStack.of(Material.SPLASH_POTION)
                 .with(DataComponents.POTION_CONTENTS, new PotionContents(potion));
         var snap = ProjectileSnapshot.of(looseZombie(), SplashPotion.INSTANCE).withItem(item);
-        var entity = (SplashPotionEntity) SplashPotion.INSTANCE.createEntity(snap.shooter(), snap, ProjectileTypeConfig.builder().build());
+        var entity = (SplashPotionEntity) SplashPotion.INSTANCE.createEntity(snap.shooter(), snap, config);
         entity.setInstance(instance, at).join();
         return entity;
     }
@@ -120,12 +123,8 @@ class SplashPotionTest extends HeadlessServerTest {
         mm.clientInfo().setProxyDetails(legacyViewer.player, "{\"version\": 47}");   // 1.8
         mm.clientInfo().setProxyDetails(modernViewer.player, "{\"version\": 774}");  // modern
 
-        ItemStack item = ItemStack.of(Material.SPLASH_POTION)
-                .with(DataComponents.POTION_CONTENTS, new PotionContents(PotionType.SWIFTNESS));
-        var snap = ProjectileSnapshot.of(looseZombie(), SplashPotion.INSTANCE).withItem(item);
-        var potion = (SplashPotionEntity) SplashPotion.INSTANCE.createEntity(snap.shooter(), snap,
+        var potion = potionAt(at, PotionType.SWIFTNESS,
                 ProjectileTypeConfig.builder().legacyPotionColors(true).build());
-        potion.setInstance(instance, at).join();
         potion.addViewer(legacyViewer.player);
         potion.addViewer(modernViewer.player);
         legacyViewer.sent.clear();
@@ -167,12 +166,7 @@ class SplashPotionTest extends HeadlessServerTest {
         // gap = 2.125 - 0.3 (zombie half-width) - 0.125 (potion half-width) = 1.7; intensity 1 - 1.7/4 = 0.575
         // (the 1.8 center-distance model would give 0.46875 -> 1688)
         LivingEntity target = zombie(at.add(2.125, 0, 0));
-        ItemStack item = ItemStack.of(Material.SPLASH_POTION)
-                .with(DataComponents.POTION_CONTENTS, new PotionContents(PotionType.SWIFTNESS));
-        var snap = ProjectileSnapshot.of(looseZombie(), SplashPotion.INSTANCE).withItem(item);
-        var potion = (SplashPotionEntity) SplashPotion.INSTANCE.createEntity(snap.shooter(), snap,
-                ProjectileTypeConfig.builder().modernSplash(true).build());
-        potion.setInstance(instance, at).join();
+        var potion = potionAt(at, PotionType.SWIFTNESS, ProjectileTypeConfig.builder().modernSplash(true).build());
         potion.onImpact(null);
         assertEquals(2070, effect(target, PotionEffect.SPEED).orElseThrow().potion().duration()); // (int)(0.575 * 3600 + 0.5)
         target.remove();
@@ -186,12 +180,7 @@ class SplashPotionTest extends HeadlessServerTest {
         var modernViewer = FakePlayer.connect(instance, at.add(-3, 0, 0), "ModernV2007");
         mm.clientInfo().setProxyDetails(modernViewer.player, "{\"version\": 774}");
 
-        ItemStack item = ItemStack.of(Material.SPLASH_POTION)
-                .with(DataComponents.POTION_CONTENTS, new PotionContents(PotionType.HARMING));
-        var snap = ProjectileSnapshot.of(looseZombie(), SplashPotion.INSTANCE).withItem(item);
-        var potion = (SplashPotionEntity) SplashPotion.INSTANCE.createEntity(snap.shooter(), snap,
-                ProjectileTypeConfig.builder().modernSplash(true).build());
-        potion.setInstance(instance, at).join();
+        var potion = potionAt(at, PotionType.HARMING, ProjectileTypeConfig.builder().modernSplash(true).build());
         potion.addViewer(modernViewer.player);
         modernViewer.sent.clear();
         potion.onImpact(null);

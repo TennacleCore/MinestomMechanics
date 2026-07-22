@@ -14,9 +14,9 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Immutable projectile config: a generic {@link #defaults} base plus per-type {@link ProjectileTypeConfig} overrides
- * keyed by type key. Mirrors {@code DamageConfig} - presence in {@link #typeConfigs} enables a type at install.
- * Resolution layers per-type override -&gt; {@link #defaults} -&gt; the type's {@code defaultConfig()} -&gt; hard fallbacks.
+ * Immutable projectile config: a generic {@link #defaults} base plus per-type {@link ProjectileTypeConfig} overrides.
+ * Presence in {@link #typeConfigs} enables a type at install. Resolution layers per-type override -&gt;
+ * {@link #defaults} -&gt; the type's {@code defaultConfig()} -&gt; hard fallbacks.
  */
 public final class ProjectileConfig extends Config<ProjectileContext, ProjectileConfig> {
 
@@ -24,12 +24,11 @@ public final class ProjectileConfig extends Config<ProjectileContext, Projectile
     public final @Nullable ProjectileTypeConfig defaults;
     /** Per-type config overrides, keyed by {@link ProjectileTypeConfig#key()}. */
     public final Map<Key, ProjectileTypeConfig> typeConfigs;
-    /** Item launchers (e.g. {@code Bow}) this config installs - the item-&gt;projectile bindings. Read once at install, from the global profile. */
+    /** Item launchers (e.g. {@code Bow}) this config installs. Read once at install, from the global profile. */
     public final List<Shootable> shootables;
-    /** Sync a LEGACY client's use-item aim to the click (MineMen): the 1.8 use packet carries no rotation, so Via fills
-     *  the previous tick's - a flick-and-throw launches on the stale aim. Held at queue entry until the same-tick flying
-     *  packet supplies the click aim ({@code UseItemAimSync}). {@code null}/false = vanilla (the desync); modern clients
-     *  are unaffected either way (their use packet carries the click aim natively). */
+    /** Sync a LEGACY client's use-item aim to the click: the 1.8 use packet carries no rotation, so Via fills the
+     *  previous tick's and a flick-and-throw launches on the stale aim ({@code UseItemAimSync} holds it until the
+     *  same-tick flying packet). {@code null}/false = vanilla; modern clients are unaffected either way. */
     public final @Nullable Boolean useItemAimSync;
 
     private ProjectileConfig(Builder b) {
@@ -46,10 +45,9 @@ public final class ProjectileConfig extends Config<ProjectileContext, Projectile
     /** Per-type config for {@code key}, or {@code null} if none registered. */
     public @Nullable ProjectileTypeConfig typeConfig(Key key) { return typeConfigs.get(key); }
 
-    /** The item launchers this config installs. */
     public List<Shootable> shootables() { return shootables; }
 
-    /** Merges this config over base (this config's generic defaults + per-type entries + shootables layered over base's). */
+    /** Merges this config over {@code base}: defaults, per-type entries and shootables all layer over base's. */
     public ProjectileConfig fromBase(ProjectileConfig base) {
         Map<Key, ProjectileTypeConfig> merged = new LinkedHashMap<>(base.typeConfigs);
         merged.putAll(typeConfigs);

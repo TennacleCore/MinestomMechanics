@@ -16,7 +16,7 @@ public final class Explosion {
 
     private Explosion() {}
 
-    /** Radial push multiplier, wire-exact from the point-blank sweep (all three capture rows land on MineMen's shorts). Near but NOT exactly melee B/0.4 = 1.3185. */
+    // radial push, wire-exact from the point-blank sweep; near but NOT exactly melee B/0.4 = 1.3185
     static final double KB_SCALE = 1.3167;
 
     public static ExplosionConfig config() {
@@ -29,23 +29,20 @@ public final class Explosion {
                 .build();
     }
 
-    /**
-     * 1.8 sneak-aware head height (vanilla {@code getHeadHeight}: eye − 0.08 sneaking). The −1e-6 encodes the captured
-     * knife-edge: a blast exactly at the sneak eye pushes DOWN (−0.448 shorts −3586), at the standing eye UP (+1.145).
-     */
+    // 1.8 getHeadHeight (eye − 0.08 sneaking); the −1e-6 is the captured knife-edge: a blast exactly at the sneak eye
+    // pushes DOWN, at the standing eye UP
     private static double pushEye(Entity e) {
         double eye = e.getEntityType().registry().eyeHeight();
         return e instanceof Player p && p.isSneaking() ? eye - 0.08 - 1.0e-6 : eye;
     }
 
-    /** Measured FBF blast-damage scale: the vanilla FLOORED falloff × 0.05 (2026-07-01 leather captures, every clean row wire-exact). */
+    // measured: the vanilla FLOORED falloff × 0.05 (2026-07-01 leather captures)
     static final double FBF_DAMAGE_SCALE = 0.05;
 
     /**
-     * Fireball-Fight minigame variant: same KB as {@link #config()}, blast damage = the vanilla floored curve ×
-     * {@link #FBF_DAMAGE_SCALE} (p2 point-blank raw 32 → 1.6, p4 raw 58 → 2.9; armor applies normally - all observed
-     * drops divisible by leather's 0.72). Direct hits deal the fireball's vanilla 6.0 CONTACT damage
-     * ({@code Projectiles}); the splash after it is overdamage-blocked.
+     * Fireball-Fight variant: same KB as {@link #config()}, blast damage scaled off the vanilla floored curve; armor
+     * applies normally. Direct hits deal the fireball's vanilla 6.0 CONTACT damage, and the splash after it is
+     * overdamage-blocked.
      */
     public static ExplosionConfig fireballFight() {
         return config().toBuilder().damageScale(FBF_DAMAGE_SCALE).build();
