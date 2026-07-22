@@ -146,21 +146,15 @@ public class DroppedItemEntity extends ItemEntity {
         return item;
     }
 
-    // Minestom's movementTick collides against the backing instance only; a drop in a diff world would fall through
-    // placed blocks server-side. Same step, world block view.
     @Override
     public void movementTick() {
         this.gravityTickCount = onGround ? 0 : gravityTickCount + 1;
         if (vehicle == null && getInstance() != null) {
-            MechanicsWorld world = MechanicsWorld.of(this, getInstance());
-            var result = world.simulateMovement(position, velocity.div(TPS), getBoundingBox(),
-                    TickScaler.aerodynamics(this, getAerodynamics()), hasNoGravity(), hasPhysics(), onGround, lastPhysics);
-            this.lastPhysics = result;
-            if (world.isChunkLoaded(result.newPosition())) {
+            this.lastPhysics = MechanicsWorld.step(this, velocity.div(TPS), lastPhysics, result -> {
                 this.velocity = result.newVelocity().mul(TPS);
                 this.onGround = result.isOnGround();
                 refreshPosition(result.newPosition(), true, false); // ITEM is a synchronize-only type
-            }
+            });
         }
         // ItemEntity's landing sync, once on first touchdown
         if (!landedLastTick && onGround) {

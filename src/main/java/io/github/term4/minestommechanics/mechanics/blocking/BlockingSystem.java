@@ -96,8 +96,7 @@ public final class BlockingSystem implements MechanicsModule {
 
     /** Effective config for {@code subject} (the defender): the scoped profile, else the install config. */
     public BlockingConfig configFor(@Nullable Entity subject) {
-        BlockingConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.BLOCKING);
-        return scoped != null ? scoped : config;
+        return mm.profiles().resolveOr(subject, MechanicsKeys.BLOCKING, config);
     }
 
     /** Whether {@code player} is currently raising a blockable item (use-state only; the per-hit gates live in {@link #reduce}). */

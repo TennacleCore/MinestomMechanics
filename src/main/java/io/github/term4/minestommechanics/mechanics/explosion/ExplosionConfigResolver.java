@@ -26,43 +26,27 @@ public final class ExplosionConfigResolver {
 
     /** Plain values coalesced to the modern-vanilla baseline; the 1.8 deltas (damageConstant 8.0, floored) come from the config. */
     public static ResolvedExplosionConfig resolve(@Nullable ExplosionConfig config, ExplosionContext ctx) {
-        ExplosionConfig cfg = config;
-        if (cfg != null && cfg.subConfig != null) {
-            ExplosionConfig sub = cfg.subConfig.apply(ctx);
-            if (sub != null) cfg = sub.fromBase(cfg);
-        }
+        ExplosionConfig cfg = config != null ? config.withOverlay(ctx) : null;
         return new ResolvedExplosionConfig(
-                cfg != null ? resolve(cfg.power, ctx) : null,
-                or(cfg != null ? resolve(cfg.damageConstant, ctx) : null, 7.0),
-                Boolean.TRUE.equals(cfg != null ? resolve(cfg.floorDamage, ctx) : null),
-                cfg != null ? resolve(cfg.flatDamage, ctx) : null,
-                or(cfg != null ? resolve(cfg.damageScale, ctx) : null, 1.0),
+                FieldValue.resolve(cfg != null ? cfg.power : null, ctx),
+                FieldValue.resolve(cfg != null ? cfg.damageConstant : null, ctx, 7.0),
+                FieldValue.resolve(cfg != null ? cfg.floorDamage : null, ctx, false),
+                FieldValue.resolve(cfg != null ? cfg.flatDamage : null, ctx),
+                FieldValue.resolve(cfg != null ? cfg.damageScale : null, ctx, 1.0),
                 cfg != null ? cfg.damageBypass : null,
-                or(cfg != null ? resolve(cfg.knockbackMultiplier, ctx) : null, 1.0),
+                FieldValue.resolve(cfg != null ? cfg.knockbackMultiplier : null, ctx, 1.0),
                 cfg != null ? cfg.damageKnockback : null,
-                !Boolean.FALSE.equals(cfg != null ? resolve(cfg.packetPush, ctx) : null),
-                or(cfg != null ? resolve(cfg.baseKnockback, ctx) : null, 0.0),
-                or(cfg != null ? resolve(cfg.baseHeight, ctx) : null, 1.0),
-                or(cfg != null ? resolve(cfg.baseHorizontalScale, ctx) : null, 1.0),
-                or(cfg != null ? resolve(cfg.baseDownwardScale, ctx) : null, 1.0),
-                or(cfg != null ? resolve(cfg.exposure, ctx) : null, ExplosionExposure.Rays.MODERN),
-                cfg != null ? resolve(cfg.knockbackImpactFloor, ctx) : null,
-                Boolean.TRUE.equals(cfg != null ? resolve(cfg.fire, ctx) : null),
-                Boolean.TRUE.equals(cfg != null ? resolve(cfg.affectsSource, ctx) : null),
+                FieldValue.resolve(cfg != null ? cfg.packetPush : null, ctx, true),
+                FieldValue.resolve(cfg != null ? cfg.baseKnockback : null, ctx, 0.0),
+                FieldValue.resolve(cfg != null ? cfg.baseHeight : null, ctx, 1.0),
+                FieldValue.resolve(cfg != null ? cfg.baseHorizontalScale : null, ctx, 1.0),
+                FieldValue.resolve(cfg != null ? cfg.baseDownwardScale : null, ctx, 1.0),
+                FieldValue.resolve(cfg != null ? cfg.exposure : null, ctx, ExplosionExposure.Rays.MODERN),
+                FieldValue.resolve(cfg != null ? cfg.knockbackImpactFloor : null, ctx),
+                FieldValue.resolve(cfg != null ? cfg.fire : null, ctx, false),
+                FieldValue.resolve(cfg != null ? cfg.affectsSource : null, ctx, false),
                 cfg != null ? cfg.knockbackTargets : null,
                 cfg != null ? cfg.pushEye : null);
-    }
-
-    private static <T> @Nullable T resolve(@Nullable FieldValue<ExplosionContext, T> fv, ExplosionContext ctx) {
-        return fv != null ? fv.resolve(ctx) : null;
-    }
-
-    private static <T> T or(@Nullable T v, T fallback) {
-        return v != null ? v : fallback;
-    }
-
-    private static double or(@Nullable Double v, double fallback) {
-        return v != null ? v : fallback;
     }
 
     /** Resolved explosion knobs. {@code power} is {@code null} when neither the call nor the config set one (the system defaults it). */

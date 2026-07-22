@@ -33,8 +33,7 @@ public final class DurabilitySystem implements MechanicsModule {
 
     /** Effective config for {@code subject}: the scoped profile (player -&gt; instance -&gt; global), else the install config. */
     public DurabilityConfig configFor(@Nullable Entity subject) {
-        DurabilityConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.DURABILITY);
-        return scoped != null ? scoped : config;
+        return mm.profiles().resolveOr(subject, MechanicsKeys.DURABILITY, config);
     }
 
     /** Active by default; only an explicit {@code enabled(false)} disables. */

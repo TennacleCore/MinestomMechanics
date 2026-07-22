@@ -95,8 +95,7 @@ public final class ProjectileSystem implements MechanicsModule {
 
     /** Effective config for a snapshot carrying none: the shooter's scoped profile, else the install config. */
     private ProjectileConfig configFor(@Nullable Entity shooter) {
-        ProjectileConfig scoped = mm.profiles().resolve(shooter, MechanicsKeys.PROJECTILES);
-        return scoped != null ? scoped : config;
+        return mm.profiles().resolveOr(shooter, MechanicsKeys.PROJECTILES, config);
     }
 
     /** Launches a projectile from a snapshot. {@code null} if the type is disabled, cancelled, or the shooter has no instance. */

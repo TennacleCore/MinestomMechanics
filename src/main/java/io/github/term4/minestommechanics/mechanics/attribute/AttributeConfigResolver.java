@@ -44,7 +44,7 @@ public final class AttributeConfigResolver {
         private List<AttributeSystem.Active> active() {
             AttributeSystem sys = services != null ? services.attributes() : null;
             if (sys == null) return List.of();
-            if (Boolean.FALSE.equals(resolve(config.enabled, this))) return List.of();
+            if (Boolean.FALSE.equals(FieldValue.resolve(config.enabled, this))) return List.of();
             return sys.activeSources(entity, item);
         }
 
@@ -78,16 +78,8 @@ public final class AttributeConfigResolver {
     }
 
     public static ResolvedAttributeConfig resolve(AttributeConfig config, AttributeContext ctx) {
-        AttributeConfig cfg = config;
-        if (cfg.subConfig != null) {
-            AttributeConfig sub = cfg.subConfig.apply(ctx);
-            if (sub != null) cfg = sub.fromBase(cfg);
-        }
-        return new ResolvedAttributeConfig(resolve(cfg.enabled, ctx));
-    }
-
-    private static <T> @Nullable T resolve(@Nullable FieldValue<AttributeContext, T> fv, AttributeContext ctx) {
-        return fv != null ? fv.resolve(ctx) : null;
+        AttributeConfig cfg = config.withOverlay(ctx);
+        return new ResolvedAttributeConfig(FieldValue.resolve(cfg.enabled, ctx));
     }
 
     public record ResolvedAttributeConfig(@Nullable Boolean enabled) {}

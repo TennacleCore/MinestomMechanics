@@ -138,8 +138,7 @@ public final class DamageSystem implements MechanicsModule {
 
     /** Effective config for a snapshot carrying none: the victim's scoped profile, else the install config. */
     private DamageConfig configFor(@Nullable Entity target) {
-        DamageConfig scoped = mm.profiles().resolve(target, MechanicsKeys.DAMAGE);
-        return scoped != null ? scoped : config;
+        return mm.profiles().resolveOr(target, MechanicsKeys.DAMAGE, config);
     }
 
     /**
@@ -306,11 +305,8 @@ public final class DamageSystem implements MechanicsModule {
     /** A nullable {@link DeathConfig} toggle: unset (or true) is on; only an explicit {@code false} disables. */
     private static boolean deathFlag(@Nullable Boolean v) { return !Boolean.FALSE.equals(v); }
 
-    /** The scoped config with its {@code subConfig} overlay applied - the resolver-side step the other systems do. */
     private static @Nullable DeathConfig effectiveDeath(@Nullable DeathConfig cfg, DeathContext ctx) {
-        if (cfg == null || cfg.subConfig == null) return cfg;
-        DeathConfig overlay = cfg.subConfig.apply(ctx);
-        return overlay != null ? overlay.fromBase(cfg) : cfg;
+        return cfg != null ? cfg.withOverlay(ctx) : null;
     }
 
     /** Vanilla {@code damageEntity}: drowning is the one source that never triggers {@code ac()}. */
@@ -352,11 +348,7 @@ public final class DamageSystem implements MechanicsModule {
         DamageConfig cfg = event.config();
         if (cfg == null) cfg = configFor(event.target());
         if (cfg == null) return amount;
-        if (cfg.subConfig != null) {
-            DamageConfig sub = cfg.subConfig.apply(ctx);
-            if (sub != null) cfg = sub.fromBase(cfg);
-        }
-        List<DamageComponent> components = cfg.customComponents;
+        List<DamageComponent> components = cfg.withOverlay(ctx).customComponents;
         if (components == null || components.isEmpty()) return amount;
         for (DamageComponent component : components) {
             Float next = component.apply(ctx, event, amount, overdamage);

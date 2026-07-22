@@ -298,8 +298,7 @@ public final class AttributeSystem implements MechanicsModule {
 
     /** The scoped profile, else the install config. */
     public AttributeConfig configFor(@Nullable Entity entity) {
-        AttributeConfig scoped = mm.profiles().resolve(entity, MechanicsKeys.ATTRIBUTES);
-        return scoped != null ? scoped : config;
+        return mm.profiles().resolveOr(entity, MechanicsKeys.ATTRIBUTES, config);
     }
 
     public AttributeContext context(LivingEntity entity, @Nullable ItemStack item) {

@@ -2,6 +2,7 @@ package io.github.term4.minestommechanics.mechanics.consumable;
 
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.config.Config;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableTypeConfig.ParticleVisibility;
 import net.minestom.server.entity.Player;
@@ -29,16 +30,10 @@ public final class ConsumableConfigResolver {
          * {@link ConsumableConfig#defaults()} -&gt; the type's {@code defaultConfig()}, plus any {@code subConfig} overlay.
          */
         public ConsumableTypeConfig typeConfig(@Nullable ConsumableConfig cfg) {
-            ConsumableTypeConfig tc = cfg != null ? cfg.typeConfig(consumable.key()) : null;
-            ConsumableTypeConfig generic = cfg != null ? cfg.defaults() : null;
-            ConsumableTypeConfig base = consumable.defaultConfig();
-            if (generic != null) base = generic.fromBase(base);
-            if (tc != null) base = tc.fromBase(base);
-            if (base.subConfig != null) {
-                ConsumableTypeConfig overlay = base.subConfig.apply(this);
-                if (overlay != null) base = overlay.fromBase(base);
-            }
-            return base;
+            return Config.layer(consumable.defaultConfig(),
+                    cfg != null ? cfg.defaults() : null,
+                    cfg != null ? cfg.typeConfig(consumable.key()) : null,
+                    this);
         }
 
         /**
@@ -48,26 +43,19 @@ public final class ConsumableConfigResolver {
         public ParticleVisibility particles() {
             ConsumableSystem sys = services != null ? services.consumables() : null;
             ConsumableTypeConfig tc = typeConfig(sys != null ? sys.configFor(user) : null);
-            ParticleVisibility pv = tc.particles != null ? tc.particles.resolve(this) : null;
-            return pv != null ? pv : ParticleVisibility.SHOWN;
+            return FieldValue.resolve(tc.particles, this, ParticleVisibility.SHOWN);
         }
     }
 
     public static ResolvedConsumable resolve(@Nullable ConsumableConfig cfg, ConsumableContext ctx) {
         ConsumableTypeConfig tc = ctx.typeConfig(cfg);
         return new ResolvedConsumable(
-                or(resolve(tc.enabled, ctx), Boolean.TRUE),
-                or(resolve(tc.canConsume, ctx), Boolean.TRUE),
+                FieldValue.resolve(tc.enabled, ctx, Boolean.TRUE),
+                FieldValue.resolve(tc.canConsume, ctx, Boolean.TRUE),
                 // scaled HERE so the arm, the remaining countdown and the sound cadence all speak server ticks
-                TickScaler.duration(ctx.user(), or(resolve(tc.consumeTicks, ctx), Consumable.VANILLA_CONSUME_TICKS),
+                TickScaler.duration(ctx.user(), FieldValue.resolve(tc.consumeTicks, ctx, Consumable.VANILLA_CONSUME_TICKS),
                         ConsumableSystem.KEY),
-                or(resolve(tc.behavior, ctx), ConsumableBehavior.NONE));
-    }
-
-    private static <T> T or(@Nullable T v, T def) { return v != null ? v : def; }
-
-    private static <T> @Nullable T resolve(@Nullable FieldValue<ConsumableContext, T> fv, ConsumableContext ctx) {
-        return fv != null ? fv.resolve(ctx) : null;
+                FieldValue.resolve(tc.behavior, ctx, ConsumableBehavior.NONE));
     }
 
     public record ResolvedConsumable(boolean enabled, boolean canConsume, int consumeTicks, ConsumableBehavior behavior) {}

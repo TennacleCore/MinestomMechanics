@@ -116,6 +116,12 @@ public final class MechanicsProfiles {
         return memberOf(global, key);
     }
 
+    /** {@link #resolve} with a fallback: the effective value of {@code key} for {@code subject}, else {@code fallback}. */
+    public <C> C resolveOr(@Nullable Entity subject, ConfigKey<C> key, C fallback) {
+        C scoped = resolve(subject, key);
+        return scoped != null ? scoped : fallback;
+    }
+
     private static <C> @Nullable C memberOf(@Nullable MechanicsProfile profile, ConfigKey<C> key) {
         return profile != null ? profile.get(key) : null;
     }

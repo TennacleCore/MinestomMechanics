@@ -42,8 +42,7 @@ public final class FixesSystem implements MechanicsModule {
 
     /** Effective config for {@code subject}: the scoped profile, else the install config. */
     public FixesConfig configFor(@Nullable Entity subject) {
-        FixesConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.FIXES);
-        return scoped != null ? scoped : config;
+        return mm.profiles().resolveOr(subject, MechanicsKeys.FIXES, config);
     }
 
     public @Nullable LegacyArrowVisibilityConfig legacyArrowVisibilityConfig(@Nullable Entity subject) {

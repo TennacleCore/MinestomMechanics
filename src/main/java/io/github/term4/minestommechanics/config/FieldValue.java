@@ -31,6 +31,11 @@ public record FieldValue<CTX, T>(Function<CTX, T> fn, @Nullable T constant) {
         return fn.apply(ctx);
     }
 
+    /** {@code null} when the field is unset or resolves to {@code null}. */
+    public static <CTX, T> @Nullable T resolve(@Nullable FieldValue<CTX, T> field, CTX ctx) {
+        return field != null ? field.resolve(ctx) : null;
+    }
+
     /** An unset field or a {@code null} resolution falls back to {@code def}. */
     public static <CTX, T> T resolve(@Nullable FieldValue<CTX, T> field, CTX ctx, T def) {
         T v = field != null ? field.resolve(ctx) : null;

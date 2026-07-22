@@ -20,27 +20,15 @@ public final class AttackConfigResolver {
     public static ResolvedAttackConfig resolve(AttackConfig config, AttackContext ctx) {
         if (config == null) return ResolvedAttackConfig.defaults();
 
-        AttackConfig cfg = config;
-        if (cfg.subConfig != null) {
-            AttackConfig sub = cfg.subConfig.apply(ctx);
-            if (sub != null) cfg = sub.fromBase(cfg);
-        }
+        AttackConfig cfg = config.withOverlay(ctx);
 
         // no attack-level invul/buffering: the damage/knockback systems gate themselves
-        Boolean enabledVal = resolve(cfg.enabled, ctx);
-        AttackEvent.AttackRule.Ruleset rulesetVal = resolve(cfg.ruleset, ctx);
-        Double fullHitScaleVal = resolve(cfg.fullHitScale, ctx);
-
         return new ResolvedAttackConfig(
-                enabledVal != null ? enabledVal : true,
-                rulesetVal != null ? rulesetVal : Attack.ruleset(),
+                FieldValue.resolve(cfg.enabled, ctx, true),
+                FieldValue.resolve(cfg.ruleset, ctx, Attack.ruleset()),
                 cfg.criticalRule != null ? cfg.criticalRule : AttackEvent.CriticalRule.DEFAULT,
-                fullHitScaleVal != null ? fullHitScaleVal : AttackConfig.VANILLA_FULL_HIT_SCALE
+                FieldValue.resolve(cfg.fullHitScale, ctx, AttackConfig.VANILLA_FULL_HIT_SCALE)
         );
-    }
-
-    private static <T> T resolve(@Nullable FieldValue<AttackContext, T> fv, AttackContext ctx) {
-        return fv != null ? fv.resolve(ctx) : null;
     }
 
     public record ResolvedAttackConfig(

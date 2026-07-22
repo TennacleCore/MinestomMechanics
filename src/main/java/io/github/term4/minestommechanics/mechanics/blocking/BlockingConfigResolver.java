@@ -1,6 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.blocking;
 
 import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.config.Config;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfigResolver.DamageContext;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
@@ -64,34 +65,23 @@ public final class BlockingConfigResolver {
          * {@link BlockingConfig#defaults()}, plus any {@code subConfig} overlay. Only called for blockable materials.
          */
         public BlockingTypeConfig typeConfig(@Nullable BlockingConfig cfg) {
-            BlockingTypeConfig entry = cfg != null ? cfg.typeConfig(item.material()) : null;
-            BlockingTypeConfig generic = cfg != null ? cfg.defaults() : null;
-            BlockingTypeConfig base = generic != null ? generic : BlockingTypeConfig.builder().build();
-            if (entry != null) base = entry.fromBase(base);
-            if (base.subConfig != null) {
-                BlockingTypeConfig overlay = base.subConfig.apply(this);
-                if (overlay != null) base = overlay.fromBase(base);
-            }
-            return base;
+            return Config.layer(BlockingTypeConfig.builder().build(),
+                    cfg != null ? cfg.defaults() : null,
+                    cfg != null ? cfg.typeConfig(item.material()) : null,
+                    this);
         }
     }
 
     public static ResolvedBlocking resolve(@Nullable BlockingConfig cfg, BlockingContext ctx) {
         BlockingTypeConfig tc = ctx.typeConfig(cfg);
         return new ResolvedBlocking(
-                or(resolve(tc.enabled, ctx), Boolean.TRUE),
-                or(resolve(tc.behavior, ctx), BlockingBehavior.SWORD),
-                or(resolve(tc.reductionBase, ctx), 0.0),
-                or(resolve(tc.reductionFactor, ctx), 1.0),
-                or(resolve(tc.blockDelayTicks, ctx), 0),
-                resolve(tc.blockingAngle, ctx),
-                or(resolve(tc.bypassedTypes, ctx), Set.of()));
-    }
-
-    private static <T> T or(@Nullable T v, T def) { return v != null ? v : def; }
-
-    private static <T> @Nullable T resolve(@Nullable FieldValue<BlockingContext, T> fv, BlockingContext ctx) {
-        return fv != null ? fv.resolve(ctx) : null;
+                FieldValue.resolve(tc.enabled, ctx, Boolean.TRUE),
+                FieldValue.resolve(tc.behavior, ctx, BlockingBehavior.SWORD),
+                FieldValue.resolve(tc.reductionBase, ctx, 0.0),
+                FieldValue.resolve(tc.reductionFactor, ctx, 1.0),
+                FieldValue.resolve(tc.blockDelayTicks, ctx, 0),
+                FieldValue.resolve(tc.blockingAngle, ctx),
+                FieldValue.resolve(tc.bypassedTypes, ctx, Set.of()));
     }
 
     public record ResolvedBlocking(boolean enabled, BlockingBehavior behavior, double reductionBase, double reductionFactor,

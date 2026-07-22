@@ -1,6 +1,7 @@
 package io.github.term4.minestommechanics.mechanics.projectile;
 
 import io.github.term4.minestommechanics.Services;
+import io.github.term4.minestommechanics.config.Config;
 import io.github.term4.minestommechanics.config.FieldValue;
 import io.github.term4.minestommechanics.mechanics.damage.types.DamageType;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
@@ -55,79 +56,67 @@ public final class ProjectileConfigResolver {
         public ProjectileTypeConfig typeConfig() {
             ProjectileConfig cfg = snap.config();
             if (cfg == null && services != null && services.projectiles() != null) cfg = services.projectiles().config();
-            ProjectileTypeConfig tc = cfg != null ? cfg.typeConfig(snap.type().key()) : null;
-            ProjectileTypeConfig generic = cfg != null ? cfg.defaults() : null;
-            ProjectileTypeConfig base = snap.type().defaultConfig();
-            if (generic != null) base = generic.fromBase(base);
-            if (tc != null) base = tc.fromBase(base);
-            if (base.subConfig != null) {
-                ProjectileTypeConfig overlay = base.subConfig.apply(this);
-                if (overlay != null) base = overlay.fromBase(base);
-            }
-            return base;
+            return Config.layer(snap.type().defaultConfig(),
+                    cfg != null ? cfg.defaults() : null,
+                    cfg != null ? cfg.typeConfig(snap.type().key()) : null,
+                    this);
         }
     }
 
     /** Resolves the flight knobs (spawn + physics) at launch from the effective type config. */
     public static ResolvedFlight resolveFlight(ProjectileTypeConfig tc, ProjectileContext ctx) {
         return new ResolvedFlight(
-                or(resolve(tc.enabled, ctx), Boolean.TRUE),
-                or(resolve(tc.boundingBox, ctx), POINT_BOX),
-                or(resolve(tc.gravity, ctx), 0.03),
-                or(resolve(tc.horizontalDrag, ctx), 0.99),
-                or(resolve(tc.verticalDrag, ctx), 0.99),
-                or(resolve(tc.waterDrag, ctx), 0.8), // vanilla throwable/fireball; arrows override 0.6
-                or(resolve(tc.waterPush, ctx), 0.014), // 1.8 Entity.W() current
-                or(resolve(tc.waterModel, ctx), ProjectileTypeConfig.WaterModel.LEGACY),
-                or(resolve(tc.spawnOffsetForward, ctx), 0.0),
-                or(resolve(tc.spawnOffsetVertical, ctx), 0.0),
-                or(resolve(tc.spawnOffsetSideways, ctx), 0.0),
-                or(resolve(tc.speed, ctx), 1.5),
-                or(resolve(tc.launchPitchOffset, ctx), 0.0), // vanilla splash potion / XP bottle = -20
-                or(resolve(tc.spread, ctx), 0.0),
-                or(resolve(tc.wireMotYFloor, ctx), 0.0), // MineMen throwables: every broadcast vy snaps to |vy| >= 0.05
-                or(resolve(tc.momentumHorizontal, ctx), 0.0), // vanilla 1.8 adds no shooter momentum (26.1 = 1.0)
-                or(resolve(tc.momentumVertical, ctx), 0.0),
-                or(resolve(tc.shooterImmunityTicks, ctx), 5),
-                or(resolve(tc.entityHitGrow, ctx), 0.3), // vanilla 1.8 Entity{Arrow,Projectile}: target grow 0.3 each side
-                or(resolve(tc.broadcastMovement, ctx), Boolean.FALSE), // vanilla trackers broadcast per tick; silent = the client-prediction mode
-                or(resolve(tc.syncInterval, ctx), 20),
-                or(resolve(tc.velocitySyncInterval, ctx), 0), // 0 = no per-tick velocity (vanilla arrow); the edge-slide fix
-                or(resolve(tc.physicsOrder, ctx), ProjectileTypeConfig.PhysicsOrder.DRAG_AFTER_MOVE), // 26.1 = DRAG_BEFORE_MOVE
-                or(resolve(tc.wireGrid, ctx), ProjectileTypeConfig.WireGrid.LEGACY_1_8), // which client's decoded wire silent flight snaps to
-                resolve(tc.wireLockstep, ctx), // nullable: unset = lockstep only when there is no per-tick velocity sync
-                or(resolve(tc.leftOwnerImmunity, ctx), Boolean.FALSE), // 26.1 = true (immune until it leaves the shooter box)
-                or(resolve(tc.stickPullback, ctx), 0.05), // vanilla 0.05 tip poke-out
-                or(resolve(tc.shakeTicks, ctx), 7), // vanilla arrow shake / pickup delay
-                or(resolve(tc.explosionPower, ctx), 1.0), // vanilla ghast fireball yield (Hypixel = 2.0); fireball-only
-                or(resolve(tc.critChance, ctx), 1.0), // full-draw crit chance (vanilla = always); bow-only
-                or(resolve(tc.behavior, ctx), ProjectileBehavior.NONE),
-                resolve(tc.pickupBox, ctx)); // nullable: the entity keeps its vanilla default if unset
+                FieldValue.resolve(tc.enabled, ctx, Boolean.TRUE),
+                FieldValue.resolve(tc.boundingBox, ctx, POINT_BOX),
+                FieldValue.resolve(tc.gravity, ctx, 0.03),
+                FieldValue.resolve(tc.horizontalDrag, ctx, 0.99),
+                FieldValue.resolve(tc.verticalDrag, ctx, 0.99),
+                FieldValue.resolve(tc.waterDrag, ctx, 0.8), // vanilla throwable/fireball; arrows override 0.6
+                FieldValue.resolve(tc.waterPush, ctx, 0.014), // 1.8 Entity.W() current
+                FieldValue.resolve(tc.waterModel, ctx, ProjectileTypeConfig.WaterModel.LEGACY),
+                FieldValue.resolve(tc.spawnOffsetForward, ctx, 0.0),
+                FieldValue.resolve(tc.spawnOffsetVertical, ctx, 0.0),
+                FieldValue.resolve(tc.spawnOffsetSideways, ctx, 0.0),
+                FieldValue.resolve(tc.speed, ctx, 1.5),
+                FieldValue.resolve(tc.launchPitchOffset, ctx, 0.0), // vanilla splash potion / XP bottle = -20
+                FieldValue.resolve(tc.spread, ctx, 0.0),
+                FieldValue.resolve(tc.wireMotYFloor, ctx, 0.0), // MineMen throwables: every broadcast vy snaps to |vy| >= 0.05
+                FieldValue.resolve(tc.momentumHorizontal, ctx, 0.0), // vanilla 1.8 adds no shooter momentum (26.1 = 1.0)
+                FieldValue.resolve(tc.momentumVertical, ctx, 0.0),
+                FieldValue.resolve(tc.shooterImmunityTicks, ctx, 5),
+                FieldValue.resolve(tc.entityHitGrow, ctx, 0.3), // vanilla 1.8 Entity{Arrow,Projectile}: target grow 0.3 each side
+                FieldValue.resolve(tc.broadcastMovement, ctx, Boolean.FALSE), // vanilla trackers broadcast per tick; silent = the client-prediction mode
+                FieldValue.resolve(tc.syncInterval, ctx, 20),
+                FieldValue.resolve(tc.velocitySyncInterval, ctx, 0), // 0 = no per-tick velocity (vanilla arrow); the edge-slide fix
+                FieldValue.resolve(tc.physicsOrder, ctx, ProjectileTypeConfig.PhysicsOrder.DRAG_AFTER_MOVE), // 26.1 = DRAG_BEFORE_MOVE
+                FieldValue.resolve(tc.wireGrid, ctx, ProjectileTypeConfig.WireGrid.LEGACY_1_8), // which client's decoded wire silent flight snaps to
+                FieldValue.resolve(tc.wireLockstep, ctx), // nullable: unset = lockstep only when there is no per-tick velocity sync
+                FieldValue.resolve(tc.leftOwnerImmunity, ctx, Boolean.FALSE), // 26.1 = true (immune until it leaves the shooter box)
+                FieldValue.resolve(tc.stickPullback, ctx, 0.05), // vanilla 0.05 tip poke-out
+                FieldValue.resolve(tc.shakeTicks, ctx, 7), // vanilla arrow shake / pickup delay
+                FieldValue.resolve(tc.explosionPower, ctx, 1.0), // vanilla ghast fireball yield (Hypixel = 2.0); fireball-only
+                FieldValue.resolve(tc.critChance, ctx, 1.0), // full-draw crit chance (vanilla = always); bow-only
+                FieldValue.resolve(tc.behavior, ctx, ProjectileBehavior.NONE),
+                FieldValue.resolve(tc.pickupBox, ctx)); // nullable: the entity keeps its vanilla default if unset
     }
 
     /** Resolves the hit knobs at impact from the effective type config against the impact {@code ctx}. */
     public static ResolvedHit resolveHit(ProjectileTypeConfig tc, ProjectileContext ctx) {
         return new ResolvedHit(
-                or(resolve(tc.selfHit, ctx), ProjectileTypeConfig.HitResponse.HIT),
-                or(resolve(tc.entityHit, ctx), ProjectileTypeConfig.HitResponse.HIT),
-                resolve(tc.knockback, ctx),
-                or(resolve(tc.knockbackSource, ctx), ProjectileTypeConfig.KnockbackSource.PROJECTILE),
-                or(resolve(tc.damage, ctx), 0.0),
-                resolve(tc.damageType, ctx),
-                or(resolve(tc.removeOnEntityHit, ctx), Boolean.TRUE),
-                or(resolve(tc.removeOnBlockHit, ctx), Boolean.TRUE),
-                or(resolve(tc.invulnHit, ctx), ProjectileTypeConfig.InvulnResponse.of(ProjectileTypeConfig.HitResponse.DESTROY)), // throwables break; arrow = invulnHit(DEFLECT, PASS_THROUGH)
-                or(resolve(tc.deflect, ctx), ProjectileTypeConfig.Deflect.of(-0.1))); // vanilla 1.8 motion *= -0.1; 26.1 = deflect(-0.5, 0, -10, 10)
+                FieldValue.resolve(tc.selfHit, ctx, ProjectileTypeConfig.HitResponse.HIT),
+                FieldValue.resolve(tc.entityHit, ctx, ProjectileTypeConfig.HitResponse.HIT),
+                FieldValue.resolve(tc.knockback, ctx),
+                FieldValue.resolve(tc.knockbackSource, ctx, ProjectileTypeConfig.KnockbackSource.PROJECTILE),
+                FieldValue.resolve(tc.damage, ctx, 0.0),
+                FieldValue.resolve(tc.damageType, ctx),
+                FieldValue.resolve(tc.removeOnEntityHit, ctx, Boolean.TRUE),
+                FieldValue.resolve(tc.removeOnBlockHit, ctx, Boolean.TRUE),
+                FieldValue.resolve(tc.invulnHit, ctx, ProjectileTypeConfig.InvulnResponse.of(ProjectileTypeConfig.HitResponse.DESTROY)), // throwables break; arrow = invulnHit(DEFLECT, PASS_THROUGH)
+                FieldValue.resolve(tc.deflect, ctx, ProjectileTypeConfig.Deflect.of(-0.1))); // vanilla 1.8 motion *= -0.1; 26.1 = deflect(-0.5, 0, -10, 10)
     }
 
     /** Zero-size box: collision points resolve exactly on block boundaries. */
     private static final BoundingBox POINT_BOX = new BoundingBox(0, 0, 0);
-
-    private static <T> T or(@Nullable T v, T def) { return v != null ? v : def; }
-
-    private static <T> @Nullable T resolve(@Nullable FieldValue<ProjectileContext, T> fv, ProjectileContext ctx) {
-        return fv != null ? fv.resolve(ctx) : null;
-    }
 
     /** Flight values resolved at launch (spawn + physics). */
     public record ResolvedFlight(

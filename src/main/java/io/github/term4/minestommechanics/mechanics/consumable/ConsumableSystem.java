@@ -82,8 +82,7 @@ public final class ConsumableSystem implements MechanicsModule {
 
     /** Effective config for {@code subject}: the scoped profile, else the install config. */
     public ConsumableConfig configFor(@Nullable Entity subject) {
-        ConsumableConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.CONSUMABLES);
-        return scoped != null ? scoped : config;
+        return mm.profiles().resolveOr(subject, MechanicsKeys.CONSUMABLES, config);
     }
 
     /** {@code null} if the item is neither a registered consumable nor a component food. */

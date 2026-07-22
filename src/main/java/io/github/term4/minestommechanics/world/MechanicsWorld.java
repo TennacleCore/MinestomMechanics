@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.world;
 
+import io.github.term4.minestommechanics.util.tick.TickScaler;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.collision.EntityCollisionResult;
@@ -112,6 +113,23 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
     /** See {@link Resolver#ownsCurrentTick}. */
     static boolean ownsCurrentTick(@NotNull Entity entity) {
         return Holder.RESOLVER.ownsCurrentTick(entity);
+    }
+
+    /**
+     * One movement step for a hand-driven entity, against ITS world's blocks - Minestom's {@code movementTick}
+     * collides against the backing instance only, so an entity in a virtual world would fall through placed blocks
+     * server-side. {@code velocityPerTick} is b/t and stays the caller's (an entity may keep its own motion state).
+     * {@code commit} applies the entity's state writes, only when the landing chunk is loaded; the returned result
+     * threads back in as {@code last}.
+     */
+    static @NotNull PhysicsResult step(@NotNull Entity entity, @NotNull Vec velocityPerTick,
+                                       @Nullable PhysicsResult last, @NotNull Consumer<PhysicsResult> commit) {
+        MechanicsWorld world = of(entity);
+        PhysicsResult result = world.simulateMovement(entity.getPosition(), velocityPerTick, entity.getBoundingBox(),
+                TickScaler.aerodynamics(entity, entity.getAerodynamics()), entity.hasNoGravity(), entity.hasPhysics(),
+                entity.isOnGround(), last);
+        if (world.isChunkLoaded(result.newPosition())) commit.accept(result);
+        return result;
     }
 
     /**

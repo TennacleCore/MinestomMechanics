@@ -66,52 +66,40 @@ public final class KnockbackConfigResolver {
     }
 
     public static ResolvedKnockbackConfig resolve(KnockbackConfig config, KnockbackContext ctx) {
-        KnockbackConfig cfg = config;
-        if (cfg.subConfig != null) {
-            KnockbackConfig sub = cfg.subConfig.apply(ctx);
-            if (sub != null) cfg = sub.fromBase(cfg);
-        }
+        KnockbackConfig cfg = config.withOverlay(ctx);
         // no knockback-level invul window (gating is the attack processor's job)
         return new ResolvedKnockbackConfig(
-                or(resolve(cfg.sprintBuffer, ctx), 0),
-                or(resolve(cfg.horizontal, ctx), 0.0),
-                or(resolve(cfg.vertical, ctx), 0.0),
-                or(resolve(cfg.extraHorizontal, ctx), 0.0),
-                or(resolve(cfg.extraVertical, ctx), 0.0),
-                resolve(cfg.horizontalBounds, ctx),
-                resolve(cfg.verticalBounds, ctx),
-                resolve(cfg.extraHorizontalBounds, ctx),
-                resolve(cfg.extraVerticalBounds, ctx),
-                or(resolve(cfg.yawWeight, ctx), 0.0),
-                or(resolve(cfg.extraYawWeight, ctx), 0.0),
-                or(resolve(cfg.pitchWeight, ctx), 0.0),
-                or(resolve(cfg.extraPitchWeight, ctx), 0.0),
-                or(resolve(cfg.heightDelta, ctx), 0.0),
-                or(resolve(cfg.extraHeightDelta, ctx), 0.0),
-                or(resolve(cfg.horizontalCombine, ctx), KnockbackConfig.DirectionMode.SCALAR),
-                or(resolve(cfg.verticalCombine, ctx), KnockbackConfig.DirectionMode.SCALAR),
-                or(resolve(cfg.frictionH, ctx), 0.0), // 0 = no fold of the victim's velocity
-                or(resolve(cfg.frictionV, ctx), 0.0),
-                or(resolve(cfg.frictionModeH, ctx), KnockbackConfig.FrictionMode.DIVISOR),
-                or(resolve(cfg.frictionModeV, ctx), KnockbackConfig.FrictionMode.DIVISOR),
-                resolve(cfg.velocity, ctx),
-                or(resolve(cfg.quantizeVelocity, ctx), Boolean.TRUE),
-                or(resolve(cfg.velocityCap, ctx), LegacyVelocity.DEFAULT_CAP), // vanilla 1.8 wire ±3.9
-                or(resolve(cfg.airborneVertical, ctx), Boolean.TRUE), // 1.8 always lifts
+                FieldValue.resolve(cfg.sprintBuffer, ctx, 0),
+                FieldValue.resolve(cfg.horizontal, ctx, 0.0),
+                FieldValue.resolve(cfg.vertical, ctx, 0.0),
+                FieldValue.resolve(cfg.extraHorizontal, ctx, 0.0),
+                FieldValue.resolve(cfg.extraVertical, ctx, 0.0),
+                FieldValue.resolve(cfg.horizontalBounds, ctx),
+                FieldValue.resolve(cfg.verticalBounds, ctx),
+                FieldValue.resolve(cfg.extraHorizontalBounds, ctx),
+                FieldValue.resolve(cfg.extraVerticalBounds, ctx),
+                FieldValue.resolve(cfg.yawWeight, ctx, 0.0),
+                FieldValue.resolve(cfg.extraYawWeight, ctx, 0.0),
+                FieldValue.resolve(cfg.pitchWeight, ctx, 0.0),
+                FieldValue.resolve(cfg.extraPitchWeight, ctx, 0.0),
+                FieldValue.resolve(cfg.heightDelta, ctx, 0.0),
+                FieldValue.resolve(cfg.extraHeightDelta, ctx, 0.0),
+                FieldValue.resolve(cfg.horizontalCombine, ctx, KnockbackConfig.DirectionMode.SCALAR),
+                FieldValue.resolve(cfg.verticalCombine, ctx, KnockbackConfig.DirectionMode.SCALAR),
+                FieldValue.resolve(cfg.frictionH, ctx, 0.0), // 0 = no fold of the victim's velocity
+                FieldValue.resolve(cfg.frictionV, ctx, 0.0),
+                FieldValue.resolve(cfg.frictionModeH, ctx, KnockbackConfig.FrictionMode.DIVISOR),
+                FieldValue.resolve(cfg.frictionModeV, ctx, KnockbackConfig.FrictionMode.DIVISOR),
+                FieldValue.resolve(cfg.velocity, ctx),
+                FieldValue.resolve(cfg.quantizeVelocity, ctx, Boolean.TRUE),
+                FieldValue.resolve(cfg.velocityCap, ctx, LegacyVelocity.DEFAULT_CAP), // vanilla 1.8 wire ±3.9
+                FieldValue.resolve(cfg.airborneVertical, ctx, Boolean.TRUE), // 1.8 always lifts
                 cfg.customComponents,
                 cfg.frictionRule,
                 cfg.combineRule,
                 cfg.boundsRule,
                 cfg.stages
         );
-    }
-
-    private static <T> T resolve(@Nullable FieldValue<KnockbackContext, T> fv, KnockbackContext ctx) {
-        return fv != null ? fv.resolve(ctx) : null;
-    }
-
-    private static <T> T or(@Nullable T v, T def) {
-        return v != null ? v : def;
     }
 
     /** Resolved plain values, defaults coalesced here; {@code null} only where unset is semantic (bounds = no clamp, velocity = the victim's scope chain). */

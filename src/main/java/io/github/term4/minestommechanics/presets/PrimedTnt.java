@@ -174,24 +174,17 @@ public final class PrimedTnt extends Entity {
         return motion.mul(TPS);
     }
 
-    // Minestom's movementTick collides against the backing instance only; in a diff shard this TNT would fall
-    // through placed blocks server-side (detonating at the base ground). Same step, shard block view.
     private PhysicsResult lastPhysics;
 
     @Override
     protected void movementTick() {
         this.gravityTickCount = onGround ? 0 : gravityTickCount + 1;
-        if (vehicle != null) return;
-        Instance in = getInstance();
-        if (in == null) return;
-        MechanicsWorld shard = MechanicsWorld.of(this, in);
-        var result = shard.simulateMovement(position, velocity.div(TPS), getBoundingBox(),
-                TickScaler.aerodynamics(this, getAerodynamics()), hasNoGravity(), hasPhysics(), onGround, lastPhysics);
-        this.lastPhysics = result;
-        if (!shard.isChunkLoaded(result.newPosition())) return;
-        this.velocity = result.newVelocity().mul(TPS);
-        this.onGround = result.isOnGround();
-        refreshPosition(result.newPosition(), true, false); // TNT is a synchronize-only type: the wire is hand-sent
+        if (vehicle != null || getInstance() == null) return;
+        this.lastPhysics = MechanicsWorld.step(this, velocity.div(TPS), lastPhysics, result -> {
+            this.velocity = result.newVelocity().mul(TPS);
+            this.onGround = result.isOnGround();
+            refreshPosition(result.newPosition(), true, false); // TNT is a synchronize-only type: the wire is hand-sent
+        });
     }
 
     // vanilla applies gravity BEFORE the move; handing Minestom the raw motion over-shoots the hop apex (+0.577 vs +0.386)

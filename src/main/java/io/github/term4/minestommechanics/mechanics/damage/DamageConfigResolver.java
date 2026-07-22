@@ -40,13 +40,8 @@ public final class DamageConfigResolver {
         public DamageTypeConfig typeConfig() {
             DamageConfig cfg = damageConfig();
             DamageTypeConfig tc = cfg != null ? cfg.typeConfig(snap.type().key()) : null;
-            DamageTypeConfig base = tc != null ? tc : snap.type().defaultConfig();
-            // overlay the subConfig over the selected type config
-            if (base.subConfig != null) {
-                DamageTypeConfig overlay = base.subConfig.apply(this);
-                if (overlay != null) base = overlay.fromBase(base);
-            }
-            return base;
+            // a registered entry replaces the type default outright; unset knobs fall back to the global config
+            return (tc != null ? tc : snap.type().defaultConfig()).withOverlay(this);
         }
 
         /** Base amount before modifiers: snapshot override, else the type's resolved base amount. */
@@ -58,24 +53,16 @@ public final class DamageConfigResolver {
     }
 
     public static ResolvedDamageConfig resolve(DamageConfig config, DamageContext ctx) {
-        DamageConfig cfg = config;
-        if (cfg.subConfig != null) {
-            DamageConfig sub = cfg.subConfig.apply(ctx);
-            if (sub != null) cfg = sub.fromBase(cfg);
-        }
+        DamageConfig cfg = config.withOverlay(ctx);
 
-        Integer invulTicks = resolve(cfg.invulTicks, ctx);
-        Boolean enableOverdamage = resolve(cfg.enableOverdamage, ctx);
-        Boolean silent = resolve(cfg.silent, ctx);
-        Boolean overdamageSilent = resolve(cfg.overdamageSilent, ctx);
-        Boolean syncHurtVelocity = resolve(cfg.syncHurtVelocity, ctx);
-        KnockbackConfig hurtKnockback = resolve(cfg.hurtKnockback, ctx);
+        Integer invulTicks = FieldValue.resolve(cfg.invulTicks, ctx);
+        Boolean enableOverdamage = FieldValue.resolve(cfg.enableOverdamage, ctx);
+        Boolean silent = FieldValue.resolve(cfg.silent, ctx);
+        Boolean overdamageSilent = FieldValue.resolve(cfg.overdamageSilent, ctx);
+        Boolean syncHurtVelocity = FieldValue.resolve(cfg.syncHurtVelocity, ctx);
+        KnockbackConfig hurtKnockback = FieldValue.resolve(cfg.hurtKnockback, ctx);
 
         return new ResolvedDamageConfig(ctx.baseAmount(), invulTicks, enableOverdamage, silent, overdamageSilent, syncHurtVelocity, hurtKnockback);
-    }
-
-    private static <T> T resolve(@Nullable FieldValue<DamageContext, T> fv, DamageContext ctx) {
-        return fv != null ? fv.resolve(ctx) : null;
     }
 
     /** Resolved config with plain values (nullable when unset). Used by DamageCalculator. */

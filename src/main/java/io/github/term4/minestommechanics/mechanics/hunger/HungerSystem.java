@@ -89,8 +89,7 @@ public final class HungerSystem implements MechanicsModule {
 
     /** Effective config for {@code subject}: the scoped profile, else the install config. */
     public HungerConfig configFor(@Nullable Entity subject) {
-        HungerConfig scoped = mm.profiles().resolve(subject, MechanicsKeys.HUNGER);
-        return scoped != null ? scoped : config;
+        return mm.profiles().resolveOr(subject, MechanicsKeys.HUNGER, config);
     }
 
     /** Active by default; only an explicit {@code enabled(false)} disables. */
