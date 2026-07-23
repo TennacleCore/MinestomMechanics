@@ -342,7 +342,6 @@ public class FishingBobberEntity extends ManagedProjectile {
                 waterSyncedAt = pos;
                 var clientInfo = io.github.term4.minestommechanics.MinestomMechanics.getInstance().clientInfo();
                 var sync = new EntityPositionSyncPacket(getEntityId(), pos, Vec.ZERO, pos.yaw(), pos.pitch(), isOnGround());
-                var vel = new EntityVelocityPacket(getEntityId(), getVelocityForPacket());
                 for (Player viewer : getViewers()) {
                     if (hookWater && clientInfo != null && clientInfo.isLegacy(viewer) == !modernOrder) {
                         continue; // their generation predicts this physics
@@ -350,7 +349,7 @@ public class FishingBobberEntity extends ManagedProjectile {
                     if (viewer instanceof io.github.term4.minestommechanics.platform.player.OptimizedPlayer op
                             && !op.compat().hookPredictionEscort()) continue;
                     viewer.sendPacket(sync);
-                    viewer.sendPacket(vel);
+                    viewer.sendPacket(new EntityVelocityPacket(getEntityId(), wireVelocityFor(viewer))); // per-viewer: 1.8 gets the un-dilated step
                 }
             }
         }

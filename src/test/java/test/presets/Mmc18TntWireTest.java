@@ -1,6 +1,7 @@
 package test.presets;
 
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
+import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.network.ConnectionState;
@@ -8,6 +9,7 @@ import net.minestom.server.coordinate.BlockVec;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.network.packet.server.SendablePacket;
 import net.minestom.server.network.packet.server.ServerPacket;
+import net.minestom.server.network.packet.server.play.DestroyEntitiesPacket;
 import net.minestom.server.network.packet.server.play.EntityPositionSyncPacket;
 import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
 import net.minestom.server.network.packet.server.play.SpawnEntityPacket;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -69,5 +72,52 @@ class Mmc18TntWireTest extends HeadlessServerTest {
         assertTrue(velocityTicks.stream().noneMatch(t -> t >= 35), "resting TNT goes silent: " + velocityTicks);
         assertEquals(velocityTicks, syncTicks, "every sync pairs etp with vel");
         tnt.remove();
+    }
+
+    /**
+     * A fuse longer than the 1.8 client's own ~80t self-count (a stretched slo-mo fuse, or a long native one)
+     * outlives that count, so the TNT would vanish early for legacy viewers. It is re-spawned to them under that
+     * window - never to modern viewers, who honour the fuse meta and wait for the real REMOVE.
+     */
+    @Test
+    void longFuseReArmsOnlyLegacyViewers() {
+        FakePlayer legacy = FakePlayer.connect(instance, new Pos(8, 65, 8), "LegacyTntViewer");
+        FakePlayer modern = FakePlayer.connect(instance, new Pos(8, 65, 8), "ModernTntViewer");
+        ((OptimizedPlayer) legacy.player).compat().setLegacyClient(true);
+
+        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking(null).build());
+        var cfg = new PrimedTnt.Config(120, 4.0f, true, PrimedTnt.Wire.HYPIXEL, false, null); // 120 > 80: outlives the client count
+        PrimedTnt tnt = PrimedTnt.spawn(explosions, instance, new BlockVec(8, 70, 8), cfg);
+        awaitSpawn(tnt);
+        assertTrue(tnt.getViewers().contains(legacy.player) && tnt.getViewers().contains(modern.player), "both view the TNT");
+        for (int t = 0; t < 62; t++) tnt.tick(0); // one re-arm at tick 60 (< the 80t client count)
+
+        assertTrue(destroyed(legacy, tnt), "legacy viewer re-armed: destroy under the 80t window");
+        assertTrue(spawnCount(legacy, tnt) >= 2, "the re-arm re-sends the spawn");
+        assertFalse(destroyed(modern, tnt), "modern viewer honours the meta - never re-armed");
+        tnt.remove();
+    }
+
+    @Test
+    void shortFuseNeverReArms() {
+        FakePlayer legacy = FakePlayer.connect(instance, new Pos(8, 65, 8), "ShortFuseViewer");
+        ((OptimizedPlayer) legacy.player).compat().setLegacyClient(true);
+
+        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking(null).build());
+        var cfg = new PrimedTnt.Config(50, 4.0f, true, PrimedTnt.Wire.HYPIXEL, false, null); // 50 < 80: the client's own count covers it
+        PrimedTnt tnt = PrimedTnt.spawn(explosions, instance, new BlockVec(8, 70, 8), cfg);
+        awaitSpawn(tnt);
+        for (int t = 0; t < 49 && !tnt.isRemoved(); t++) tnt.tick(0); // stop before the 50t detonation's own REMOVE
+
+        assertFalse(destroyed(legacy, tnt), "a 50t fuse dies before the client's 80t count - no re-arm");
+        if (!tnt.isRemoved()) tnt.remove();
+    }
+
+    private static boolean destroyed(FakePlayer fp, PrimedTnt tnt) {
+        return fp.sent(DestroyEntitiesPacket.class).stream().anyMatch(d -> d.entityIds().contains(tnt.getEntityId()));
+    }
+
+    private static long spawnCount(FakePlayer fp, PrimedTnt tnt) {
+        return fp.sent(SpawnEntityPacket.class).stream().filter(s -> s.entityId() == tnt.getEntityId()).count();
     }
 }

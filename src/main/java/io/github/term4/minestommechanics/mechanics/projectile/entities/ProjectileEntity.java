@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
+import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.world.ExternallyTickable;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.world.WorldPolicy;
@@ -293,7 +294,7 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
             setNoGravity(false);
             onUnstuck();
         }
-        if (!isStuck()) sendVelocityToViewers(getVelocityForPacket());
+        if (!isStuck()) broadcastWireVelocity();
     }
 
     @Override
@@ -315,6 +316,20 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
             return;
         }
         if (!isRemoved()) updateProjectile(time);
+        if (!isRemoved()) anchorLegacyViewersUnderDilation();
+    }
+
+    /** A 1.8 client runs NATIVE local physics on a dilated projectile (it can't be told the tick rate), so its arc
+     *  diverges from the server's between the sparse syncs and snaps each one. Pin legacy viewers to the server
+     *  position every tick (the replay's legSets doctrine); a no-op off dilation, where their physics already matches. */
+    private void anchorLegacyViewersUnderDilation() {
+        if (isStuck() || TickScaler.stepsPerTick(scopeSubject()) == 1.0) return;
+        Pos pos = getPosition();
+        Vec step = legacyVelocityForPacket();
+        var clientInfo = MinestomMechanics.getInstance().clientInfo();
+        for (Player viewer : getViewers()) {
+            if (clientInfo.isLegacy(viewer)) viewer.sendPacket(new EntityTeleportPacket(getEntityId(), pos, step, 0, onGround));
+        }
     }
 
     /** Carried remainder of {@link TickScaler#stepsPerTick} - a fractional rate (sim 30 on a 20 server) alternates 1 and 2. */
@@ -470,7 +485,7 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
 
         // 1.8 tracker m=0 pass: one velocity after the first physics tick
         if (gravityTickCount == 1 && velocitySyncInterval > 0 && !isStuck()) {
-            sendVelocityToViewers(getVelocityForPacket());
+            broadcastWireVelocity();
         }
     }
 
@@ -592,18 +607,53 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
         // a relogged 1.8 client may briefly "freeze then fall" (it holds inGround until its block-changed check) - vanilla too
     }
 
-    /** Velocity for the wire, re-rated to the client's b/t; ZERO while stuck so no broadcast nudges a 1.8 client off the stuck position. */
-    @Override
-    protected Vec getVelocityForPacket() {
-        if (isStuck()) return Vec.ZERO;
-        // the whole per-server-tick displacement is what the (20-capped) client must be handed
+    // per-server-tick displacement: rate steps above the server rate (sub-stepping), one at/below it
+    private Vec displacementBt() {
         double rate = TickScaler.stepsPerTick(scopeSubject());
-        Vec v = TickScaler.wireVelocity(scopeSubject(), rate > 1.0 ? velocityBt.mul(rate) : velocityBt);
-        // sign-preserving, exactly 0 clamps up; the sim flies the true arc
+        return rate > 1.0 ? velocityBt.mul(rate) : velocityBt;
+    }
+
+    // sign-preserving |motY| floor, clamping exactly-0 up; the sim flies the true arc regardless
+    private Vec floorMotY(Vec v) {
         if (wireMotYFloor > 0 && Math.abs(v.y()) < wireMotYFloor && !v.isZero()) {
-            v = v.withY(v.y() < 0 ? -wireMotYFloor : wireMotYFloor);
+            return v.withY(v.y() < 0 ? -wireMotYFloor : wireMotYFloor);
         }
         return v;
+    }
+
+    /** MODERN scope-rated wire velocity (ZERO while stuck); a 1.8 client needs {@link #legacyVelocityForPacket}. */
+    @Override
+    protected Vec getVelocityForPacket() {
+        return isStuck() ? Vec.ZERO : floorMotY(TickScaler.wireVelocity(scopeSubject(), displacementBt()));
+    }
+
+    /** 1.8 clients tick at the server rate regardless of dilation, so they take the raw step; the scope-rated
+     *  {@link #getVelocityForPacket} would overshoot them by 20/clientTps in slow motion. Equal off dilation. */
+    private Vec legacyVelocityForPacket() {
+        return isStuck() ? Vec.ZERO : floorMotY(displacementBt());
+    }
+
+    protected Vec wireVelocityFor(@NotNull Player viewer) {
+        return MinestomMechanics.getInstance().clientInfo().isLegacy(viewer)
+                ? legacyVelocityForPacket() : getVelocityForPacket();
+    }
+
+    @FunctionalInterface
+    private interface WirePacket { SendablePacket build(int entityId, Vec velocity); }
+
+    /** Per-viewer velocity send: the sim advances once per server tick but each viewer reads it at its own tick rate,
+     *  so a 1.8 client gets the raw step and a modern one the scope-rated step. Bare, not a shared CachedPacket that
+     *  would drop the per-viewer split ([[grouped-packet-defeats-per-viewer-rewrites]]). */
+    private void sendPerViewerVelocity(WirePacket packet) {
+        Vec modern = getVelocityForPacket(), legacy = legacyVelocityForPacket();
+        var clientInfo = MinestomMechanics.getInstance().clientInfo();
+        for (Player viewer : getViewers()) {
+            viewer.sendPacket(packet.build(getEntityId(), clientInfo.isLegacy(viewer) ? legacy : modern));
+        }
+    }
+
+    private void broadcastWireVelocity() {
+        sendPerViewerVelocity((id, vel) -> new EntityVelocityPacket(id, vel));
     }
 
     /** Vanilla tracker send gate (EntityTrackerEntry): a settling/rested projectile otherwise yanks the predicting
@@ -643,7 +693,12 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
         // Via re-emits the teleport's velocity as a 1.8 entity_velocity: live value = vanilla's correction pair,
         // ZERO reaches 1.8 as a spurious 0,0,0. A denser velocity stream (fireball) keeps it out - Via would duplicate.
         boolean carriesVelocity = velocitySyncInterval <= 0 || velocitySyncInterval >= getSynchronizationTicks();
-        sendPacketToViewersAndSelf(new EntityTeleportPacket(getEntityId(), pos, carriesVelocity ? getVelocityForPacket() : Vec.ZERO, 0, onGround));
+        if (carriesVelocity) {
+            // Via re-emits the teleport's velocity as a 1.8 entity_velocity, so the per-viewer split rides it
+            sendPerViewerVelocity((id, vel) -> new EntityTeleportPacket(id, pos, vel, 0, onGround));
+        } else {
+            sendPacketToViewersAndSelf(new EntityTeleportPacket(getEntityId(), pos, Vec.ZERO, 0, onGround));
+        }
         if (carriesVelocity && velocitySyncInterval > 0) velocityCarried = true; // eat the same-tick standalone
         this.lastSyncedPosition = pos;
     }
@@ -683,6 +738,8 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
             if (autoVelocityCounter++ % velocitySyncInterval != 0) return; // else every velocitySyncInterval ticks
             // after the counter: the eaten send still consumes its slot
             if (velocityCarried) { velocityCarried = false; return; }
+            broadcastWireVelocity(); // Minestom's packet holds one (modern) velocity; re-send it per-viewer instead
+            return;
         }
         super.sendPacketToViewers(packet);
     }
@@ -693,7 +750,7 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     public void updateNewViewer(@NotNull Player player) {
         int data = shooter != null ? shooter.getEntityId() : 0;
         Pos pos = getPosition();
-        player.sendPacket(new SpawnEntityPacket(getEntityId(), getUuid(), getEntityType(), pos, pos.yaw(), data, getVelocityForPacket()));
+        player.sendPacket(new SpawnEntityPacket(getEntityId(), getUuid(), getEntityType(), pos, pos.yaw(), data, wireVelocityFor(player)));
         player.sendPacket(getMetadataPacket());
         // no spawn velocity dup: the Via chain already re-emits it as the 1.8 S12
     }

@@ -13,6 +13,10 @@ import org.junit.jupiter.api.Test;
 import io.github.term4.minestommechanics.presets.mmc18.Explosion;
 import io.github.term4.minestommechanics.entity.PrimedTnt;
 import io.github.term4.minestommechanics.presets.mmc18.Tnt;
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsProfile;
+import net.minestom.server.instance.Instance;
+import io.github.term4.minestommechanics.util.tick.TickScalingConfig;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -138,5 +142,31 @@ class Mmc18TntTest extends HeadlessServerTest {
         victim.remove();
         instance.setBlock(11, 63, 3, Block.STONE);
         instance.setBlock(11, 62, 3, Block.STONE);
+    }
+
+    /**
+     * The spawn scatter (0.2 up) must re-rate with the sim rate. Gravity is already ×s²; if the initial velocity
+     * stays native, apex = v²/2g = 0.5/s² and slo-mo TNT rockets skyward (8 blocks at s=0.25 vs ~0.4 native).
+     */
+    @Test
+    void spawnScatterApexIsRateInvariant() {
+        double nativeApex = spawnApex(null);
+        double sloMoApex = spawnApex(TickScalingConfig.simulated(5)); // s = 0.25
+        assertEquals(nativeApex, sloMoApex, 0.1, "slo-mo apex tracks native (~0.4), not 1/s² = ~6 blocks");
+    }
+
+    // its own instance so the resolver reads THIS scope (setGlobal loses to the profile resolver on the shared one)
+    private double spawnApex(TickScalingConfig cfg) {
+        var profile = MechanicsProfile.builder();
+        if (cfg != null) profile.set(MechanicsKeys.TICK_SCALING, cfg);
+        Instance inst = flatInstance(profile.build());
+        PrimedTnt tnt = Tnt.spawn(explosions, inst, new BlockVec(8, 90, 8));
+        double y0 = tnt.getPosition().y(), maxRise = 0;
+        for (int i = 0; i < 40 && !tnt.isRemoved(); i++) {
+            tnt.tick(0);
+            if (!tnt.isRemoved()) maxRise = Math.max(maxRise, tnt.getPosition().y() - y0);
+        }
+        tnt.remove();
+        return maxRise;
     }
 }

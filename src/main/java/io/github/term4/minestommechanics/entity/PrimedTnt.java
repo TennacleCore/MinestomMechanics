@@ -4,6 +4,7 @@ import io.github.term4.minestommechanics.api.event.explosion.ExplosionEvent;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionCalculator;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
+import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
 import io.github.term4.minestommechanics.world.ExternallyTickable;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
@@ -22,11 +23,13 @@ import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.metadata.other.PrimedTntMeta;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
+import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.network.packet.server.play.EntityPositionSyncPacket;
 import net.minestom.server.network.packet.server.play.SpawnEntityPacket;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -56,6 +59,8 @@ public final class PrimedTnt extends Entity implements ExternallyTickable {
     private static final double MINEMEN_VY_FLOOR = 0.05;
     private static final int HYPIXEL_VELOCITY_INTERVAL = 3;
     private static final int HYPIXEL_TELEPORT_TICK = 3;
+    private static final int LEGACY_SELF_FUSE = 80; // a 1.8 client counts this many ticks itself and setDead()s at zero
+    private static final int LEGACY_REARM_INTERVAL = 60; // re-send the spawn under that window to restart the count
     private static final double TPS = ServerFlag.SERVER_TICKS_PER_SECOND;
     private static final AtomicBoolean RETUNE_INSTALLED = new AtomicBoolean();
 
@@ -63,6 +68,9 @@ public final class PrimedTnt extends Entity implements ExternallyTickable {
     private final Config config;
     private int fuse;
     private boolean fuseScaled;
+    private boolean fuseOutlivesLegacyCount; // a fuse longer than the 1.8 client's own ~80t self-count needs re-arming
+    private int rearmAge;
+    private boolean spawnVelocityPendingScale; // the scatter is set pre-world; re-rate it once the scope resolves
     private Vec motion = Vec.ZERO; // b/t; the 1.8 pipeline runs on this, Minestom's per-tick result is overwritten
     private Point wireSyncedAt;
     private boolean rawBroadcast;
@@ -160,7 +168,13 @@ public final class PrimedTnt extends Entity implements ExternallyTickable {
     public void setVelocity(@NotNull Vec velocity) {
         this.motion = velocity.div(TPS);
         flipPending = isOnGround() && motion.y() < 0; // a downward impulse into a grounded TNT bounces at any magnitude
-        if (config.wire() == Wire.HYPIXEL && getInstance() != null) {
+        if (getInstance() == null) {
+            // spawn scatter, pre-world: re-rate this native-rate velocity to the scope's sim rate on the first tick,
+            // else gravity's ×s² over-launches it. moveVector here resolves scaling with no instance and poisons the tick-0 memo.
+            spawnVelocityPendingScale = true;
+            return;
+        }
+        if (config.wire() == Wire.HYPIXEL) {
             pushed = true;
         } else {
             rawBroadcast = true; // MineMen: raw, unfloored on-blast send
@@ -197,6 +211,11 @@ public final class PrimedTnt extends Entity implements ExternallyTickable {
     protected void movementTick() {
         this.gravityTickCount = onGround ? 0 : gravityTickCount + 1;
         if (vehicle != null || getInstance() == null) return;
+        if (spawnVelocityPendingScale) { // first tick with a resolvable scope, before the physics step
+            spawnVelocityPendingScale = false;
+            motion = TickScaler.fromClientVelocity(this, motion);
+            this.velocity = moveVector();
+        }
         this.lastPhysics = MechanicsWorld.step(this, velocity.div(TPS), lastPhysics, result -> {
             this.velocity = result.newVelocity().mul(TPS);
             this.onGround = result.isOnGround();
@@ -238,12 +257,27 @@ public final class PrimedTnt extends Entity implements ExternallyTickable {
         if (!fuseScaled) {
             fuseScaled = true;
             fuse = TickScaler.duration(this, fuse, ExplosionSystem.KEY);
+            fuseOutlivesLegacyCount = fuse > LEGACY_SELF_FUSE;
             ((PrimedTntMeta) getEntityMeta()).setFuseTime(fuse);
         }
+        // legacy clients hardcode an 80t fuse + self-setDead, so a stretched fuse vanishes early on them: re-arm
+        // under that window. No grow anim - 1.8 can't dilate, and Hypixel's 50t fuse never reaches the grow phase.
+        if (fuseOutlivesLegacyCount && ++rearmAge % LEGACY_REARM_INTERVAL == 0) rearmLegacyViewers();
         if (--fuse > 0) return;
         Instance instance = getInstance();
         if (instance != null) explosion.explode(MechanicsWorld.of(this, instance), detonationCenter(), config.power(), this, null);
         remove();
+    }
+
+    // removeViewer no-ops on an auto-viewable entity (the viewer isn't a manual one), so drive the destroy + spawn
+    // directly - a fresh spawn restarts the client's own fuse count.
+    private void rearmLegacyViewers() {
+        for (Player viewer : List.copyOf(getViewers())) {
+            if (viewer instanceof OptimizedPlayer op && op.compat().legacyClient()) {
+                updateOldViewer(viewer);
+                updateNewViewer(viewer);
+            }
+        }
     }
 
     // grounded vertical: a hard impact or a downward impulse into a grounded TNT bounces (×rebound); the first landing tick zeroes; upward passes
