@@ -2,8 +2,8 @@ package io.github.term4.minestommechanics.presets.vanilla;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
-import io.github.term4.minestommechanics.effect.Effects;
-import io.github.term4.minestommechanics.vri.DroppedItemEntity;
+import io.github.term4.minestommechanics.fx.Fx;
+import io.github.term4.minestommechanics.entity.DroppedItemEntity;
 
 /**
  * Modern (26.1+) preset - the composed, pure-mechanics {@link MechanicsProfile} built from the config classes in this
@@ -26,7 +26,7 @@ public final class Vanilla {
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.HUNGER, Hunger.config())
                 .set(MechanicsKeys.ITEMS, Items.registry())
-                .set(MechanicsKeys.EFFECTS, Effects.modern())
+                .set(MechanicsKeys.FX, Fx.modern())
                 .build();
     }
 }

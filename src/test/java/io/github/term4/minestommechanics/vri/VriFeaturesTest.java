@@ -1,5 +1,8 @@
 package io.github.term4.minestommechanics.vri;
 
+import io.github.term4.minestommechanics.entity.DroppedItemEntity;
+import io.github.term4.minestommechanics.MechanicsKeys;
+import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,11 +38,8 @@ class VriFeaturesTest extends HeadlessServerTest {
 
     @BeforeAll
     static void install() {
-        EventNode<Event> node = EventNode.all("vri-test");
-        BlockDrops.install(node, BlockDrops.VANILLA, DroppedItemEntity.Model.LEGACY);
-        ItemPickup.install(node);
-        ItemDrop.install(node, DroppedItemEntity.Model.LEGACY);
-        MinecraftServer.getGlobalEventHandler().addChild(node);
+        Vri.install(mm, VriConfig.builder().blockDrops(BlockDrops.VANILLA)
+                .itemPhysics(DroppedItemEntity.Model.LEGACY).itemPickup(true).itemDrop(true).build());
         miner = FakePlayer.connect(instance, new Pos(3.5, 43, 3.5), "VriMiner");
     }
 
@@ -294,5 +294,25 @@ class VriFeaturesTest extends HeadlessServerTest {
         int n = 0;
         for (ItemStack s : miner.player.getInventory().getItemStacks()) if (s.material() == Material.DIRT) n += s.amount();
         return n;
+    }
+
+    /** The point of the scoped config: one world runs a VRI behavior the install config left on, another doesn't. */
+    @Test
+    void aScopeOverridesTheInstallConfig() {
+        var noDrops = flatInstance(MechanicsProfile.builder()
+                .set(MechanicsKeys.VRI, VriConfig.builder().blockDrops(null).build())
+                .build());
+        FakePlayer scoped = FakePlayer.connect(noDrops, new Pos(3.5, 43, 3.5), "NoDropWorld");
+        try {
+            BlockVec pos = new BlockVec(3, 42, 3);
+            noDrops.setBlock(pos, Block.DIRT);
+            EventDispatcher.call(new PlayerBlockBreakEvent(
+                    scoped.player, noDrops, Block.DIRT, Block.AIR, pos, BlockFace.TOP));
+
+            assertTrue(noDrops.getEntities().stream().noneMatch(ItemEntity.class::isInstance),
+                    "the scope turned drops off even though the install config enables them");
+        } finally {
+            scoped.player.remove();
+        }
     }
 }

@@ -2,8 +2,8 @@ package io.github.term4.minestommechanics.presets.vanilla18;
 
 import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
-import io.github.term4.minestommechanics.effect.EffectContext;
-import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.fx.FxContext;
+import io.github.term4.minestommechanics.fx.Fx;
 import io.github.term4.minestommechanics.item.Enchants;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Knockback;
@@ -47,10 +47,10 @@ public final class Attack {
                 // vanilla onCriticalHit / onEnchantmentCritical, independent
                 if (result == DamageSystem.DamageOutcome.FRESH_DAMAGE) {
                     boolean fake = event.finalSnap().aim() != null;
-                    EffectContext fx = EffectContext.of(event.attacker(), event.target());
-                    if (event.critical()) Effects.play(services, fake ? Effects.FAKE_CRIT : Effects.CRIT, fx);
+                    FxContext fx = FxContext.of(event.attacker(), event.target());
+                    if (event.critical()) Fx.play(services, fake ? Fx.FAKE_CRIT : Fx.CRIT, fx);
                     if (MeleeDamage.enchantCritical(event.attacker(), event.target(), event.item(), services)) {
-                        Effects.play(services, fake ? Effects.FAKE_MAGIC_CRIT : Effects.MAGIC_CRIT, fx);
+                        Fx.play(services, fake ? Fx.FAKE_MAGIC_CRIT : Fx.MAGIC_CRIT, fx);
                     }
                 }
             }

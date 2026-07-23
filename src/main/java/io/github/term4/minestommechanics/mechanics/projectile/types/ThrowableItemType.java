@@ -2,8 +2,8 @@ package io.github.term4.minestommechanics.mechanics.projectile.types;
 
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.effect.EffectContext;
-import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.fx.FxContext;
+import io.github.term4.minestommechanics.fx.Fx;
 import io.github.term4.minestommechanics.mechanics.cooldown.CooldownSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
@@ -40,7 +40,7 @@ public abstract class ThrowableItemType extends ProjectileType {
     private @Nullable ProjectileSystem system;
     private @Nullable MinestomMechanics mm;
 
-    /** Launch-sound effect key ({@link Effects#THROW_SNOWBALL} etc.), or null for none. */
+    /** Launch-sound effect key ({@link Fx#THROW_SNOWBALL} etc.), or null for none. */
     protected @Nullable Key throwSound() { return null; }
 
     protected ThrowableItemType(Key key, String name, EntityType entityType, Material material) {
@@ -80,7 +80,7 @@ public abstract class ThrowableItemType extends ProjectileType {
         if (cooldowns != null && !cooldowns.tryUse(p, material)) return;
         p.setTag(LAST_THROW_AGE, age);
         Key sound = throwSound();
-        if (sound != null && mm != null) Effects.play(mm.services(), sound, EffectContext.of(p));
+        if (sound != null && mm != null) Fx.play(mm.services(), sound, FxContext.of(p));
         system.launch(ProjectileSnapshot.of(p, this).withItem(item));
         if (p.getGameMode() != GameMode.CREATIVE) {
             p.setItemInHand(hand, item.withAmount(item.amount() - 1));

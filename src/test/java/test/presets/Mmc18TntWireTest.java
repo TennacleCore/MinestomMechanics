@@ -13,7 +13,7 @@ import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
 import net.minestom.server.network.packet.server.play.SpawnEntityPacket;
 import org.junit.jupiter.api.Test;
 import io.github.term4.minestommechanics.presets.mmc18.Explosion;
-import io.github.term4.minestommechanics.presets.PrimedTnt;
+import io.github.term4.minestommechanics.entity.PrimedTnt;
 import io.github.term4.minestommechanics.presets.mmc18.Tnt;
 
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ class Mmc18TntWireTest extends HeadlessServerTest {
 
     @Test
     void spawnCarriesKickAndRestingTntIsSilent() {
-        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config());
+        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking(null).build()); // shared instance: measure wire, not terrain
         FakePlayer fp = FakePlayer.connect(instance, new Pos(8, 65, 8), "TntWireProbe");
         int before = fp.sent.size();
 

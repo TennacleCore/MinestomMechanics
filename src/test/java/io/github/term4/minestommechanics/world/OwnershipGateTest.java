@@ -1,7 +1,7 @@
 package io.github.term4.minestommechanics.world;
 
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
-import io.github.term4.minestommechanics.vri.DroppedItemEntity;
+import io.github.term4.minestommechanics.entity.DroppedItemEntity;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.item.ItemStack;
@@ -9,6 +9,7 @@ import net.minestom.server.item.Material;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The tick ownership gate: a covered entity ticked by a thread that is not its owner's must no-op entirely
@@ -35,6 +36,44 @@ class OwnershipGateTest extends HeadlessServerTest {
         } finally {
             MechanicsWorld.resolver(MechanicsWorld.Resolver.DEFAULT);
             drop.remove();
+        }
+    }
+
+    /** PrimedTnt was the missing case: without a tick guard a foreign clock advances its fuse and detonates early. */
+    @Test
+    void staleDriverNeverAdvancesTntFuse() {
+        var tnt = io.github.term4.minestommechanics.presets.mmc18.Tnt.spawn(
+                mm.module(io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem.class),
+                instance, new net.minestom.server.coordinate.BlockVec(4, 70, 4));
+        try {
+            MechanicsWorld.resolver(new MechanicsWorld.Resolver() {
+                @Override public MechanicsWorld resolve(Entity e) { return e.getTag(MechanicsWorld.ENTITY_TAG); }
+                @Override public boolean ownsCurrentTick(Entity e) { return e != tnt; }
+            });
+            long before = tnt.getAliveTicks();
+            for (int i = 0; i < 5; i++) tnt.tick(System.currentTimeMillis());
+            assertEquals(before, tnt.getAliveTicks(), "a stale driver's tick must not advance the fuse");
+
+            MechanicsWorld.resolver(MechanicsWorld.Resolver.DEFAULT);
+            tnt.tick(System.currentTimeMillis());
+            assertEquals(before + 1, tnt.getAliveTicks(), "the owner's tick runs");
+        } finally {
+            MechanicsWorld.resolver(MechanicsWorld.Resolver.DEFAULT);
+            tnt.remove();
+        }
+    }
+
+    /** Every self-driven mm entity carries the marker, so one bridge rule covers them all. */
+    @Test
+    void selfDrivenEntitiesAreExternallyTickable() {
+        assertTrue(new DroppedItemEntity(ItemStack.of(Material.STONE), DroppedItemEntity.Model.LEGACY) instanceof ExternallyTickable);
+        var tnt = io.github.term4.minestommechanics.presets.mmc18.Tnt.spawn(
+                mm.module(io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem.class),
+                instance, new net.minestom.server.coordinate.BlockVec(6, 70, 6));
+        try {
+            assertTrue(tnt instanceof ExternallyTickable, "PrimedTnt is now covered");
+        } finally {
+            tnt.remove();
         }
     }
 }

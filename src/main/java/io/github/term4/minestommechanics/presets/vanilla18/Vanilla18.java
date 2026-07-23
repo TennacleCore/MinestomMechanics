@@ -3,8 +3,8 @@ package io.github.term4.minestommechanics.presets.vanilla18;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
-import io.github.term4.minestommechanics.effect.Effects;
-import io.github.term4.minestommechanics.vri.DroppedItemEntity;
+import io.github.term4.minestommechanics.fx.Fx;
+import io.github.term4.minestommechanics.entity.DroppedItemEntity;
 import io.github.term4.minestommechanics.mechanics.attack.AttackConfig;
 import io.github.term4.minestommechanics.mechanics.damage.DamageConfig;
 import io.github.term4.minestommechanics.mechanics.death.DeathConfig;
@@ -39,7 +39,7 @@ public final class Vanilla18 {
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.HUNGER, Hunger.config())
                 .set(MechanicsKeys.ITEMS, Items.registry())
-                .set(MechanicsKeys.EFFECTS, Effects.vanilla18())
+                .set(MechanicsKeys.FX, Fx.vanilla18())
                 .build();
     }
 

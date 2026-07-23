@@ -45,7 +45,7 @@ public final class VanillaConsumables {
             .remainder(Material.GLASS_BOTTLE)
             .build();
 
-    // Effect-food values from the pristine 1.8 ItemFood table; all but the pufferfish are version-identical.
+    // FxHandler-food values from the pristine 1.8 ItemFood table; all but the pufferfish are version-identical.
     /** Raw chicken: 30% Hunger I (30s). */
     public static final Consumable RAW_CHICKEN = Consumable
             .builder(Key.key("minecraft:chicken"), Material.CHICKEN)
@@ -105,24 +105,24 @@ public final class VanillaConsumables {
     }
 
     /** {@code level} is 1-based (level I = amplifier 0). */
-    public static Effect eff(PotionEffect id, int level, int ticks) { return new Effect(id, (byte) (level - 1), ticks, 1f); }
+    public static FxHandler eff(PotionEffect id, int level, int ticks) { return new FxHandler(id, (byte) (level - 1), ticks, 1f); }
 
     /** {@link #eff} with a vanilla apply {@code chance}. */
-    public static Effect eff(PotionEffect id, int level, int ticks, float chance) { return new Effect(id, (byte) (level - 1), ticks, chance); }
+    public static FxHandler eff(PotionEffect id, int level, int ticks, float chance) { return new FxHandler(id, (byte) (level - 1), ticks, chance); }
 
     /** A potion effect a consumable applies on finish, at {@code chance} (1 = always). */
-    public record Effect(PotionEffect id, byte amplifier, int ticks, float chance) {}
+    public record FxHandler(PotionEffect id, byte amplifier, int ticks, float chance) {}
 
     /**
-     * On finish restores food + saturation through the {@link HungerSystem} and applies each {@link Effect}. The
+     * On finish restores food + saturation through the {@link HungerSystem} and applies each {@link FxHandler}. The
      * building block for food/golden-apple behaviors.
      */
-    public static ConsumableBehavior effectFood(int nutrition, float saturation, Effect... effects) {
+    public static ConsumableBehavior effectFood(int nutrition, float saturation, FxHandler... effects) {
         return new ConsumableBehavior() {
             @Override public void onFinish(ConsumableContext ctx) {
                 Player u = ctx.user();
                 byte flags = ctx.particles().potionFlags();
-                for (Effect e : effects) {
+                for (FxHandler e : effects) {
                     if (e.chance() < 1f && ThreadLocalRandom.current().nextFloat() >= e.chance()) continue;
                     VanillaPotions.addEffect(u, new Potion(e.id(), e.amplifier(), e.ticks(), flags));
                 }

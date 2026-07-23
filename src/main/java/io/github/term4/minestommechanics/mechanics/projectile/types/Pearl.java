@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.types;
 
-import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.fx.Fx;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.PearlEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
@@ -23,7 +23,7 @@ public final class Pearl extends ThrowableItemType {
         super(KEY, "Ender Pearl", EntityType.ENDER_PEARL, Material.ENDER_PEARL);
     }
 
-    @Override protected Key throwSound() { return Effects.THROW_PEARL; }
+    @Override protected Key throwSound() { return Fx.THROW_PEARL; }
 
     @Override
     public ProjectileEntity createEntity(@Nullable Entity shooter, ProjectileSnapshot snap, ProjectileTypeConfig effectiveConfig) {

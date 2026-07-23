@@ -95,8 +95,20 @@ public final class ExplosionSystem implements MechanicsModule {
     }
 
     private void detonate(MechanicsWorld world, Point center, float power, @Nullable Entity source, @Nullable Entity directHit, ResolvedExplosionConfig resolved) {
-        List<ExplosionEvent.Target> targets = computeAndFire(world, center, power, source, resolved);
-        if (targets != null) applyEffects(world, center, power, source, directHit, targets, resolved);
+        ExplosionEvent event = computeAndFire(world, center, power, source, resolved);
+        if (event == null) return;
+        applyEffects(world, center, power, source, directHit, event.targets(), resolved);
+        // AFTER the damage pass, per vanilla (ServerExplosion.explode: select -> hurtEntities -> interactWithBlocks)
+        if (resolved.blockBreaking() != null && !event.blocks().isEmpty()) {
+            List<Point> broken = ExplosionBlocks.destroy(world, event.blocks(), power, resolved.blockBreaking());
+            // BROKEN (Hypixel) lights only vacated cells; SELECTED (vanilla) may light any cell the blast reached
+            if (resolved.fire()) ExplosionBlocks.placeFire(world,
+                    resolved.fireScope() == ExplosionConfig.FireScope.BROKEN ? broken : event.blocks());
+        }
+    }
+
+    private ExplosionContext context(MechanicsWorld world, Point center, @Nullable Entity source) {
+        return ExplosionContext.of(world.instance(), center, source, services);
     }
 
     /**
@@ -107,9 +119,9 @@ public final class ExplosionSystem implements MechanicsModule {
                                @Nullable Entity source, @Nullable Vec knockback) {
         MechanicsWorld world = MechanicsWorld.of(instance);
         ResolvedExplosionConfig resolved = resolve(world, center, source);
-        List<ExplosionEvent.Target> targets = computeAndFire(world, center, power, source, resolved);
-        if (targets == null) return;
-        applyDamage(source, center, targets, resolved.damageBypass());
+        ExplosionEvent event = computeAndFire(world, center, power, source, resolved);
+        if (event == null) return;
+        applyDamage(source, center, event.targets(), resolved.damageBypass());
         world.broadcast(packet(center, power, knockback));
     }
 
@@ -120,12 +132,15 @@ public final class ExplosionSystem implements MechanicsModule {
     }
 
     /** Builds the per-entity result set, fires the event, and returns the (possibly listener-edited) targets, or {@code null} if cancelled. */
-    private @Nullable List<ExplosionEvent.Target> computeAndFire(MechanicsWorld world, Point center, float power,
-                                                                 @Nullable Entity source, ResolvedExplosionConfig resolved) {
+    private @Nullable ExplosionEvent computeAndFire(MechanicsWorld world, Point center, float power,
+                                                    @Nullable Entity source, ResolvedExplosionConfig resolved) {
         List<ExplosionEvent.Target> targets = computeTargets(world, center, power, source, resolved);
-        ExplosionEvent event = new ExplosionEvent(world, center, power, source, resolved.fire(), targets);
+        // selected against INTACT geometry, before any damage: exposure rays must meet the blocks the blast still has
+        List<Point> blocks = resolved.blockBreaking() == null ? new ArrayList<>()
+                : ExplosionBlocks.select(world, center, power, resolved.blockBreaking(), context(world, center, source));
+        ExplosionEvent event = new ExplosionEvent(world, center, power, source, resolved.fire(), targets, blocks);
         EventDispatcher.call(event);
-        return event.isCancelled() ? null : event.targets();
+        return event.isCancelled() ? null : event;
     }
 
     private List<ExplosionEvent.Target> computeTargets(MechanicsWorld world, Point center, float power,

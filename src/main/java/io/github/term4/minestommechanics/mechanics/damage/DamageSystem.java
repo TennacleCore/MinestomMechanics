@@ -498,7 +498,7 @@ public final class DamageSystem implements MechanicsModule {
      * in-progress item use. Minestom reuses the Player object, so none of it resets on its own.
      *
      * <p>Also the reset seam for a round restart / kit swap / tick-domain move (a timer armed on one clock means nothing
-     * on another). Effects are NOT touched - {@link DeathConfig#clearEffects} owns those.
+     * on another). Fx are NOT touched - {@link DeathConfig#clearEffects} owns those.
      */
     public static void resetMechanicsState(@NotNull LivingEntity entity) {
         entity.setFireTicks(0);

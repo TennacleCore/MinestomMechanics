@@ -1,4 +1,4 @@
-package io.github.term4.minestommechanics.effect;
+package io.github.term4.minestommechanics.fx;
 
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.kyori.adventure.sound.Sound;
@@ -16,18 +16,18 @@ import org.jetbrains.annotations.Nullable;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Where + who an {@link Effect} plays for: a {@code position} in a shard-scoped {@link MechanicsWorld}, an optional
+ * Where + who an {@link FxHandler} plays for: a {@code position} in a shard-scoped {@link MechanicsWorld}, an optional
  * {@code source} entity (entity animations ride its viewers), and an optional {@code target} (hit feedback). The emit
  * helpers route through the world / the source's viewers, so the audience follows the shard.
  */
-public final class EffectContext {
+public final class FxContext {
 
     private final MechanicsWorld world;
     private final Point position;
     private final @Nullable Entity source;
     private final @Nullable Entity target;
 
-    private EffectContext(MechanicsWorld world, Point position, @Nullable Entity source, @Nullable Entity target) {
+    private FxContext(MechanicsWorld world, Point position, @Nullable Entity source, @Nullable Entity target) {
         this.world = world;
         this.position = position;
         this.source = source;
@@ -35,18 +35,18 @@ public final class EffectContext {
     }
 
     /** At {@code source}'s position, with animations riding its viewers. */
-    public static @NotNull EffectContext of(@NotNull Entity source) {
-        return new EffectContext(MechanicsWorld.of(source), source.getPosition(), source, null);
+    public static @NotNull FxContext of(@NotNull Entity source) {
+        return new FxContext(MechanicsWorld.of(source), source.getPosition(), source, null);
     }
 
     /** From {@code source} onto {@code target} - hit feedback ({@code source} = attacker, {@code target} = victim). */
-    public static @NotNull EffectContext of(@NotNull Entity source, @NotNull Entity target) {
-        return new EffectContext(MechanicsWorld.of(source), source.getPosition(), source, target);
+    public static @NotNull FxContext of(@NotNull Entity source, @NotNull Entity target) {
+        return new FxContext(MechanicsWorld.of(source), source.getPosition(), source, target);
     }
 
-    /** A positional effect at {@code position} in {@code world} (no source entity). */
-    public static @NotNull EffectContext at(@NotNull MechanicsWorld world, @NotNull Point position) {
-        return new EffectContext(world, position, null, null);
+    /** A positional fx at {@code position} in {@code world} (no source entity). */
+    public static @NotNull FxContext at(@NotNull MechanicsWorld world, @NotNull Point position) {
+        return new FxContext(world, position, null, null);
     }
 
     public @NotNull MechanicsWorld world() { return world; }

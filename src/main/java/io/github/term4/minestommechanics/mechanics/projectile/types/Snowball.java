@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.types;
 
-import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.fx.Fx;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.item.Material;
@@ -18,5 +18,5 @@ public final class Snowball extends ThrowableItemType {
         super(KEY, "Snowball", EntityType.SNOWBALL, Material.SNOWBALL);
     }
 
-    @Override protected Key throwSound() { return Effects.THROW_SNOWBALL; }
+    @Override protected Key throwSound() { return Fx.THROW_SNOWBALL; }
 }

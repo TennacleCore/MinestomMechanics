@@ -6,6 +6,7 @@ import net.minestom.server.ServerFlag;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.event.entity.EntitySpawnEvent;
 import net.minestom.server.event.instance.InstanceTickEvent;
 import net.minestom.server.event.instance.InstanceUnregisterEvent;
 import net.minestom.server.event.trait.InstanceEvent;
@@ -57,6 +58,11 @@ public final class TickSystem {
         EventNode<InstanceEvent> node = EventNode.type("mm:tick", EventFilter.INSTANCE);
         node.addListener(InstanceTickEvent.class, e -> { advance(e.getInstance()); dispatch(e.getInstance()); });
         node.addListener(InstanceUnregisterEvent.class, e -> CLOCKS.remove(e.getInstance()));
+        // an instance swap lands the entity on a different counter; an externally ticked one keeps its own clock,
+        // so its world bridge owns that call instead
+        node.addListener(EntitySpawnEvent.class, e -> {
+            if (MechanicsWorld.externalTick(e.getEntity()) < 0) clockChanged(e.getEntity());
+        });
         MinecraftServer.getGlobalEventHandler().addChild(node);
     }
 
@@ -89,8 +95,8 @@ public final class TickSystem {
     }
 
     /**
-     * An external ticker took over (or released) {@code entity}: stamps from its old clock are meaningless
-     * against the new one, so every registered reset runs. World bridges call this on ownership changes.
+     * {@code entity} moved to a different clock, so stamps from the old one are meaningless and every registered
+     * reset runs. Fired here on an instance swap; world bridges call it on external-ticker ownership changes.
      */
     public static void clockChanged(Entity entity) {
         for (Consumer<Entity> reset : CLOCK_CHANGE) {

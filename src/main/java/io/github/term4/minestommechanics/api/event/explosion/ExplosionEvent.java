@@ -51,10 +51,12 @@ public class ExplosionEvent implements CancellableEvent {
     private final @Nullable Entity source;
     private final boolean fire;
     private final List<Target> targets;
+    private final List<Point> blocks;
     private boolean cancelled;
 
     public ExplosionEvent(@NotNull MechanicsWorld world, @NotNull Point center, float power, @Nullable Entity source,
-                          boolean fire, @NotNull List<Target> targets) {
+                          boolean fire, @NotNull List<Target> targets, @NotNull List<Point> blocks) {
+        this.blocks = blocks;
         this.world = world;
         this.center = center;
         this.power = power;
@@ -73,6 +75,9 @@ public class ExplosionEvent implements CancellableEvent {
 
     /** Live and mutable: edit or {@code removeIf} to alter the outcome. */
     public @NotNull List<Target> targets() { return targets; }
+
+    /** The blocks this blast will destroy - selected, not yet removed. Live and mutable, empty when it breaks none. */
+    public @NotNull List<Point> blocks() { return blocks; }
 
     @Override public boolean isCancelled() { return cancelled; }
     @Override public void setCancelled(boolean cancel) { this.cancelled = cancel; }

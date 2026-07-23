@@ -49,7 +49,8 @@ class ExplosionTest extends HeadlessServerTest {
         MinecraftServer.getGlobalEventHandler().addChild(node);
         try {
             // zombies stand in for players; explosion push is Players-only by default, so opt them in as KB targets
-            var config = Explosion.config().toBuilder().knockbackTargets(e -> true).build();
+            // block breaking off: this measures damage/KB, and the harness instance is shared with other suites
+            var config = Explosion.config().toBuilder().knockbackTargets(e -> true).blockBreaking(null).build();
             new ExplosionSystem(mm, config).explode(instance, center, 4.0f);
         } finally {
             MinecraftServer.getGlobalEventHandler().removeChild(node);

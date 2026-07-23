@@ -28,6 +28,8 @@ public final class Explosion {
                 .knockbackImpactFloor(KB_IMPACT_FLOOR)
                 .flatDamage(FLAT_DAMAGE).damageBypass(Bypass.builder().armor(true).build())
                 .exposure(ExplosionExposure.Rays.LEGACY_1_8_FULL_CUBE) // Hypixel gates off-flat blasts (full-cube), unlike singleplayer 1.8
+                // Hypixel fireballs light fire ONLY where a block was broken - never on intact ground (observed in-game)
+                .fireScope(ExplosionConfig.FireScope.BROKEN)
                 .build();
     }
 }

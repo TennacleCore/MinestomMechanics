@@ -1,11 +1,13 @@
-package io.github.term4.minestommechanics.presets;
+package io.github.term4.minestommechanics.entity;
 
 import io.github.term4.minestommechanics.api.event.explosion.ExplosionEvent;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionCalculator;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
+import io.github.term4.minestommechanics.world.ExternallyTickable;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
+import net.minestom.server.instance.Chunk;
 import net.kyori.adventure.nbt.BinaryTagTypes;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
 import net.kyori.adventure.nbt.DoubleBinaryTag;
@@ -33,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * motY×-0.5 bounce). {@link Config} carries the preset knobs; the wire is hand-sent per {@link Wire}; a TNT source's
  * push on other TNT rescales per {@code tntVictimScale} ({@link #retuneTntVictims}).
  */
-public final class PrimedTnt extends Entity {
+public final class PrimedTnt extends Entity implements ExternallyTickable {
 
     /**
      * {@code detonateAtFeet}: MineMen/Hypixel at the feet, vanilla at {@code +height/16}. {@code bounce}: the motY×-0.5
@@ -175,6 +177,21 @@ public final class PrimedTnt extends Entity {
     }
 
     private PhysicsResult lastPhysics;
+
+    // an externally ticked TNT in the global dispatcher double-ticks: skip the field write's re-registration
+    @Override protected void refreshCurrentChunk(@NotNull Chunk chunk) {
+        if (MechanicsWorld.externallyTicked(this)) {
+            currentChunk = chunk;
+            return;
+        }
+        super.refreshCurrentChunk(chunk);
+    }
+
+    // bail on a foreign clock, or the fuse counts on both and detonates early (movementTick + update ride super.tick)
+    @Override public void tick(long time) {
+        if (!MechanicsWorld.ownsCurrentTick(this)) return;
+        super.tick(time);
+    }
 
     @Override
     protected void movementTick() {

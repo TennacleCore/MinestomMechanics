@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Effect-color table (vanilla 26 {@code MobEffects} registrations) + the potion color blend - Minestom's
+ * FxHandler-color table (vanilla 26 {@code MobEffects} registrations) + the potion color blend - Minestom's
  * {@link PotionEffect} carries no color. Drives the splash-potion level event (2002), whose data is the RGB color
  * (ViaBackwards maps it back to a legacy potion id for old clients).
  */

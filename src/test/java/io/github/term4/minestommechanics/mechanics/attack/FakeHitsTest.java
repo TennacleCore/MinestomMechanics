@@ -2,7 +2,7 @@ package io.github.term4.minestommechanics.mechanics.attack;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
-import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.fx.Fx;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
 import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import io.github.term4.minestommechanics.platform.compatibility.Compat18;
@@ -211,7 +211,7 @@ class FakeHitsTest extends HeadlessServerTest {
     void fakeCritSparkleIncludesTheAttacker() {
         Instance inst = flatInstance(MechanicsProfile.builder()
                 .set(MechanicsKeys.ATTACK, Vanilla18.attack().toBuilder().criticalRule(e -> true).build())
-                .set(MechanicsKeys.EFFECTS, Effects.vanilla18())
+                .set(MechanicsKeys.FX, Fx.vanilla18())
                 .build());
         FakePlayer attacker = FakePlayer.connect(inst, new Pos(8.5, 64, 8.5, 0f, 0f), "CritFake");
         Player victim = FakePlayer.connect(inst, new Pos(8.5, 64, 10.5), "CritVictim").player;

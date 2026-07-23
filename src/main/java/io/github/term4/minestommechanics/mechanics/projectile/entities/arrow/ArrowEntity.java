@@ -2,8 +2,8 @@ package io.github.term4.minestommechanics.mechanics.projectile.entities.arrow;
 
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.world.WorldPolicy;
-import io.github.term4.minestommechanics.effect.EffectContext;
-import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.fx.FxContext;
+import io.github.term4.minestommechanics.fx.Fx;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.enchant.Flame;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ResolvedHit;
 import io.github.term4.minestommechanics.mechanics.attribute.catalog.VanillaPotions;
@@ -118,10 +118,10 @@ public class ArrowEntity extends ManagedProjectile {
 
     @Override
     protected void onImpact(@Nullable Entity hitEntity) {
-        if (hitEntity != null) Effects.play(services(), Effects.ARROW_HIT, EffectContext.of(this)); // block hits go through onStuck
+        if (hitEntity != null) Fx.play(services(), Fx.ARROW_HIT, FxContext.of(this)); // block hits go through onStuck
         if (!(hitEntity instanceof LivingEntity le)) return;
         // hit-marker "ding" to the shooter, on a real target - not a self-hit
-        if (shooter instanceof Player && shooter != le) Effects.play(services(), Effects.ARROW_HIT_PLAYER, EffectContext.of(shooter, le));
+        if (shooter instanceof Player && shooter != le) Fx.play(services(), Fx.ARROW_HIT_PLAYER, FxContext.of(shooter, le));
         StuckArrows.add(le, 1);
         // vanilla fixed 5s; fire ticks decrement at server TPS, so scale it
         if (flameLevel() > 0) le.setFireTicks(TickScaler.duration(le, Flame.FIRE_TICKS, ProjectileSystem.KEY));
@@ -145,7 +145,7 @@ public class ArrowEntity extends ManagedProjectile {
     protected boolean onStuck() {
         shake = TickScaler.duration(this, shakeTicks, ProjectileSystem.KEY); // decrements per server tick, so scale it
         if (getEntityMeta() instanceof AbstractArrowMeta meta) meta.setInGround(true);
-        Effects.play(services(), Effects.ARROW_HIT, EffectContext.of(this));
+        Fx.play(services(), Fx.ARROW_HIT, FxContext.of(this));
         return super.onStuck();
     }
 
@@ -175,7 +175,7 @@ public class ArrowEntity extends ManagedProjectile {
         if (pickup == Pickup.ALLOWED && p.getGameMode() != GameMode.CREATIVE
                 && !p.getInventory().addItemStack(ItemStack.of(Material.ARROW))) return; // inventory full -> arrow stays stuck
         // the arrow flies into the collector before remove() sends the destroy
-        Effects.play(services(), Effects.ITEM_PICKUP, EffectContext.of(this));
+        Fx.play(services(), Fx.ITEM_PICKUP, FxContext.of(this));
         sendPacketToViewersAndSelf(new CollectItemPacket(getEntityId(), p.getEntityId(), 1));
         remove();
     }

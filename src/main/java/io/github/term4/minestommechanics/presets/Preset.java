@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.presets;
 
+import io.github.term4.minestommechanics.entity.PrimedTnt;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.presets.hypixel.Hypixel;
 import io.github.term4.minestommechanics.presets.mmc18.Mmc18;

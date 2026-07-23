@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.vri;
 
+import io.github.term4.minestommechanics.entity.DroppedItemEntity;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
@@ -27,11 +28,11 @@ public final class ItemDrop {
 
     private ItemDrop() {}
 
-    public static void install(EventNode<@NotNull Event> node, @Nullable DroppedItemEntity.Model physics) {
+    public static void install(EventNode<@NotNull Event> node, Vri vri) {
         node.addListener(InventoryCloseEvent.class, e -> {
             // containers drop the cursor natively (removeViewer); only the player's own screen leaks it
             var inventory = e.getPlayer().getInventory();
-            if (e.getInventory() != inventory) return;
+            if (e.getInventory() != inventory || !vri.configFor(e.getPlayer()).itemDrop) return;
             ItemStack cursor = inventory.getCursorItem();
             if (cursor.isAir()) return;
             inventory.setCursorItem(ItemStack.AIR);
@@ -43,7 +44,8 @@ public final class ItemDrop {
             if (e.isCancelled()) return;
             Player player = e.getPlayer();
             Instance instance = player.getInstance();
-            if (instance == null) return;
+            VriConfig cfg = vri.configFor(player);
+            if (instance == null || !cfg.itemDrop) return;
 
             double yaw = Math.toRadians(player.getPosition().yaw()), pitch = Math.toRadians(player.getPosition().pitch());
             var rnd = ThreadLocalRandom.current();
@@ -58,7 +60,7 @@ public final class ItemDrop {
 
             DroppedItemEntity.spawn(instance,
                     player.getPosition().add(0, player.getEyeHeight() - 0.30000001192092896, 0),
-                    new Vec(vx, vy, vz), e.getItemStack(), physics,
+                    new Vec(vx, vy, vz), e.getItemStack(), cfg.itemPhysics,
                     PICKUP_DELAY_TICKS, ItemSpawnEvent.Cause.PLAYER_DROP, player);
         });
     }

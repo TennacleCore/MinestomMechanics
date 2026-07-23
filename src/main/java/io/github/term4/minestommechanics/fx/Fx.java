@@ -1,8 +1,8 @@
-package io.github.term4.minestommechanics.effect;
+package io.github.term4.minestommechanics.fx;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.Services;
-import io.github.term4.minestommechanics.api.event.effect.EffectEvent;
+import io.github.term4.minestommechanics.api.event.fx.FxEvent;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.minestom.server.event.EventDispatcher;
@@ -15,16 +15,16 @@ import org.jetbrains.annotations.NotNull;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * The effect layer's entry points: the built-in effect {@link Key keys}, the vanilla {@link EffectRegistry} factories a
+ * The fx layer's entry points: the built-in {@link Key keys}, the vanilla {@link FxRegistry} factories a
  * preset installs, and the generic {@link #play} the library's mechanics call. A server customizes feedback by putting a
- * different registry on the {@code MechanicsKeys.EFFECTS} profile member - no event listeners required ({@link EffectEvent}
+ * different registry on the {@code MechanicsKeys.FX} profile member - no event listeners required ({@link FxEvent}
  * is the optional dynamic hook). Sound ids are the modern ones (Via translates for 1.8 clients).
  */
-public final class Effects {
+public final class Fx {
 
-    private Effects() {}
+    private Fx() {}
 
-    private static final ListenerHandle<EffectEvent> EFFECT = EventDispatcher.getHandle(EffectEvent.class);
+    private static final ListenerHandle<FxEvent> FX_EVENT = EventDispatcher.getHandle(FxEvent.class);
 
     public static final Key CRIT = Key.key("mm:crit");
     /** Enchantment ("magic") critical. */
@@ -57,35 +57,35 @@ public final class Effects {
     public static final Key ARROW_HIT_PLAYER = Key.key("mm:arrow_hit_player");
 
     /**
-     * Plays the effect registered for {@code key} in {@code ctx.source()}'s scope, firing the cancellable
-     * {@link EffectEvent} first. A no-op when the scope has no registry, the key is unregistered, the effect is
-     * {@link Effect#NONE}, or a listener cancels.
+     * Plays the fx registered for {@code key} in {@code ctx.source()}'s scope, firing the cancellable
+     * {@link FxEvent} first. A no-op when the scope has no registry, the key is unregistered, the fx is
+     * {@link FxHandler#NONE}, or a listener cancels.
      */
-    public static void play(@NotNull Services services, @NotNull Key key, @NotNull EffectContext ctx) {
-        EffectRegistry registry = services.profiles().resolve(ctx.source(), MechanicsKeys.EFFECTS);
+    public static void play(@NotNull Services services, @NotNull Key key, @NotNull FxContext ctx) {
+        FxRegistry registry = services.profiles().resolve(ctx.source(), MechanicsKeys.FX);
         if (registry == null) return;
-        Effect effect = registry.get(key);
-        if (effect == null) return;
-        if (EFFECT.hasListener()) {
-            EffectEvent event = new EffectEvent(key, ctx, effect, services);
+        FxHandler fx = registry.get(key);
+        if (fx == null) return;
+        if (FX_EVENT.hasListener()) {
+            FxEvent event = new FxEvent(key, ctx, fx, services);
             EventDispatcher.call(event);
             if (event.isCancelled()) return;
-            effect = event.effect(); // listener may swap it (or re-enable a NONE)
+            fx = event.fx(); // listener may swap it (or re-enable a NONE)
         }
-        if (effect == Effect.NONE) return;
-        effect.play(ctx);
+        if (fx == FxHandler.NONE) return;
+        fx.play(ctx);
     }
 
     /**
-     * The 1.8 vanilla effects - the {@code Vanilla18} preset sets this as its {@code MechanicsKeys.EFFECTS} member.
+     * The 1.8 vanilla fx - the {@code Vanilla18} preset sets this as its {@code MechanicsKeys.FX} member.
      * 1.8 has no melee attack sounds (those are 1.9+), so the crit is particle-only.
      */
-    public static @NotNull EffectRegistry vanilla18() {
-        return EffectRegistry.empty()
-                .register(CRIT, Effect.hitAnimation(EntityAnimationPacket.Animation.CRITICAL_EFFECT))
-                .register(MAGIC_CRIT, Effect.hitAnimation(EntityAnimationPacket.Animation.MAGICAL_CRITICAL_EFFECT))
-                .register(FAKE_CRIT, Effect.hitAnimationAll(EntityAnimationPacket.Animation.CRITICAL_EFFECT))
-                .register(FAKE_MAGIC_CRIT, Effect.hitAnimationAll(EntityAnimationPacket.Animation.MAGICAL_CRITICAL_EFFECT))
+    public static @NotNull FxRegistry vanilla18() {
+        return FxRegistry.empty()
+                .register(CRIT, FxHandler.hitAnimation(EntityAnimationPacket.Animation.CRITICAL_EFFECT))
+                .register(MAGIC_CRIT, FxHandler.hitAnimation(EntityAnimationPacket.Animation.MAGICAL_CRITICAL_EFFECT))
+                .register(FAKE_CRIT, FxHandler.hitAnimationAll(EntityAnimationPacket.Animation.CRITICAL_EFFECT))
+                .register(FAKE_MAGIC_CRIT, FxHandler.hitAnimationAll(EntityAnimationPacket.Animation.MAGICAL_CRITICAL_EFFECT))
                 // viewers only: the client self-predicts its own chew from the eating metadata
                 .register(EAT, ctx -> ctx.viewerSound(SoundEvent.ENTITY_GENERIC_EAT, Sound.Source.PLAYER, eatVolume(), jitterPitch(0.2f)))
                 .register(DRINK, ctx -> ctx.viewerSound(SoundEvent.ENTITY_GENERIC_DRINK, Sound.Source.PLAYER, 0.5f, drinkPitch()))
@@ -104,14 +104,14 @@ public final class Effects {
                 .register(ROD_CAST, throwSound(SoundEvent.ENTITY_FISHING_BOBBER_THROW, Sound.Source.NEUTRAL))
                 .register(ROD_RETRIEVE, throwSound(SoundEvent.ENTITY_FISHING_BOBBER_RETRIEVE, Sound.Source.NEUTRAL))
                 .register(ARROW_HIT, ctx -> ctx.sound(SoundEvent.ENTITY_ARROW_HIT, Sound.Source.NEUTRAL, 1.0f, arrowHitPitch()))
-                .register(ARROW_CRIT, Effect.particle(Particle.CRIT, 2, 0.05, 0f));
+                .register(ARROW_CRIT, FxHandler.particle(Particle.CRIT, 2, 0.05, 0f));
     }
 
-    /** The modern (26.1) effects - the {@code Vanilla} preset sets this. {@link #vanilla18()} plus the 1.9+ melee attack sound. */
-    public static @NotNull EffectRegistry modern() {
+    /** The modern (26.1) fx - the {@code Vanilla} preset sets this. {@link #vanilla18()} plus the 1.9+ melee attack sound. */
+    public static @NotNull FxRegistry modern() {
         return vanilla18()
-                .register(CRIT, Effect.hitAnimation(EntityAnimationPacket.Animation.CRITICAL_EFFECT)
-                        .and(Effect.sound(SoundEvent.ENTITY_PLAYER_ATTACK_CRIT, Sound.Source.PLAYER, 1.0f, 1.0f)));
+                .register(CRIT, FxHandler.hitAnimation(EntityAnimationPacket.Animation.CRITICAL_EFFECT)
+                        .and(FxHandler.sound(SoundEvent.ENTITY_PLAYER_ATTACK_CRIT, Sound.Source.PLAYER, 1.0f, 1.0f)));
     }
 
     /**
@@ -120,7 +120,7 @@ public final class Effects {
      * ViaVersion maps to 1.8 {@code random.successful_hit}. Vanilla 1.8 has none; mmc18/hypixel backport it - capture
      * to confirm their pitch.
      */
-    public static @NotNull Effect arrowHitMarker() {
+    public static @NotNull FxHandler arrowHitMarker() {
         return ctx -> ctx.sourceSound(SoundEvent.ENTITY_ARROW_HIT_PLAYER, Sound.Source.PLAYER, 0.18f, 0.45f);
     }
 
@@ -135,7 +135,7 @@ public final class Effects {
     private static float drinkPitch() { return ThreadLocalRandom.current().nextFloat() * 0.1f + 0.9f; }
 
     /** A throwable's launch sound: server-driven to everyone - the 1.8 client does NOT self-predict the throw. */
-    private static Effect throwSound(SoundEvent sound, Sound.Source src) {
+    private static FxHandler throwSound(SoundEvent sound, Sound.Source src) {
         return ctx -> ctx.sound(sound, src, 0.5f, throwPitch());
     }
 

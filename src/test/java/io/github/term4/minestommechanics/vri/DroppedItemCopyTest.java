@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.vri;
 
+import io.github.term4.minestommechanics.entity.DroppedItemEntity;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.entity.Entity;

@@ -1,8 +1,8 @@
 package io.github.term4.minestommechanics.vri;
 
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.effect.EffectContext;
-import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.fx.FxContext;
+import io.github.term4.minestommechanics.fx.Fx;
 import io.github.term4.minestommechanics.world.WorldPolicy;
 import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
@@ -19,9 +19,10 @@ public final class ItemPickup {
 
     private ItemPickup() {}
 
-    public static void install(EventNode<@NotNull Event> node) {
+    public static void install(EventNode<@NotNull Event> node, Vri vri) {
         node.addListener(PickupItemEvent.class, e -> {
             if (!(e.getLivingEntity() instanceof Player player)) return;
+            if (!vri.configFor(player).itemPickup) return;
             // vanilla gates the collision sweep on health > 0 && !spectator (1.8 EntityPlayer.onUpdate); Minestom's scan doesn't
             if (player.isDead() || player.getGameMode() == GameMode.SPECTATOR) {
                 e.setCancelled(true);
@@ -38,7 +39,7 @@ public final class ItemPickup {
             if (player.getInstance() == null) return;
             // pitch/volume live in the ITEM_PICKUP effect, resolved from the item's scope + world
             MinestomMechanics mm = MinestomMechanics.getInstance();
-            if (mm.isInitialized()) Effects.play(mm.services(), Effects.ITEM_PICKUP, EffectContext.of(e.getItemEntity()));
+            if (mm.isInitialized()) Fx.play(mm.services(), Fx.ITEM_PICKUP, FxContext.of(e.getItemEntity()));
         });
     }
 }

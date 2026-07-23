@@ -9,6 +9,7 @@ import io.github.term4.minestommechanics.platform.fixes.client.InventorySync;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyEquipmentFix;
 import io.github.term4.minestommechanics.platform.fixes.client.SelfMetaFilter;
 import io.github.term4.minestommechanics.util.tick.TickScaler;
+import io.github.term4.minestommechanics.world.ExternallyTickable;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.coordinate.Pos;
@@ -35,7 +36,7 @@ import java.util.Map;
  * throttle, the self-placement exclusion, and the cross-version compat overrides (pose/hitbox/eye/attack-box,
  * state in {@link CompatState}). Each behavior is opt-in and wired by {@code MinestomMechanics}.
  */
-public class OptimizedPlayer extends Player {
+public class OptimizedPlayer extends Player implements ExternallyTickable {
 
     private @Nullable SelfMetaFilter selfMetaFilter = SelfMetaFilter.defaultPlayerFilter();
     private boolean processingClientInput = false;

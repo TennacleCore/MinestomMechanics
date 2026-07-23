@@ -3,7 +3,7 @@ package io.github.term4.minestommechanics.presets.hypixel;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.instance.Instance;
-import io.github.term4.minestommechanics.presets.PrimedTnt;
+import io.github.term4.minestommechanics.entity.PrimedTnt;
 
 /** Hypixel TNT: fuse 50 (vanilla 80), FEET detonation (capture: expl.y − feet = 0 across 11 TNTs, not vanilla +height/16 nor Spigot +length/2), HYPIXEL wire shape, no ground bounce. */
 public final class Tnt {

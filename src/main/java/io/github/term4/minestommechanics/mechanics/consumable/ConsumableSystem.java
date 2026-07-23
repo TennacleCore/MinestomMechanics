@@ -8,8 +8,8 @@ import io.github.term4.minestommechanics.Services;
 import io.github.term4.minestommechanics.api.event.consume.ConsumeAppliedEvent;
 import io.github.term4.minestommechanics.api.event.consume.ConsumeEvent;
 import io.github.term4.minestommechanics.api.event.consume.PreConsumeEvent;
-import io.github.term4.minestommechanics.effect.EffectContext;
-import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.fx.FxContext;
+import io.github.term4.minestommechanics.fx.Fx;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigResolver.ConsumableContext;
 import io.github.term4.minestommechanics.mechanics.consumable.ConsumableConfigResolver.ResolvedConsumable;
 import io.github.term4.minestommechanics.platform.fixes.FixesConfig;
@@ -144,7 +144,7 @@ public final class ConsumableSystem implements MechanicsModule {
         (consume.behavior() != null ? consume.behavior() : r.resolved.behavior()).onFinish(consume.finalSnap());
         // food burps on finish (vanilla ItemFood.onFoodEaten), drinks don't; the chew sound + eating particles are
         // client-driven off the hand-active metadata
-        if (item.get(DataComponents.FOOD) != null) Effects.play(services, Effects.BURP, EffectContext.of(p));
+        if (item.get(DataComponents.FOOD) != null) Fx.play(services, Fx.BURP, FxContext.of(p));
         if (p.getGameMode() != GameMode.CREATIVE) {
             Material remMat = r.ctx.consumable().remainder();
             ItemStack remainder = remMat != null ? ItemStack.of(remMat) : item.get(DataComponents.USE_REMAINDER);
@@ -211,8 +211,8 @@ public final class ConsumableSystem implements MechanicsModule {
     private void emitConsumeSound(Resolution r, int remaining) {
         int consumeTicks = r.resolved.consumeTicks();
         if (remaining < 0 || remaining % 4 != 0 || consumeTicks - remaining <= (int) (consumeTicks * 0.21875f)) return;
-        Key sound = r.ctx.item().get(DataComponents.FOOD) != null ? Effects.EAT : Effects.DRINK;
-        Effects.play(services, sound, EffectContext.of(r.ctx.user()));
+        Key sound = r.ctx.item().get(DataComponents.FOOD) != null ? Fx.EAT : Fx.DRINK;
+        Fx.play(services, sound, FxContext.of(r.ctx.user()));
     }
 
     /** Installs reading the GLOBAL profile's {@link ConsumableConfig}: its {@code types} (the consumable identities) register up front. Set the profile before installing. */

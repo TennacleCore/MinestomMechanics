@@ -1,6 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.types;
 
-import io.github.term4.minestommechanics.effect.Effects;
+import io.github.term4.minestommechanics.fx.Fx;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
@@ -23,7 +23,7 @@ public final class Fireball extends ThrowableItemType {
         super(KEY, "Fireball", EntityType.FIREBALL, Material.FIRE_CHARGE, true); // blockAction: lights fire client-side
     }
 
-    @Override protected Key throwSound() { return Effects.THROW_FIREBALL; }
+    @Override protected Key throwSound() { return Fx.THROW_FIREBALL; }
 
     @Override
     public ProjectileEntity createEntity(@Nullable Entity shooter, ProjectileSnapshot snap, ProjectileTypeConfig effectiveConfig) {

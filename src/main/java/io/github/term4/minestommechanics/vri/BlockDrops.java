@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.vri;
 
+import io.github.term4.minestommechanics.entity.DroppedItemEntity;
 import io.github.term4.minestommechanics.item.Enchants;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.component.DataComponents;
@@ -67,11 +68,13 @@ public final class BlockDrops {
 
     private BlockDrops() {}
 
-    public static void install(EventNode<@NotNull Event> node, DropRule rule, @Nullable DroppedItemEntity.Model physics) {
+    public static void install(EventNode<@NotNull Event> node, Vri vri) {
         node.addListener(PlayerBlockBreakEvent.class, e -> {
             if (e.isCancelled()) return;
             GameMode mode = e.getPlayer().getGameMode();
             if (mode == GameMode.CREATIVE || mode == GameMode.SPECTATOR) return;
+            VriConfig cfg = vri.configFor(e.getPlayer());
+            if (cfg.blockDrops == null) return;
 
             ItemStack tool = e.getPlayer().getItemInMainHand();
             Tool component = tool.get(DataComponents.TOOL);
@@ -80,7 +83,7 @@ public final class BlockDrops {
             DropContext ctx = new DropContext(e.getPlayer(), e.getBlock(), tool,
                     Enchants.level(tool, FORTUNE), Enchants.level(tool, SILK_TOUCH) > 0, correct);
 
-            List<ItemStack> drops = rule.drops(ctx);
+            List<ItemStack> drops = cfg.blockDrops.drops(ctx);
             if (drops == null) return;
             var rnd = ThreadLocalRandom.current();
             for (ItemStack stack : drops) {
@@ -90,7 +93,7 @@ public final class BlockDrops {
                                 e.getBlockPosition().y() + rnd.nextDouble() * 0.5 + 0.25,
                                 e.getBlockPosition().z() + rnd.nextDouble() * 0.5 + 0.25),
                         new Vec(rnd.nextDouble() * 0.2 - 0.1, 0.2, rnd.nextDouble() * 0.2 - 0.1),
-                        stack, physics, PICKUP_DELAY_TICKS, ItemSpawnEvent.Cause.BLOCK_DROP, e.getPlayer());
+                        stack, cfg.itemPhysics, PICKUP_DELAY_TICKS, ItemSpawnEvent.Cause.BLOCK_DROP, e.getPlayer());
             }
         });
     }

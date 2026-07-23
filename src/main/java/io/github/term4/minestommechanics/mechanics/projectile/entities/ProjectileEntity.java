@@ -1,5 +1,6 @@
 package io.github.term4.minestommechanics.mechanics.projectile.entities;
 
+import io.github.term4.minestommechanics.world.ExternallyTickable;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.world.WorldPolicy;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
@@ -47,7 +48,7 @@ import java.util.Collection;
  * self-heals; modern clients hold via {@code inGround} metadata. Velocity is b/t internally ({@code super.velocity}
  * mirrors b/s); {@link Aerodynamics} constants are read live.
  */
-public abstract class ProjectileEntity extends Entity {
+public abstract class ProjectileEntity extends Entity implements ExternallyTickable {
 
     // @ApiStatus.Internal override: super is exactly this field write + dispatcher().updateElement (verified
     // 26.2, re-verify on bumps) - an externally ticked entity in the global dispatcher double-ticks

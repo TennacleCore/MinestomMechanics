@@ -26,6 +26,7 @@ public final class Explosion {
                 .packetPush(false)
                 .pushEye(Explosion::pushEye)
                 .exposure(ExplosionExposure.Rays.LEGACY_1_8_FULL_CUBE) // MineMen gates off-flat blasts (full-cube), unlike singleplayer 1.8
+                .fire(false) // MineMen fireballs never ignite (overrides vanilla18's fireball incendiary); fireballFight() inherits this
                 .build();
     }
 

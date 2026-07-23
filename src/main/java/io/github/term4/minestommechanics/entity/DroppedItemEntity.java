@@ -1,6 +1,8 @@
-package io.github.term4.minestommechanics.vri;
+package io.github.term4.minestommechanics.entity;
 
 import io.github.term4.minestommechanics.util.tick.TickScaler;
+import io.github.term4.minestommechanics.world.ExternallyTickable;
+import io.github.term4.minestommechanics.vri.ItemSpawnEvent;
 import io.github.term4.minestommechanics.world.MechanicsWorld;
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MinestomMechanics;
@@ -42,8 +44,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * {@link Model#MODERN} = 26.1 (items float). Stock physics stay in charge; {@link #update} nudges velocity
  * post-move, where both vanillas apply their fluid steps.
  */
-public class DroppedItemEntity extends ItemEntity {
+public class DroppedItemEntity extends ItemEntity implements ExternallyTickable {
 
+    // TODO: Simplify, a lot of this has already been handled either in minestom, or in movement tracker.
     public static final Key KEY = Key.key("mm:item");
 
     // @ApiStatus.Internal override: super is exactly this field write + dispatcher().updateElement (verified

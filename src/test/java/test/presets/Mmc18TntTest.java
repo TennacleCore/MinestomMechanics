@@ -11,7 +11,7 @@ import net.minestom.server.instance.block.Block;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import io.github.term4.minestommechanics.presets.mmc18.Explosion;
-import io.github.term4.minestommechanics.presets.PrimedTnt;
+import io.github.term4.minestommechanics.entity.PrimedTnt;
 import io.github.term4.minestommechanics.presets.mmc18.Tnt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,7 +24,9 @@ class Mmc18TntTest extends HeadlessServerTest {
 
     @BeforeAll
     static void setUp() {
-        explosions = new ExplosionSystem(mm, Explosion.config());
+        // these measure PUSH geometry on fixed terrain; the preset's block breaking would crater the
+        // pits and pillars later cases rely on, so it is off here rather than a hidden variable
+        explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking(null).build());
     }
 
     @Test

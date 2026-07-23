@@ -50,6 +50,30 @@ class CooldownSystemTest extends HeadlessServerTest {
         assertTrue(system.tryUse(p.player, Material.ENDER_PEARL), "re-allowed at expiry");
     }
 
+    /** Each instance counts its own ticks, so the move alone strands the expiry - no world bridge involved. */
+    @Test
+    void anInstanceChangeClearsTheCooldownItWouldStrand() {
+        Instance from = flatInstance(MechanicsProfile.builder()
+                .set(MechanicsKeys.COOLDOWNS, CooldownConfig.builder().cooldown(Material.ENDER_PEARL, 20).build())
+                .build());
+        Instance to = flatInstance(MechanicsProfile.builder()
+                .set(MechanicsKeys.COOLDOWNS, CooldownConfig.builder().cooldown(Material.ENDER_PEARL, 20).build())
+                .build());
+        FakePlayer p = FakePlayer.connect(from, new Pos(16.5, 64, 16.5), "InstanceHop");
+        try {
+            setCombatTick(from, 10_000);
+            assertTrue(system.tryUse(p.player, Material.ENDER_PEARL));
+            assertTrue(system.isOnCooldown(p.player, Material.ENDER_PEARL));
+
+            p.player.setInstance(to, new Pos(16.5, 64, 16.5)).join();
+
+            assertFalse(system.isOnCooldown(p.player, Material.ENDER_PEARL),
+                    "the instance swap alone must clear it - the new clock never reaches the old stamp");
+        } finally {
+            p.player.remove();
+        }
+    }
+
     /** Against a clock counting from zero the old expiry is unreachable, and nothing else clears it. */
     @Test
     void aClockChangeDropsCooldownsInsteadOfStrandingThem() {

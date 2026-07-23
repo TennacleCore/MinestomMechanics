@@ -1,5 +1,7 @@
 package io.github.term4.minestommechanics.presets.vanilla18;
 
+import io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
 
@@ -15,6 +17,15 @@ public final class Explosion {
                 .floorDamage(true)
                 .knockbackMultiplier(1.0)
                 .exposure(ExplosionExposure.Rays.LEGACY_1_8) // faithful 1.8 rayTraceBlocks (block-real shape, pushes off-flat); servers override to LEGACY_1_8_FULL_CUBE
+                // vanilla gates this per EXPLODER, not per world: a fireball is incendiary, TNT never is
+                // (1.8 EntityLargeFireball passes its mobGriefing flag as BOTH fire and blockDamage; 26.1
+                // LargeFireball passes it as the fire arg). mm has no gamerules, so the split lives here.
+                .fire(ctx -> ctx.source() instanceof FireballEntity)
+                .blockBreaking(BlockBreaking.builder()
+                        .model(BlockBreaking.Model.RAY_1_8)
+                        .resistance(BlockBreaking.LEGACY_RESISTANCE)
+                        .interaction(BlockBreaking.Interaction.DESTROY_WITH_DECAY)
+                        .build())
                 .build();
     }
 }

@@ -1,8 +1,9 @@
 package io.github.term4.minestommechanics.vri;
 
+import io.github.term4.minestommechanics.entity.DroppedItemEntity;
 import org.jetbrains.annotations.Nullable;
 
-/** Toggles for the VRI (Vanilla Re-Implemented) behaviors; the set grows as chests / deaths etc. land. */
+/** Toggles for the VRI (Vanilla Re-Implemented) behaviors, per scope via {@code MechanicsKeys.VRI}; the set grows as chests / deaths etc. land. */
 public final class VriConfig {
 
     /** Default off. */

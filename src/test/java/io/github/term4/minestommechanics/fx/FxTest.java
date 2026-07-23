@@ -1,9 +1,9 @@
-package io.github.term4.minestommechanics.effect;
+package io.github.term4.minestommechanics.fx;
 
 import io.github.term4.minestommechanics.MechanicsKeys;
 import io.github.term4.minestommechanics.MechanicsProfile;
 import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.api.event.effect.EffectEvent;
+import io.github.term4.minestommechanics.api.event.fx.FxEvent;
 import io.github.term4.minestommechanics.testsupport.FakePlayer;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
 import net.minestom.server.MinecraftServer;
@@ -27,14 +27,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class EffectsTest extends HeadlessServerTest {
+class FxTest extends HeadlessServerTest {
 
     @AfterEach
     void clearScope() { MinestomMechanics.getInstance().profiles().setGlobal(null); }
 
-    private void useRegistry(EffectRegistry reg) {
+    private void useRegistry(FxRegistry reg) {
         MinestomMechanics.getInstance().profiles().setGlobal(
-                MechanicsProfile.builder().set(MechanicsKeys.EFFECTS, reg).build());
+                MechanicsProfile.builder().set(MechanicsKeys.FX, reg).build());
     }
 
     // ARROW_CRIT is a positional particle, so the source itself receives it
@@ -55,22 +55,22 @@ class EffectsTest extends HeadlessServerTest {
 
     @Test
     void registryIsCopyOnWriteAndOverrides() {
-        Effect a = ctx -> {};
-        Effect b = ctx -> {};
-        EffectRegistry reg = EffectRegistry.empty().register(Effects.CRIT, a);
-        assertSame(a, reg.get(Effects.CRIT));
-        assertNull(reg.get(Effects.BURP), "an unregistered key resolves to null");
-        EffectRegistry reg2 = reg.register(Effects.CRIT, b);
-        assertSame(a, reg.get(Effects.CRIT), "the original registry is unchanged (copy-on-write)");
-        assertSame(b, reg2.get(Effects.CRIT), "the copy carries the override");
+        FxHandler a = ctx -> {};
+        FxHandler b = ctx -> {};
+        FxRegistry reg = FxRegistry.empty().register(Fx.CRIT, a);
+        assertSame(a, reg.get(Fx.CRIT));
+        assertNull(reg.get(Fx.BURP), "an unregistered key resolves to null");
+        FxRegistry reg2 = reg.register(Fx.CRIT, b);
+        assertSame(a, reg.get(Fx.CRIT), "the original registry is unchanged (copy-on-write)");
+        assertSame(b, reg2.get(Fx.CRIT), "the copy carries the override");
     }
 
     @Test
     void playResolvesTheScopeRegistryAndReachesTheAudience() {
-        useRegistry(Effects.vanilla18());
+        useRegistry(Fx.vanilla18());
         FakePlayer p = FakePlayer.connect(instance, new Pos(5.5, 65, 5.5), "FxP");
         try {
-            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(p.player));
+            Fx.play(services, Fx.ARROW_CRIT, FxContext.of(p.player));
             assertEquals(1, arrowCrits(p), "the registered particle reaches the scope audience");
         } finally {
             p.player.remove();
@@ -81,10 +81,10 @@ class EffectsTest extends HeadlessServerTest {
     void noRegistryOrUnregisteredKeyIsANoOp() {
         FakePlayer p = FakePlayer.connect(instance, new Pos(6.5, 65, 6.5), "FxP2");
         try {
-            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(p.player));
+            Fx.play(services, Fx.ARROW_CRIT, FxContext.of(p.player));
             assertEquals(0, arrowCrits(p), "no scope registry -> nothing plays");
-            useRegistry(EffectRegistry.empty());
-            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(p.player));
+            useRegistry(FxRegistry.empty());
+            Fx.play(services, Fx.ARROW_CRIT, FxContext.of(p.player));
             assertEquals(0, arrowCrits(p), "an unregistered key -> nothing plays");
         } finally {
             p.player.remove();
@@ -93,10 +93,10 @@ class EffectsTest extends HeadlessServerTest {
 
     @Test
     void perKeyNoneSilencesOneEffect() {
-        useRegistry(Effects.vanilla18().register(Effects.ARROW_CRIT, Effect.NONE));
+        useRegistry(Fx.vanilla18().register(Fx.ARROW_CRIT, FxHandler.NONE));
         FakePlayer p = FakePlayer.connect(instance, new Pos(7.5, 65, 7.5), "FxP3");
         try {
-            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(p.player));
+            Fx.play(services, Fx.ARROW_CRIT, FxContext.of(p.player));
             assertEquals(0, arrowCrits(p), "a key registered as NONE plays nothing");
         } finally {
             p.player.remove();
@@ -105,25 +105,25 @@ class EffectsTest extends HeadlessServerTest {
 
     @Test
     void eventCancelsAndSwaps() {
-        useRegistry(Effects.vanilla18());
+        useRegistry(Fx.vanilla18());
         FakePlayer a = FakePlayer.connect(instance, new Pos(8.5, 65, 8.5), "FxP4");
-        EventListener<EffectEvent> canceller = EventListener.of(EffectEvent.class, EffectEvent::cancel);
+        EventListener<FxEvent> canceller = EventListener.of(FxEvent.class, FxEvent::cancel);
         MinecraftServer.getGlobalEventHandler().addListener(canceller);
         try {
-            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(a.player));
+            Fx.play(services, Fx.ARROW_CRIT, FxContext.of(a.player));
             assertEquals(0, arrowCrits(a), "a listener cancelled the effect");
         } finally {
             MinecraftServer.getGlobalEventHandler().removeListener(canceller);
             a.player.remove();
         }
 
-        useRegistry(Effects.vanilla18().register(Effects.ARROW_CRIT, Effect.NONE));
+        useRegistry(Fx.vanilla18().register(Fx.ARROW_CRIT, FxHandler.NONE));
         FakePlayer b = FakePlayer.connect(instance, new Pos(9.5, 65, 9.5), "FxP5");
-        EventListener<EffectEvent> swapper = EventListener.of(EffectEvent.class,
-                e -> e.effect(Effect.particle(Particle.CRIT, 1, 0.0, 0f)));
+        EventListener<FxEvent> swapper = EventListener.of(FxEvent.class,
+                e -> e.fx(FxHandler.particle(Particle.CRIT, 1, 0.0, 0f)));
         MinecraftServer.getGlobalEventHandler().addListener(swapper);
         try {
-            Effects.play(services, Effects.ARROW_CRIT, EffectContext.of(b.player));
+            Fx.play(services, Fx.ARROW_CRIT, FxContext.of(b.player));
             assertTrue(arrowCrits(b) >= 1, "...but a listener swapped a real effect back in");
         } finally {
             MinecraftServer.getGlobalEventHandler().removeListener(swapper);
@@ -133,11 +133,11 @@ class EffectsTest extends HeadlessServerTest {
 
     @Test
     void critAnimationExcludesTheAttacker() {
-        useRegistry(Effects.vanilla18());
+        useRegistry(Fx.vanilla18());
         FakePlayer attacker = FakePlayer.connect(instance, new Pos(10.5, 65, 10.5), "Critter");
         LivingEntity victim = zombie(new Pos(11.5, 65, 10.5));
         try {
-            Effects.play(services, Effects.CRIT, EffectContext.of(attacker.player, victim));
+            Fx.play(services, Fx.CRIT, FxContext.of(attacker.player, victim));
             // the 1.8 client predicts its own crit locally
             assertEquals(0, critAnims(attacker), "the crit is not sent to the attacker itself");
         } finally {
@@ -148,12 +148,12 @@ class EffectsTest extends HeadlessServerTest {
 
     @Test
     void eatChewIsViewersOnlyOn18() {
-        useRegistry(Effects.vanilla18());
+        useRegistry(Fx.vanilla18());
         FakePlayer eater = FakePlayer.connect(instance, new Pos(5.5, 65, 5.5), "Eater");
         FakePlayer viewer = FakePlayer.connect(instance, new Pos(7.5, 65, 5.5), "Viewer");
         try {
             assertTrue(eater.player.getViewers().contains(viewer.player), "a nearby player tracks the eater");
-            Effects.play(services, Effects.EAT, EffectContext.of(eater.player));
+            Fx.play(services, Fx.EAT, FxContext.of(eater.player));
             // the client self-predicts its chew from the eating metadata
             assertEquals(0, eatSounds(eater), "the eater self-predicts, so gets no server chew");
             assertEquals(1, eatSounds(viewer), "a nearby viewer hears the chew");
@@ -165,12 +165,12 @@ class EffectsTest extends HeadlessServerTest {
 
     @Test
     void eatChewIsViewersOnlyOnModern() {
-        useRegistry(Effects.modern());
+        useRegistry(Fx.modern());
         FakePlayer eater = FakePlayer.connect(instance, new Pos(5.5, 65, 5.5), "MEater");
         FakePlayer viewer = FakePlayer.connect(instance, new Pos(7.5, 65, 5.5), "MViewer");
         try {
             assertTrue(eater.player.getViewers().contains(viewer.player), "a nearby player tracks the eater");
-            Effects.play(services, Effects.EAT, EffectContext.of(eater.player));
+            Fx.play(services, Fx.EAT, FxContext.of(eater.player));
             assertEquals(0, eatSounds(eater), "the modern eater gets no server chew (no double)");
             assertEquals(1, eatSounds(viewer), "a nearby viewer hears the chew");
         } finally {
@@ -181,20 +181,20 @@ class EffectsTest extends HeadlessServerTest {
 
     @Test
     void everyLaunchAndHitSoundIsRegisteredInBothPresets() {
-        List<Key> keys = List.of(Effects.THROW_SNOWBALL, Effects.THROW_EGG, Effects.THROW_PEARL, Effects.THROW_FIREBALL,
-                Effects.BOW_SHOOT, Effects.ROD_CAST, Effects.ROD_RETRIEVE, Effects.ARROW_HIT);
-        for (EffectRegistry reg : List.of(Effects.vanilla18(), Effects.modern()))
+        List<Key> keys = List.of(Fx.THROW_SNOWBALL, Fx.THROW_EGG, Fx.THROW_PEARL, Fx.THROW_FIREBALL,
+                Fx.BOW_SHOOT, Fx.ROD_CAST, Fx.ROD_RETRIEVE, Fx.ARROW_HIT);
+        for (FxRegistry reg : List.of(Fx.vanilla18(), Fx.modern()))
             for (Key k : keys) assertNotNull(reg.get(k), k + " is registered");
     }
 
     @Test
     void throwSoundReachesEveryoneIncludingTheThrower() {
-        useRegistry(Effects.vanilla18());
+        useRegistry(Fx.vanilla18());
         FakePlayer thrower = FakePlayer.connect(instance, new Pos(5.5, 65, 5.5), "Thrower");
         FakePlayer viewer = FakePlayer.connect(instance, new Pos(7.5, 65, 5.5), "TViewer");
         try {
             assertTrue(thrower.player.getViewers().contains(viewer.player), "a nearby player tracks the thrower");
-            Effects.play(services, Effects.THROW_SNOWBALL, EffectContext.of(thrower.player));
+            Fx.play(services, Fx.THROW_SNOWBALL, FxContext.of(thrower.player));
             // 1.8 does NOT self-predict the throw (unlike the chew)
             assertEquals(1, sounds(thrower, SoundEvent.ENTITY_SNOWBALL_THROW), "the thrower hears its own throw");
             assertEquals(1, sounds(viewer, SoundEvent.ENTITY_SNOWBALL_THROW), "a nearby viewer hears the throw");
@@ -209,12 +209,12 @@ class EffectsTest extends HeadlessServerTest {
         FakePlayer shooter = FakePlayer.connect(instance, new Pos(5.5, 65, 5.5), "Shooter");
         FakePlayer bystander = FakePlayer.connect(instance, new Pos(7.5, 65, 5.5), "Bystander");
         try {
-            useRegistry(Effects.vanilla18());
-            Effects.play(services, Effects.ARROW_HIT_PLAYER, EffectContext.of(shooter.player, bystander.player));
+            useRegistry(Fx.vanilla18());
+            Fx.play(services, Fx.ARROW_HIT_PLAYER, FxContext.of(shooter.player, bystander.player));
             assertEquals(0, sounds(shooter, SoundEvent.ENTITY_ARROW_HIT_PLAYER), "vanilla does not ding");
 
-            useRegistry(Effects.vanilla18().register(Effects.ARROW_HIT_PLAYER, Effects.arrowHitMarker()));
-            Effects.play(services, Effects.ARROW_HIT_PLAYER, EffectContext.of(shooter.player, bystander.player));
+            useRegistry(Fx.vanilla18().register(Fx.ARROW_HIT_PLAYER, Fx.arrowHitMarker()));
+            Fx.play(services, Fx.ARROW_HIT_PLAYER, FxContext.of(shooter.player, bystander.player));
             assertEquals(1, sounds(shooter, SoundEvent.ENTITY_ARROW_HIT_PLAYER), "the shooter hears the ding");
             assertEquals(0, sounds(bystander, SoundEvent.ENTITY_ARROW_HIT_PLAYER), "only the shooter, not a bystander");
         } finally {

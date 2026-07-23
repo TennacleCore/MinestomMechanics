@@ -12,7 +12,7 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import org.junit.jupiter.api.Test;
 import io.github.term4.minestommechanics.presets.mmc18.Explosion;
-import io.github.term4.minestommechanics.presets.PrimedTnt;
+import io.github.term4.minestommechanics.entity.PrimedTnt;
 import io.github.term4.minestommechanics.presets.mmc18.Tnt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,7 +29,7 @@ class Mmc18FireballTntPushTest extends HeadlessServerTest {
 
     @Test
     void fireballStyleBlastPushesTntPureRadialAtFullScale() {
-        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.fireballFight()); // the toBuilder-round-tripped config
+        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.fireballFight().toBuilder().blockBreaking(null).build()); // push test on the shared instance: no terrain edits // the toBuilder-round-tripped config
         PrimedTnt victim = Tnt.spawn(explosions, instance, new BlockVec(8, 64, 8)); // mid-chunk: the -x sail must clear the x=0 unloaded-chunk wall
         victim.setVelocity(new Vec(0, 0.2, 0).mul(20));
         for (int i = 0; i < 25; i++) victim.tick(0);

@@ -38,9 +38,7 @@ class BlockBreakProgressTest extends HeadlessServerTest {
 
     @BeforeAll
     static void setUp() {
-        EventNode<@NotNull Event> node = EventNode.all("test:block-break-progress");
-        BlockBreakProgress.install(node);
-        MinecraftServer.getGlobalEventHandler().addChild(node);
+        Vri.install(mm, VriConfig.builder().blockBreakProgress(true).build());
         miner = FakePlayer.connect(instance, new Pos(0.5, 64, 0.5), "Miner");
         viewer = FakePlayer.connect(instance, new Pos(5.5, 64, 5.5), "Viewer");
     }

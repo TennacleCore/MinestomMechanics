@@ -44,9 +44,11 @@ public final class ExplosionConfigResolver {
                 FieldValue.resolve(cfg != null ? cfg.exposure : null, ctx, ExplosionExposure.Rays.MODERN),
                 FieldValue.resolve(cfg != null ? cfg.knockbackImpactFloor : null, ctx),
                 FieldValue.resolve(cfg != null ? cfg.fire : null, ctx, false),
+                cfg != null && cfg.fireScope != null ? cfg.fireScope : ExplosionConfig.FireScope.SELECTED,
                 FieldValue.resolve(cfg != null ? cfg.affectsSource : null, ctx, false),
                 cfg != null ? cfg.knockbackTargets : null,
-                cfg != null ? cfg.pushEye : null);
+                cfg != null ? cfg.pushEye : null,
+                cfg != null ? cfg.blockBreaking : null);
     }
 
     /** Resolved explosion knobs. {@code power} is {@code null} when neither the call nor the config set one (the system defaults it). */
@@ -67,8 +69,10 @@ public final class ExplosionConfigResolver {
             ExplosionExposure.Rays exposure,
             @Nullable Double knockbackImpactFloor,
             boolean fire,
+            ExplosionConfig.FireScope fireScope,
             boolean affectsSource,
             @Nullable Predicate<Entity> knockbackTargets,
-            @Nullable Function<Entity, Double> pushEye
+            @Nullable Function<Entity, Double> pushEye,
+            @Nullable BlockBreaking blockBreaking
     ) {}
 }
