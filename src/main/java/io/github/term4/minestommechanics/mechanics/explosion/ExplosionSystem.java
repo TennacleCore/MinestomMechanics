@@ -232,8 +232,7 @@ public final class ExplosionSystem implements MechanicsModule {
                                       Map<Player, Vec> packetPush, List<Runnable> velocitySends) {
         if (knockback != null && resolved.baseKnockback() > 0.0) {
             // Hypixel: radial base (toward feet+baseHeight) + push as one velocity; the explosion packet stays motion-less
-            Vec base = radialBase(player.getPosition(), center, resolved.baseKnockback(), resolved.baseHeight(),
-                    resolved.baseHorizontalScale(), resolved.baseDownwardScale());
+            Vec base = radialBase(player.getPosition(), center, resolved.baseKnockback(), resolved.baseHeight(), resolved.baseScale());
             Vec velocity = perSecond(push != null ? base.add(push) : base);
             velocitySends.add(() -> knockback.deliver(player, velocity));
         } else if (push != null) {
@@ -261,14 +260,11 @@ public final class ExplosionSystem implements MechanicsModule {
         return (rule != null ? rule : VelocityRule.DEFAULT).estimate(VelocityContext.of(entity, services.sprintTracker()));
     }
 
-    /** Radial base toward {@code height} above {@code position} (the entity's feet), ×{@code magnitude}: 1 up, {@code horizontalScale} sideways, {@code downwardScale} down. */
-    private static Vec radialBase(Point position, Point center, double magnitude, double height,
-                                  double horizontalScale, double downwardScale) {
+    /** Radial base toward {@code height} above {@code position} (the entity's feet), ×{@code magnitude}, per-axis-shaped by {@code scale}. */
+    private static Vec radialBase(Point position, Point center, double magnitude, double height, RadialScale scale) {
         Point body = position.add(0, height, 0);
         Vec u = Directions.unit3D(body.x() - center.x(), body.y() - center.y(), body.z() - center.z(), 1.0e-7);
-        if (u == null) return Vec.ZERO;
-        double horizontal = horizontalScale * magnitude, vertical = (u.y() >= 0 ? magnitude : downwardScale * magnitude);
-        return new Vec(horizontal * u.x(), vertical * u.y(), horizontal * u.z());
+        return u == null ? Vec.ZERO : scale.apply(magnitude, u);
     }
 
     private void applyDamage(@Nullable Entity source, Point center, List<ExplosionEvent.Target> targets, @Nullable Bypass bypass) {

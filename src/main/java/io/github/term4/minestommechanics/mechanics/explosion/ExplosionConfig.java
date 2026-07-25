@@ -50,14 +50,12 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
     public final @Nullable KnockbackConfig damageKnockback;
     /** Client-applied push on the explosion packet when the velocity path doesn't fire (default, vanilla); false = velocity-only, blocked hits get nothing (MineMen sends an all-zero packet). */
     public final FieldValue<ExplosionContext, Boolean> packetPush;
-    /** Radial base magnitude, toward {@link #baseHeight} above the feet ({@link #baseHorizontalScale}/{@link #baseDownwardScale} shape the other axes). 0 = use {@link #damageKnockback}. */
+    /** Radial base magnitude, toward {@link #baseHeight} above the feet ({@link #baseScale} shapes the axes). 0 = use {@link #damageKnockback}. */
     public final FieldValue<ExplosionContext, Double> baseKnockback;
     /** Height above the feet the radial {@link #baseKnockback} aims at; default 1.0. */
     public final FieldValue<ExplosionContext, Double> baseHeight;
-    /** Sideways (X/Z) component as a multiple of {@link #baseKnockback}; 1.0 = isotropic (Hypixel 0.8). */
-    public final FieldValue<ExplosionContext, Double> baseHorizontalScale;
-    /** Downward (-Y) component as a multiple of {@link #baseKnockback}; 1.0 = isotropic (Hypixel 0.4). */
-    public final FieldValue<ExplosionContext, Double> baseDownwardScale;
+    /** Per-direction scaling of the base; {@code null} = isotropic. */
+    public final @Nullable RadialScale baseScale;
     /** Line-of-sight exposure rays (default {@code MODERN}); 1.8 rays differ at block-edge shadows, {@code NONE} = full exposure. */
     public final FieldValue<ExplosionContext, ExplosionExposure.Rays> exposure;
     /** Hypixel KB gate: below this falloff {@link ExplosionCalculator#impact impact}, no explosion KB (only the projectile KB). {@code null} = no gate; Hypixel ≈ 0.435. */
@@ -87,8 +85,7 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
         packetPush = b.packetPush;
         baseKnockback = b.baseKnockback;
         baseHeight = b.baseHeight;
-        baseHorizontalScale = b.baseHorizontalScale;
-        baseDownwardScale = b.baseDownwardScale;
+        baseScale = b.baseScale;
         exposure = b.exposure;
         knockbackImpactFloor = b.knockbackImpactFloor;
         fire = b.fire;
@@ -106,6 +103,7 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
                 .subConfig(subConfig != null ? subConfig : base.subConfig)
                 .damageBypass(damageBypass != null ? damageBypass : base.damageBypass)
                 .blockBreaking(blockBreaking != null ? blockBreaking : base.blockBreaking)
+                .baseScale(baseScale != null ? baseScale : base.baseScale)
                 .fireScope(fireScope != null ? fireScope : base.fireScope)
                 .damageKnockback(damageKnockback != null ? damageKnockback : base.damageKnockback)
                 .knockbackTargets(knockbackTargets != null ? knockbackTargets : base.knockbackTargets)
@@ -127,6 +125,7 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
         private Function<ExplosionContext, ExplosionConfig> subConfig;
         private Bypass damageBypass;
         private BlockBreaking blockBreaking;
+        private RadialScale baseScale;
         private FireScope fireScope;
         private KnockbackConfig damageKnockback;
         private Predicate<Entity> knockbackTargets;
@@ -139,6 +138,7 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
             subConfig = c.subConfig;
             damageBypass = c.damageBypass;
             blockBreaking = c.blockBreaking;
+            baseScale = c.baseScale;
             fireScope = c.fireScope;
             damageKnockback = c.damageKnockback;
             knockbackTargets = c.knockbackTargets;
@@ -148,6 +148,7 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
         public Builder subConfig(Function<ExplosionContext, ExplosionConfig> fn) { subConfig = fn; return this; }
         public Builder damageBypass(Bypass v) { damageBypass = v; return this; }
         public Builder blockBreaking(BlockBreaking v) { blockBreaking = v; return this; }
+        public Builder baseScale(RadialScale v) { baseScale = v; return this; }
         public Builder fireScope(FireScope v) { fireScope = v; return this; }
         public Builder damageKnockback(KnockbackConfig v) { damageKnockback = v; return this; }
         public Builder knockbackTargets(Predicate<Entity> v) { knockbackTargets = v; return this; }

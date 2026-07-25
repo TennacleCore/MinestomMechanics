@@ -4,6 +4,7 @@ import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
 import io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
+import io.github.term4.minestommechanics.mechanics.explosion.RadialScale;
 import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
 import net.minestom.server.instance.block.Block;
 
@@ -12,7 +13,7 @@ import java.util.stream.Collectors;
 
 /**
  * Hypixel explosion: the 1.8 baseline ({@link io.github.term4.minestommechanics.presets.vanilla18.Explosion}) plus a
- * constant radial base toward {@code feet+1} (magnitude 0.8, isotropic up/sideways, 0.4× downward). Damage is a flat 2.0
+ * constant radial base toward {@code feet+1} (magnitude 0.8 up, 0.8× horizontal, 0.4× downward). Damage is a flat 2.0
  * (measured: fireball + TNT both deal 2.0 regardless of distance) that ignores armor POINTS but still respects
  * enchants/effects - not the 1.8 falloff curve. Constants fitted on 240+ KB captures.
  */
@@ -22,6 +23,8 @@ public final class Explosion {
 
     private static final double BASE = 0.8;
     private static final double BASE_DOWNWARD_SCALE = 0.4;
+    // capture: a block-ahead throw pushes back 0.64 horizontal (0.8× base), not the 0.8 the up-axis uses
+    private static final double BASE_HORIZONTAL_SCALE = 0.8;
     private static final double BASE_HEIGHT = 1.0;
     // weaker impacts deal no explosion KB - only the projectile KB lands
     private static final double KB_IMPACT_FLOOR = 0.435;
@@ -35,7 +38,8 @@ public final class Explosion {
     public static ExplosionConfig config() {
         ExplosionConfig base = Vanilla18.explosion();
         return ExplosionConfig.builder(base)
-                .baseKnockback(BASE).baseDownwardScale(BASE_DOWNWARD_SCALE).baseHeight(BASE_HEIGHT)
+                .baseKnockback(BASE).baseHeight(BASE_HEIGHT)
+                .baseScale(RadialScale.builder().down(BASE_DOWNWARD_SCALE).horizontal(BASE_HORIZONTAL_SCALE).build())
                 .knockbackImpactFloor(KB_IMPACT_FLOOR)
                 .flatDamage(FLAT_DAMAGE).damageBypass(Bypass.builder().armor(true).build())
                 .exposure(ExplosionExposure.Rays.LEGACY_1_8_FULL_CUBE) // Hypixel gates off-flat blasts (full-cube), unlike singleplayer 1.8

@@ -26,8 +26,8 @@ public final class Projectiles {
 
     // first-tick move: sets the point-blank yaw window (~53 deg) and the close-range block-break offset
     private static final double BW_LAUNCH = 0.5;
-    // wire cruise (0.1 -> 0.5 -> 1.045); only affects far-throw block-break, not the byte-fit KB below
-    private static final double BW_CRUISE = 1.0457;
+    // capture cruise: wire 8359 = 1.0449 (the ramp then rides the (v+0.1)*0.95 propulsion). Only affects flight/far-throw, not the byte-fit KB.
+    private static final double BW_CRUISE = 1.0449;
     // byte-forced at 2: a straight-down throw then detonates at feet+0.62 (1.62 - 0.5 - 0.5) = the exact 1.645 KB, while
     // tick 1 stays 0.5 for the window. A 1-tick hold lands feet+0.075 (1.781); the raw propulsion ramp feet+0.55 (1.6625).
     private static final int BW_LAUNCH_TICKS = 2;
