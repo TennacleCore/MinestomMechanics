@@ -395,8 +395,8 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
             rotationInitialized = true;
         }
 
-        // 26.1 applies drag/gravity before the move (1.8 after)
-        if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_BEFORE_MOVE) applyDragGravity(nativeStep);
+        // 26.1 applies drag/gravity before the move (1.8 after); a coasting projectile skips both (constant velocity)
+        if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_BEFORE_MOVE && !coasting()) applyDragGravity(nativeStep);
         PhysicsResult physics = world.sweepLoaded(collisionBox(), position, velocityBt, previousPhysicsResult, true);
         boolean blockContact = physics.hasCollision() && stickOnBlockContact();
         BoundingBox moveBox = moveBox();
@@ -460,7 +460,7 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
         }
 
         // 1.8 applies drag + gravity after the move (skip on the stick tick - velocity is already zeroed + frozen)
-        if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_AFTER_MOVE && !justBecameStuck) applyDragGravity(nativeStep);
+        if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_AFTER_MOVE && !justBecameStuck && !coasting()) applyDragGravity(nativeStep);
         this.onGround = physics.isOnGround();
         float yaw = prevYaw, pitch = prevPitch;
         if (justBecameStuck) {
@@ -570,6 +570,9 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     /** Block-contact response: {@code true} (default) = the frozen stuck state (arrow). {@code false} = halt in place
      *  this tick but stay live with velocity kept - the 1.8 bobber's contact, which damp-settles instead of freezing. */
     protected boolean freezeOnStick() { return true; }
+
+    /** True while the projectile flies at constant velocity (no drag, gravity or acceleration) - the fireball's launch coast. */
+    protected boolean coasting() { return false; }
 
     /** Box for the block-clipped move; default = {@link #collisionBox()}. The bobber's vanilla dual model: contact
      *  detection stays the point ray while the real 0.25 box clips the move. */

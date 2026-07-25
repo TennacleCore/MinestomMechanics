@@ -8,9 +8,7 @@ import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Pearl;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
-import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Point;
-import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.instance.Instance;
 
@@ -34,36 +32,22 @@ public final class Projectiles {
     // measured radius; vanilla ghast = 1
     private static final double BW_POWER = 2.0;
 
-    // stateful per launch: FireballEntity's built-in propulsion ramps the move every tick, so re-assert the launch speed
-    // through the hold, then snap to cruise. Detonation is a tick late so the direct projectile KB lands before the blast.
-    private static ProjectileBehavior bwFireball() {
-        return new ProjectileBehavior() {
-            private int moves;
-            @Override public void onTick(ManagedProjectile p, long time) {
-                if (++moves < BW_LAUNCH_TICKS) reaim(p, BW_LAUNCH);
-                else if (moves == BW_LAUNCH_TICKS) reaim(p, BW_CRUISE);
+    // detonate a tick late so the direct projectile KB lands before the blast; overrides FireballEntity's same-tick default
+    private static final ProjectileBehavior BW_FIREBALL_DETONATION = new ProjectileBehavior() {
+        @Override public void onImpact(ManagedProjectile p, Entity hit) {
+            if (p instanceof FireballEntity fb) {
+                Instance inst = fb.getInstance();
+                Point center = fb.getPosition();
+                if (inst != null) inst.scheduleNextTick(in -> fb.detonate(in, center, hit));
             }
-            @Override public void onImpact(ManagedProjectile p, Entity hit) {
-                if (p instanceof FireballEntity fb) {
-                    Instance inst = fb.getInstance();
-                    Point center = fb.getPosition();
-                    if (inst != null) inst.scheduleNextTick(in -> fb.detonate(in, center, hit));
-                }
-            }
-        };
-    }
-
-    // no gravity, so the flight direction is fixed: rescale the current velocity to speedBt (blocks/tick) along it
-    private static void reaim(ManagedProjectile p, double speedBt) {
-        Vec v = p.getVelocity();
-        if (v.lengthSquared() > 1.0e-12) p.setVelocity(v.normalize().mul(speedBt * ServerFlag.SERVER_TICKS_PER_SECOND));
-    }
+        }
+    };
 
     public static ProjectileConfig config() {
         ProjectileTypeConfig bwFireball = ProjectileTypeConfig.builder(Fireball.KEY)
                 .boundingBox(1, 1, 1) // EntityFireball.setSize(1,1): the box OTHERS hit to deflect it; its own detonation stays a point
                 .gravity(0.0).horizontalDrag(0.95).verticalDrag(0.95)
-                .speed(BW_LAUNCH)
+                .speed(BW_LAUNCH).coastTicks(BW_LAUNCH_TICKS).cruiseSpeed(BW_CRUISE)
                 .spread(0.0)
                 .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0) // at the eye
                 .leftOwnerImmunity(true)
@@ -72,10 +56,10 @@ public final class Projectiles {
                 .damage(0.0)
                 .explosionPower(BW_POWER)
                 .invulnHit(ProjectileTypeConfig.HitResponse.DESTROY)
-                .behavior(ctx -> bwFireball())
+                .behavior(BW_FIREBALL_DETONATION)
                 .build();
         ProjectileTypeConfig bwPearl = ProjectileTypeConfig.builder(Pearl.KEY)
-                .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0)
+                .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0) // at the eye
                 .boundingBox(0.1, 0.1, 0.1)
                 .spread(0.0)
                 .build();

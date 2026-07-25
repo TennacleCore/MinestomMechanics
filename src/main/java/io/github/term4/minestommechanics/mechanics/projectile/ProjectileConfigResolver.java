@@ -95,6 +95,8 @@ public final class ProjectileConfigResolver {
                 FieldValue.resolve(tc.stickPullback, ctx, 0.05), // vanilla 0.05 tip poke-out
                 FieldValue.resolve(tc.shakeTicks, ctx, 7), // vanilla arrow shake / pickup delay
                 FieldValue.resolve(tc.explosionPower, ctx, 1.0), // vanilla ghast fireball yield (Hypixel = 2.0); fireball-only
+                FieldValue.resolve(tc.coastTicks, ctx, 0), // fireball launch-coast ticks (0 = propel at once)
+                FieldValue.resolve(tc.cruiseSpeed, ctx, 0.0), // fireball ignition speed after the coast (0 = none)
                 FieldValue.resolve(tc.critChance, ctx, 1.0), // full-draw crit chance (vanilla = always); bow-only
                 FieldValue.resolve(tc.behavior, ctx, ProjectileBehavior.NONE),
                 FieldValue.resolve(tc.pickupBox, ctx)); // nullable: the entity keeps its vanilla default if unset
@@ -149,6 +151,8 @@ public final class ProjectileConfigResolver {
             double stickPullback,
             int shakeTicks,
             double explosionPower,
+            int coastTicks,
+            double cruiseSpeed,
             double critChance,
             ProjectileBehavior behavior,
             @Nullable ProjectileTypeConfig.PickupBox pickupBox

@@ -259,7 +259,10 @@ public final class ProjectileSystem implements MechanicsModule {
             arrow.setShakeTicks(flight.shakeTicks());
             if (flight.pickupBox() != null) arrow.setPickupBox(flight.pickupBox());
         }
-        if (entity instanceof FireballEntity fireball) fireball.setExplosionPower((float) flight.explosionPower());
+        if (entity instanceof FireballEntity fireball) {
+            fireball.setExplosionPower((float) flight.explosionPower());
+            fireball.setIgnition(flight.coastTicks(), flight.cruiseSpeed());
+        }
         // any projectile, not just bows - a preset may put Power/Punch/Flame on other launch items
         entity.setProjectileEnchants(Enchants.level(snap.item(), Power.KEY), Enchants.level(snap.item(), Punch.KEY), Enchants.level(snap.item(), Flame.KEY));
     }

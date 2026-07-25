@@ -159,6 +159,10 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
     public final @Nullable FieldValue<ProjectileContext, Integer> shakeTicks;
     /** Explosion power on detonation (fireball-only); vanilla ghast {@code 1.0}, Hypixel {@code 2.0}. */
     public final @Nullable FieldValue<ProjectileContext, Double> explosionPower;
+    /** Moving ticks a fireball coasts at its launch speed before igniting; {@code 0} (default) = propel at once. Fireball-only. */
+    public final @Nullable FieldValue<ProjectileContext, Integer> coastTicks;
+    /** Speed a fireball snaps to when the {@link #coastTicks} coast ends; {@code 0} = none. Fireball-only. */
+    public final @Nullable FieldValue<ProjectileContext, Double> cruiseSpeed;
     /** Full-draw crit chance the bow rolls ({@code [0,1]}); vanilla {@code 1.0} = always. Arrow-launcher knob. */
     public final @Nullable FieldValue<ProjectileContext, Double> critChance;
     /** Fall damage dealt to a player shooter when the ender pearl lands (vanilla {@code 5}); {@code 0} = none. Ender-pearl only. */
@@ -236,6 +240,8 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
         stickPullback = b.stickPullback;
         shakeTicks = b.shakeTicks;
         explosionPower = b.explosionPower;
+        coastTicks = b.coastTicks;
+        cruiseSpeed = b.cruiseSpeed;
         critChance = b.critChance;
         teleportDamage = b.teleportDamage;
         behavior = b.behavior;

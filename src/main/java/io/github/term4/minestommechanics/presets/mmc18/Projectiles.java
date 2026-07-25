@@ -1,9 +1,6 @@
 package io.github.term4.minestommechanics.presets.mmc18;
 
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileBehavior;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
-import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
-import io.github.term4.minestommechanics.mechanics.projectile.entities.ManagedProjectile;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Arrow;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Egg;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
@@ -13,10 +10,6 @@ import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTy
 import io.github.term4.minestommechanics.mechanics.projectile.types.Snowball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.SplashPotion;
 import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
-import net.minestom.server.ServerFlag;
-import net.minestom.server.coordinate.Vec;
-import net.minestom.server.entity.Entity;
-import net.minestom.server.instance.Instance;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -41,25 +34,12 @@ public final class Projectiles {
     // vanilla EntityLargeFireball 6.0, unchanged in the FBF captures
     private static final double CONTACT_DAMAGE = 6.0;
 
-    // onSpawn fires post-move, so this snaps to cruise after the first move; onImpact detonates same-tick because a
-    // behavior takes FireballEntity's bare same-tick detonate away
-    private static final ProjectileBehavior MINEMEN_FLIGHT = new ProjectileBehavior() {
-        @Override public void onSpawn(ManagedProjectile p) {
-            Vec v = p.getVelocity();
-            if (v.lengthSquared() > 1.0e-12) p.setVelocity(v.normalize().mul(CRUISE * ServerFlag.SERVER_TICKS_PER_SECOND));
-        }
-        @Override public void onImpact(ManagedProjectile p, Entity hit) {
-            Instance instance = p.getInstance();
-            if (p instanceof FireballEntity fb && instance != null) fb.detonate(instance, fb.getPosition(), hit);
-        }
-    };
-
     public static ProjectileConfig config() {
         ProjectileConfig base = Vanilla18.projectiles();
         ProjectileTypeConfig fireball = ProjectileTypeConfig.builder(Fireball.KEY)
                 .boundingBox(1, 1, 1)
                 .gravity(0.0).horizontalDrag(0.95).verticalDrag(0.95)
-                .speed(LAUNCH).spread(0.0)
+                .speed(LAUNCH).coastTicks(1).cruiseSpeed(CRUISE).spread(0.0) // coast one tick at launch, then ignite to cruise
                 .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0)
                 .leftOwnerImmunity(true)
                 .syncInterval(10).velocitySyncInterval(1)
@@ -69,8 +49,7 @@ public final class Projectiles {
                 .knockbackSource(ProjectileTypeConfig.KnockbackSource.PROJECTILE)
                 .explosionPower(POWER)
                 .invulnHit(ProjectileTypeConfig.HitResponse.DESTROY)
-                .behavior(MINEMEN_FLIGHT)
-                .build();
+                .build(); // no behavior: the bare fireball detonates same-tick at its pre-move centre
         // capture 2026-07-06: 0.55 (not 0.5), no spread, silent flight (spawn + velocity dup only)
         ProjectileTypeConfig splash = ProjectileTypeConfig.builder(base.typeConfig(SplashPotion.KEY))
                 .speed(0.55).spread(0.0)

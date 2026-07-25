@@ -32,8 +32,13 @@ public class FireballEntity extends ManagedProjectile {
 
     /** Vanilla ghast {@code yield = 1}; Hypixel 2. */
     private float explosionPower = 1.0f;
-    /** Latches {@link #SELF_PROPULSION} on the first moving tick. */
+    /** Latches {@link #SELF_PROPULSION} once propulsion begins (after any coast). */
     private boolean propelled;
+    /** Moving ticks to coast at the launch velocity before igniting; {@code 0} = propel immediately (vanilla). */
+    private int coastTicks;
+    /** Speed the ignition snaps to when the coast ends; {@code 0} = keep coasting into pure propulsion. */
+    private double cruiseSpeed;
+    private int moves;
 
     public FireballEntity(@Nullable Entity shooter, @NotNull EntityType entityType,
                           ProjectileSnapshot snap, ProjectileTypeConfig effectiveConfig) {
@@ -41,6 +46,15 @@ public class FireballEntity extends ManagedProjectile {
     }
 
     public void setExplosionPower(float power) { this.explosionPower = power; }
+
+    /** Coast at the launch velocity for {@code coastTicks} moving ticks, then snap to {@code cruiseSpeed} and start propulsion (Hypixel/MineMen fireball flight). */
+    public void setIgnition(int coastTicks, double cruiseSpeed) {
+        this.coastTicks = coastTicks;
+        this.cruiseSpeed = cruiseSpeed;
+    }
+
+    @Override
+    protected boolean coasting() { return moves < coastTicks; }
 
     @Override
     protected boolean collidableTarget() { return true; } // vanilla fireball ad()=true: projectiles/attacks can hit + deflect it
@@ -64,11 +78,18 @@ public class FireballEntity extends ManagedProjectile {
 
     @Override
     protected void movementTick() {
-        if (!propelled && velocityBt().lengthSquared() > 1.0e-9) {
+        // propulsion latches only once flying under power (post-coast); coast() skips drag/accel so the hold stays exactly at launch speed
+        if (!propelled && !coasting() && velocityBt().lengthSquared() > 1.0e-9) {
             setAcceleration(velocityBt().normalize().mul(SELF_PROPULSION));
             propelled = true;
         }
+        boolean wasCoasting = coasting();
         super.movementTick();
+        if (isStuck() || isRemoved()) return;
+        if (wasCoasting && ++moves == coastTicks && cruiseSpeed > 0.0) {
+            Vec v = velocityBt();
+            if (v.lengthSquared() > 1.0e-12) setVelocityBt(v.normalize().mul(cruiseSpeed));
+        }
     }
 
     @Override
