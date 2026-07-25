@@ -8,34 +8,56 @@ import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.Pearl;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
+import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Point;
+import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.instance.Instance;
 
 /**
  * Hypixel projectiles: the 1.8 throwables/bow ({@link io.github.term4.minestommechanics.presets.vanilla18.Projectiles})
- * plus the measured BedWars fireball ({@code bwFireball}: a {@code FIRE_CHARGE} self-propelled, no gravity, detonates on
- * contact at power 2). Only the fireball is BedWars-measured; the rest are inherited.
+ * plus the measured BedWars fireball ({@code bwFireball}: a {@code FIRE_CHARGE}, no gravity, power 2, detonating a POINT
+ * on contact). It coasts at {@link #BW_LAUNCH} for {@link #BW_LAUNCH_TICKS} ticks then snaps to {@link #BW_CRUISE} - the
+ * one profile that byte-fits BOTH the straight-down 1.645 KB and the ~53&deg; point-blank window.
  */
 public final class Projectiles {
 
     private Projectiles() {}
 
-    // measured b/t; the 0.1/tick self-propulsion is the entity's
-    private static final double BW_LAUNCH = 1.0;
+    // first-tick move: sets the point-blank yaw window (~53 deg) and the close-range block-break offset
+    private static final double BW_LAUNCH = 0.5;
+    // wire cruise (0.1 -> 0.5 -> 1.045); only affects far-throw block-break, not the byte-fit KB below
+    private static final double BW_CRUISE = 1.0457;
+    // byte-forced at 2: a straight-down throw then detonates at feet+0.62 (1.62 - 0.5 - 0.5) = the exact 1.645 KB, while
+    // tick 1 stays 0.5 for the window. A 1-tick hold lands feet+0.075 (1.781); the raw propulsion ramp feet+0.55 (1.6625).
+    private static final int BW_LAUNCH_TICKS = 2;
     // measured radius; vanilla ghast = 1
     private static final double BW_POWER = 2.0;
 
-    // detonate one tick late so the direct projectile KB lands before the blast; overrides FireballEntity's same-tick default
-    private static final ProjectileBehavior BW_FIREBALL_DETONATION = new ProjectileBehavior() {
-        @Override public void onImpact(ManagedProjectile p, Entity hit) {
-            if (p instanceof FireballEntity fb) {
-                Instance inst = fb.getInstance();
-                Point center = fb.getPosition();
-                if (inst != null) inst.scheduleNextTick(in -> fb.detonate(in, center, hit));
+    // stateful per launch: FireballEntity's built-in propulsion ramps the move every tick, so re-assert the launch speed
+    // through the hold, then snap to cruise. Detonation is a tick late so the direct projectile KB lands before the blast.
+    private static ProjectileBehavior bwFireball() {
+        return new ProjectileBehavior() {
+            private int moves;
+            @Override public void onTick(ManagedProjectile p, long time) {
+                if (++moves < BW_LAUNCH_TICKS) reaim(p, BW_LAUNCH);
+                else if (moves == BW_LAUNCH_TICKS) reaim(p, BW_CRUISE);
             }
-        }
-    };
+            @Override public void onImpact(ManagedProjectile p, Entity hit) {
+                if (p instanceof FireballEntity fb) {
+                    Instance inst = fb.getInstance();
+                    Point center = fb.getPosition();
+                    if (inst != null) inst.scheduleNextTick(in -> fb.detonate(in, center, hit));
+                }
+            }
+        };
+    }
+
+    // no gravity, so the flight direction is fixed: rescale the current velocity to speedBt (blocks/tick) along it
+    private static void reaim(ManagedProjectile p, double speedBt) {
+        Vec v = p.getVelocity();
+        if (v.lengthSquared() > 1.0e-12) p.setVelocity(v.normalize().mul(speedBt * ServerFlag.SERVER_TICKS_PER_SECOND));
+    }
 
     public static ProjectileConfig config() {
         ProjectileTypeConfig bwFireball = ProjectileTypeConfig.builder(Fireball.KEY)
@@ -50,7 +72,7 @@ public final class Projectiles {
                 .damage(0.0)
                 .explosionPower(BW_POWER)
                 .invulnHit(ProjectileTypeConfig.HitResponse.DESTROY)
-                .behavior(BW_FIREBALL_DETONATION)
+                .behavior(ctx -> bwFireball())
                 .build();
         ProjectileTypeConfig bwPearl = ProjectileTypeConfig.builder(Pearl.KEY)
                 .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0)

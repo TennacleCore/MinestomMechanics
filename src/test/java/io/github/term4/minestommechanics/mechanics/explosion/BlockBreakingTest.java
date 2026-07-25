@@ -72,6 +72,141 @@ class BlockBreakingTest extends HeadlessServerTest {
         assertEquals(25, remaining(hard, Block.OBSIDIAN), "obsidian (1200) outlasts it entirely");
     }
 
+    private static long remainingUnder(Instance inst, Block block) {
+        long n = 0;
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                if (inst.getBlock(CENTER.blockX() + dx, CENTER.blockY() - 1, CENTER.blockZ() + dz).compare(block)) n++;
+        return n;
+    }
+
+    private static void plateUnder(Instance inst, Block block) {
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                inst.setBlock(CENTER.blockX() + dx, CENTER.blockY() - 1, CENTER.blockZ() + dz, block);
+    }
+
+    /**
+     * Hypixel blast-proofs glass (measured): it never breaks and, under OCCLUSION, SHADOWS what is behind it. The
+     * shadow is a break veto plus a centre-line test, NOT ray-blocking - vanilla18 (ordinary glass) eats straight through.
+     */
+    @Test
+    void hypixelGlassSurvivesAndShadowsWhatIsBehindIt() {
+        Instance shielded = world();
+        fill(shielded, Block.GLASS);
+        plateUnder(shielded, Block.DIRT);
+        detonate(new ExplosionSystem(mm, io.github.term4.minestommechanics.presets.hypixel.Explosion.config()), shielded, 4.0f);
+        assertEquals(25, remaining(shielded, Block.GLASS), "glass is blast-proof on Hypixel");
+        assertEquals(25, remainingUnder(shielded, Block.DIRT), "and shadows the dirt behind it");
+
+        Instance vanilla = world();
+        fill(vanilla, Block.GLASS);
+        plateUnder(vanilla, Block.DIRT);
+        detonate(new ExplosionSystem(mm, Vanilla18.explosion()), vanilla, 4.0f);
+        assertEquals(0, remaining(vanilla, Block.GLASS), "vanilla glass (0.3) is ordinary");
+        assertTrue(remainingUnder(vanilla, Block.DIRT) < 25, "and the blast reaches the dirt through it");
+    }
+
+    /** Dirt at CENTER boxed on all 6 faces by {@code shell}, TNT fired from the diagonal corner. Returns whether the
+     *  dirt survived. Only OCCLUSION over a shadow-casting shell (glass) spares it; without occlusion the ray reaches
+     *  the dirt anyway - through the passable glass, or tunnelling an obsidian corner. */
+    private static boolean boxedSurvives(Block shell, BlockBreaking.Shielding mode) {
+        Instance inst = world();
+        inst.setBlock(CENTER, Block.DIRT);
+        for (int[] d : new int[][]{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}) {
+            inst.setBlock(CENTER.blockX() + d[0], CENTER.blockY() + d[1], CENTER.blockZ() + d[2], shell);
+        }
+        system(BlockBreaking.builder().model(BlockBreaking.Model.RAY_1_8).neverBreaks(Set.of(Block.GLASS))
+                .shielding(mode).interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS).build())
+                .explode(inst, new Pos(CENTER.blockX() + 1.5, CENTER.blockY() + 1.5, CENTER.blockZ() + 1.5), 4.0f);
+        return inst.getBlock(CENTER).compare(Block.DIRT);
+    }
+
+    /**
+     * The capture-measured Hypixel case: only {@link BlockBreaking.Shielding#OCCLUSION}'s hard shadow saves the boxed
+     * dirt. Without it the ray reaches the dirt regardless - through the passable glass, or tunnelling an obsidian corner.
+     */
+    @Test
+    void occlusionShadowSavesTheBoxedDirtButVanillaTunnelsIn() {
+        assertTrue(boxedSurvives(Block.GLASS, BlockBreaking.Shielding.OCCLUSION), "the centre->dirt line crosses glass, so it is shadowed");
+        assertFalse(boxedSurvives(Block.GLASS, BlockBreaking.Shielding.NONE), "without occlusion the ray passes through the glass: the dirt breaks");
+        assertFalse(boxedSurvives(Block.OBSIDIAN, BlockBreaking.Shielding.OCCLUSION), "obsidian casts no shadow, so the corner ray still tunnels in");
+    }
+
+    /** The shadow is a geometric line-of-sight test, not inferred from where random-intensity rays landed, so the box
+     *  is protected on EVERY detonation - not just the ones the RNG spared by luck. */
+    @Test
+    void occlusionShadowIsDeterministicAcrossDetonations() {
+        for (int i = 0; i < 25; i++) assertTrue(boxedSurvives(Block.GLASS, BlockBreaking.Shielding.OCCLUSION), "detonation " + i + " stayed shadowed");
+    }
+
+    /** Dirt one cell behind a single glass block, TNT axially in line beyond it (no diagonal = no corner-clip): the
+     *  ONLY path to the dirt is straight through the glass. */
+    private static boolean dirtBehindGlassSurvives(BlockBreaking.Shielding mode) {
+        Instance inst = world();
+        inst.setBlock(CENTER, Block.DIRT);
+        inst.setBlock(CENTER.blockX(), CENTER.blockY(), CENTER.blockZ() + 1, Block.GLASS);
+        system(BlockBreaking.builder().model(BlockBreaking.Model.RAY_1_8).neverBreaks(Set.of(Block.GLASS))
+                .shielding(mode).interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS).build())
+                .explode(inst, new Pos(CENTER.blockX() + 0.5, CENTER.blockY() + 0.5, CENTER.blockZ() + 2.5), 4.0f);
+        return inst.getBlock(CENTER).compare(Block.DIRT);
+    }
+
+    /**
+     * The capture-verified crux (docs/HANDOFF): Hypixel's rays are 100% vanilla, so glass is PASSABLE - a block right
+     * behind glass is still reached and broken. Only OCCLUSION's centre-line spares it. The earlier model made glass
+     * ∞-resistant, which wrongly stopped the ray and spared the block even with no occlusion; this pins the difference.
+     */
+    @Test
+    void glassIsPassableToRaysButShadowsOnlyUnderOcclusion() {
+        assertFalse(dirtBehindGlassSurvives(BlockBreaking.Shielding.NONE), "a vanilla ray passes through glass and breaks the block behind it");
+        assertTrue(dirtBehindGlassSurvives(BlockBreaking.Shielding.OCCLUSION), "the centre->block line crosses that glass, so occlusion spares it");
+    }
+
+    /** Dirt diagonally past the shared edge of an obsidian and a glass block, so the centre->dirt line threads that
+     *  edge. Returns whether the dirt broke, for a blast jittered {@code (jx,jz)} off the block centre. */
+    private static boolean grazeTargetBreaks(double jx, double jz) {
+        Instance inst = world();
+        int bx = CENTER.blockX(), by = CENTER.blockY(), bz = CENTER.blockZ();
+        inst.setBlock(bx - 1, by, bz, Block.OBSIDIAN);
+        inst.setBlock(bx, by, bz - 1, Block.GLASS);
+        inst.setBlock(bx - 1, by, bz - 1, Block.DIRT);
+        system(BlockBreaking.builder().model(BlockBreaking.Model.RAY_1_8).neverBreaks(Set.of(Block.GLASS))
+                .shielding(BlockBreaking.Shielding.OCCLUSION).interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS).build())
+                .explode(inst, new Pos(bx + 0.5 + jx, by + 0.5, bz + 0.5 + jz), 4.0f);
+        return inst.getBlock(bx - 1, by, bz - 1).isAir();
+    }
+
+    /**
+     * The hypixel3 structure case (capture-verified): when the centre->target line threads the shared edge of a glass
+     * and an obsidian block, Hypixel resolves the graze to the NON-glass side - the block breaks - and does not
+     * coin-flip it on sub-block jitter in the blast centre. Only a jitter big enough to genuinely swing the line into
+     * the glass shadows it.
+     */
+    @Test
+    void occlusionResolvesGlassObsidianEdgeGrazeRobustly() {
+        for (double[] j : new double[][]{{0, 0}, {2e-4, 0}, {0, 2e-4}, {3e-4, -3e-4}})
+            assertTrue(grazeTargetBreaks(j[0], j[1]), "edge graze resolves to the obsidian side, jitter=" + j[0] + "," + j[1]);
+        assertFalse(grazeTargetBreaks(0, -0.06), "a line swung well into the glass is genuinely shadowed");
+    }
+
+    /** Keyed, so stained and tinted variants ride along with plain glass - but FULL blocks only, never the panes. */
+    @Test
+    void hypixelBlastProofingCoversFullGlassOnly() {
+        for (Block glass : Set.of(Block.GLASS, Block.WHITE_STAINED_GLASS, Block.TINTED_GLASS)) {
+            Instance inst = world();
+            fill(inst, glass);
+            detonate(new ExplosionSystem(mm, io.github.term4.minestommechanics.presets.hypixel.Explosion.config()), inst, 4.0f);
+            assertEquals(25, remaining(inst, glass), glass.key() + " must be blast-proof");
+        }
+        for (Block pane : Set.of(Block.GLASS_PANE, Block.RED_STAINED_GLASS_PANE)) {
+            Instance inst = world();
+            fill(inst, pane);
+            detonate(new ExplosionSystem(mm, io.github.term4.minestommechanics.presets.hypixel.Explosion.config()), inst, 4.0f);
+            assertEquals(0, remaining(inst, pane), pane.key() + " is ordinary - panes are not blast-proof");
+        }
+    }
+
     /** No policy on the config = the blast is entity-only, which is the pre-existing behaviour. */
     @Test
     void withoutAPolicyNothingBreaks() {
@@ -148,16 +283,20 @@ class BlockBreakingTest extends HeadlessServerTest {
     /** Vanilla's incendiary pass: 1-in-3 over the SELECTED cells that are air over something solid. */
     @Test
     void fireLightsOverTheSelectedSet() {
-        Instance inst = world();
-        fill(inst, Block.STONE);
-        ExplosionSystem sys = new ExplosionSystem(mm, ExplosionConfig.builder(Vanilla18.explosion())
-                .fire(true)
-                .blockBreaking(BlockBreaking.builder().model(BlockBreaking.Model.RAY_1_8)
-                        .interaction(BlockBreaking.Interaction.KEEP).build())
-                .build());
-        detonate(sys, inst, 4.0f);
-        assertEquals(25, remaining(inst, Block.STONE), "KEEP selects without destroying");
-        assertTrue(fires(inst) > 0, "and fire still lands on the selected air cells - vanilla lights fire under KEEP");
+        boolean lit = false;
+        for (int attempt = 0; attempt < 8 && !lit; attempt++) { // 1-in-3 roll per cell
+            Instance inst = world();
+            fill(inst, Block.STONE);
+            ExplosionSystem sys = new ExplosionSystem(mm, ExplosionConfig.builder(Vanilla18.explosion())
+                    .fire(true)
+                    .blockBreaking(BlockBreaking.builder().model(BlockBreaking.Model.RAY_1_8)
+                            .interaction(BlockBreaking.Interaction.KEEP).build())
+                    .build());
+            detonate(sys, inst, 4.0f);
+            assertEquals(25, remaining(inst, Block.STONE), "KEEP selects without destroying");
+            lit = fires(inst) > 0;
+        }
+        assertTrue(lit, "and fire still lands on the selected air cells - vanilla lights fire under KEEP");
     }
 
     /** {@code fire} is a FieldValue, so incendiary-ness follows the source exactly like the ghast/TNT split. */
@@ -255,11 +394,16 @@ class BlockBreakingTest extends HeadlessServerTest {
     /** BROKEN scope lights only vacated cells: a breakable floor DOES catch, because those cells were broken. */
     @Test
     void brokenScopeLightsWhereBlocksBroke() {
-        Instance inst = world();
-        fill(inst, Block.DIRT); // breaks under a power-4 blast
-        detonateFire(inst, BlockBreaking.builder().model(BlockBreaking.Model.RAY_1_8)
-                .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS).build(), ExplosionConfig.FireScope.BROKEN);
-        assertTrue(fires(inst) > 0, "the broken dirt cells are lit");
+        // the incendiary pass rolls 1-in-3 per cell, so a single blast can legitimately light nothing
+        boolean lit = false;
+        for (int attempt = 0; attempt < 8 && !lit; attempt++) {
+            Instance inst = world();
+            fill(inst, Block.DIRT); // breaks under a power-4 blast
+            detonateFire(inst, BlockBreaking.builder().model(BlockBreaking.Model.RAY_1_8)
+                    .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS).build(), ExplosionConfig.FireScope.BROKEN);
+            lit = fires(inst) > 0;
+        }
+        assertTrue(lit, "the broken dirt cells are lit");
     }
 
     private void detonateFire(Instance inst, BlockBreaking breaking, ExplosionConfig.FireScope scope) {

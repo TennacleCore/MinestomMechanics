@@ -18,8 +18,10 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Ghast/fire-charge fireball: a self-propelled projectile (constant acceleration along its aim, no gravity - vanilla
  * {@code mot += dir; mot *= 0.95}) that detonates on any contact. The {@link #onImpact} explosion routes through the
- * {@link ExplosionSystem} (knockback + falloff damage + the block-occlusion exposure that scales it). Like vanilla, the
- * detonation is at the pre-move position (the {@code onImpact} {@code getPosition()}), not the swept collision point.
+ * {@link ExplosionSystem} (knockback + falloff damage + the block-occlusion exposure that scales it). Like vanilla it
+ * blows at the pre-move position ({@code onImpact} {@code getPosition()}) - the SAME centre drives knockback and block
+ * destruction, and the explosion-KB model is byte-fit to that centre, so it must not move (block-break offset lives in
+ * the fireball's FLIGHT speed, not the detonation point).
  */
 public class FireballEntity extends ManagedProjectile {
 

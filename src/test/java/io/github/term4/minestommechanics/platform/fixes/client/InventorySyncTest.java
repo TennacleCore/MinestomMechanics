@@ -29,8 +29,13 @@ class InventorySyncTest extends HeadlessServerTest {
 
     private static final ItemStack APPLES = ItemStack.of(Material.GOLDEN_APPLE, 16);
 
+    /** The click packet carries a hash the sync never reads; any valid one does. */
+    private static ItemStack.Hash airHash() {
+        return ItemStack.Hash.of(ItemStack.AIR, net.minestom.server.MinecraftServer.process());
+    }
+
     private static ClientClickWindowPacket click(ClickType type, int wireSlot, int button) {
-        return new ClientClickWindowPacket(0, 0, (short) wireSlot, (byte) button, type, Map.of(), ItemStack.Hash.of(ItemStack.AIR));
+        return new ClientClickWindowPacket(0, 0, (short) wireSlot, (byte) button, type, Map.of(), airHash());
     }
 
     /** Window slot 36 = hotbar 0. */
@@ -223,7 +228,7 @@ class InventorySyncTest extends HeadlessServerTest {
     void containerWindowClickLeavesMirrorUntouched() {
         InventorySync sync = new InventorySync();
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, APPLES)), "anchor hotbar 0");
-        sync.onClick(new ClientClickWindowPacket(3, 0, (short) 35, (byte) 0, ClickType.SWAP, Map.of(), ItemStack.Hash.of(ItemStack.AIR)), false);
+        sync.onClick(new ClientClickWindowPacket(3, 0, (short) 35, (byte) 0, ClickType.SWAP, Map.of(), airHash()), false);
         assertNotNull(sync.filter(new SetPlayerInventorySlotPacket(0, ItemStack.AIR)), "no window-0 prediction, so the echo is a real change");
     }
 }

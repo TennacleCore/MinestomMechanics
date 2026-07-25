@@ -122,8 +122,10 @@ public final class KnockbackCalculator {
         Vec dir = snap.direction();
 
         // explicit direction outranks the source's live look (a swing-filled hit carries the intersecting ray's aim)
-        if (s != null) return new DirContext(s.getPosition(),
-                dir != null ? s.getPosition().asPos().withDirection(dir).direction() : s.getPosition().direction());
+        if (s != null) {
+            var from = s.getPosition();
+            return new DirContext(from, dir != null ? from.withDirection(dir).direction() : from.direction());
+        }
         if (oPt != null && dir == null) return new DirContext(oPt, oPt.asPos().withLookAt(tPt).direction());
         if (dir != null) {
             Point pt = oPt != null ? oPt : tPt;

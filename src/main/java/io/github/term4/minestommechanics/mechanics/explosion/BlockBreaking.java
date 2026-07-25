@@ -7,6 +7,7 @@ import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +29,20 @@ public final class BlockBreaking {
         RAY_MODERN,
         /** Every breakable block within {@code power}; no ray, no shadowing. Cheap enough to spam. */
         SPHERE
+    }
+
+    /**
+     * How a {@link Builder#neverBreaks blast-proof} block protects what is behind it - a second dimension over
+     * {@link Model}. Rays pass THROUGH such a block (it keeps its natural resistance); this only decides whether it
+     * also casts a shadow.
+     */
+    public enum Shielding {
+        /** Vanilla: nothing casts a shadow. A ray reaches whatever it reaches - straight through a blast-proof block
+         *  just the same - and every cell it selects breaks. */
+        NONE,
+        /** Hypixel (capture-verified): a blast-proof block casts a HARD shadow. A selected cell is dropped if the
+         *  straight line from the blast centre to its centre crosses one - the blast never wraps a glass corner. */
+        OCCLUSION
     }
 
     /**
@@ -69,15 +84,36 @@ public final class BlockBreaking {
     // the only blocks whose blast resistance actually changed since 1.8 (148 of 155 match - see
     // docs/HANDOFF-explosion-block-breaking.md). moving_piston is not a typo: 1.8's c(-1.0F) never raises
     // durability, leaving it unbreakable by tools yet free to explosions
-    private static final Map<String, Double> LEGACY_OVERRIDES = Map.of(
-            "minecraft:piston", 0.5, "minecraft:sticky_piston", 0.5,
-            "minecraft:piston_head", 0.5, "minecraft:moving_piston", 0.0);
+    private static final double[] LEGACY_OVERRIDES = overrides(Map.of(
+            Block.PISTON, 0.5, Block.STICKY_PISTON, 0.5,
+            Block.PISTON_HEAD, 0.5, Block.MOVING_PISTON, 0.0));
 
     /** 1.8 blast resistance: {@link #VANILLA_RESISTANCE} plus the piston overrides. */
     public static final Resistance LEGACY_RESISTANCE = (block, ctx) -> {
-        Double override = LEGACY_OVERRIDES.get(block.key().asString());
-        return override != null ? override : block.registry().explosionResistance();
+        int id = block.id();
+        double override = id < LEGACY_OVERRIDES.length ? LEGACY_OVERRIDES[id] : Double.NaN;
+        return Double.isNaN(override) ? block.registry().explosionResistance() : override;
     };
+
+    /** Block-id indexed, {@code NaN} = none. Every sampled cell probes this, so it must not hash a key string. */
+    private static double[] overrides(Map<Block, Double> byBlock) {
+        double[] out = new double[byBlock.keySet().stream().mapToInt(Block::id).max().orElse(0) + 1];
+        Arrays.fill(out, Double.NaN);
+        byBlock.forEach((block, value) -> out[block.id()] = value);
+        return out;
+    }
+
+    /** Membership by block TYPE id (all states), the same reason: an array probe, not a key hash. */
+    private static boolean[] idMask(Set<Block> blocks) {
+        boolean[] mask = new boolean[blocks.stream().mapToInt(Block::id).max().orElse(-1) + 1];
+        for (Block block : blocks) mask[block.id()] = true;
+        return mask;
+    }
+
+    private static boolean masked(boolean[] mask, Block block) {
+        int id = block.id();
+        return id < mask.length && mask[id];
+    }
 
     private static final BreakRule ANY = (block, pos, ctx) -> true;
 
@@ -85,18 +121,26 @@ public final class BlockBreaking {
     private final Interaction interaction;
     private final Resistance resistance;
     private final BreakRule breakRule;
+    private final Shielding shielding;
+    private final boolean[] shadowCasters;
 
     private BlockBreaking(Builder b) {
         this.model = b.model;
         this.interaction = b.interaction;
         this.resistance = b.resistance;
         this.breakRule = b.breakRule;
+        this.shielding = b.shielding;
+        this.shadowCasters = b.shadowCasters;
     }
 
     public @NotNull Model model() { return model; }
     public @NotNull Interaction interaction() { return interaction; }
+    @NotNull Shielding shielding() { return shielding; }
 
     double resistance(@NotNull Block block, @NotNull ExplosionContext ctx) { return resistance.of(block, ctx); }
+
+    /** A {@link Builder#neverBreaks blast-proof} block - one that casts the {@link Shielding#OCCLUSION} shadow. */
+    boolean castsShadow(@NotNull Block block) { return masked(shadowCasters, block); }
 
     boolean canBreak(@NotNull Block block, @NotNull Point pos, @NotNull ExplosionContext ctx) {
         return breakRule.canBreak(block, pos, ctx);
@@ -110,17 +154,34 @@ public final class BlockBreaking {
 
     public static @NotNull Builder builder() { return new Builder(); }
 
+    /** Layers onto an existing policy - a preset extending another's (Hypixel's blast-proof glass over the 1.8 baseline). */
+    public @NotNull Builder toBuilder() { return new Builder(this); }
+
     public static final class Builder {
         private Model model = Model.RAY_MODERN;
         private Interaction interaction = Interaction.DESTROY_WITH_DECAY;
         private Resistance resistance = VANILLA_RESISTANCE;
         private BreakRule breakRule = ANY;
+        private Shielding shielding = Shielding.NONE;
+        private boolean[] shadowCasters = new boolean[0];
 
         private Builder() {}
+
+        private Builder(BlockBreaking c) {
+            model = c.model;
+            interaction = c.interaction;
+            resistance = c.resistance;
+            breakRule = c.breakRule;
+            shielding = c.shielding;
+            shadowCasters = c.shadowCasters;
+        }
 
         public Builder model(@NotNull Model v) { this.model = v; return this; }
         public Builder interaction(@NotNull Interaction v) { this.interaction = v; return this; }
         public Builder resistance(@NotNull Resistance v) { this.resistance = v; return this; }
+
+        /** How unbreakable blocks shield what is behind them; default {@link Shielding#NONE} (vanilla). */
+        public Builder shielding(@NotNull Shielding v) { this.shielding = v; return this; }
 
         /** Replaces the rule; compose with {@code &&} yourself when you want several. */
         public Builder breakRule(@NotNull BreakRule v) { this.breakRule = v; return this; }
@@ -131,21 +192,21 @@ public final class BlockBreaking {
          * whitelisted wall) and everything else is infinite (so it shields, exactly like obsidian in BedWars).
          */
         public Builder onlyBreaks(@NotNull Set<Block> blocks) {
-            Set<String> keys = keys(blocks);
-            return resistance((block, ctx) ->
-                    keys.contains(block.key().asString()) ? 0.0 : Double.POSITIVE_INFINITY);
+            boolean[] mask = idMask(blocks);
+            return resistance((block, ctx) -> masked(mask, block) ? 0.0 : Double.POSITIVE_INFINITY);
         }
 
-        /** These never break AND shield what is behind them (beds, end stone, generators); everything else keeps its own resistance. */
+        /**
+         * These never break, and under {@link Shielding#OCCLUSION} cast a HARD shadow over whatever is behind them
+         * (Hypixel's blast-proof glass). They keep their natural resistance, so a ray still passes THROUGH them - the
+         * shadow, not ray-blocking, is what shields. A block that should also STOP rays needs an ∞ {@link #resistance}.
+         */
         public Builder neverBreaks(@NotNull Set<Block> blocks) {
-            Set<String> keys = keys(blocks);
-            Resistance base = this.resistance;
-            return resistance((block, ctx) -> keys.contains(block.key().asString())
-                    ? Double.POSITIVE_INFINITY : base.of(block, ctx));
-        }
-
-        private static Set<String> keys(Set<Block> blocks) {
-            return blocks.stream().map(b -> b.key().asString()).collect(java.util.stream.Collectors.toUnmodifiableSet());
+            boolean[] mask = idMask(blocks);
+            this.shadowCasters = mask;
+            BreakRule base = this.breakRule;
+            this.breakRule = (block, pos, ctx) -> !masked(mask, block) && base.canBreak(block, pos, ctx);
+            return this;
         }
 
         public @NotNull BlockBreaking build() { return new BlockBreaking(this); }

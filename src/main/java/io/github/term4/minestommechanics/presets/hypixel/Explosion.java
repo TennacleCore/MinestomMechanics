@@ -1,9 +1,14 @@
 package io.github.term4.minestommechanics.presets.hypixel;
 
 import io.github.term4.minestommechanics.mechanics.attribute.defense.Bypass;
+import io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
 import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
+import net.minestom.server.instance.block.Block;
+
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Hypixel explosion: the 1.8 baseline ({@link io.github.term4.minestommechanics.presets.vanilla18.Explosion}) plus a
@@ -22,14 +27,28 @@ public final class Explosion {
     private static final double KB_IMPACT_FLOOR = 0.435;
     private static final double FLAT_DAMAGE = 2.0;
 
+    /** Full glass blocks only - plain, stained and tinted; keyed so new variants are picked up, panes excluded. */
+    private static final Set<Block> BLAST_PROOF_GLASS = Block.values().stream()
+            .filter(b -> b.key().value().endsWith("glass"))
+            .collect(Collectors.toUnmodifiableSet());
+
     public static ExplosionConfig config() {
-        return ExplosionConfig.builder(Vanilla18.explosion())
+        ExplosionConfig base = Vanilla18.explosion();
+        return ExplosionConfig.builder(base)
                 .baseKnockback(BASE).baseDownwardScale(BASE_DOWNWARD_SCALE).baseHeight(BASE_HEIGHT)
                 .knockbackImpactFloor(KB_IMPACT_FLOOR)
                 .flatDamage(FLAT_DAMAGE).damageBypass(Bypass.builder().armor(true).build())
                 .exposure(ExplosionExposure.Rays.LEGACY_1_8_FULL_CUBE) // Hypixel gates off-flat blasts (full-cube), unlike singleplayer 1.8
                 // Hypixel fireballs light fire ONLY where a block was broken - never on intact ground (observed in-game)
                 .fireScope(ExplosionConfig.FireScope.BROKEN)
+                // capture-verified (docs/HANDOFF): rays are 100% vanilla - glass is passable (0.3), so a block BEHIND
+                // glass is still selected; it survives only if the straight line from the blast centre to it crosses
+                // glass. neverBreaks makes glass unbreakable AND the shadow-caster; OCCLUSION draws the line. Obsidian
+                // (1200) just stops rays as in vanilla and casts no shadow.
+                .blockBreaking(base.blockBreaking.toBuilder()
+                        .neverBreaks(BLAST_PROOF_GLASS)
+                        .shielding(BlockBreaking.Shielding.OCCLUSION)
+                        .build())
                 .build();
     }
 }
