@@ -342,9 +342,14 @@ class BlockBreakingTest extends HeadlessServerTest {
             BlockBreaking b = preset.config().blockBreaking;
             assertNotNull(b, preset.name() + " inherits vanilla18's block breaking");
             assertEquals(BlockBreaking.Model.RAY_1_8, b.model(), preset.name() + " keeps the 1.8 ray");
-            assertEquals(BlockBreaking.Interaction.DESTROY_WITH_DECAY, b.interaction(), preset.name() + " keeps vanilla drops");
-            assertEquals(0.5, b.resistance(Block.PISTON, ctx), 1e-9, preset.name() + " keeps the 1.8 piston table");
         }
+        // hypixel keeps the raw 1.8 table + vanilla drops; mmc18 scales resistance x0.3 and never drops (capture-fitted)
+        BlockBreaking hy = io.github.term4.minestommechanics.presets.hypixel.Explosion.config().blockBreaking;
+        BlockBreaking mm = io.github.term4.minestommechanics.presets.mmc18.Explosion.config().blockBreaking;
+        assertEquals(0.5, hy.resistance(Block.PISTON, ctx), 1e-9);
+        assertEquals(BlockBreaking.Interaction.DESTROY_WITH_DECAY, hy.interaction());
+        assertEquals(0.15, mm.resistance(Block.PISTON, ctx), 1e-9);
+        assertEquals(BlockBreaking.Interaction.DESTROY_NO_DROPS, mm.interaction());
         // fireScope must survive builder(base) WITHOUT being re-set - the copy-ctor omission guard (bit twice before)
         ExplosionConfig base = ExplosionConfig.builder().fireScope(ExplosionConfig.FireScope.BROKEN).build();
         ExplosionConfig derived = ExplosionConfig.builder(base).power(5.0).build();

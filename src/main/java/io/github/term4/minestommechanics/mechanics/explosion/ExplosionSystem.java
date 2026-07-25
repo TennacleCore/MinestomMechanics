@@ -83,7 +83,14 @@ public final class ExplosionSystem implements MechanicsModule {
 
     /** {@code directHit} = the entity the projectile struck (or {@code null}); only it is subject to the {@link ExplosionConfig#knockbackImpactFloor knockback impact gate}. */
     public void explode(@NotNull MechanicsWorld world, @NotNull Point center, float power, @Nullable Entity source, @Nullable Entity directHit) {
-        detonate(world, center, power, source, directHit, resolve(world, center, source));
+        explode(world, center, center, power, source, directHit);
+    }
+
+    /** Dual-centre form: knockback/damage/packet from {@code center}, block selection from {@code blockCenter}
+     *  (MineMen fireballs break blocks from the CONTACT point while the blast itself stays at the pre-move position). */
+    public void explode(@NotNull MechanicsWorld world, @NotNull Point center, @NotNull Point blockCenter,
+                        float power, @Nullable Entity source, @Nullable Entity directHit) {
+        detonate(world, center, blockCenter, power, source, directHit, resolve(world, center, source));
     }
 
     /** Per-player explosion using the configured (or default) radius. */
@@ -91,11 +98,12 @@ public final class ExplosionSystem implements MechanicsModule {
         MechanicsWorld world = MechanicsWorld.of(instance);
         ResolvedExplosionConfig resolved = resolve(world, center, source);
         float power = resolved.power() != null ? resolved.power().floatValue() : DEFAULT_POWER;
-        detonate(world, center, power, source, null, resolved);
+        detonate(world, center, center, power, source, null, resolved);
     }
 
-    private void detonate(MechanicsWorld world, Point center, float power, @Nullable Entity source, @Nullable Entity directHit, ResolvedExplosionConfig resolved) {
-        ExplosionEvent event = computeAndFire(world, center, power, source, resolved);
+    private void detonate(MechanicsWorld world, Point center, Point blockCenter, float power,
+                          @Nullable Entity source, @Nullable Entity directHit, ResolvedExplosionConfig resolved) {
+        ExplosionEvent event = computeAndFire(world, center, blockCenter, power, source, resolved);
         if (event == null) return;
         applyEffects(world, center, power, source, directHit, event.targets(), resolved);
         // AFTER the damage pass, per vanilla (ServerExplosion.explode: select -> hurtEntities -> interactWithBlocks)
@@ -119,7 +127,7 @@ public final class ExplosionSystem implements MechanicsModule {
                                @Nullable Entity source, @Nullable Vec knockback) {
         MechanicsWorld world = MechanicsWorld.of(instance);
         ResolvedExplosionConfig resolved = resolve(world, center, source);
-        ExplosionEvent event = computeAndFire(world, center, power, source, resolved);
+        ExplosionEvent event = computeAndFire(world, center, center, power, source, resolved);
         if (event == null) return;
         applyDamage(source, center, event.targets(), resolved.damageBypass());
         world.broadcast(packet(center, power, knockback));
@@ -132,12 +140,12 @@ public final class ExplosionSystem implements MechanicsModule {
     }
 
     /** Builds the per-entity result set, fires the event, and returns the (possibly listener-edited) targets, or {@code null} if cancelled. */
-    private @Nullable ExplosionEvent computeAndFire(MechanicsWorld world, Point center, float power,
+    private @Nullable ExplosionEvent computeAndFire(MechanicsWorld world, Point center, Point blockCenter, float power,
                                                     @Nullable Entity source, ResolvedExplosionConfig resolved) {
         List<ExplosionEvent.Target> targets = computeTargets(world, center, power, source, resolved);
         // selected against INTACT geometry, before any damage: exposure rays must meet the blocks the blast still has
         List<Point> blocks = resolved.blockBreaking() == null ? new ArrayList<>()
-                : ExplosionBlocks.select(world, center, power, resolved.blockBreaking(), context(world, center, source));
+                : ExplosionBlocks.select(world, blockCenter, power, resolved.blockBreaking(), context(world, center, source));
         ExplosionEvent event = new ExplosionEvent(world, center, power, source, resolved.fire(), targets, blocks);
         EventDispatcher.call(event);
         return event.isCancelled() ? null : event;

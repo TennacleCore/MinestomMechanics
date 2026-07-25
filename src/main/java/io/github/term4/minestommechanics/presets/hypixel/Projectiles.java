@@ -51,7 +51,7 @@ public final class Projectiles {
                 .spread(0.0)
                 .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0) // at the eye
                 .leftOwnerImmunity(true)
-                .syncInterval(10).velocitySyncInterval(1) // per-tick teleports snap/jitter on 1.8; it extrapolates smoothly between sparse corrections
+                .syncInterval(0).velocitySyncInterval(1) // no position teleports (Hypixel/minemen don't): pure velocity prediction, no spurious 0-velocity corrections
                 .removeOnEntityHit(true).removeOnBlockHit(true)
                 .damage(0.0)
                 .explosionPower(BW_POWER)

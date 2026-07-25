@@ -31,6 +31,14 @@ public final class BlockBreaking {
         SPHERE
     }
 
+    /** When a ray pays a block's resistance. */
+    public enum Charging {
+        /** Vanilla: every 0.3 sample inside the block (~3.33x per block traversed). */
+        PER_STEP,
+        /** Once, on entering the block (MineMen; ~3.33x deeper reach into solids at equal resistance). */
+        PER_BLOCK
+    }
+
     /**
      * How a {@link Builder#neverBreaks blast-proof} block protects what is behind it - a second dimension over
      * {@link Model}. Rays pass THROUGH such a block (it keeps its natural resistance); this only decides whether it
@@ -121,6 +129,7 @@ public final class BlockBreaking {
     private final Interaction interaction;
     private final Resistance resistance;
     private final BreakRule breakRule;
+    private final Charging charging;
     private final Shielding shielding;
     private final boolean[] shadowCasters;
 
@@ -129,12 +138,14 @@ public final class BlockBreaking {
         this.interaction = b.interaction;
         this.resistance = b.resistance;
         this.breakRule = b.breakRule;
+        this.charging = b.charging;
         this.shielding = b.shielding;
         this.shadowCasters = b.shadowCasters;
     }
 
     public @NotNull Model model() { return model; }
     public @NotNull Interaction interaction() { return interaction; }
+    @NotNull Charging charging() { return charging; }
     @NotNull Shielding shielding() { return shielding; }
 
     double resistance(@NotNull Block block, @NotNull ExplosionContext ctx) { return resistance.of(block, ctx); }
@@ -162,6 +173,7 @@ public final class BlockBreaking {
         private Interaction interaction = Interaction.DESTROY_WITH_DECAY;
         private Resistance resistance = VANILLA_RESISTANCE;
         private BreakRule breakRule = ANY;
+        private Charging charging = Charging.PER_STEP;
         private Shielding shielding = Shielding.NONE;
         private boolean[] shadowCasters = new boolean[0];
 
@@ -172,6 +184,7 @@ public final class BlockBreaking {
             interaction = c.interaction;
             resistance = c.resistance;
             breakRule = c.breakRule;
+            charging = c.charging;
             shielding = c.shielding;
             shadowCasters = c.shadowCasters;
         }
@@ -179,6 +192,9 @@ public final class BlockBreaking {
         public Builder model(@NotNull Model v) { this.model = v; return this; }
         public Builder interaction(@NotNull Interaction v) { this.interaction = v; return this; }
         public Builder resistance(@NotNull Resistance v) { this.resistance = v; return this; }
+
+        /** When a ray pays resistance; default {@link Charging#PER_STEP} (vanilla). */
+        public Builder charging(@NotNull Charging v) { this.charging = v; return this; }
 
         /** How unbreakable blocks shield what is behind them; default {@link Shielding#NONE} (vanilla). */
         public Builder shielding(@NotNull Shielding v) { this.shielding = v; return this; }

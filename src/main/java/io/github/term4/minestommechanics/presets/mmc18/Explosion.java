@@ -1,8 +1,11 @@
 package io.github.term4.minestommechanics.presets.mmc18;
 
+import io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
+import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
 import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
+import net.minestom.server.instance.block.Block;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 
@@ -18,10 +21,23 @@ public final class Explosion {
 
     // radial push, wire-exact from the point-blank sweep; near but NOT exactly melee B/0.4 = 1.3185
     static final double KB_SCALE = 1.3167;
+    // fitted on the 2026-07-25 flat-pad TNT captures (wool/planks/endstone counts within ~5%): MineMen rays pay
+    // resistance x0.3, once per block - NOT the vanilla per-step charge (endstone breaks ~3 blocks out vs vanilla's 0.5)
+    static final double RESISTANCE_SCALE = 0.3;
 
     public static ExplosionConfig config() {
-        return ExplosionConfig.builder(Vanilla18.explosion())
+        ExplosionConfig base = Vanilla18.explosion();
+        return ExplosionConfig.builder(base)
                 .knockbackMultiplier(KB_SCALE)
+                .blockBreaking(base.blockBreaking.toBuilder()
+                        // end stone keeps its RAW resistance against FIREBALLS (exempt from the x0.3): one block costs
+                        // (9+0.3)*0.3 = 2.79 > the power-2 budget 2.6, so it neither breaks NOR lets rays through - a
+                        // 1-thick wall shields the wood behind it (user-observed). TNT (power 4) breaks it normally.
+                        .resistance((block, ctx) -> BlockBreaking.LEGACY_RESISTANCE.of(block, ctx)
+                                * (ctx.source() instanceof FireballEntity && block.id() == Block.END_STONE.id() ? 1.0 : RESISTANCE_SCALE))
+                        .charging(BlockBreaking.Charging.PER_BLOCK)
+                        .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS) // MineMen explosions never drop
+                        .build())
                 .damageKnockback(Knockback.explosionHurt())
                 .packetPush(false)
                 .pushEye(Explosion::pushEye)

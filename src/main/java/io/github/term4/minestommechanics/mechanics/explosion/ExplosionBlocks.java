@@ -93,13 +93,17 @@ final class ExplosionBlocks {
 
                     float intensity = power * (0.7F + rnd.nextFloat() * 0.6F);
                     double px = center.x(), py = center.y(), pz = center.z();
+                    BlockVec charged = null; // PER_BLOCK: the last cell that paid resistance
                     while (intensity > 0.0F) {
                         BlockVec pos = new BlockVec(Math.floor(px), Math.floor(py), Math.floor(pz));
                         if (modern && !inBounds(world, pos)) break;
                         Block block = loadedBlock(world, pos);
                         if (block == null) break; // unloaded reads as solid: the ray stops
                         double resistance = resistance(block, cfg, ctx, modern);
-                        if (resistance >= 0) intensity -= (float) ((resistance + 0.3F) * 0.3F);
+                        if (resistance >= 0 && (cfg.charging() == BlockBreaking.Charging.PER_STEP || !pos.equals(charged))) {
+                            intensity -= (float) ((resistance + 0.3F) * 0.3F);
+                            charged = pos;
+                        }
                         if (intensity > 0.0F && cfg.canBreak(block, pos, ctx)) hit.add(pos);
                         px += dx * STEP; py += dy * STEP; pz += dz * STEP;
                         intensity -= STEP_DECAY;

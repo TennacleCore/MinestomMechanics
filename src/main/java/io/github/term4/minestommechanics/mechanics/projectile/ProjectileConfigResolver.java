@@ -97,6 +97,7 @@ public final class ProjectileConfigResolver {
                 FieldValue.resolve(tc.explosionPower, ctx, 1.0), // vanilla ghast fireball yield (Hypixel = 2.0); fireball-only
                 FieldValue.resolve(tc.coastTicks, ctx, 0), // fireball launch-coast ticks (0 = propel at once)
                 FieldValue.resolve(tc.cruiseSpeed, ctx, 0.0), // fireball ignition speed after the coast (0 = none)
+                FieldValue.resolve(tc.blockBreakAtContact, ctx, Boolean.FALSE), // MineMen: blocks from the contact point
                 FieldValue.resolve(tc.critChance, ctx, 1.0), // full-draw crit chance (vanilla = always); bow-only
                 FieldValue.resolve(tc.behavior, ctx, ProjectileBehavior.NONE),
                 FieldValue.resolve(tc.pickupBox, ctx)); // nullable: the entity keeps its vanilla default if unset
@@ -153,6 +154,7 @@ public final class ProjectileConfigResolver {
             double explosionPower,
             int coastTicks,
             double cruiseSpeed,
+            boolean blockBreakAtContact,
             double critChance,
             ProjectileBehavior behavior,
             @Nullable ProjectileTypeConfig.PickupBox pickupBox

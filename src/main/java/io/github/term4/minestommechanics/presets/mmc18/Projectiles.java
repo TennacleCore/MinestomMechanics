@@ -33,6 +33,8 @@ public final class Projectiles {
     private static final double POWER = 2.0;
     // vanilla EntityLargeFireball 6.0, unchanged in the FBF captures
     private static final double CONTACT_DAMAGE = 6.0;
+    // every minemen projectile floors |motY| to 0.05 on the wire (sim untouched); vertical-launch types (splash) just hid it
+    private static final double WIRE_MOTY_FLOOR = 0.05;
 
     public static ProjectileConfig config() {
         ProjectileConfig base = Vanilla18.projectiles();
@@ -40,9 +42,10 @@ public final class Projectiles {
                 .boundingBox(1, 1, 1)
                 .gravity(0.0).horizontalDrag(0.95).verticalDrag(0.95)
                 .speed(LAUNCH).coastTicks(1).cruiseSpeed(CRUISE).spread(0.0) // coast one tick at launch, then ignite to cruise
+                .blockBreakAtContact(true) // capture-fitted: elevated detonations break from the contact point, KB/packet stay pre-move
                 .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0)
                 .leftOwnerImmunity(true)
-                .syncInterval(10).velocitySyncInterval(1)
+                .syncInterval(0).velocitySyncInterval(1) // no position teleports (minemen doesn't): pure velocity prediction
                 .removeOnEntityHit(true).removeOnBlockHit(true)
                 .damage(CONTACT_DAMAGE)
                 .knockback(Knockback.explosionHurt())
@@ -75,15 +78,16 @@ public final class Projectiles {
         ProjectileTypeConfig arrow = ProjectileTypeConfig.builder(base.typeConfig(Arrow.KEY))
                 .knockback(Knockback.arrow()).build();
         return ProjectileConfig.builder(base)
+                // the 0.05 wire motY floor is universal on minemen projectiles, so make it the generic default every type inherits
+                .defaults(ProjectileTypeConfig.builder(base.defaults()).wireMotYFloor(WIRE_MOTY_FLOOR).build())
                 .typeConfigs(fireball, splash, bobber, snowball, egg, pearl, arrow)
                 .shootables(new PseudoHook.Installer())
                 .useItemAimSync(true) // MineMen launches on the CLICK-time aim (in-game: flick-throws never desync)
                 .build();
     }
 
-    // capture 2026-07-06: vanilla launch/flight, zero spread + the 0.05 wire vy floor (potions/hook exempt;
-    // arrows unmeasured, left vanilla)
+    // capture 2026-07-06: vanilla launch/flight, zero spread (the wire motY floor is the config-wide default above)
     private static ProjectileTypeConfig thrown(ProjectileTypeConfig.Builder builder) {
-        return builder.spread(0.0).wireMotYFloor(0.05).knockback(Knockback.projectile()).build();
+        return builder.spread(0.0).knockback(Knockback.projectile()).build();
     }
 }
