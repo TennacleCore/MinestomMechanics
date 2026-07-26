@@ -42,8 +42,9 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
     public final FieldValue<ExplosionContext, Double> damageScale;
     /** Mitigation the explosion damage skips (e.g. armor points only); {@code null} = normal mitigation. */
     public final @Nullable Bypass damageBypass;
-    /** What this explosion does to blocks; {@code null} = breaks none. Its rules see the source, so one config can differ per exploder. */
-    public final @Nullable BlockBreaking blockBreaking;
+    /** What this explosion does to blocks; {@code null} = breaks none. Resolved per blast, so one config can swap the
+     *  whole policy by source (MineMen: fireball = radius ball, TNT = rays). */
+    public final FieldValue<ExplosionContext, BlockBreaking> blockBreaking;
     /** Scale on the radial falloff push ({@code impact · multiplier}); vanilla 1.0. */
     public final FieldValue<ExplosionContext, Double> knockbackMultiplier;
     /** Damage-knockback on a fresh hit (before the push); {@code null} = the vanilla 1.8 {@code a()}. Only used when {@link #baseKnockback} is 0. */
@@ -102,7 +103,6 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
         return b
                 .subConfig(subConfig != null ? subConfig : base.subConfig)
                 .damageBypass(damageBypass != null ? damageBypass : base.damageBypass)
-                .blockBreaking(blockBreaking != null ? blockBreaking : base.blockBreaking)
                 .baseScale(baseScale != null ? baseScale : base.baseScale)
                 .fireScope(fireScope != null ? fireScope : base.fireScope)
                 .damageKnockback(damageKnockback != null ? damageKnockback : base.damageKnockback)
@@ -124,7 +124,6 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
         @Override protected Builder self() { return this; }
         private Function<ExplosionContext, ExplosionConfig> subConfig;
         private Bypass damageBypass;
-        private BlockBreaking blockBreaking;
         private RadialScale baseScale;
         private FireScope fireScope;
         private KnockbackConfig damageKnockback;
@@ -137,7 +136,6 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
             super(c);
             subConfig = c.subConfig;
             damageBypass = c.damageBypass;
-            blockBreaking = c.blockBreaking;
             baseScale = c.baseScale;
             fireScope = c.fireScope;
             damageKnockback = c.damageKnockback;
@@ -147,7 +145,6 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
 
         public Builder subConfig(Function<ExplosionContext, ExplosionConfig> fn) { subConfig = fn; return this; }
         public Builder damageBypass(Bypass v) { damageBypass = v; return this; }
-        public Builder blockBreaking(BlockBreaking v) { blockBreaking = v; return this; }
         public Builder baseScale(RadialScale v) { baseScale = v; return this; }
         public Builder fireScope(FireScope v) { fireScope = v; return this; }
         public Builder damageKnockback(KnockbackConfig v) { damageKnockback = v; return this; }

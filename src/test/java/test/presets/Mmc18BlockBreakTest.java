@@ -8,26 +8,28 @@ import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
 import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.minestommechanics.presets.mmc18.Explosion;
 import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.coordinate.Pos;
+import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.block.Block;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * MineMen TNT block-break, fitted on the 2026-07-25 flat-pad captures (TNT at rest on a 12x12 one-layer pad over
- * obsidian, power 4): resistance x0.3 charged once per block. Measured broke counts - end stone 21-27, planks 49-56,
- * wool 78-81; vanilla charging gives ~2/~12/~65, so the ranges also prove the PER_BLOCK knob is live.
+ * MineMen block-break, fitted on the 2026-07-25/26 flat-pad + distance-sweep captures (12x12 one-layer pad over
+ * obsidian). Measured broke counts - TNT: end stone 21-27, planks 49-56, wool 78-81; fireball: planks 14-19,
+ * wool 26-29. Vanilla rays give ~2/~12/~65 for TNT, so the ranges also prove the MineMen model is live.
  */
 class Mmc18BlockBreakTest extends HeadlessServerTest {
 
     private static final int PAD_X = 700, PAD_Y = 64, PAD_Z = 700;
 
-    /** The capture arrangement: obsidian base with one {@code top} layer, blast at the pad surface. */
     private static Instance pad(Block top) {
         Instance inst = flatInstance(MechanicsProfile.builder().build());
         for (int dx = -6; dx <= 5; dx++) {
@@ -40,12 +42,24 @@ class Mmc18BlockBreakTest extends HeadlessServerTest {
         return inst;
     }
 
-    private static int broke(Block top, float power, @org.jetbrains.annotations.Nullable Entity source, long seedShift) {
+    /** 5x5 end-stone wall in the z={@code wz} plane; {@code center} replaces the middle block. */
+    private static Instance wall(int wx, int wy, int wz, Block center) {
+        Instance inst = flatInstance(MechanicsProfile.builder().build());
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dy = -2; dy <= 2; dy++)
+                inst.setBlock(wx + dx, wy + dy, wz, dx == 0 && dy == 0 ? center : Block.END_STONE);
+        return inst;
+    }
+
+    private static ExplosionSystem system() {
+        return new ExplosionSystem(mm, Explosion.config());
+    }
+
+    private static int broke(Block top, float power, @Nullable Entity source, long seedShift) {
         Instance inst = pad(top);
-        ExplosionSystem sys = new ExplosionSystem(mm, Explosion.config());
         // captured centers sit at the exact pad surface with a fractional x/z; seedShift varies it like the TNT hop
         Pos center = new Pos(PAD_X + 0.3 + (seedShift % 5) * 0.1, PAD_Y + 1, PAD_Z + 0.3 + (seedShift % 3) * 0.15);
-        sys.explode(inst, center, power, source);
+        system().explode(inst, center, power, source);
         int gone = 0;
         for (int dx = -6; dx <= 5; dx++)
             for (int dz = -6; dz <= 5; dz++)
@@ -54,7 +68,7 @@ class Mmc18BlockBreakTest extends HeadlessServerTest {
     }
 
     /** Mean of a few shots vs the capture range (wide margins: the ray intensity is random per shot). */
-    private static void assertRange(Block top, float power, @org.jetbrains.annotations.Nullable Entity source, int measuredLo, int measuredHi) {
+    private static void assertRange(Block top, float power, @Nullable Entity source, int measuredLo, int measuredHi) {
         int total = 0, shots = 4;
         for (int i = 0; i < shots; i++) total += broke(top, power, source, i);
         double mean = total / (double) shots;
@@ -77,57 +91,50 @@ class Mmc18BlockBreakTest extends HeadlessServerTest {
     @Test
     void woolPadBreaksLikeMinemen() { assertRange(Block.RED_WOOL, 4.0f, null, 78, 81); }
 
-    // fireball flat-pad captures (surface-level shots, power 2): planks 14-19, wool 26-29
     @Test
     void fireballPadCountsMatchCaptures() {
         assertRange(Block.OAK_PLANKS, 2.0f, fireball(), 14, 19);
         assertRange(Block.RED_WOOL, 2.0f, fireball(), 26, 29);
     }
 
-    /** User-observed rule: fireballs never destroy end stone; the same blast from TNT (sourceless here) does. */
+    /** Fireballs never destroy end stone; the same blast from TNT (sourceless here) does. */
     @Test
     void fireballNeverBreaksEndStone() {
         assertEquals(0, broke(Block.END_STONE, 2.0f, fireball(), 0), "fireball spared the end stone");
         assertTrue(broke(Block.END_STONE, 2.0f, null, 0) > 0, "non-fireball blast still breaks it");
     }
 
-    /** The blast acts from the AIR side of the hit face: a fireball striking the wall NEXT to wood protruding from it
-     *  breaks the wood (user-observed; an into-the-block centre died in the wall's first sample and broke nothing). */
+    /** A wall hit NEXT to wood protruding from it breaks the wood: the pre-move blast stands off the wall in air,
+     *  and its rays reach the wood while dying inside the blast-proof end stone. */
     @Test
     void nearMissWallHitBreaksProtrudingWood() {
         int wx = 760, wy = 66, wz = 760;
-        Instance inst = flatInstance(MechanicsProfile.builder().build());
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dy = -2; dy <= 2; dy++)
-                inst.setBlock(wx + dx, wy + dy, wz, Block.END_STONE);
-        inst.setBlock(wx, wy, wz - 1, Block.OAK_PLANKS); // protruding from the wall face, air side
-        io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem.install(mm, Explosion.config());
+        Instance inst = wall(wx, wy, wz, Block.END_STONE);
+        inst.setBlock(wx, wy, wz - 1, Block.OAK_PLANKS); // protruding from the wall face
+        ExplosionSystem.install(mm, Explosion.config()); // the flight path detonates via the installed module
         FireballEntity fb = fireball();
         fb.setExplosionPower(2.0f);
-        fb.setBlockBreakAtContact(true);
-        fb.setAerodynamics(new net.minestom.server.collision.Aerodynamics(0.0, 0.95, 0.95));
+        fb.setAerodynamics(new Aerodynamics(0.0, 0.95, 0.95));
         fb.setInstance(inst, new Pos(wx + 1.5, wy + 0.5, wz - 3.5)).join(); // aimed at the wall a block beside the wood
-        fb.setVelocityBt(new net.minestom.server.coordinate.Vec(0, 0, 1.0));
+        fb.setVelocityBt(new Vec(0, 0, 1.0));
         for (int i = 0; i < 10 && !fb.isRemoved(); i++) fb.tick(i);
         assertTrue(fb.isRemoved(), "fireball hit the wall");
         assertTrue(inst.getBlock(wx, wy, wz - 1).isAir(), "protruding wood breaks off the near-miss");
         assertTrue(inst.getBlock(wx + 1, wy, wz).compare(Block.END_STONE), "the wall itself holds");
     }
 
-    /** End stone is blast-proof TO fireballs, not just unbreakable: a 1-thick wall shields the wood set into it
-     *  (user-observed on a 5x5 end-stone wall - the far-side fireball left the centre wood standing). */
+    /** A 1-thick end-stone wall shields wood mounted on its far side: the fireball ball reaches it, the line of
+     *  sight crosses the wall and doesn't. TNT rays punch through. */
     @Test
-    void endStoneWallShieldsWoodFromFireball() {
-        int wx = 740, wy = 66, wz = 740; // wall plane at z=wz, wood at the centre
-        Instance inst = flatInstance(MechanicsProfile.builder().build());
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dy = -2; dy <= 2; dy++)
-                inst.setBlock(wx + dx, wy + dy, wz, dx == 0 && dy == 0 ? Block.OAK_PLANKS : Block.END_STONE);
-        ExplosionSystem sys = new ExplosionSystem(mm, Explosion.config());
-        // blast on the far side, offset from the wood so its rays must cross end stone first
-        sys.explode(inst, new Pos(wx + 1.5, wy + 0.5, wz + 0.9), 2.0f, fireball());
-        assertTrue(inst.getBlock(wx, wy, wz).compare(Block.OAK_PLANKS), "wood behind the end stone survives a fireball");
-        sys.explode(inst, new Pos(wx + 1.5, wy + 0.5, wz + 0.9), 2.0f, null);
-        assertTrue(inst.getBlock(wx, wy, wz).isAir(), "the same blast from TNT reaches it");
+    void endStoneWallShieldsWoodBehindIt() {
+        int wx = 740, wy = 66, wz = 740;
+        Instance inst = wall(wx, wy, wz, Block.END_STONE);
+        inst.setBlock(wx, wy, wz - 1, Block.OAK_PLANKS); // mounted on the wall's far side (from the blast)
+        ExplosionSystem sys = system();
+        Pos farSide = new Pos(wx + 0.5, wy + 0.5, wz + 1.6); // in air, within the wood's ball radius
+        sys.explode(inst, farSide, 2.0f, fireball());
+        assertTrue(inst.getBlock(wx, wy, wz - 1).compare(Block.OAK_PLANKS), "wood behind the wall survives a fireball");
+        sys.explode(inst, farSide, 4.0f, null);
+        assertTrue(inst.getBlock(wx, wy, wz - 1).isAir(), "TNT rays punch through");
     }
 }

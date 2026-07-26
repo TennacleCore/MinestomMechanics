@@ -5,7 +5,6 @@ import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
 import io.github.term4.minestommechanics.presets.vanilla18.Vanilla18;
-import net.minestom.server.instance.block.Block;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 
@@ -21,23 +20,37 @@ public final class Explosion {
 
     // radial push, wire-exact from the point-blank sweep; near but NOT exactly melee B/0.4 = 1.3185
     static final double KB_SCALE = 1.3167;
-    // fitted on the 2026-07-25 flat-pad TNT captures (wool/planks/endstone counts within ~5%): MineMen rays pay
-    // resistance x0.3, once per block - NOT the vanilla per-step charge (endstone breaks ~3 blocks out vs vanilla's 0.5)
-    static final double RESISTANCE_SCALE = 0.3;
+    // TNT: flat-pad capture fit (counts + P(r) curves within ~2%): the vanilla ray algorithm at a sparse 8-shell,
+    // paying resistance x0.075 once per block
+    static final double CHARGE_SCALE = 0.075;
+    static final int RAY_GRID = 8;
+    private static final BlockBreaking TNT_RAYS =
+            io.github.term4.minestommechanics.presets.vanilla18.Explosion.blockBreaking().toBuilder()
+                    .rayGrid(RAY_GRID)
+                    .charge(r -> r * CHARGE_SCALE)
+                    .charging(BlockBreaking.Charging.PER_BLOCK)
+                    .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS) // MineMen explosions never drop
+                    .build();
+
+    // Fireball: threshold rays on the same sparse 8-shell, rolled 0.5-1.5x - a block whose gate exceeds the ray's
+    // remaining intensity stops it (shields), anything weaker breaks free (only distance decays). The wide roll on few
+    // rays gives MineMen's ragged, unsymmetric footprints (sector-reach spread 1.17 vs 1.24 measured); the gate law
+    // fits all six captured materials (wool 0.70/planks 1.34/stone 2.23 fitted vs 0.69/1.35/2.25) and puts end stone
+    // at 3.15 > the max budget 3.0: fireball-proof with no special case.
+    private static final BlockBreaking FIREBALL_RAYS =
+            io.github.term4.minestommechanics.presets.vanilla18.Explosion.blockBreaking().toBuilder()
+                    .rayGrid(RAY_GRID)
+                    .charging(BlockBreaking.Charging.THRESHOLD)
+                    .intensityRoll(0.5, 1.5)
+                    .charge(r -> (r + 1.5) * 0.3)
+                    .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS)
+                    .build();
 
     public static ExplosionConfig config() {
         ExplosionConfig base = Vanilla18.explosion();
         return ExplosionConfig.builder(base)
                 .knockbackMultiplier(KB_SCALE)
-                .blockBreaking(base.blockBreaking.toBuilder()
-                        // end stone keeps its RAW resistance against FIREBALLS (exempt from the x0.3): one block costs
-                        // (9+0.3)*0.3 = 2.79 > the power-2 budget 2.6, so it neither breaks NOR lets rays through - a
-                        // 1-thick wall shields the wood behind it (user-observed). TNT (power 4) breaks it normally.
-                        .resistance((block, ctx) -> BlockBreaking.LEGACY_RESISTANCE.of(block, ctx)
-                                * (ctx.source() instanceof FireballEntity && block.id() == Block.END_STONE.id() ? 1.0 : RESISTANCE_SCALE))
-                        .charging(BlockBreaking.Charging.PER_BLOCK)
-                        .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS) // MineMen explosions never drop
-                        .build())
+                .blockBreaking(ctx -> ctx.source() instanceof FireballEntity ? FIREBALL_RAYS : TNT_RAYS)
                 .damageKnockback(Knockback.explosionHurt())
                 .packetPush(false)
                 .pushEye(Explosion::pushEye)

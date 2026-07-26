@@ -30,7 +30,7 @@ class Mmc18TntTest extends HeadlessServerTest {
     static void setUp() {
         // these measure PUSH geometry on fixed terrain; the preset's block breaking would crater the
         // pits and pillars later cases rely on, so it is off here rather than a hidden variable
-        explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking(null).build());
+        explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking((io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking) null).build());
     }
 
     @Test

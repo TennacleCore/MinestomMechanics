@@ -16,12 +16,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Ghast/fire-charge fireball: a self-propelled projectile (constant acceleration along its aim, no gravity - vanilla
- * {@code mot += dir; mot *= 0.95}) that detonates on any contact. The {@link #onImpact} explosion routes through the
- * {@link ExplosionSystem} (knockback + falloff damage + the block-occlusion exposure that scales it). Like vanilla it
- * blows at the pre-move position ({@code onImpact} {@code getPosition()}) - the SAME centre drives knockback and block
- * destruction, and the explosion-KB model is byte-fit to that centre, so it must not move (block-break offset lives in
- * the fireball's FLIGHT speed, not the detonation point).
+ * Ghast/fire-charge fireball: a self-propelled projectile (vanilla {@code mot += dir; mot *= 0.95}, no gravity) that
+ * detonates on any contact, through the {@link ExplosionSystem}. It blows at the pre-move position - the KB model is
+ * byte-fit to that centre and block destruction reads the same point (a fast fireball's blast stands off the wall).
  */
 public class FireballEntity extends ManagedProjectile {
 
@@ -39,10 +36,6 @@ public class FireballEntity extends ManagedProjectile {
     /** Speed the ignition snaps to when the coast ends; {@code 0} = keep coasting into pure propulsion. */
     private double cruiseSpeed;
     private int moves;
-    /** Break blocks from the CONTACT point instead of the pre-move centre (MineMen); KB/packet stay pre-move. */
-    private boolean blockBreakAtContact;
-    /** Contact nudged into the entered block, latched at impact while the flight velocity is still live. */
-    private @Nullable Point contactBlockCenter;
 
     public FireballEntity(@Nullable Entity shooter, @NotNull EntityType entityType,
                           ProjectileSnapshot snap, ProjectileTypeConfig effectiveConfig) {
@@ -56,8 +49,6 @@ public class FireballEntity extends ManagedProjectile {
         this.coastTicks = coastTicks;
         this.cruiseSpeed = cruiseSpeed;
     }
-
-    public void setBlockBreakAtContact(boolean v) { this.blockBreakAtContact = v; }
 
     @Override
     protected boolean coasting() { return moves < coastTicks; }
@@ -102,13 +93,6 @@ public class FireballEntity extends ManagedProjectile {
     @Override
     protected void onImpact(@Nullable Entity hitEntity) {
         super.onImpact(hitEntity);
-        // contact nudged BACK into the cell it arrived from (the on-face point would coin-flip the containing cell):
-        // the blast acts from the AIR side of the hit face, so wood protruding from an end-stone wall breaks off a
-        // near-miss while rays entering the wall still die inside it (user-observed; an into-the-block centre killed
-        // every ray in the wall's first sample). Latched while the flight velocity is live - a behavior may detonate a tick later.
-        if (blockBreakAtContact && blockContactPoint != null && velocityBt().lengthSquared() > 1.0e-12) {
-            contactBlockCenter = blockContactPoint.sub(velocityBt().normalize().mul(1.0e-3));
-        }
         // bare fireball detonates same-tick (vanilla); one carrying a behavior lets IT own the timing (Hypixel delays a tick)
         Instance instance = getInstance();
         if (!hasBehavior() && instance != null) detonate(instance, getPosition(), hitEntity);
@@ -118,7 +102,6 @@ public class FireballEntity extends ManagedProjectile {
     public void detonate(@NotNull Instance instance, @NotNull Point center, @Nullable Entity hitEntity) {
         Services s = services();
         ExplosionSystem explosion = s != null ? s.explosion() : null;
-        Point blockCenter = contactBlockCenter != null ? contactBlockCenter : center;
-        if (explosion != null) explosion.explode(MechanicsWorld.of(this, instance), center, blockCenter, explosionPower, this, hitEntity);
+        if (explosion != null) explosion.explode(MechanicsWorld.of(this, instance), center, explosionPower, this, hitEntity);
     }
 }

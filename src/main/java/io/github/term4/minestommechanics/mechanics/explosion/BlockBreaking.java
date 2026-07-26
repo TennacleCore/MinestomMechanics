@@ -31,12 +31,15 @@ public final class BlockBreaking {
         SPHERE
     }
 
-    /** When a ray pays a block's resistance. */
+    /** How a block's {@link Builder#charge} meets the ray. */
     public enum Charging {
-        /** Vanilla: every 0.3 sample inside the block (~3.33x per block traversed). */
+        /** Vanilla: subtracted every 0.3 sample inside the block (~3.33x per block traversed). */
         PER_STEP,
-        /** Once, on entering the block (MineMen; ~3.33x deeper reach into solids at equal resistance). */
-        PER_BLOCK
+        /** Subtracted once, on entering the block (MineMen TNT; ~3.33x deeper reach at equal resistance). */
+        PER_BLOCK,
+        /** A gate, not a cost: a block whose charge exceeds the ray's remaining intensity STOPS it (shielding whatever
+         *  is behind); anything weaker breaks and the ray flies on, spending only distance decay (MineMen fireball). */
+        THRESHOLD
     }
 
     /**
@@ -132,6 +135,9 @@ public final class BlockBreaking {
     private final Charging charging;
     private final Shielding shielding;
     private final boolean[] shadowCasters;
+    private final int rayGrid;
+    private final java.util.function.DoubleUnaryOperator charge;
+    private final double rollMin, rollMax;
 
     private BlockBreaking(Builder b) {
         this.model = b.model;
@@ -141,12 +147,22 @@ public final class BlockBreaking {
         this.charging = b.charging;
         this.shielding = b.shielding;
         this.shadowCasters = b.shadowCasters;
+        this.rayGrid = b.rayGrid;
+        this.charge = b.charge;
+        this.rollMin = b.rollMin;
+        this.rollMax = b.rollMax;
     }
 
     public @NotNull Model model() { return model; }
     public @NotNull Interaction interaction() { return interaction; }
     @NotNull Charging charging() { return charging; }
     @NotNull Shielding shielding() { return shielding; }
+    int rayGrid() { return rayGrid; }
+    double charge(double resistance) { return charge.applyAsDouble(resistance); }
+    /** One ray's intensity: {@code power} x a uniform roll in {@code [rollMin, rollMax]}. */
+    double rollIntensity(float power, java.util.concurrent.ThreadLocalRandom rnd) {
+        return power * (rollMin == rollMax ? rollMin : rollMin + rnd.nextDouble() * (rollMax - rollMin));
+    }
 
     double resistance(@NotNull Block block, @NotNull ExplosionContext ctx) { return resistance.of(block, ctx); }
 
@@ -176,6 +192,9 @@ public final class BlockBreaking {
         private Charging charging = Charging.PER_STEP;
         private Shielding shielding = Shielding.NONE;
         private boolean[] shadowCasters = new boolean[0];
+        private int rayGrid = 16;
+        private java.util.function.DoubleUnaryOperator charge = r -> (r + 0.3) * 0.3;
+        private double rollMin = 0.7, rollMax = 1.3;
 
         private Builder() {}
 
@@ -187,6 +206,10 @@ public final class BlockBreaking {
             charging = c.charging;
             shielding = c.shielding;
             shadowCasters = c.shadowCasters;
+            rayGrid = c.rayGrid;
+            charge = c.charge;
+            rollMin = c.rollMin;
+            rollMax = c.rollMax;
         }
 
         public Builder model(@NotNull Model v) { this.model = v; return this; }
@@ -195,6 +218,17 @@ public final class BlockBreaking {
 
         /** When a ray pays resistance; default {@link Charging#PER_STEP} (vanilla). */
         public Builder charging(@NotNull Charging v) { this.charging = v; return this; }
+
+        /** Ray lattice edge; only the shell is cast. Vanilla 16 (1352 rays); MineMen 8 (296 - sparser rim, softer edge). */
+        public Builder rayGrid(int v) { this.rayGrid = v; return this; }
+
+        /** Intensity a ray pays for (or must beat, under {@link Charging#THRESHOLD}) a block, from its resistance;
+         *  default vanilla {@code (r+0.3)*0.3} (MineMen TNT {@code r*0.075}; its fireball a fitted table). */
+        public Builder charge(@NotNull java.util.function.DoubleUnaryOperator v) { this.charge = v; return this; }
+
+        /** Per-ray intensity roll bounds (x power); vanilla {@code 0.7, 1.3} (default), MineMen fireball {@code 0.5, 1.5},
+         *  equal bounds = deterministic. */
+        public Builder intensityRoll(double min, double max) { this.rollMin = min; this.rollMax = max; return this; }
 
         /** How unbreakable blocks shield what is behind them; default {@link Shielding#NONE} (vanilla). */
         public Builder shielding(@NotNull Shielding v) { this.shielding = v; return this; }

@@ -34,7 +34,7 @@ class Mmc18TntWireTest extends HeadlessServerTest {
 
     @Test
     void spawnCarriesKickAndRestingTntIsSilent() {
-        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking(null).build()); // shared instance: measure wire, not terrain
+        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking((io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking) null).build()); // shared instance: measure wire, not terrain
         FakePlayer fp = FakePlayer.connect(instance, new Pos(8, 65, 8), "TntWireProbe");
         int before = fp.sent.size();
 
@@ -85,7 +85,7 @@ class Mmc18TntWireTest extends HeadlessServerTest {
         FakePlayer modern = FakePlayer.connect(instance, new Pos(8, 65, 8), "ModernTntViewer");
         ((OptimizedPlayer) legacy.player).compat().setLegacyClient(true);
 
-        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking(null).build());
+        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking((io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking) null).build());
         var cfg = new PrimedTnt.Config(120, 4.0f, true, PrimedTnt.Wire.HYPIXEL, false, null); // 120 > 80: outlives the client count
         PrimedTnt tnt = PrimedTnt.spawn(explosions, instance, new BlockVec(8, 70, 8), cfg);
         awaitSpawn(tnt);
@@ -103,7 +103,7 @@ class Mmc18TntWireTest extends HeadlessServerTest {
         FakePlayer legacy = FakePlayer.connect(instance, new Pos(8, 65, 8), "ShortFuseViewer");
         ((OptimizedPlayer) legacy.player).compat().setLegacyClient(true);
 
-        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking(null).build());
+        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking((io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking) null).build());
         var cfg = new PrimedTnt.Config(50, 4.0f, true, PrimedTnt.Wire.HYPIXEL, false, null); // 50 < 80: the client's own count covers it
         PrimedTnt tnt = PrimedTnt.spawn(explosions, instance, new BlockVec(8, 70, 8), cfg);
         awaitSpawn(tnt);

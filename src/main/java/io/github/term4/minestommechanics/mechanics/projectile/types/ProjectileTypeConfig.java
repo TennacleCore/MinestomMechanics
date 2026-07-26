@@ -163,8 +163,6 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
     public final @Nullable FieldValue<ProjectileContext, Integer> coastTicks;
     /** Speed a fireball snaps to when the {@link #coastTicks} coast ends; {@code 0} = none. Fireball-only. */
     public final @Nullable FieldValue<ProjectileContext, Double> cruiseSpeed;
-    /** Break blocks from the CONTACT point while KB/packet stay at the pre-move centre (MineMen). Fireball-only. */
-    public final @Nullable FieldValue<ProjectileContext, Boolean> blockBreakAtContact;
     /** Full-draw crit chance the bow rolls ({@code [0,1]}); vanilla {@code 1.0} = always. Arrow-launcher knob. */
     public final @Nullable FieldValue<ProjectileContext, Double> critChance;
     /** Fall damage dealt to a player shooter when the ender pearl lands (vanilla {@code 5}); {@code 0} = none. Ender-pearl only. */
@@ -244,7 +242,6 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
         explosionPower = b.explosionPower;
         coastTicks = b.coastTicks;
         cruiseSpeed = b.cruiseSpeed;
-        blockBreakAtContact = b.blockBreakAtContact;
         critChance = b.critChance;
         teleportDamage = b.teleportDamage;
         behavior = b.behavior;

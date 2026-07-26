@@ -112,9 +112,6 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     /** Single-axis face normal of the hit surface (signed travel direction on the hit axis). */
     protected @Nullable Vec collisionDirection;
     protected @Nullable Point stuckCollisionPoint;
-    /** The exact point of the latest block contact, set before {@link #onStuck} - available to a break-on-hit
-     *  projectile whose stuck state never latches (the fireball's contact-centred block destruction). */
-    protected @Nullable Point blockContactPoint;
     private @Nullable Pos stuckPlacement;
     private long stuckSyncCounter;
     /** Throttles the in-flight teleport to {@code syncInterval} (a per-tick teleport shakes the client); seeded at 1 like {@link #autoVelocityCounter}. */
@@ -533,7 +530,6 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
         var event = new ProjectileCollideWithBlockEvent(this, hitPoint.asPos(), hitBlock);
         EventDispatcher.call(event);
         if (event.isCancelled()) return;
-        this.blockContactPoint = hitPoint;
 
         // latch the stuck render rotation + face normal while velocity is still the flight value
         if (velocityBt.lengthSquared() > 1e-8) {

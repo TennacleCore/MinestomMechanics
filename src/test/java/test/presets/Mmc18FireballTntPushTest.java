@@ -29,7 +29,7 @@ class Mmc18FireballTntPushTest extends HeadlessServerTest {
 
     @Test
     void fireballStyleBlastPushesTntPureRadialAtFullScale() {
-        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.fireballFight().toBuilder().blockBreaking(null).build()); // push test on the shared instance: no terrain edits // the toBuilder-round-tripped config
+        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.fireballFight().toBuilder().blockBreaking((io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking) null).build()); // push test on the shared instance: no terrain edits // the toBuilder-round-tripped config
         PrimedTnt victim = Tnt.spawn(explosions, instance, new BlockVec(8, 64, 8)); // mid-chunk: the -x sail must clear the x=0 unloaded-chunk wall
         victim.setVelocity(new Vec(0, 0.2, 0).mul(20));
         for (int i = 0; i < 25; i++) victim.tick(0);

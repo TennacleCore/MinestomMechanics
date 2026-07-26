@@ -339,16 +339,16 @@ class BlockBreakingTest extends HeadlessServerTest {
                 new Preset("hypixel", io.github.term4.minestommechanics.presets.hypixel.Explosion.config()),
                 new Preset("mmc18", io.github.term4.minestommechanics.presets.mmc18.Explosion.config()),
                 new Preset("mmc18 fireball-fight", io.github.term4.minestommechanics.presets.mmc18.Explosion.fireballFight()))) {
-            BlockBreaking b = preset.config().blockBreaking;
+            BlockBreaking b = FieldValue.resolve(preset.config().blockBreaking, ctx);
             assertNotNull(b, preset.name() + " inherits vanilla18's block breaking");
-            assertEquals(BlockBreaking.Model.RAY_1_8, b.model(), preset.name() + " keeps the 1.8 ray");
+            assertEquals(BlockBreaking.Model.RAY_1_8, b.model(), preset.name() + " keeps the 1.8 ray for a sourceless blast");
         }
-        // hypixel keeps the raw 1.8 table + vanilla drops; mmc18 scales resistance x0.3 and never drops (capture-fitted)
-        BlockBreaking hy = io.github.term4.minestommechanics.presets.hypixel.Explosion.config().blockBreaking;
-        BlockBreaking mm = io.github.term4.minestommechanics.presets.mmc18.Explosion.config().blockBreaking;
+        // both keep the raw 1.8 table (mmc18's scaling lives in the charge, not the resistance); only mmc18 drops nothing
+        BlockBreaking hy = FieldValue.resolve(io.github.term4.minestommechanics.presets.hypixel.Explosion.config().blockBreaking, ctx);
+        BlockBreaking mm = FieldValue.resolve(io.github.term4.minestommechanics.presets.mmc18.Explosion.config().blockBreaking, ctx);
         assertEquals(0.5, hy.resistance(Block.PISTON, ctx), 1e-9);
         assertEquals(BlockBreaking.Interaction.DESTROY_WITH_DECAY, hy.interaction());
-        assertEquals(0.15, mm.resistance(Block.PISTON, ctx), 1e-9);
+        assertEquals(0.5, mm.resistance(Block.PISTON, ctx), 1e-9);
         assertEquals(BlockBreaking.Interaction.DESTROY_NO_DROPS, mm.interaction());
         // fireScope must survive builder(base) WITHOUT being re-set - the copy-ctor omission guard (bit twice before)
         ExplosionConfig base = ExplosionConfig.builder().fireScope(ExplosionConfig.FireScope.BROKEN).build();

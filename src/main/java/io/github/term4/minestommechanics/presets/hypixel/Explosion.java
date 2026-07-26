@@ -36,8 +36,7 @@ public final class Explosion {
             .collect(Collectors.toUnmodifiableSet());
 
     public static ExplosionConfig config() {
-        ExplosionConfig base = Vanilla18.explosion();
-        return ExplosionConfig.builder(base)
+        return ExplosionConfig.builder(Vanilla18.explosion())
                 .baseKnockback(BASE).baseHeight(BASE_HEIGHT)
                 .baseScale(RadialScale.builder().down(BASE_DOWNWARD_SCALE).horizontal(BASE_HORIZONTAL_SCALE).build())
                 .knockbackImpactFloor(KB_IMPACT_FLOOR)
@@ -49,7 +48,7 @@ public final class Explosion {
                 // glass is still selected; it survives only if the straight line from the blast centre to it crosses
                 // glass. neverBreaks makes glass unbreakable AND the shadow-caster; OCCLUSION draws the line. Obsidian
                 // (1200) just stops rays as in vanilla and casts no shadow.
-                .blockBreaking(base.blockBreaking.toBuilder()
+                .blockBreaking(io.github.term4.minestommechanics.presets.vanilla18.Explosion.blockBreaking().toBuilder()
                         .neverBreaks(BLAST_PROOF_GLASS)
                         .shielding(BlockBreaking.Shielding.OCCLUSION)
                         .build())

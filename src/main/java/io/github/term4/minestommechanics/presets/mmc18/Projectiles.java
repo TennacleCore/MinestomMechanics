@@ -42,7 +42,6 @@ public final class Projectiles {
                 .boundingBox(1, 1, 1)
                 .gravity(0.0).horizontalDrag(0.95).verticalDrag(0.95)
                 .speed(LAUNCH).coastTicks(1).cruiseSpeed(CRUISE).spread(0.0) // coast one tick at launch, then ignite to cruise
-                .blockBreakAtContact(true) // capture-fitted: elevated detonations break from the contact point, KB/packet stay pre-move
                 .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0)
                 .leftOwnerImmunity(true)
                 .syncInterval(0).velocitySyncInterval(1) // no position teleports (minemen doesn't): pure velocity prediction
