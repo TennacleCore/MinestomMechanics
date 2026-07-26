@@ -138,6 +138,8 @@ public final class BlockBreaking {
     private final int rayGrid;
     private final java.util.function.DoubleUnaryOperator charge;
     private final double rollMin, rollMax;
+    private final boolean rollPerHeading;
+    private final double originLift;
 
     private BlockBreaking(Builder b) {
         this.model = b.model;
@@ -151,6 +153,8 @@ public final class BlockBreaking {
         this.charge = b.charge;
         this.rollMin = b.rollMin;
         this.rollMax = b.rollMax;
+        this.rollPerHeading = b.rollPerHeading;
+        this.originLift = b.originLift;
     }
 
     public @NotNull Model model() { return model; }
@@ -163,6 +167,8 @@ public final class BlockBreaking {
     double rollIntensity(float power, java.util.concurrent.ThreadLocalRandom rnd) {
         return power * (rollMin == rollMax ? rollMin : rollMin + rnd.nextDouble() * (rollMax - rollMin));
     }
+    boolean rollPerHeading() { return rollPerHeading; }
+    double originLift() { return originLift; }
 
     double resistance(@NotNull Block block, @NotNull ExplosionContext ctx) { return resistance.of(block, ctx); }
 
@@ -195,6 +201,8 @@ public final class BlockBreaking {
         private int rayGrid = 16;
         private java.util.function.DoubleUnaryOperator charge = r -> (r + 0.3) * 0.3;
         private double rollMin = 0.7, rollMax = 1.3;
+        private boolean rollPerHeading;
+        private double originLift;
 
         private Builder() {}
 
@@ -210,6 +218,8 @@ public final class BlockBreaking {
             charge = c.charge;
             rollMin = c.rollMin;
             rollMax = c.rollMax;
+            rollPerHeading = c.rollPerHeading;
+            originLift = c.originLift;
         }
 
         public Builder model(@NotNull Model v) { this.model = v; return this; }
@@ -223,12 +233,19 @@ public final class BlockBreaking {
         public Builder rayGrid(int v) { this.rayGrid = v; return this; }
 
         /** Intensity a ray pays for (or must beat, under {@link Charging#THRESHOLD}) a block, from its resistance;
-         *  default vanilla {@code (r+0.3)*0.3} (MineMen TNT {@code r*0.075}; its fireball a fitted table). */
+         *  default vanilla {@code (r+0.3)*0.3} (MineMen TNT {@code r*0.0775}; its fireball a fitted table). */
         public Builder charge(@NotNull java.util.function.DoubleUnaryOperator v) { this.charge = v; return this; }
 
-        /** Per-ray intensity roll bounds (x power); vanilla {@code 0.7, 1.3} (default), MineMen fireball {@code 0.5, 1.5},
-         *  equal bounds = deterministic. */
+        /** Per-ray intensity roll bounds (x power); vanilla {@code 0.7, 1.3} (default), equal bounds = deterministic. */
         public Builder intensityRoll(double min, double max) { this.rollMin = min; this.rollMax = max; return this; }
+
+        /** One roll per horizontal heading instead of per ray (the vertical fan moves together) - a coherent rim
+         *  wiggle instead of per-ray salt-and-pepper (MineMen fireball). */
+        public Builder rollPerHeading(boolean v) { this.rollPerHeading = v; return this; }
+
+        /** Raises the ray origin above the blast centre for BLOCK selection only (KB/damage/packet unaffected);
+         *  MineMen fireball 0.25 - their footprints shrink faster with standoff than the flat-origin geometry. */
+        public Builder originLift(double v) { this.originLift = v; return this; }
 
         /** How unbreakable blocks shield what is behind them; default {@link Shielding#NONE} (vanilla). */
         public Builder shielding(@NotNull Shielding v) { this.shielding = v; return this; }

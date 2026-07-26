@@ -372,12 +372,15 @@ public final class MotionTracker implements Tracker {
             c = Math.max(-LADDER_CLAMP, c); r = Math.max(-LADDER_CLAMP, r);
             if (p.isSneaking()) { if (c < 0) c = 0; if (r < 0) r = 0; } // sneak-hold
         }
+        // the client's grounded flag also lands a descent: the swept probe misses from flush-on-floor positions,
+        // and without this a move-streaming grounded client sawtooths the sim into false free-fall
+        boolean grounded = p.isOnGround();
         PhysicsResult colC = c < 0 ? CollisionUtils.handlePhysics(p, new Vec(0, c, 0)) : null;
-        boolean collidedC = colC != null && colC.isOnGround();
+        boolean collidedC = colC != null && (grounded || colC.isOnGround());
         PhysicsResult colR = r < 0 ? (r == c ? colC : CollisionUtils.handlePhysics(p, new Vec(0, r, 0))) : null;
-        boolean collidedR = colR != null && colR.isOnGround();
-        if (collidedC) c = landMotY(p, colC, c, modernBlocks);
-        if (collidedR) r = landMotY(p, colR, r, modernBlocks);
+        boolean collidedR = colR != null && (grounded || colR.isOnGround());
+        if (collidedC) c = landMotY(p, colC.isOnGround() ? colC.newPosition() : p.getPosition(), c, modernBlocks);
+        if (collidedR) r = landMotY(p, colR.isOnGround() ? colR.newPosition() : p.getPosition(), r, modernBlocks);
         // climb-up: positionDelta.y is the ascent signal only, the model sets the value
         if (env == Env.LADDER) {
             OptionalDouble climbUp = climbModel.climbUpMotY(positionDelta(p).y());
@@ -433,11 +436,11 @@ public final class MotionTracker implements Tracker {
      * unless the player sneaks - slime at factor {@code 1.0}, and with {@code modernBlocks} a bed at {@code 0.66}
      * (26-only, {@code BedBlock:150}; 1.8 beds do not bounce).
      */
-    private static double landMotY(Player p, PhysicsResult res, double motY, boolean modernBlocks) {
+    private static double landMotY(Player p, Point landedAt, double motY, boolean modernBlocks) {
         if (!p.isSneaking()) {
             Instance inst = p.getInstance();
             if (inst != null) {
-                Block below = blockBelow(p, res.newPosition());
+                Block below = blockBelow(p, landedAt);
                 if (below.compare(Block.SLIME_BLOCK)) return -motY;
                 if (modernBlocks && isBed(below)) return -motY * 0.66;
             }

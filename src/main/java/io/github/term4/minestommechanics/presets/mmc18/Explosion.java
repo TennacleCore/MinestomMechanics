@@ -21,8 +21,8 @@ public final class Explosion {
     // radial push, wire-exact from the point-blank sweep; near but NOT exactly melee B/0.4 = 1.3185
     static final double KB_SCALE = 1.3167;
     // TNT: flat-pad capture fit (counts + P(r) curves within ~2%): the vanilla ray algorithm at a sparse 8-shell,
-    // paying resistance x0.075 once per block
-    static final double CHARGE_SCALE = 0.075;
+    // paying resistance x0.0775 once per block
+    static final double CHARGE_SCALE = 0.0775;
     static final int RAY_GRID = 8;
     private static final BlockBreaking TNT_RAYS =
             io.github.term4.minestommechanics.presets.vanilla18.Explosion.blockBreaking().toBuilder()
@@ -32,17 +32,19 @@ public final class Explosion {
                     .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS) // MineMen explosions never drop
                     .build();
 
-    // Fireball: threshold rays on the same sparse 8-shell, rolled 0.5-1.5x - a block whose gate exceeds the ray's
-    // remaining intensity stops it (shields), anything weaker breaks free (only distance decays). The wide roll on few
-    // rays gives MineMen's ragged, unsymmetric footprints, and the vanilla 0.3 sampling corner-cuts like theirs. The
-    // gate law fits all six captured materials (planks 1.201/stone 2.096 fitted vs 1.2/2.1 exact); end stone (3.0)
-    // meets rays at <= 2.775 after the first step's decay: fireball-proof with no special case.
+    // Fireball: threshold rays on the full 16-shell, one 0.6-1.4x roll per horizontal heading - a block whose gate
+    // exceeds the ray's remaining intensity stops it (shields), anything weaker breaks free (only distance decays).
+    // The heading-shared roll makes MineMen's rims wiggle coherently (few lone fingers/bites) while staying ragged and
+    // unsymmetric, and the vanilla 0.3 sampling corner-cuts like theirs. The gate law anchors all six captured
+    // materials within ±0.007 (totals 0.98-1.02); end stone's 2.66 gate exceeds the 2.575 a ray can carry to it
+    // (max roll minus one decay step): fireball-proof with no special case.
     private static final BlockBreaking FIREBALL_RAYS =
             io.github.term4.minestommechanics.presets.vanilla18.Explosion.blockBreaking().toBuilder()
-                    .rayGrid(RAY_GRID)
                     .charging(BlockBreaking.Charging.THRESHOLD)
-                    .intensityRoll(0.5, 1.5)
-                    .charge(r -> (r + 1.0) * 0.3)
+                    .intensityRoll(0.6, 1.4)
+                    .rollPerHeading(true)
+                    .originLift(0.25) // 52-shot wool corpus: footprints shrink faster with standoff than a feet-origin walk
+                    .charge(r -> 0.322 + 0.260 * r)
                     .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS)
                     .build();
 

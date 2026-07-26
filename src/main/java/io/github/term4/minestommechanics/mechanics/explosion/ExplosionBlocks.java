@@ -13,8 +13,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -29,8 +31,12 @@ import java.util.concurrent.ThreadLocalRandom;
 final class ExplosionBlocks {
 
     private static final float STEP = 0.3F;
-    /** Unit shell directions per lattice edge (16 -> 1352 rays, 8 -> 296). */
-    private static final java.util.concurrent.ConcurrentHashMap<Integer, double[][]> LATTICES = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Shell directions plus each ray's horizontal-heading group (for {@code rollPerHeading}). */
+    private record Lattice(double[][] dirs, int[] heading, int headings) {}
+
+    /** Per lattice edge (16 -> 1352 rays, 8 -> 296). */
+    private static final java.util.concurrent.ConcurrentHashMap<Integer, Lattice> LATTICES = new java.util.concurrent.ConcurrentHashMap<>();
     /** Per-step intensity loss, independent of what the ray passes through. */
     private static final float STEP_DECAY = 0.22500001F;
     /** Furthest a ray reaches per unit power: max intensity (1.3) / the min per-step decay, in blocks. Bounds the seal scan. */
@@ -42,8 +48,9 @@ final class ExplosionBlocks {
     private ExplosionBlocks() {}
 
     /** The positions this explosion destroys, in no particular order. */
-    static @NotNull List<Point> select(MechanicsWorld world, Point center, float power,
+    static @NotNull List<Point> select(MechanicsWorld world, Point blastCenter, float power,
                                        BlockBreaking cfg, ExplosionContext ctx) {
+        Point center = cfg.originLift() != 0 ? blastCenter.add(0, cfg.originLift(), 0) : blastCenter;
         if (cfg.model() == BlockBreaking.Model.SPHERE) return sphere(world, center, power, cfg, ctx);
         List<Point> hit = rays(world, center, power, cfg, ctx);
         if (cfg.shielding() == BlockBreaking.Shielding.OCCLUSION) {
@@ -78,10 +85,11 @@ final class ExplosionBlocks {
         return mask == null ? null : new Seal(mask, minX, minY, minZ, side);
     }
 
-    /** The vanilla NxNxN shell (the 16 lattice is byte-exact 1.8; MineMen casts an 8). */
-    private static double[][] lattice(int grid) {
+    /** The vanilla NxNxN shell (the 16 lattice is byte-exact 1.8; MineMen casts an 8 for TNT). */
+    private static Lattice lattice(int grid) {
         return LATTICES.computeIfAbsent(grid, n -> {
             List<double[]> out = new ArrayList<>();
+            List<Long> keys = new ArrayList<>();
             int m = n - 1;
             for (int x = 0; x < n; x++) {
                 for (int y = 0; y < n; y++) {
@@ -90,10 +98,14 @@ final class ExplosionBlocks {
                         double dx = (double) x / m * 2.0F - 1.0F, dy = (double) y / m * 2.0F - 1.0F, dz = (double) z / m * 2.0F - 1.0F;
                         double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
                         out.add(new double[]{dx / len, dy / len, dz / len});
+                        keys.add(Math.round(Math.atan2(dz, dx) * 1.0e4)); // horizontal heading, lattice-exact grouping
                     }
                 }
             }
-            return out.toArray(double[][]::new);
+            Map<Long, Integer> ids = new HashMap<>();
+            int[] heading = new int[keys.size()];
+            for (int i = 0; i < keys.size(); i++) heading[i] = ids.computeIfAbsent(keys.get(i), k -> ids.size());
+            return new Lattice(out.toArray(double[][]::new), heading, ids.size());
         });
     }
 
@@ -103,9 +115,22 @@ final class ExplosionBlocks {
         boolean perStep = cfg.charging() == BlockBreaking.Charging.PER_STEP;
         Set<Point> hit = new HashSet<>();
         var rnd = ThreadLocalRandom.current();
-        for (double[] dir : lattice(cfg.rayGrid())) {
+        Lattice lat = lattice(cfg.rayGrid());
+        // rollPerHeading: the vertical fan of rays sharing a horizontal heading rolls once - a coherent rim wiggle
+        // instead of per-ray salt-and-pepper (MineMen fireball)
+        float[] headingRoll = cfg.rollPerHeading() ? new float[lat.headings()] : null;
+        if (headingRoll != null) java.util.Arrays.fill(headingRoll, Float.NaN);
+        for (int i = 0; i < lat.dirs().length; i++) {
+            double[] dir = lat.dirs()[i];
             double dx = dir[0], dy = dir[1], dz = dir[2];
-            float intensity = (float) cfg.rollIntensity(power, rnd);
+            float intensity;
+            if (headingRoll != null) {
+                int h = lat.heading()[i];
+                if (Float.isNaN(headingRoll[h])) headingRoll[h] = (float) cfg.rollIntensity(power, rnd);
+                intensity = headingRoll[h];
+            } else {
+                intensity = (float) cfg.rollIntensity(power, rnd);
+            }
             double px = center.x(), py = center.y(), pz = center.z();
             BlockVec charged = null; // PER_BLOCK: the last cell that paid resistance
             while (intensity > 0.0F) {
