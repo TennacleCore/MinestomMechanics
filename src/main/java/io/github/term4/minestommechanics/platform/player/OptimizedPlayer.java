@@ -5,6 +5,7 @@ import io.github.term4.minestommechanics.MinestomMechanics;
 import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
 import io.github.term4.minestommechanics.platform.compatibility.CompatState;
+import io.github.term4.minestommechanics.platform.fixes.RefreshPositionFix;
 import io.github.term4.minestommechanics.platform.fixes.client.InventorySync;
 import io.github.term4.minestommechanics.platform.fixes.client.LegacyEquipmentFix;
 import io.github.term4.minestommechanics.platform.fixes.client.SelfMetaFilter;
@@ -222,6 +223,8 @@ public class OptimizedPlayer extends Player implements ExternallyTickable {
             if (cadence > 1 && getAliveTicks() % cadence != 0) sendPackets = false;
         }
         super.refreshPosition(newPosition, ignoreView, sendPackets); // api-internal override
+        Pos retry = RefreshPositionFix.swallowedRetry(this, newPosition);
+        if (retry != null) super.refreshPosition(retry, ignoreView, sendPackets);
     }
 
     // aim sync (see UseItemAimSync / AttackAimSync); runs on the connection's read thread. Independent packet types

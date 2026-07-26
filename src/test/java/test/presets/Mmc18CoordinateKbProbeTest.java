@@ -162,6 +162,30 @@ class Mmc18CoordinateKbProbeTest extends HeadlessServerTest {
         System.out.println(report);
     }
 
+    /** Flush-on-floor landing sweep: does dy=-0.0784 from y exactly on the floor plane collide, by sign/magnitude/state? */
+    @Test
+    void flushProbeMatrix() {
+        InstanceContainer inst = MinecraftServer.getInstanceManager().createInstanceContainer();
+        StringBuilder report = new StringBuilder("\n=== F: flush probe matrix (dy=-0.0784 from y=top exactly) ===\n");
+        for (double x : new double[]{8.5, -11.5, 94834.5, -94834.5}) {
+            int bx = (int) Math.floor(x), bz = 8, top = 64;
+            for (int cx = (bx >> 4) - 1; cx <= (bx >> 4) + 1; cx++)
+                for (int cz = -1; cz <= 1; cz++) inst.loadChunk(cx, cz).join();
+            for (int px = bx - 2; px <= bx + 2; px++)
+                for (int pz = bz - 2; pz <= bz + 2; pz++) inst.setBlock(px, top - 1, pz, Block.STONE);
+            FakePlayer fp = FakePlayer.connect(inst, new Pos(x, top, 8.5), "pm" + Math.abs(bx) + (x < 0 ? "n" : "p"));
+            awaitSpawn(fp.player);
+            fp.player.teleport(new Pos(x, top, 8.5)).join();
+            var tele = net.minestom.server.collision.CollisionUtils.handlePhysics(fp.player, new Vec(0, -0.0784, 0));
+            fp.player.refreshPosition(new Pos(x, top, 8.5), true, false);
+            var refr = net.minestom.server.collision.CollisionUtils.handlePhysics(fp.player, new Vec(0, -0.0784, 0));
+            report.append(String.format("x=%10.1f  teleport-state onGround=%b   refresh-state onGround=%b%n",
+                    x, tele.isOnGround(), refr.isOnGround()));
+            fp.player.remove();
+        }
+        System.out.println(report);
+    }
+
     /** User repro: straight-down self-shot gave wire vy 1.6655 at (0,40,-8) but 1.3541 at (94830,70,93793). */
     @Test
     void selfShotStraightDownAtUserCoordinates() {
