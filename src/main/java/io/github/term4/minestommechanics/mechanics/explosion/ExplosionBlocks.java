@@ -45,9 +45,7 @@ final class ExplosionBlocks {
     static @NotNull List<Point> select(MechanicsWorld world, Point center, float power,
                                        BlockBreaking cfg, ExplosionContext ctx) {
         if (cfg.model() == BlockBreaking.Model.SPHERE) return sphere(world, center, power, cfg, ctx);
-        List<Point> hit = cfg.charging() == BlockBreaking.Charging.THRESHOLD
-                ? thresholdRays(world, center, power, cfg, ctx)
-                : rays(world, center, power, cfg, ctx);
+        List<Point> hit = rays(world, center, power, cfg, ctx);
         if (cfg.shielding() == BlockBreaking.Shielding.OCCLUSION) {
             // hard shadow (Hypixel): drop a selected cell if the line from the blast centre to its centre crosses a
             // blast-proof block. The ray itself is untouched - it passes straight through glass; only this line sees it.
@@ -117,57 +115,18 @@ final class ExplosionBlocks {
                 if (block == null) break; // unloaded reads as solid: the ray stops
                 double resistance = resistance(block, cfg, ctx, modern);
                 if (resistance >= 0 && (perStep || !pos.equals(charged))) {
-                    intensity -= (float) cfg.charge(resistance);
+                    if (cfg.charging() == BlockBreaking.Charging.THRESHOLD) {
+                        // gate, not a cost: a stronger block stops the ray (shields what is behind); the per-ray roll
+                        // keeps the reach continuous - under a FIXED intensity the 0.3 sampling quantizes it to rungs
+                        if (cfg.charge(resistance) > intensity) break;
+                    } else {
+                        intensity -= (float) cfg.charge(resistance);
+                    }
                     charged = pos;
                 }
                 if (intensity > 0.0F && cfg.canBreak(block, pos, ctx)) hit.add(pos);
                 px += dx * STEP; py += dy * STEP; pz += dz * STEP;
                 intensity -= STEP_DECAY;
-            }
-        }
-        return new ArrayList<>(hit);
-    }
-
-    /** Intensity per block of ray travel, the vanilla step decay in continuous form. */
-    private static final double DECAY_PER_BLOCK = STEP_DECAY / STEP;
-
-    /**
-     * {@link BlockBreaking.Charging#THRESHOLD} rays: an exact voxel walk (not the 0.3 sampler - its quantized
-     * entry distances leave reach stuck between 0.3-block rungs). Intensity falls with DISTANCE only; each entered
-     * block gates on the intensity AT ITS ENTRY - stronger stops the ray (shielding what is behind), weaker breaks free.
-     */
-    private static List<Point> thresholdRays(MechanicsWorld world, Point center, float power,
-                                             BlockBreaking cfg, ExplosionContext ctx) {
-        Set<Point> hit = new HashSet<>();
-        var rnd = ThreadLocalRandom.current();
-        for (double[] dir : lattice(cfg.rayGrid())) {
-            double dx = dir[0], dy = dir[1], dz = dir[2];
-            double intensity = cfg.rollIntensity(power, rnd);
-            double maxT = intensity / DECAY_PER_BLOCK;
-            int x = (int) Math.floor(center.x()), y = (int) Math.floor(center.y()), z = (int) Math.floor(center.z());
-            int stepX = dx > 0 ? 1 : -1, stepY = dy > 0 ? 1 : -1, stepZ = dz > 0 ? 1 : -1;
-            double tMaxX = dx != 0 ? (dx > 0 ? x + 1 - center.x() : center.x() - x) / Math.abs(dx) : Double.POSITIVE_INFINITY;
-            double tMaxY = dy != 0 ? (dy > 0 ? y + 1 - center.y() : center.y() - y) / Math.abs(dy) : Double.POSITIVE_INFINITY;
-            double tMaxZ = dz != 0 ? (dz > 0 ? z + 1 - center.z() : center.z() - z) / Math.abs(dz) : Double.POSITIVE_INFINITY;
-            double tDeltaX = dx != 0 ? 1 / Math.abs(dx) : Double.POSITIVE_INFINITY;
-            double tDeltaY = dy != 0 ? 1 / Math.abs(dy) : Double.POSITIVE_INFINITY;
-            double tDeltaZ = dz != 0 ? 1 / Math.abs(dz) : Double.POSITIVE_INFINITY;
-            double t = 0;
-            while (true) {
-                BlockVec pos = new BlockVec(x, y, z);
-                Block block = loadedBlock(world, pos);
-                if (block == null) break; // unloaded reads as solid: the ray stops
-                if (!block.isAir()) {
-                    double f = intensity - DECAY_PER_BLOCK * t;
-                    if (cfg.charge(cfg.resistance(block, ctx)) > f) break; // too strong: shields what is behind
-                    if (cfg.canBreak(block, pos, ctx)) hit.add(pos);
-                }
-                double m = Math.min(tMaxX, Math.min(tMaxY, tMaxZ));
-                if (m > maxT) break;
-                t = m;
-                if (tMaxX == m) { x += stepX; tMaxX += tDeltaX; }
-                else if (tMaxY == m) { y += stepY; tMaxY += tDeltaY; }
-                else { z += stepZ; tMaxZ += tDeltaZ; }
             }
         }
         return new ArrayList<>(hit);

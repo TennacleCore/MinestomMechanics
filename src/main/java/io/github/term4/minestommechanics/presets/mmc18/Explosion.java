@@ -34,15 +34,15 @@ public final class Explosion {
 
     // Fireball: threshold rays on the same sparse 8-shell, rolled 0.5-1.5x - a block whose gate exceeds the ray's
     // remaining intensity stops it (shields), anything weaker breaks free (only distance decays). The wide roll on few
-    // rays gives MineMen's ragged, unsymmetric footprints (sector-reach spread 1.17 vs 1.24 measured); the gate law
-    // fits all six captured materials (wool 0.70/planks 1.34/stone 2.23 fitted vs 0.69/1.35/2.25) and puts end stone
-    // at 3.15 > the max budget 3.0: fireball-proof with no special case.
+    // rays gives MineMen's ragged, unsymmetric footprints, and the vanilla 0.3 sampling corner-cuts like theirs. The
+    // gate law fits all six captured materials (planks 1.201/stone 2.096 fitted vs 1.2/2.1 exact); end stone (3.0)
+    // meets rays at <= 2.775 after the first step's decay: fireball-proof with no special case.
     private static final BlockBreaking FIREBALL_RAYS =
             io.github.term4.minestommechanics.presets.vanilla18.Explosion.blockBreaking().toBuilder()
                     .rayGrid(RAY_GRID)
                     .charging(BlockBreaking.Charging.THRESHOLD)
                     .intensityRoll(0.5, 1.5)
-                    .charge(r -> (r + 1.5) * 0.3)
+                    .charge(r -> (r + 1.0) * 0.3)
                     .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS)
                     .build();
 
