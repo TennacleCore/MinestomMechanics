@@ -1,10 +1,10 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.api.event.attack.AttackEvent;
-import io.github.term4.minestommechanics.mechanics.attack.AttackSnapshot;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
-import io.github.term4.minestommechanics.util.tick.TickSystem;
-import io.github.term4.minestommechanics.world.MechanicsWorld;
+import io.github.term4.polyp.api.event.attack.AttackEvent;
+import io.github.term4.polyp.mechanics.attack.AttackSnapshot;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.util.tick.TickSystem;
+import io.github.term4.polyp.world.MechanicsWorld;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
@@ -14,7 +14,7 @@ import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import org.junit.jupiter.api.Test;
-import io.github.term4.minestommechanics.presets.mmc18.Attack;
+import io.github.term4.polyp.presets.mmc18.Attack;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;

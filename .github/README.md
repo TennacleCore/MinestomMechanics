@@ -1,4 +1,4 @@
-# Minestom Mechanics
+# Polyp
 
 Configurable PvP mechanics for [Minestom](https://minestom.net/), built for mixed-version servers: modern (1.21.x)
 and legacy (1.8, via ViaVersion/ViaBackwards/ViaRewind) clients play the same 1.8-style combat on one
@@ -12,7 +12,7 @@ modern server, with the mechanics themselves tunable per scope down to individua
 - **Profiles** — a `MechanicsProfile` bundles per-system configs and resolves per player → world → instance → global,
   so one server can run different mechanics per arena, kit, or player.
 - **Presets** — `Vanilla18` (source-accurate 1.8 baseline), plus measured recreations of live servers in
-  `io.github.term4.minestommechanics.presets`: `Mmc18` (MineMenClub) and `Hypixel`, reverse-engineered from packet
+  `io.github.term4.polyp.presets`: `Mmc18` (MineMenClub) and `Hypixel`, reverse-engineered from packet
   captures. `Preset.MMC18.profile()` is a working server setup.
 - **Cross-version compat** (`Compat18`) — makes a modern client behave like 1.8: attack-box stamping, sword-block
   pose, throw-swing suppression, bare-fist swing fill, elytra/offhand/sprint/pose/placement restrictions, 1.8 eye
@@ -22,18 +22,18 @@ modern server, with the mechanics themselves tunable per scope down to individua
 ## Quick start
 
 ```java
-MinestomMechanics mm = MinestomMechanics.getInstance();
-mm.init();
+Polyp polyp = Polyp.getInstance();
+polyp.init();
 
-mm.profiles().setGlobal(Preset.MMC18.profile().toBuilder()
+polyp.profiles().setGlobal(Preset.MMC18.profile().toBuilder()
         .set(MechanicsKeys.COMPAT, Compat18.config())   // 1.8 behavior for modern clients
         .set(MechanicsKeys.FIXES, Fixes18.config())     // legacy-client wire fixes
         .build());
 
-AttackSystem.install(mm);
-DamageSystem.install(mm);
-KnockbackSystem.install(mm);
-ProjectileSystem.install(mm);
+AttackSystem.install(polyp);
+DamageSystem.install(polyp);
+KnockbackSystem.install(polyp);
+ProjectileSystem.install(polyp);
 // ...each system is optional; see test/ExampleServer.java for a full setup
 ```
 

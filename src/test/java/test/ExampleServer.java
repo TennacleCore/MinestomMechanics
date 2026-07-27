@@ -1,28 +1,28 @@
 package test;
 
-import io.github.term4.minestommechanics.MechanicsKeys;
-import io.github.term4.minestommechanics.MechanicsProfile;
-import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.platform.player.OptimizedPlayer;
-import io.github.term4.minestommechanics.mechanics.attack.AttackSystem;
-import io.github.term4.minestommechanics.mechanics.attribute.AttributeSystem;
-import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
-import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
-import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSystem;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
-import io.github.term4.minestommechanics.platform.fixes.FixesSystem;
-import io.github.term4.minestommechanics.vri.Vri;
-import io.github.term4.minestommechanics.vri.VriConfig;
-import io.github.term4.minestommechanics.platform.fixes.Fixes18;
-import io.github.term4.minestommechanics.platform.compatibility.Compat18;
-import io.github.term4.minestommechanics.platform.compatibility.CompatConfig;
-import io.github.term4.minestommechanics.mechanics.consumable.ConsumableSystem;
-import io.github.term4.minestommechanics.mechanics.hunger.HungerSystem;
-import io.github.term4.minestommechanics.mechanics.blocking.BlockingSystem;
-import io.github.term4.minestommechanics.mechanics.blocking.catalog.VanillaBlocking;
+import io.github.term4.polyp.MechanicsKeys;
+import io.github.term4.polyp.MechanicsProfile;
+import io.github.term4.polyp.Polyp;
+import io.github.term4.polyp.platform.player.OptimizedPlayer;
+import io.github.term4.polyp.mechanics.attack.AttackSystem;
+import io.github.term4.polyp.mechanics.attribute.AttributeSystem;
+import io.github.term4.polyp.mechanics.damage.DamageSystem;
+import io.github.term4.polyp.mechanics.explosion.ExplosionSystem;
+import io.github.term4.polyp.mechanics.knockback.KnockbackSystem;
+import io.github.term4.polyp.mechanics.projectile.ProjectileSystem;
+import io.github.term4.polyp.platform.fixes.FixesSystem;
+import io.github.term4.polyp.vri.Vri;
+import io.github.term4.polyp.vri.VriConfig;
+import io.github.term4.polyp.platform.fixes.Fixes18;
+import io.github.term4.polyp.platform.compatibility.Compat18;
+import io.github.term4.polyp.platform.compatibility.CompatConfig;
+import io.github.term4.polyp.mechanics.consumable.ConsumableSystem;
+import io.github.term4.polyp.mechanics.hunger.HungerSystem;
+import io.github.term4.polyp.mechanics.blocking.BlockingSystem;
+import io.github.term4.polyp.mechanics.blocking.catalog.VanillaBlocking;
 
 import net.minestom.server.entity.GameMode;
-import io.github.term4.minestommechanics.tracking.ClientVersion;
+import io.github.term4.polyp.tracking.ClientVersion;
 import net.minestom.server.Auth;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.command.builder.Command;
@@ -55,9 +55,9 @@ import net.minestom.server.potion.Potion;
 import net.minestom.server.potion.PotionEffect;
 import net.minestom.server.potion.PotionType;
 import net.minestom.server.timer.TaskSchedule;
-import io.github.term4.minestommechanics.world.MechanicsWorld;
-import io.github.term4.minestommechanics.presets.Preset;
-import io.github.term4.minestommechanics.entity.PrimedTnt;
+import io.github.term4.polyp.world.MechanicsWorld;
+import io.github.term4.polyp.presets.Preset;
+import io.github.term4.polyp.entity.PrimedTnt;
 
 public class ExampleServer {
 
@@ -80,29 +80,29 @@ public class ExampleServer {
 
         MinecraftServer server = MinecraftServer.init(new Auth.Bungee()); // bungee auth allows 1.7 clients to join (velocity works for all later versions, and a proxy is not required)
 
-        MinestomMechanics mm = MinestomMechanics.getInstance();
-        mm.viaProxyDetails = true;
-        mm.init();
+        Polyp polyp = Polyp.getInstance();
+        polyp.viaProxyDetails = true;
+        polyp.init();
 
         // Everything the server runs lives on one profile: the mmc18 mechanics, the general 1.8 compat layer, and the
         // legacy-client fixes. Each system below just enables itself and reads its config from here, so swapping the
         // profile swaps the whole setup.
-        mm.profiles().setGlobal(PRESET.profile().toBuilder()
+        polyp.profiles().setGlobal(PRESET.profile().toBuilder()
                 .set(MechanicsKeys.COMPAT, Compat18.config())
                 .set(MechanicsKeys.FIXES, Fixes18.config())
                 .build());
 
-        AttackSystem.install(mm);
-        DamageSystem.install(mm);
-        KnockbackSystem.install(mm);
-        ProjectileSystem.install(mm);
-        AttributeSystem.install(mm);
-        ConsumableSystem.install(mm);
-        BlockingSystem.install(mm);
-        HungerSystem.install(mm);
-        FixesSystem.install(mm);
-        Vri.install(mm, VriConfig.all());
-        ExplosionSystem explosions = ExplosionSystem.install(mm); // explosion config comes from the profile (EXPLOSION key)
+        AttackSystem.install(polyp);
+        DamageSystem.install(polyp);
+        KnockbackSystem.install(polyp);
+        ProjectileSystem.install(polyp);
+        AttributeSystem.install(polyp);
+        ConsumableSystem.install(polyp);
+        BlockingSystem.install(polyp);
+        HungerSystem.install(polyp);
+        FixesSystem.install(polyp);
+        Vri.install(polyp, VriConfig.all());
+        ExplosionSystem explosions = ExplosionSystem.install(polyp); // explosion config comes from the profile (EXPLOSION key)
 
         InstanceManager instanceManager = MinecraftServer.getInstanceManager();
         InstanceContainer instanceContainer = instanceManager.createInstanceContainer();
@@ -162,7 +162,7 @@ public class ExampleServer {
             player.setRespawnPoint(new Pos(0, 42, 0));
 
             // Example of how to get a players protocol on login (with multiple attempts, stops once protocol is known)
-            if (mm.viaProxyDetails) {
+            if (polyp.viaProxyDetails) {
                 var scheduler = MinecraftServer.getSchedulerManager();
                 final int maxRuns = 3;
                 final int[] runs = {0};
@@ -171,7 +171,7 @@ public class ExampleServer {
                     if (!player.isOnline()) return TaskSchedule.stop();
 
                     // Returns -1 until ViaVersion/proxy handshake completes
-                    int protocol = mm.clientInfo().getProtocol(player);
+                    int protocol = polyp.clientInfo().getProtocol(player);
 
                     if (protocol == ClientVersion.UNKNOWN_PROTOCOL) {
                         return (++runs[0] >= maxRuns)
@@ -224,7 +224,7 @@ public class ExampleServer {
         });
 
         // DEV / TEST TOOLS - delete this call + the DEV TOOLS section at the bottom of this file for production
-        installDevTools(mm);
+        installDevTools(polyp);
 
         // Start the server
         server.start("0.0.0.0", 25566);
@@ -262,9 +262,9 @@ public class ExampleServer {
         inst.setBlock(sx, baseY + 2, sz, marker); // flow points AWAY from this marker
     }
     // DEV / TEST TOOLS - in-game testing commands + the inbound-lag simulator. Delete this whole section (and the
-    // installDevTools(mm) call in main) for production; LagSimulator.java is then unused and can also be deleted.
+    // installDevTools(polyp) call in main) for production; LagSimulator.java is then unused and can also be deleted.
 
-    private static void installDevTools(MinestomMechanics mm) {
+    private static void installDevTools(Polyp polyp) {
         // test-only inbound-lag simulator (delays a player's movement packets so the server perceives their
         // position/onGround late, like a high-ping client). Purely test-side - mechanics is untouched.
         final LagSimulator lag = new LagSimulator();
@@ -299,15 +299,15 @@ public class ExampleServer {
         Command compatCmd = new Command("compat");
         compatCmd.setDefaultExecutor((sender, ctx) -> {
             if (!(sender instanceof OptimizedPlayer op)) return;
-            boolean turningOff = mm.profiles().player(op) == null; // no per-player override = currently on the global mmc18 profile
+            boolean turningOff = polyp.profiles().player(op) == null; // no per-player override = currently on the global mmc18 profile
             if (turningOff) {
                 // A per-player override to modern. The full reset-then-layer apply (PlayerConfigApplier, via the profile-change
                 // hook) switches the player cleanly off 1.8 - no manual undo of sticky knobs / attack cooldown needed.
-                mm.profiles().setPlayer(op, MechanicsProfile.builder().set(MechanicsKeys.COMPAT, Compat18.off()).build());
+                polyp.profiles().setPlayer(op, MechanicsProfile.builder().set(MechanicsKeys.COMPAT, Compat18.off()).build());
                 op.sendMessage("Mechanics set to latest version");
             } else {
                 // Drop the override -> fall back to the global mmc18 profile; the apply restores the full 1.8 set.
-                mm.profiles().setPlayer(op, null);
+                polyp.profiles().setPlayer(op, null);
                 op.sendMessage("Mechanics set to 1.8");
             }
         });
@@ -318,9 +318,9 @@ public class ExampleServer {
         Command shortsCmd = new Command("shorts");
         shortsCmd.setDefaultExecutor((sender, ctx) -> {
             if (!(sender instanceof OptimizedPlayer op)) return;
-            CompatConfig current = mm.profiles().resolve(op, MechanicsKeys.COMPAT);
+            CompatConfig current = polyp.profiles().resolve(op, MechanicsKeys.COMPAT);
             boolean on = !(current != null && Boolean.TRUE.equals(current.nativeShortVelocity));
-            mm.profiles().setPlayer(op, MechanicsProfile.builder()
+            polyp.profiles().setPlayer(op, MechanicsProfile.builder()
                     .set(MechanicsKeys.COMPAT, Compat18.config().toBuilder().nativeShortVelocity(on).build())
                     .build());
             op.sendMessage("Shorts velocity: " + (on ? "ON" : "OFF") + " (take a >2 b/t knockback to compare)");
@@ -337,7 +337,7 @@ public class ExampleServer {
         MinecraftServer.getCommandManager().register(suffocate);
 
         // /explode [power]: explosion at your feet (no source, so you feel the falloff knockback + take the damage)
-        ExplosionSystem explosions = mm.module(ExplosionSystem.class);
+        ExplosionSystem explosions = polyp.module(ExplosionSystem.class);
         Command explode = new Command("explode");
         Argument<Integer> explodePower = ArgumentType.Integer("power");
         explode.setDefaultExecutor((sender, ctx) -> {
@@ -422,7 +422,7 @@ public class ExampleServer {
         MinecraftServer.getCommandManager().register(effectCmd);
 
         // /velcap (LpVec3 snap) vs /velcapbridge (exact 1.8 short): A/B for the LegacyVelocityBridge knockback path
-        EventNode<@NotNull PlayerEvent> playerNode = EventNode.type("mm:test-player", EventFilter.PLAYER);
+        EventNode<@NotNull PlayerEvent> playerNode = EventNode.type("polyp:test-player", EventFilter.PLAYER);
         VelocityCapTestCommands.install(playerNode);
         MinecraftServer.getGlobalEventHandler().addChild(playerNode);
 

@@ -1,13 +1,13 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.testsupport.FakePlayer;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
-import io.github.term4.minestommechanics.mechanics.knockback.KnockbackConfig;
-import io.github.term4.minestommechanics.mechanics.knockback.KnockbackSnapshot;
+import io.github.term4.polyp.testsupport.FakePlayer;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.mechanics.knockback.KnockbackConfig;
+import io.github.term4.polyp.mechanics.knockback.KnockbackSnapshot;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
 import org.junit.jupiter.api.Test;
-import io.github.term4.minestommechanics.presets.mmc18.Knockback;
+import io.github.term4.polyp.presets.mmc18.Knockback;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -95,7 +95,7 @@ class Mmc18SelfHitKbTest extends HeadlessServerTest {
     @Test
     void vanillaSelfHitIsRandomDirectionAtFullStrength() {
         double[] v = selfHitBt(0f, "H",
-                io.github.term4.minestommechanics.presets.vanilla18.Knockback.projectile(), 0);
+                io.github.term4.polyp.presets.vanilla18.Knockback.projectile(), 0);
         assertEquals(0.4, Math.hypot(v[0], v[2]), 1e-3, "full base strength in some horizontal direction");
         assertTrue(v[1] > 0.3, "vanilla vertical (minus the estimated-velocity gravity fold)");
     }

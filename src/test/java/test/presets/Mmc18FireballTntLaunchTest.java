@@ -1,8 +1,8 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
-import io.github.term4.minestommechanics.world.MechanicsWorld;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.mechanics.explosion.ExplosionExposure;
+import io.github.term4.polyp.world.MechanicsWorld;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;

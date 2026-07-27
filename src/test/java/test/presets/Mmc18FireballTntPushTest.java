@@ -1,19 +1,19 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.mechanics.damage.DamageSnapshot;
-import io.github.term4.minestommechanics.mechanics.damage.DamageSystem;
-import io.github.term4.minestommechanics.mechanics.damage.types.projectile.ProjectileDamage;
-import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.mechanics.damage.DamageSnapshot;
+import io.github.term4.polyp.mechanics.damage.DamageSystem;
+import io.github.term4.polyp.mechanics.damage.types.projectile.ProjectileDamage;
+import io.github.term4.polyp.mechanics.explosion.ExplosionSystem;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.BlockVec;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import org.junit.jupiter.api.Test;
-import io.github.term4.minestommechanics.presets.mmc18.Explosion;
-import io.github.term4.minestommechanics.entity.PrimedTnt;
-import io.github.term4.minestommechanics.presets.mmc18.Tnt;
+import io.github.term4.polyp.presets.mmc18.Explosion;
+import io.github.term4.polyp.entity.PrimedTnt;
+import io.github.term4.polyp.presets.mmc18.Tnt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,7 +29,7 @@ class Mmc18FireballTntPushTest extends HeadlessServerTest {
 
     @Test
     void fireballStyleBlastPushesTntPureRadialAtFullScale() {
-        ExplosionSystem explosions = new ExplosionSystem(mm, Explosion.fireballFight().toBuilder().blockBreaking((io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking) null).build()); // push test on the shared instance: no terrain edits // the toBuilder-round-tripped config
+        ExplosionSystem explosions = new ExplosionSystem(polyp, Explosion.fireballFight().toBuilder().blockBreaking((io.github.term4.polyp.mechanics.explosion.BlockBreaking) null).build()); // push test on the shared instance: no terrain edits // the toBuilder-round-tripped config
         PrimedTnt victim = Tnt.spawn(explosions, instance, new BlockVec(8, 64, 8)); // mid-chunk: the -x sail must clear the x=0 unloaded-chunk wall
         victim.setVelocity(new Vec(0, 0.2, 0).mul(20));
         for (int i = 0; i < 25; i++) victim.tick(0);

@@ -1,8 +1,8 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
-import io.github.term4.minestommechanics.world.MechanicsWorld;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.mechanics.explosion.ExplosionExposure;
+import io.github.term4.polyp.world.MechanicsWorld;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
@@ -21,7 +21,7 @@ class Mmc18FireballExposureTest extends HeadlessServerTest {
 
     @Test
     void reproducesTheMinemenLadderRayForRay() {
-        instance.setBlock(5, 64, 5, Block.STONE); // pillar occupies [5,6]x[64,65]x[5,6]; mm pillar (352649,92,352646)
+        instance.setBlock(5, 64, 5, Block.STONE); // pillar occupies [5,6]x[64,65]x[5,6]; polyp pillar (352649,92,352646)
         Entity tnt = new Entity(EntityType.TNT); // registry bb 0.98
         tnt.setInstance(instance, new Pos(5.5, 65, 5.5)).join();
         double[][] cases = { // feetX-649, feetZ-646, centerX-649, centerY-92, centerZ-646, minemen measured

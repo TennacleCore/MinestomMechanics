@@ -1,8 +1,8 @@
 package test;
 
-import io.github.term4.minestommechanics.platform.compatibility.ViaBridgeException;
-import io.github.term4.minestommechanics.platform.compatibility.ViaBridgeRpc;
-import io.github.term4.minestommechanics.tracking.motion.LegacyVelocity;
+import io.github.term4.polyp.platform.compatibility.ViaBridgeException;
+import io.github.term4.polyp.platform.compatibility.ViaBridgeRpc;
+import io.github.term4.polyp.tracking.motion.LegacyVelocity;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Player;
@@ -17,7 +17,7 @@ final class VelocityCapTestCommands {
 
     private static final double CAP_BPT = 3.9;
     private static final short CAP_SHORT = 31200;
-    private static final Tag<Boolean> SUPPRESS_VELOCITY_PACKET = Tag.Transient("mm:test:suppress-velocity-packet");
+    private static final Tag<Boolean> SUPPRESS_VELOCITY_PACKET = Tag.Transient("polyp:test:suppress-velocity-packet");
 
     private VelocityCapTestCommands() {}
 

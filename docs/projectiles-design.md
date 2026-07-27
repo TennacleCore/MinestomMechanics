@@ -119,7 +119,7 @@ Each entry: the problem, the old fix, and the edge-case test that decides whethe
 
 ```
 mechanics/projectile/
-  ProjectileSystem           install(mm, ProjectileConfig, Shootable...) — config enables self-launching types
+  ProjectileSystem           install(polyp, ProjectileConfig, Shootable...) — config enables self-launching types
                              (typeConfigs presence, like DamageSystem.install); Shootables are the item launchers
   ProjectileConfig           generic defaults + per-type ProjectileTypeConfig map (extends Config; mirrors DamageConfig)
   ProjectileTypeConfig       per-type FieldValue knobs, extends Config<ProjectileContext, Self> like AttackConfig
@@ -135,7 +135,7 @@ api/event/                   ProjectileLaunchEvent (spawn: cancellable, spawn/ve
 ```
 
 > **Launcher vs self-launching type (the key split):** a bow/crossbow/rod is an ITEM that fires a projectile -
-> modeled as a pluggable `Shootable` (mirrors `AttackSystem`'s `HitDetection`), passed to `install(mm, cfg, new Bow())`.
+> modeled as a pluggable `Shootable` (mirrors `AttackSystem`'s `HitDetection`), passed to `install(polyp, cfg, new Bow())`.
 > A snowball/egg/pearl IS the thrown item - a self-launching `ProjectileType` (`ThrowableItemType`) that wires its own
 > use trigger and is enabled by its config entry. Arrow is pure identity; the `Bow` Shootable fires it.
 >
@@ -172,7 +172,7 @@ Integration decisions (keep responsibilities where they already live):
   `minecraft:thrown` ...), so invul windows, overdamage, hurt broadcast, and the event layer all apply
   unchanged. Punch/Power live in the type's producer like melee's crit/sprint logic.
 - **Version branching**: `ClientInfoTracker.getProtocol` replaces the old ClientVersionDetector.
-- **Velocity tracking**: projectiles are server-authoritative entities — `mm.velocity()` and MotionTracker
+- **Velocity tracking**: projectiles are server-authoritative entities — `polyp.velocity()` and MotionTracker
   are NOT involved; the entity's own velocity is the truth (the simulated() non-player path already returns it).
 - **No TickScaler port** initially: the lib elsewhere assumes `ServerFlag.SERVER_TICKS_PER_SECOND` (see
   DamageSystem's TPS TODO); TPS scaling is one coherent later pass.

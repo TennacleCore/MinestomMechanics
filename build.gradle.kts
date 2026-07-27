@@ -9,7 +9,7 @@ version = "0.2.0"
 java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 mavenPublishing {
-    coordinates(group.toString(), "minestom-mechanics", version.toString())
+    coordinates(group.toString(), "polyp", version.toString())
     publishToMavenCentral()
     // sign only when keys are configured (release env); keyless dev machines can still publishToMavenLocal
     if (providers.gradleProperty("signingInMemoryKey").isPresent || providers.gradleProperty("signing.keyId").isPresent) {
@@ -17,9 +17,9 @@ mavenPublishing {
     }
 
     pom {
-        name = "minestom-mechanics"
+        name = "polyp"
         description = project.description
-        url = "https://github.com/Term4/MinestomMechanics"
+        url = "https://github.com/Term4/Polyp"
 
         licenses {
             license {
@@ -39,9 +39,9 @@ mavenPublishing {
         }
 
         scm {
-            url = "https://github.com/Term4/MinestomMechanics"
-            connection = "scm:git:git://github.com/Term4/MinestomMechanics.git"
-            developerConnection = "scm:git:ssh://git@github.com/Term4/MinestomMechanics.git"
+            url = "https://github.com/Term4/Polyp"
+            connection = "scm:git:git://github.com/Term4/Polyp.git"
+            developerConnection = "scm:git:ssh://git@github.com/Term4/Polyp.git"
         }
     }
 }

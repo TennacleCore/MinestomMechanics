@@ -1,19 +1,19 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
-import io.github.term4.minestommechanics.mechanics.projectile.types.Arrow;
-import io.github.term4.minestommechanics.mechanics.projectile.types.Egg;
-import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
-import io.github.term4.minestommechanics.mechanics.projectile.types.FishingBobber;
-import io.github.term4.minestommechanics.mechanics.projectile.types.Pearl;
-import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileType;
-import io.github.term4.minestommechanics.mechanics.projectile.types.Snowball;
-import io.github.term4.minestommechanics.mechanics.projectile.types.SplashPotion;
-import io.github.term4.minestommechanics.presets.mmc18.Projectiles;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.mechanics.projectile.ProjectileConfig;
+import io.github.term4.polyp.mechanics.projectile.ProjectileConfigResolver;
+import io.github.term4.polyp.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
+import io.github.term4.polyp.mechanics.projectile.ProjectileSnapshot;
+import io.github.term4.polyp.mechanics.projectile.types.Arrow;
+import io.github.term4.polyp.mechanics.projectile.types.Egg;
+import io.github.term4.polyp.mechanics.projectile.types.Fireball;
+import io.github.term4.polyp.mechanics.projectile.types.FishingBobber;
+import io.github.term4.polyp.mechanics.projectile.types.Pearl;
+import io.github.term4.polyp.mechanics.projectile.types.ProjectileType;
+import io.github.term4.polyp.mechanics.projectile.types.Snowball;
+import io.github.term4.polyp.mechanics.projectile.types.SplashPotion;
+import io.github.term4.polyp.presets.mmc18.Projectiles;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

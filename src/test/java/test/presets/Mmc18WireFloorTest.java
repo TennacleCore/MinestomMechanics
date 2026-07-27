@@ -1,14 +1,14 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.MinestomMechanics;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileConfig;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSystem;
-import io.github.term4.minestommechanics.mechanics.projectile.entities.ProjectileEntity;
-import io.github.term4.minestommechanics.mechanics.projectile.types.Snowball;
-import io.github.term4.minestommechanics.presets.mmc18.Projectiles;
-import io.github.term4.minestommechanics.testsupport.FakePlayer;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.Polyp;
+import io.github.term4.polyp.mechanics.projectile.ProjectileConfig;
+import io.github.term4.polyp.mechanics.projectile.ProjectileSnapshot;
+import io.github.term4.polyp.mechanics.projectile.ProjectileSystem;
+import io.github.term4.polyp.mechanics.projectile.entities.ProjectileEntity;
+import io.github.term4.polyp.mechanics.projectile.types.Snowball;
+import io.github.term4.polyp.presets.mmc18.Projectiles;
+import io.github.term4.polyp.testsupport.FakePlayer;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.network.packet.server.play.EntityVelocityPacket;
@@ -31,7 +31,7 @@ class Mmc18WireFloorTest extends HeadlessServerTest {
         // y 200: clear of other tests' leftovers in the shared instance (a stray entity eats the throw on tick 1)
         shooter.setInstance(instance, new Pos(8.5, 200, 8.5, 0.0f, pitch)).join();
         var snap = ProjectileSnapshot.of(shooter, Snowball.INSTANCE).withConfig(config);
-        ProjectileEntity e = new ProjectileSystem(MinestomMechanics.getInstance(), config).launch(snap);
+        ProjectileEntity e = new ProjectileSystem(Polyp.getInstance(), config).launch(snap);
         assertNotNull(e);
         awaitSpawn(e);
         shooter.remove();

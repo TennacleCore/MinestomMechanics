@@ -1,22 +1,22 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.mechanics.explosion.ExplosionExposure;
-import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
-import io.github.term4.minestommechanics.world.MechanicsWorld;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.mechanics.explosion.ExplosionExposure;
+import io.github.term4.polyp.mechanics.explosion.ExplosionSystem;
+import io.github.term4.polyp.world.MechanicsWorld;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
 import net.minestom.server.coordinate.BlockVec;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.instance.block.Block;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import io.github.term4.minestommechanics.presets.mmc18.Explosion;
-import io.github.term4.minestommechanics.entity.PrimedTnt;
-import io.github.term4.minestommechanics.presets.mmc18.Tnt;
-import io.github.term4.minestommechanics.MechanicsKeys;
-import io.github.term4.minestommechanics.MechanicsProfile;
+import io.github.term4.polyp.presets.mmc18.Explosion;
+import io.github.term4.polyp.entity.PrimedTnt;
+import io.github.term4.polyp.presets.mmc18.Tnt;
+import io.github.term4.polyp.MechanicsKeys;
+import io.github.term4.polyp.MechanicsProfile;
 import net.minestom.server.instance.Instance;
-import io.github.term4.minestommechanics.util.tick.TickScalingConfig;
+import io.github.term4.polyp.util.tick.TickScalingConfig;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -30,7 +30,7 @@ class Mmc18TntTest extends HeadlessServerTest {
     static void setUp() {
         // these measure PUSH geometry on fixed terrain; the preset's block breaking would crater the
         // pits and pillars later cases rely on, so it is off here rather than a hidden variable
-        explosions = new ExplosionSystem(mm, Explosion.config().toBuilder().blockBreaking((io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking) null).build());
+        explosions = new ExplosionSystem(polyp, Explosion.config().toBuilder().blockBreaking((io.github.term4.polyp.mechanics.explosion.BlockBreaking) null).build());
     }
 
     @Test

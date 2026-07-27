@@ -1,10 +1,10 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.mechanics.explosion.BlockBreaking;
-import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
-import io.github.term4.minestommechanics.presets.mmc18.Explosion;
-import io.github.term4.minestommechanics.testsupport.FakePlayer;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.mechanics.explosion.BlockBreaking;
+import io.github.term4.polyp.mechanics.explosion.ExplosionSystem;
+import io.github.term4.polyp.presets.mmc18.Explosion;
+import io.github.term4.polyp.testsupport.FakePlayer;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
@@ -28,7 +28,7 @@ class Mmc18CoordinateKbProbeTest extends HeadlessServerTest {
     void knockbackIsOffsetInvariant() {
         InstanceContainer inst = MinecraftServer.getInstanceManager().createInstanceContainer();
         inst.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
-        ExplosionSystem explosions = new ExplosionSystem(mm,
+        ExplosionSystem explosions = new ExplosionSystem(polyp,
                 Explosion.config().toBuilder().blockBreaking((BlockBreaking) null).build());
 
         Vec wireAtOrigin = null;

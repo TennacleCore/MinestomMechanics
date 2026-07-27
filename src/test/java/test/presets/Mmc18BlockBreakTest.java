@@ -1,14 +1,14 @@
 package test.presets;
 
-import io.github.term4.minestommechanics.MechanicsProfile;
-import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
-import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
-import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
-import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
-import io.github.term4.minestommechanics.mechanics.projectile.types.Fireball;
-import io.github.term4.minestommechanics.mechanics.projectile.types.ProjectileTypeConfig;
-import io.github.term4.minestommechanics.presets.mmc18.Explosion;
-import io.github.term4.minestommechanics.testsupport.HeadlessServerTest;
+import io.github.term4.polyp.MechanicsProfile;
+import io.github.term4.polyp.mechanics.explosion.ExplosionConfig;
+import io.github.term4.polyp.mechanics.explosion.ExplosionSystem;
+import io.github.term4.polyp.mechanics.projectile.ProjectileSnapshot;
+import io.github.term4.polyp.mechanics.projectile.entities.FireballEntity;
+import io.github.term4.polyp.mechanics.projectile.types.Fireball;
+import io.github.term4.polyp.mechanics.projectile.types.ProjectileTypeConfig;
+import io.github.term4.polyp.presets.mmc18.Explosion;
+import io.github.term4.polyp.testsupport.HeadlessServerTest;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
@@ -58,7 +58,7 @@ class Mmc18BlockBreakTest extends HeadlessServerTest {
     }
 
     private static ExplosionSystem system() {
-        return new ExplosionSystem(mm, Explosion.config());
+        return new ExplosionSystem(polyp, Explosion.config());
     }
 
     private static int broke(Block top, float power, @Nullable Entity source, long seedShift) {
@@ -112,7 +112,7 @@ class Mmc18BlockBreakTest extends HeadlessServerTest {
     private static Set<String> brokenPattern(int x0, int z0) {
         Instance inst = padAt(x0, z0, Block.RED_WOOL);
         var pure = Explosion.fireballFrozenTable().toBuilder().intensityNoise(0).build();
-        var sys = new ExplosionSystem(mm, ExplosionConfig.builder(Explosion.config()).blockBreaking(ctx -> pure).build());
+        var sys = new ExplosionSystem(polyp, ExplosionConfig.builder(Explosion.config()).blockBreaking(ctx -> pure).build());
         sys.explode(inst, new Pos(x0 + 0.6875, PAD_Y + 1.9532, z0 + 0.3125), 2.0f, fireball());
         Set<String> broken = new HashSet<>();
         for (int dx = -6; dx <= 5; dx++)
@@ -149,7 +149,7 @@ class Mmc18BlockBreakTest extends HeadlessServerTest {
         int wx = 760, wy = 66, wz = 760;
         Instance inst = wall(wx, wy, wz, Block.END_STONE);
         inst.setBlock(wx, wy, wz - 1, Block.OAK_PLANKS); // protruding from the wall face
-        ExplosionSystem.install(mm, Explosion.config()); // the flight path detonates via the installed module
+        ExplosionSystem.install(polyp, Explosion.config()); // the flight path detonates via the installed module
         FireballEntity fb = fireball();
         fb.setExplosionPower(2.0f);
         fb.setAerodynamics(new Aerodynamics(0.0, 0.95, 0.95));
