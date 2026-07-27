@@ -1,6 +1,7 @@
 package test.presets;
 
 import io.github.term4.minestommechanics.MechanicsProfile;
+import io.github.term4.minestommechanics.mechanics.explosion.ExplosionConfig;
 import io.github.term4.minestommechanics.mechanics.explosion.ExplosionSystem;
 import io.github.term4.minestommechanics.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.minestommechanics.mechanics.projectile.entities.FireballEntity;
@@ -18,6 +19,9 @@ import net.minestom.server.instance.block.Block;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,13 +34,15 @@ class Mmc18BlockBreakTest extends HeadlessServerTest {
 
     private static final int PAD_X = 700, PAD_Y = 64, PAD_Z = 700;
 
-    private static Instance pad(Block top) {
+    private static Instance pad(Block top) { return padAt(PAD_X, PAD_Z, top); }
+
+    private static Instance padAt(int x0, int z0, Block top) {
         Instance inst = flatInstance(MechanicsProfile.builder().build());
         for (int dx = -6; dx <= 5; dx++) {
             for (int dz = -6; dz <= 5; dz++) {
-                inst.setBlock(PAD_X + dx, PAD_Y - 2, PAD_Z + dz, Block.OBSIDIAN);
-                inst.setBlock(PAD_X + dx, PAD_Y - 1, PAD_Z + dz, Block.OBSIDIAN);
-                inst.setBlock(PAD_X + dx, PAD_Y, PAD_Z + dz, top);
+                inst.setBlock(x0 + dx, PAD_Y - 2, z0 + dz, Block.OBSIDIAN);
+                inst.setBlock(x0 + dx, PAD_Y - 1, z0 + dz, Block.OBSIDIAN);
+                inst.setBlock(x0 + dx, PAD_Y, z0 + dz, top);
             }
         }
         return inst;
@@ -95,6 +101,38 @@ class Mmc18BlockBreakTest extends HeadlessServerTest {
     void fireballPadCountsMatchCaptures() {
         assertRange(Block.OAK_PLANKS, 2.0f, fireball(), 14, 19);
         assertRange(Block.RED_WOOL, 2.0f, fireball(), 26, 29);
+    }
+
+    /** The frozen-table skeleton under the noise: the reference double-precision walk at phase
+     *  (.6875, +1.9532, .3125) on a wool pad, asserted with the noise knob zeroed. */
+    private static final int[][] FROZEN_WOOL_PATTERN = {
+            {-2, 1}, {-1, -2}, {-1, -1}, {-1, 0}, {-1, 1}, {-1, 2}, {0, -3}, {0, -2}, {0, -1}, {0, 0}, {0, 1},
+            {0, 2}, {1, -3}, {1, -2}, {1, -1}, {1, 0}, {1, 1}, {1, 2}, {2, -2}, {2, -1}, {2, 0}, {2, 1}};
+
+    private static Set<String> brokenPattern(int x0, int z0) {
+        Instance inst = padAt(x0, z0, Block.RED_WOOL);
+        var pure = Explosion.fireballFrozenTable().toBuilder().intensityNoise(0).build();
+        var sys = new ExplosionSystem(mm, ExplosionConfig.builder(Explosion.config()).blockBreaking(ctx -> pure).build());
+        sys.explode(inst, new Pos(x0 + 0.6875, PAD_Y + 1.9532, z0 + 0.3125), 2.0f, fireball());
+        Set<String> broken = new HashSet<>();
+        for (int dx = -6; dx <= 5; dx++)
+            for (int dz = -6; dz <= 5; dz++)
+                if (inst.getBlock(x0 + dx, PAD_Y, z0 + dz).isAir()) broken.add(dx + "," + dz);
+        return broken;
+    }
+
+    @Test
+    void fireballPatternIsFrozen() {
+        Set<String> expected = new HashSet<>();
+        for (int[] c : FROZEN_WOOL_PATTERN) expected.add(c[0] + "," + c[1]);
+        assertEquals(expected, brokenPattern(PAD_X, PAD_Z));
+    }
+
+    /** Same phase at a different position must break the identical relative cells (the capture-proven signature
+     *  that killed position-hashed seeding). */
+    @Test
+    void fireballPatternTranslates() {
+        assertEquals(brokenPattern(PAD_X, PAD_Z), brokenPattern(PAD_X + 37, PAD_Z - 23));
     }
 
     /** Fireballs never destroy end stone; the same blast from TNT (sourceless here) does. */

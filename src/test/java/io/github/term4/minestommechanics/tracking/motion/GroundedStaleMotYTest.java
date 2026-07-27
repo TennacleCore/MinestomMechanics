@@ -34,24 +34,19 @@ class GroundedStaleMotYTest extends HeadlessServerTest {
         // the fireball jump delivery
         MotionTracker.foldDelivered(p, new Vec(-0.3728, 1.6655, -0.3728));
         double y = 64.0, v = 1.6655;
-        StringBuilder trace = new StringBuilder();
         for (int t = 0; t < 60 && y > 63.9999; t++) {
             y += v;
             if (y <= 64.0) y = 64.0;
             move(p, y, y == 64.0);
             tick(inst);
             v = (v - 0.08) * 0.98;
-            trace.append(String.format("t%02d y=%.3f simY=%s%n", t, y, MotionTracker.serverMotY(p, 0, true)));
         }
         // post-landing: silence (close) vs every-tick grounded stream (far)
         for (int t = 0; t < 15; t++) {
             if (streamAfterLanding) move(p, 64.0, true);
             tick(inst);
         }
-        double simY = MotionTracker.serverMotY(p, 0, true);
-        System.out.printf("[%s] final simY=%s%n%s",
-                streamAfterLanding ? "FAR stream" : "CLOSE silent", simY, trace);
-        return simY;
+        return MotionTracker.serverMotY(p, 0, true);
     }
 
     @Test

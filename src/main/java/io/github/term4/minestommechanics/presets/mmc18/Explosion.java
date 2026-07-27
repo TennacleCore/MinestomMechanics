@@ -32,12 +32,10 @@ public final class Explosion {
                     .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS) // MineMen explosions never drop
                     .build();
 
-    // Fireball: threshold rays on the full 16-shell, one 0.6-1.4x roll per horizontal heading - a block whose gate
-    // exceeds the ray's remaining intensity stops it (shields), anything weaker breaks free (only distance decays).
-    // The heading-shared roll makes MineMen's rims wiggle coherently (few lone fingers/bites) while staying ragged and
-    // unsymmetric, and the vanilla 0.3 sampling corner-cuts like theirs. The gate law anchors all six captured
-    // materials within ±0.007 (totals 0.98-1.02); end stone's 2.66 gate exceeds the 2.575 a ray can carry to it
-    // (max roll minus one decay step): fireball-proof with no special case.
+    // Fireball DEFAULT: threshold rays, one 0.6-1.4x roll per horizontal heading, lifted origin. MineMen's true
+    // system is fireballFrozenTable(), whose same-spot craters repeat their core cell-for-cell; that measured
+    // consistency reads as repetitive in play, so the default re-rolls per shot - a feel choice, not a parity gap.
+    // End stone's 2.66 gate exceeds the 2.575 a ray can carry to it (max roll minus one decay step): fireball-proof.
     private static final BlockBreaking FIREBALL_RAYS =
             io.github.term4.minestommechanics.presets.vanilla18.Explosion.blockBreaking().toBuilder()
                     .charging(BlockBreaking.Charging.THRESHOLD)
@@ -47,6 +45,34 @@ public final class Explosion {
                     .charge(r -> 0.322 + 0.260 * r)
                     .interaction(BlockBreaking.Interaction.DESTROY_NO_DROPS)
                     .build();
+
+    // MineMen's capture-measured mechanism: frozen per-ray table + per-shot noise. TNT is NOT frozen (re-rolls per
+    // shot) - the freeze is a fireball-path quirk. Max table entry + noise stays under end stone's gate minus one
+    // decay step, so the table cannot break the fireball-proof invariant either.
+    private static final BlockBreaking FIREBALL_FROZEN =
+            FIREBALL_RAYS.toBuilder()
+                    .intensityTable(loadFireballTable())
+                    .intensityNoise(0.05)
+                    .originLift(0) // the table's extraction frame
+                    .build();
+
+    /** The default fireball config (per-shot rolls). */
+    public static BlockBreaking fireballBlockBreaking() { return FIREBALL_RAYS; }
+
+    /** MineMen's measured system (frozen table + per-ray noise): same-spot craters keep their core, rims flicker.
+     *  Swap in via {@code config().toBuilder().blockBreaking(...)} for capture-faithful behavior. */
+    public static BlockBreaking fireballFrozenTable() { return FIREBALL_FROZEN; }
+
+    private static float[] loadFireballTable() {
+        try (var in = new java.io.DataInputStream(new java.io.BufferedInputStream(
+                Explosion.class.getResourceAsStream("fireball-intensity.bin")))) {
+            float[] table = new float[1352];
+            for (int i = 0; i < table.length; i++) table[i] = in.readFloat();
+            return table;
+        } catch (java.io.IOException | NullPointerException e) {
+            throw new IllegalStateException("mmc18 fireball-intensity.bin missing or truncated", e);
+        }
+    }
 
     public static ExplosionConfig config() {
         ExplosionConfig base = Vanilla18.explosion();

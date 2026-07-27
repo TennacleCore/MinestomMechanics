@@ -372,15 +372,15 @@ public final class MotionTracker implements Tracker {
             c = Math.max(-LADDER_CLAMP, c); r = Math.max(-LADDER_CLAMP, r);
             if (p.isSneaking()) { if (c < 0) c = 0; if (r < 0) r = 0; } // sneak-hold
         }
-        // the client's grounded flag also lands a descent: the swept probe misses from flush-on-floor positions,
-        // and without this a move-streaming grounded client sawtooths the sim into false free-fall
+        // the client's grounded flag lands a descent probe-free: the swept probe misses from flush-on-floor
+        // positions, and without the flag a move-streaming grounded client sawtooths into false free-fall
         boolean grounded = p.isOnGround();
-        PhysicsResult colC = c < 0 ? CollisionUtils.handlePhysics(p, new Vec(0, c, 0)) : null;
-        boolean collidedC = colC != null && (grounded || colC.isOnGround());
-        PhysicsResult colR = r < 0 ? (r == c ? colC : CollisionUtils.handlePhysics(p, new Vec(0, r, 0))) : null;
-        boolean collidedR = colR != null && (grounded || colR.isOnGround());
-        if (collidedC) c = landMotY(p, colC.isOnGround() ? colC.newPosition() : p.getPosition(), c, modernBlocks);
-        if (collidedR) r = landMotY(p, colR.isOnGround() ? colR.newPosition() : p.getPosition(), r, modernBlocks);
+        PhysicsResult colC = c < 0 && !grounded ? CollisionUtils.handlePhysics(p, new Vec(0, c, 0)) : null;
+        boolean collidedC = c < 0 && grounded || colC != null && colC.isOnGround();
+        PhysicsResult colR = r < 0 && !grounded ? (r == c ? colC : CollisionUtils.handlePhysics(p, new Vec(0, r, 0))) : null;
+        boolean collidedR = r < 0 && grounded || colR != null && colR.isOnGround();
+        if (collidedC) c = landMotY(p, colC != null ? colC.newPosition() : p.getPosition(), c, modernBlocks);
+        if (collidedR) r = landMotY(p, colR != null ? colR.newPosition() : p.getPosition(), r, modernBlocks);
         // climb-up: positionDelta.y is the ascent signal only, the model sets the value
         if (env == Env.LADDER) {
             OptionalDouble climbUp = climbModel.climbUpMotY(positionDelta(p).y());

@@ -6,6 +6,7 @@ import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
@@ -139,7 +140,10 @@ public final class BlockBreaking {
     private final java.util.function.DoubleUnaryOperator charge;
     private final double rollMin, rollMax;
     private final boolean rollPerHeading;
+    private final float[] intensityTable;
+    private final float tableMax;
     private final double originLift;
+    private final double intensityNoise;
 
     private BlockBreaking(Builder b) {
         this.model = b.model;
@@ -154,7 +158,18 @@ public final class BlockBreaking {
         this.rollMin = b.rollMin;
         this.rollMax = b.rollMax;
         this.rollPerHeading = b.rollPerHeading;
+        this.intensityTable = b.intensityTable;
         this.originLift = b.originLift;
+        this.intensityNoise = b.intensityNoise;
+        float max = 0;
+        if (intensityTable != null) {
+            int shell = rayGrid * rayGrid * rayGrid - (rayGrid - 2) * (rayGrid - 2) * (rayGrid - 2);
+            if (intensityTable.length != shell)
+                throw new IllegalArgumentException("intensityTable length " + intensityTable.length
+                        + " != " + shell + " rays of a " + rayGrid + " grid");
+            for (float v : intensityTable) max = Math.max(max, v);
+        }
+        this.tableMax = max;
     }
 
     public @NotNull Model model() { return model; }
@@ -168,7 +183,13 @@ public final class BlockBreaking {
         return power * (rollMin == rollMax ? rollMin : rollMin + rnd.nextDouble() * (rollMax - rollMin));
     }
     boolean rollPerHeading() { return rollPerHeading; }
+    float @Nullable [] intensityTable() { return intensityTable; }
     double originLift() { return originLift; }
+    double intensityNoise() { return intensityNoise; }
+    /** Hottest possible launch intensity - bounds any reach-derived scan (seals). */
+    double maxIntensity(float power) {
+        return (intensityTable != null ? tableMax : power * rollMax) + intensityNoise;
+    }
 
     double resistance(@NotNull Block block, @NotNull ExplosionContext ctx) { return resistance.of(block, ctx); }
 
@@ -202,7 +223,9 @@ public final class BlockBreaking {
         private java.util.function.DoubleUnaryOperator charge = r -> (r + 0.3) * 0.3;
         private double rollMin = 0.7, rollMax = 1.3;
         private boolean rollPerHeading;
+        private float[] intensityTable;
         private double originLift;
+        private double intensityNoise;
 
         private Builder() {}
 
@@ -219,7 +242,9 @@ public final class BlockBreaking {
             rollMin = c.rollMin;
             rollMax = c.rollMax;
             rollPerHeading = c.rollPerHeading;
+            intensityTable = c.intensityTable;
             originLift = c.originLift;
+            intensityNoise = c.intensityNoise;
         }
 
         public Builder model(@NotNull Model v) { this.model = v; return this; }
@@ -233,7 +258,7 @@ public final class BlockBreaking {
         public Builder rayGrid(int v) { this.rayGrid = v; return this; }
 
         /** Intensity a ray pays for (or must beat, under {@link Charging#THRESHOLD}) a block, from its resistance;
-         *  default vanilla {@code (r+0.3)*0.3} (MineMen TNT {@code r*0.0775}; its fireball a fitted table). */
+         *  default vanilla {@code (r+0.3)*0.3} (MineMen TNT {@code r*0.0775}; its fireball the fitted gate law). */
         public Builder charge(@NotNull java.util.function.DoubleUnaryOperator v) { this.charge = v; return this; }
 
         /** Per-ray intensity roll bounds (x power); vanilla {@code 0.7, 1.3} (default), equal bounds = deterministic. */
@@ -243,9 +268,17 @@ public final class BlockBreaking {
          *  wiggle instead of per-ray salt-and-pepper (MineMen fireball). */
         public Builder rollPerHeading(boolean v) { this.rollPerHeading = v; return this; }
 
+        /** Frozen per-ray launch intensities in lattice order (x-y-z shell walk), replacing power x roll entirely:
+         *  the same blast at the same sub-block phase breaks the same cells. Length must match the {@link #rayGrid} shell. */
+        public Builder intensityTable(float @Nullable [] v) { this.intensityTable = v; return this; }
+
         /** Raises the ray origin above the blast centre for BLOCK selection only (KB/damage/packet unaffected);
          *  MineMen fireball 0.25 - their footprints shrink faster with standoff than the flat-origin geometry. */
         public Builder originLift(double v) { this.originLift = v; return this; }
+
+        /** Per-shot, per-ray uniform {@code [-v, v]} added to the launch intensity - with an {@link #intensityTable},
+         *  near-threshold rim cells flicker shot to shot while the core repeats (MineMen fireball). */
+        public Builder intensityNoise(double v) { this.intensityNoise = v; return this; }
 
         /** How unbreakable blocks shield what is behind them; default {@link Shielding#NONE} (vanilla). */
         public Builder shielding(@NotNull Shielding v) { this.shielding = v; return this; }

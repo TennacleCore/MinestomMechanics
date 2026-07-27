@@ -39,8 +39,8 @@ final class ExplosionBlocks {
     private static final java.util.concurrent.ConcurrentHashMap<Integer, Lattice> LATTICES = new java.util.concurrent.ConcurrentHashMap<>();
     /** Per-step intensity loss, independent of what the ray passes through. */
     private static final float STEP_DECAY = 0.22500001F;
-    /** Furthest a ray reaches per unit power: max intensity (1.3) / the min per-step decay, in blocks. Bounds the seal scan. */
-    private static final float MAX_REACH_PER_POWER = 1.3F / STEP_DECAY * STEP;
+    /** Furthest a ray travels per unit of launch intensity (pure decay, nothing in the way), in blocks. */
+    private static final float REACH_PER_INTENSITY = STEP / STEP_DECAY;
     /** Water and lava; a modern ray reads the fluid's resistance alongside the block's. */
     private static final double FLUID_RESISTANCE = 100.0;
     private static final int PICKUP_DELAY_TICKS = 10;
@@ -67,7 +67,7 @@ final class ExplosionBlocks {
     private static @Nullable Seal scanSeals(MechanicsWorld world, Point center, float power,
                                             BlockBreaking cfg, ExplosionContext ctx) {
         int cx = (int) Math.floor(center.x()), cy = (int) Math.floor(center.y()), cz = (int) Math.floor(center.z());
-        int r = (int) Math.ceil(power * MAX_REACH_PER_POWER) + 1, side = 2 * r + 1, rSq = r * r;
+        int r = (int) Math.ceil(cfg.maxIntensity(power) * REACH_PER_INTENSITY) + 1, side = 2 * r + 1, rSq = r * r;
         int minX = cx - r, minY = cy - r, minZ = cz - r;
         boolean[] mask = null; // allocated on the first shadow-caster, so a glass-free blast keeps just the scan
         for (int dx = -r; dx <= r; dx++) {
@@ -116,30 +116,43 @@ final class ExplosionBlocks {
         Set<Point> hit = new HashSet<>();
         var rnd = ThreadLocalRandom.current();
         Lattice lat = lattice(cfg.rayGrid());
+        float[] table = cfg.intensityTable();
+        double noise = cfg.intensityNoise();
         // rollPerHeading: the vertical fan of rays sharing a horizontal heading rolls once - a coherent rim wiggle
         // instead of per-ray salt-and-pepper (MineMen fireball)
-        float[] headingRoll = cfg.rollPerHeading() ? new float[lat.headings()] : null;
+        float[] headingRoll = table == null && cfg.rollPerHeading() ? new float[lat.headings()] : null;
         if (headingRoll != null) java.util.Arrays.fill(headingRoll, Float.NaN);
         for (int i = 0; i < lat.dirs().length; i++) {
             double[] dir = lat.dirs()[i];
             double dx = dir[0], dy = dir[1], dz = dir[2];
             float intensity;
-            if (headingRoll != null) {
+            if (table != null) {
+                intensity = table[i];
+            } else if (headingRoll != null) {
                 int h = lat.heading()[i];
                 if (Float.isNaN(headingRoll[h])) headingRoll[h] = (float) cfg.rollIntensity(power, rnd);
                 intensity = headingRoll[h];
             } else {
                 intensity = (float) cfg.rollIntensity(power, rnd);
             }
+            if (noise != 0) intensity += (float) rnd.nextDouble(-noise, noise);
             double px = center.x(), py = center.y(), pz = center.z();
-            BlockVec charged = null; // PER_BLOCK: the last cell that paid resistance
+            // ~3.3 samples land in each cell; cache the cell's lookups across them
+            BlockVec pos = null;
+            double resistance = 0;
+            boolean breakable = false, uncharged = false;
             while (intensity > 0.0F) {
-                BlockVec pos = new BlockVec(Math.floor(px), Math.floor(py), Math.floor(pz));
-                if (modern && !inBounds(world, pos)) break;
-                Block block = loadedBlock(world, pos);
-                if (block == null) break; // unloaded reads as solid: the ray stops
-                double resistance = resistance(block, cfg, ctx, modern);
-                if (resistance >= 0 && (perStep || !pos.equals(charged))) {
+                int bx = (int) Math.floor(px), by = (int) Math.floor(py), bz = (int) Math.floor(pz);
+                if (pos == null || bx != pos.blockX() || by != pos.blockY() || bz != pos.blockZ()) {
+                    pos = new BlockVec(bx, by, bz);
+                    if (modern && !inBounds(world, pos)) break;
+                    Block block = loadedBlock(world, pos);
+                    if (block == null) break; // unloaded reads as solid: the ray stops
+                    resistance = resistance(block, cfg, ctx, modern);
+                    breakable = cfg.canBreak(block, pos, ctx);
+                    uncharged = true;
+                }
+                if (resistance >= 0 && (perStep || uncharged)) {
                     if (cfg.charging() == BlockBreaking.Charging.THRESHOLD) {
                         // gate, not a cost: a stronger block stops the ray (shields what is behind); the per-ray roll
                         // keeps the reach continuous - under a FIXED intensity the 0.3 sampling quantizes it to rungs
@@ -147,9 +160,9 @@ final class ExplosionBlocks {
                     } else {
                         intensity -= (float) cfg.charge(resistance);
                     }
-                    charged = pos;
+                    uncharged = false;
                 }
-                if (intensity > 0.0F && cfg.canBreak(block, pos, ctx)) hit.add(pos);
+                if (intensity > 0.0F && breakable) hit.add(pos);
                 px += dx * STEP; py += dy * STEP; pz += dz * STEP;
                 intensity -= STEP_DECAY;
             }
