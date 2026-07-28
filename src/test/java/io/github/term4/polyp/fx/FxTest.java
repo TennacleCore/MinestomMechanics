@@ -104,6 +104,38 @@ class FxTest extends HeadlessServerTest {
     }
 
     @Test
+    void tntPrimeSoundPlaysOnIgnite() {
+        useRegistry(Fx.vanilla18());
+        FakePlayer p = FakePlayer.connect(instance, new Pos(900.5, 65, 900.5), "FxTnt");
+        try {
+            var explosion = new io.github.term4.polyp.mechanics.explosion.ExplosionSystem(Polyp.getInstance(), null);
+            var tnt = io.github.term4.polyp.presets.mmc18.Tnt.spawn(explosion, instance, new Pos(902, 64, 902));
+            assertEquals(1, sounds(p, SoundEvent.ENTITY_TNT_PRIMED), "ignite plays the primed sound");
+            tnt.remove();
+        } finally {
+            p.player.remove();
+        }
+    }
+
+    /** The big flash rides the fx layer (the wire explosion packet has no radius through Via): power >= 2 only. */
+    @Test
+    void explosionEmitterPlaysForBigBlastsOnly() {
+        useRegistry(Fx.vanilla18());
+        FakePlayer p = FakePlayer.connect(instance, new Pos(910.5, 65, 910.5), "FxBoom");
+        try {
+            var explosion = new io.github.term4.polyp.mechanics.explosion.ExplosionSystem(Polyp.getInstance(), null);
+            explosion.explode(instance, new Pos(915.5, 66, 915.5), 4.0f, null);
+            long emitters = p.sent(ParticlePacket.class).stream().filter(e -> e.particle() == Particle.EXPLOSION_EMITTER).count();
+            assertEquals(1, emitters, "TNT-power blast flashes");
+            explosion.explode(instance, new Pos(915.5, 66, 915.5), 1.0f, null);
+            emitters = p.sent(ParticlePacket.class).stream().filter(e -> e.particle() == Particle.EXPLOSION_EMITTER).count();
+            assertEquals(1, emitters, "a power-1 blast (vanilla ghast) stays small");
+        } finally {
+            p.player.remove();
+        }
+    }
+
+    @Test
     void eventCancelsAndSwaps() {
         useRegistry(Fx.vanilla18());
         FakePlayer a = FakePlayer.connect(instance, new Pos(8.5, 65, 8.5), "FxP4");

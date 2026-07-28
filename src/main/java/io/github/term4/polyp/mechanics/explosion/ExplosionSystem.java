@@ -5,6 +5,8 @@ import io.github.term4.polyp.MechanicsModule;
 import io.github.term4.polyp.Polyp;
 import io.github.term4.polyp.Services;
 import io.github.term4.polyp.api.event.explosion.ExplosionEvent;
+import io.github.term4.polyp.fx.Fx;
+import io.github.term4.polyp.fx.FxContext;
 import io.github.term4.polyp.mechanics.attribute.defense.Bypass;
 import io.github.term4.polyp.mechanics.damage.DamageSnapshot;
 import io.github.term4.polyp.mechanics.damage.DamageSystem;
@@ -99,6 +101,8 @@ public final class ExplosionSystem implements MechanicsModule {
         ExplosionEvent event = computeAndFire(world, center, power, source, resolved);
         if (event == null) return;
         applyEffects(world, center, power, source, directHit, event.targets(), resolved);
+        // power >= 2 = the 1.8 client's hugeexplosion gate; our wire radius is 0 through Via, so it never self-picks
+        if (power >= 2.0f) Fx.play(services, Fx.EXPLOSION_EMITTER, FxContext.at(world, center, source));
         // AFTER the damage pass, per vanilla (ServerExplosion.explode: select -> hurtEntities -> interactWithBlocks)
         if (resolved.blockBreaking() != null && !event.blocks().isEmpty()) {
             List<Point> broken = ExplosionBlocks.destroy(world, event.blocks(), power, resolved.blockBreaking());
@@ -124,6 +128,7 @@ public final class ExplosionSystem implements MechanicsModule {
         if (event == null) return;
         applyDamage(source, center, event.targets(), resolved.damageBypass());
         world.broadcast(packet(center, power, knockback));
+        if (power >= 2.0f) Fx.play(services, Fx.EXPLOSION_EMITTER, FxContext.at(world, center, source));
     }
 
     /** Config: the source's scope chain (player -&gt; instance -&gt; global) over the install config. */

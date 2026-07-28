@@ -3,6 +3,7 @@ package io.github.term4.polyp.presets.hypixel;
 import io.github.term4.polyp.MechanicsKeys;
 import io.github.term4.polyp.MechanicsProfile;
 import io.github.term4.polyp.fx.Fx;
+import io.github.term4.polyp.fx.FxHandler;
 import io.github.term4.polyp.presets.vanilla18.Vanilla18;
 
 /**
@@ -22,8 +23,10 @@ public final class Hypixel {
                 .set(MechanicsKeys.VELOCITY, Movement.velocity())
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.PROJECTILES, Projectiles.config())
-                // arrow hit-marker ding to the shooter; vanilla presets don't
-                .set(MechanicsKeys.FX, Fx.vanilla18().register(Fx.ARROW_HIT_PLAYER, Fx.arrowHitMarker()))
+                // arrow hit-marker ding to the shooter; vanilla presets don't. No fireball launch sound on Hypixel.
+                .set(MechanicsKeys.FX, Fx.vanilla18()
+                        .register(Fx.ARROW_HIT_PLAYER, Fx.arrowHitMarker())
+                        .register(Fx.THROW_FIREBALL, FxHandler.NONE))
                 .build();
     }
 }

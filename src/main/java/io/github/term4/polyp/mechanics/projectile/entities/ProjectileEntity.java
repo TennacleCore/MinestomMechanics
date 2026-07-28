@@ -193,6 +193,8 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
         this.shooter = newShooter;
         if (getEntityMeta() instanceof ProjectileMeta meta) meta.setShooter(newShooter);
         this.leftOwner = false;
+        // SHOOTER-relative KB must push away from the CURRENT owner, not the original thrower's launch spot
+        if (newShooter != null) this.shooterOriginPos = newShooter.getPosition();
     }
 
     public @Nullable Entity getShooter() { return shooter; }

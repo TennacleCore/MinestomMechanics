@@ -67,6 +67,7 @@ public final class Projectiles {
                 .leftOwnerImmunity(true)
                 .syncInterval(0).velocitySyncInterval(1) // no position teleports (Hypixel/minemen don't): pure velocity prediction, no spurious 0-velocity corrections
                 .removeOnEntityHit(true).removeOnBlockHit(true)
+                .selfHit(ProjectileTypeConfig.HitResponse.PASS_THROUGH) // your own fireball never hits you; a deflect reassigns ownership
                 .damage(0.0)
                 .explosionPower(BW_POWER)
                 .invulnHit(ProjectileTypeConfig.HitResponse.DESTROY)

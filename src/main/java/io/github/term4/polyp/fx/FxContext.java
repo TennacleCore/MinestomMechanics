@@ -49,6 +49,11 @@ public final class FxContext {
         return new FxContext(world, position, null, null);
     }
 
+    /** A positional fx with a {@code source} for registry scope resolution (an explosion at its center, scoped by its igniter). */
+    public static @NotNull FxContext at(@NotNull MechanicsWorld world, @NotNull Point position, @Nullable Entity source) {
+        return new FxContext(world, position, source, null);
+    }
+
     public @NotNull MechanicsWorld world() { return world; }
     public @NotNull Point position() { return position; }
     public @Nullable Entity source() { return source; }

@@ -289,13 +289,17 @@ public final class ProjectileSystem implements MechanicsModule {
                 ? Directions.headingWithPitchOffset(view.yaw(), view.pitch(), cfg.launchPitchOffset())
                 : view.direction();
         Vec vel = aim.mul(cfg.speed() * power);
-        if (cfg.spread() > 0) {
-            ThreadLocalRandom r = ThreadLocalRandom.current();
+        double bias = cfg.spreadBias();
+        if (cfg.spread() > 0 || bias != 0) {
             double len = vel.length();
             if (len > 0) {
-                vel = vel.div(len)
-                        .add(r.nextGaussian() * cfg.spread(), r.nextGaussian() * cfg.spread(), r.nextGaussian() * cfg.spread())
-                        .mul(len);
+                Vec dir = vel.div(len);
+                if (cfg.spread() > 0) {
+                    ThreadLocalRandom r = ThreadLocalRandom.current();
+                    dir = dir.add(r.nextGaussian() * cfg.spread(), r.nextGaussian() * cfg.spread(), r.nextGaussian() * cfg.spread());
+                }
+                if (bias != 0) dir = dir.add(bias, bias, bias);
+                vel = dir.mul(len);
             }
         }
         double mh = cfg.momentumHorizontal(), mv = cfg.momentumVertical();

@@ -123,6 +123,9 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
     /** Degrees added to the aim pitch for the launch heading only (vanilla {@code shootFromRotation} shape - the horizontal keeps the un-offset pitch). Splash potion / XP bottle {@code -20}; {@code 0} = straight aim. */
     public final @Nullable FieldValue<ProjectileContext, Double> launchPitchOffset;
     public final @Nullable FieldValue<ProjectileContext, Double> spread;
+    /** Constant added to EVERY launch-direction axis pre-scale - the vanilla spread term with the gaussian pinned
+     *  to {@code +1} (MineMen arrows: {@code 0.0075}, deterministic). {@code 0} = off. */
+    public final @Nullable FieldValue<ProjectileContext, Double> spreadBias;
     /** Minimum |motY| of every BROADCAST velocity (spawn/corrections; the sim is untouched): a flatter wire vy is
      *  clamped to this, sign-preserving, exactly {@code 0} clamps up. {@code 0} = off (vanilla). MineMen throwables: {@code 0.05}. */
     public final @Nullable FieldValue<ProjectileContext, Double> wireMotYFloor;
@@ -224,6 +227,7 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
         speed = b.speed;
         launchPitchOffset = b.launchPitchOffset;
         spread = b.spread;
+        spreadBias = b.spreadBias;
         wireMotYFloor = b.wireMotYFloor;
         momentumHorizontal = b.momentumHorizontal;
         momentumVertical = b.momentumVertical;

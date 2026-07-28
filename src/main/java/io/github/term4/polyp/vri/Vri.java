@@ -49,6 +49,7 @@ public final class Vri implements MechanicsModule {
         BlockDrops.install(system.node, system);
         ItemPickup.install(system.node, system);
         ItemDrop.install(system.node, system);
+        FireDouse.install(system.node, system);
         polyp.register(system);
         polyp.install(system.node);
         return system;

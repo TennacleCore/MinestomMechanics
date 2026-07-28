@@ -1,6 +1,9 @@
 package io.github.term4.polyp.entity;
 
+import io.github.term4.polyp.Polyp;
 import io.github.term4.polyp.api.event.explosion.ExplosionEvent;
+import io.github.term4.polyp.fx.Fx;
+import io.github.term4.polyp.fx.FxContext;
 import io.github.term4.polyp.mechanics.explosion.ExplosionCalculator;
 import io.github.term4.polyp.mechanics.explosion.ExplosionSystem;
 import io.github.term4.polyp.mechanics.projectile.entities.ProjectileEntity;
@@ -160,6 +163,8 @@ public final class PrimedTnt extends Entity implements ExternallyTickable {
         tnt.setVelocity(new Vec(-Math.sin(angle) * 0.02, 0.2, -Math.cos(angle) * 0.02).mul(TPS));
         shard.spawn(tnt, new Pos(tntBlock.blockX() + 0.5, tntBlock.blockY() + 0.5, tntBlock.blockZ() + 0.5));
         tnt.wireSyncedAt = tnt.getPosition();
+        var polyp = Polyp.getInstance();
+        if (polyp.isInitialized()) Fx.play(polyp.services(), Fx.TNT_PRIME, FxContext.of(tnt));
         return tnt;
     }
 

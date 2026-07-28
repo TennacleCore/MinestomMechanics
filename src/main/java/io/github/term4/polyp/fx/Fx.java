@@ -19,6 +19,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * preset installs, and the generic {@link #play} the library's mechanics call. A server customizes feedback by putting a
  * different registry on the {@code MechanicsKeys.FX} profile member - no event listeners required ({@link FxEvent}
  * is the optional dynamic hook). Sound ids are the modern ones (Via translates for 1.8 clients).
+ *
+ * <p>Per-player preferences ride PLAYER-scoped profiles: the registry resolves against the fx SOURCE, so
+ * {@code profiles().setPlayer(p, MechanicsKeys.FX, registry)} re-flavors what {@code p}'s own actions emit.
+ * For an fx only that player should hear, register a handler using {@link FxContext#sourceSound}.
  */
 public final class Fx {
 
@@ -55,6 +59,10 @@ public final class Fx {
     public static final Key ARROW_HIT = Key.key("polyp:arrow_hit");
     /** Arrow struck a target - the hit-marker "ding" to the SHOOTER only. Unregistered by default; a PvP preset registers it. */
     public static final Key ARROW_HIT_PLAYER = Key.key("polyp:arrow_hit_player");
+    /** TNT ignited (primed TNT spawned). */
+    public static final Key TNT_PRIME = Key.key("polyp:tnt_prime");
+    /** The big explosion flash; played for power &gt;= 2 (the 1.8 client's hugeexplosion-vs-explode gate). */
+    public static final Key EXPLOSION_EMITTER = Key.key("polyp:explosion_emitter");
 
     /**
      * Plays the fx registered for {@code key} in {@code ctx.source()}'s scope, firing the cancellable
@@ -104,7 +112,11 @@ public final class Fx {
                 .register(ROD_CAST, throwSound(SoundEvent.ENTITY_FISHING_BOBBER_THROW, Sound.Source.NEUTRAL))
                 .register(ROD_RETRIEVE, throwSound(SoundEvent.ENTITY_FISHING_BOBBER_RETRIEVE, Sound.Source.NEUTRAL))
                 .register(ARROW_HIT, ctx -> ctx.sound(SoundEvent.ENTITY_ARROW_HIT, Sound.Source.NEUTRAL, 1.0f, arrowHitPitch()))
-                .register(ARROW_CRIT, FxHandler.particle(Particle.CRIT, 2, 0.05, 0f));
+                .register(ARROW_CRIT, FxHandler.particle(Particle.CRIT, 2, 0.05, 0f))
+                // 1.8 game.tnt.primed 1.0/1.0 on ignite
+                .register(TNT_PRIME, FxHandler.sound(SoundEvent.ENTITY_TNT_PRIMED, Sound.Source.BLOCK, 1.0f, 1.0f))
+                // the wire explosion packet carries no radius through Via, so the 1.8 client never picks its own hugeexplosion
+                .register(EXPLOSION_EMITTER, FxHandler.particle(Particle.EXPLOSION_EMITTER, 1, 0, 0f));
     }
 
     /** The modern (26.1) fx - the {@code Vanilla} preset sets this. {@link #vanilla18()} plus the 1.9+ melee attack sound. */

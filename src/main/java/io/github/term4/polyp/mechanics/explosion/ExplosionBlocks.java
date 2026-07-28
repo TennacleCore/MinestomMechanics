@@ -283,6 +283,12 @@ final class ExplosionBlocks {
             world.setBlock(pos, Block.AIR);
             broken.add(pos);
         }
+        // orphaned fire: vanilla's neighbor updates remove fire whose support broke; Minestom runs none
+        for (Point pos : broken) {
+            Point above = pos.add(0, 1, 0);
+            Block block = world.getBlock(above, Block.Getter.Condition.TYPE);
+            if (block.compare(Block.FIRE) || block.compare(Block.SOUL_FIRE)) world.setBlock(above, Block.AIR);
+        }
         return broken;
     }
 

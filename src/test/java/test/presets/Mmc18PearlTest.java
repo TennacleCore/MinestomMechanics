@@ -200,19 +200,58 @@ class Mmc18PearlTest extends HeadlessServerTest {
         }
     }
 
-    /** An entity hit teleports to the pearl's x/z at the top of the ground below the impact. */
+    /** An entity hit lands ONE block off the struck entity, horizontally toward the pearl, at the entity's y. */
     @Test
-    void entityHitProjectsToTheGroundBelow() {
+    void entityHitLandsOneBlockOffTheVictimTowardThePearl() {
         var victim = zombie(new Pos(460.5, 64, 462.5));
         FakePlayer shooter = FakePlayer.connect(instance, new Pos(460.5, 64, 458.5, 0f, 0f), "MmcPearlEnt");
         try {
             Pos landed = pearlLanding(shooter, new Pos(460.5, 64, 458.5, 0f, 0f)); // yaw 0 = +z, into the zombie
-            assertEquals(64.0, landed.y(), 1e-9, "ground plane below the body hit: " + landed);
-            assertTrue(Math.abs(landed.x() - 460.5) < 0.25, "x stays the pearl's: " + landed);
-            assertTrue(landed.z() > 460.5 && landed.z() < 463.5, "z at the victim: " + landed);
+            Pos v = victim.getPosition();
+            assertEquals(v.y(), landed.y(), 1e-9, "the victim's y: " + landed);
+            double horizontal = Math.hypot(landed.x() - v.x(), landed.z() - v.z());
+            assertEquals(1.0, horizontal, 1e-9, "one block off the victim: " + landed);
+            assertTrue(landed.z() < v.z(), "displaced toward the pearl's approach side: " + landed);
         } finally {
             shooter.player.remove();
             victim.remove();
+        }
+    }
+
+    /** The fireball catch: pearl straight up, own fireball thrown after it - the shooter lands one block off
+     *  the fireball toward the pearl's column (the wire-proven self-catch sideways step), at the fireball's y. */
+    @Test
+    void fireballCatchTeleportsToTheFireballMidAir() {
+        Pos from = new Pos(580.5, 64, 580.5, 0f, -90f);
+        FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlCatch");
+        try {
+            shooter.player.teleport(from).join();
+            ProjectileConfig config = Projectiles.config();
+            var system = new ProjectileSystem(Polyp.getInstance(), config);
+            ProjectileEntity pearl = system.launch(ProjectileSnapshot.of(shooter.player, Pearl.INSTANCE).withConfig(config));
+            assertNotNull(pearl);
+            awaitSpawn(pearl);
+            for (int tick = 1; tick <= 3; tick++) pearl.tick(tick * 50L);
+            ProjectileEntity fireball = system.launch(ProjectileSnapshot.of(shooter.player,
+                    io.github.term4.polyp.mechanics.projectile.types.Fireball.INSTANCE).withConfig(config));
+            assertNotNull(fireball);
+            awaitSpawn(fireball);
+            Pos fbAtCatch = null;
+            for (int tick = 4; tick <= 120 && !pearl.isRemoved(); tick++) {
+                pearl.tick(tick * 50L);
+                fbAtCatch = fireball.getPosition();
+                if (!fireball.isRemoved()) fireball.tick(tick * 50L);
+            }
+            assertTrue(pearl.isRemoved(), "the pearl never met the fireball");
+            Pos landed = shooter.player.getPosition();
+            assertTrue(landed.y() > 70, "mid-air catch, not the ground: " + landed);
+            assertNotNull(fbAtCatch);
+            assertEquals(fbAtCatch.y(), landed.y(), 1.2, "at the fireball's height: " + landed + " vs fb " + fbAtCatch);
+            // pearl column = 0.16 sideways (yaw 0 -> -x) of the fb column: the unit offset resolves to a full -x block
+            assertEquals(fbAtCatch.x() - 1.0, landed.x(), 0.15, "one block toward the pearl's column: " + landed + " vs fb " + fbAtCatch);
+            if (!fireball.isRemoved()) fireball.remove();
+        } finally {
+            shooter.player.remove();
         }
     }
 }

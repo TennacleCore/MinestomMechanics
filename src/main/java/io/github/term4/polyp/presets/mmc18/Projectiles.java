@@ -21,22 +21,20 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.instance.block.BlockFace;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 /**
  * mmc18 projectiles: the 1.8 baseline plus the minemen fireball (FIRE_CHARGE, self-propelled, no gravity, power 2),
  * the silent-wire splash, and the pseudo-hook rod ({@link PseudoHook}).
  * Fireball flight measured from the 2026-07-01 MineMen flight logs (fireball_flight.py): spawn at the shot eye, first tick
  * moves {@link #LAUNCH}, then the velocity snaps to {@link #CRUISE} and rides the vanilla propulsion curve
- * ((v+0.1)·0.95 → 1.0884…). A direct hit is the vanilla 6.0 CONTACT hit with the mmc18 hurt-KB away from the fireball;
- * the same-tick splash then lands in the contact's i-frame window (FBF's ×0.05 damage = blocked, normal-mode falloff =
+ * ((v+0.1)&middot;0.95 -&gt; 1.0884...). A direct hit is the vanilla 6.0 CONTACT hit with the mmc18 hurt-KB away from the fireball;
+ * the same-tick splash then lands in the contact's i-frame window (FBF's &times;0.05 damage = blocked, normal-mode falloff =
  * overdamage remainder + push).
  */
 public final class Projectiles {
 
     private Projectiles() {}
 
-    // measured: wire launch 0.5645 × drag = 0.5363 first-tick move; cruise 1.0457 b/t from tick 2
+    // measured: wire launch 0.5645 x drag = 0.5363 first-tick move; cruise 1.0457 b/t from tick 2
     private static final double LAUNCH = 0.5645 * 0.95;
     private static final double CRUISE = 1.0457;
     // measured radius; vanilla ghast = 1
@@ -46,10 +44,12 @@ public final class Projectiles {
     // every minemen projectile floors |motY| to 0.05 on the wire (sim untouched); vertical-launch types (splash) just hid it
     private static final double WIRE_MOTY_FLOOR = 0.05;
 
-    // pearl teleport (2026-07-27 captures, ~110 tps + the 96-throw geometry corpus): the pearl's CONTINUOUS
-    // position, collision axis resolved to face + 0.4 out (floor 0, ceiling -2); a WALL hit also pushes 0.4
-    // back along the free horizontal axis, opposite the travel (floor/ceiling get no horizontal shift);
-    // entity hits project to the ground below. Look untouched. Teleport damage is per-mode: the
+    // pearl teleport (2026-07-27 captures, ~110 tps + the 96-throw geometry corpus + fireball catches): the
+    // pearl's CONTINUOUS position, collision axis resolved to face + 0.4 out (floor 0, ceiling -2); a WALL hit
+    // also pushes 0.4 back along the free horizontal axis, opposite the travel (floor/ceiling get no horizontal
+    // shift); an entity hit lands ONE block off the struck entity, horizontally toward the pearl, at the entity's
+    // y (fb-catch wire: tp y == fb y to /32, horizontal fits mean 0.11 - the block-to-the-side self-catch feel;
+    // grounded victims still land you on their ground). Look untouched. Teleport damage is per-mode: the
     // bedwars-adjacent modes set teleportDamage(0) on their variant config.
     private static final ProjectileBehavior PEARL_TELEPORT = new ProjectileBehavior() {
         @Override public void onImpact(ManagedProjectile p, Entity hit) {
@@ -57,8 +57,13 @@ public final class Projectiles {
             Point at = pearl.impactPosition() != null ? pearl.impactPosition() : pearl.getPosition();
             BlockFace face = pearl.impactFace();
             Pos target;
-            if (hit != null || face == null) {
-                target = new Pos(at.x(), groundBelow(pearl, at), at.z());
+            if (hit != null) {
+                Pos e = hit.getPosition();
+                double dx = at.x() - e.x(), dz = at.z() - e.z();
+                double m = Math.hypot(dx, dz);
+                target = m > 1e-6 ? new Pos(e.x() + dx / m, e.y(), e.z() + dz / m) : new Pos(e.x(), e.y(), e.z());
+            } else if (face == null) {
+                target = new Pos(at.x(), at.y(), at.z());
             } else {
                 Point spawn = pearl.getSpawnPosition() != null ? pearl.getSpawnPosition() : at;
                 target = switch (face) {
@@ -90,19 +95,6 @@ public final class Projectiles {
         return true;
     }
 
-    /** Top plane of the first solid block below {@code at} (capped scan; the impact y when none is found). */
-    private static double groundBelow(ManagedProjectile p, Point at) {
-        MechanicsWorld world = MechanicsWorld.of(p);
-        int x = (int) Math.floor(at.x()), z = (int) Math.floor(at.z());
-        int top = (int) Math.floor(at.y());
-        for (int y = top; y > top - 48; y--) {
-            BlockVec pos = new BlockVec(x, y, z);
-            if (!world.isChunkLoaded(pos)) break;
-            if (world.getBlock(pos, Block.Getter.Condition.TYPE).isSolid()) return y + 1;
-        }
-        return at.y();
-    }
-
     public static ProjectileConfig config() {
         ProjectileConfig base = Vanilla18.projectiles();
         ProjectileTypeConfig fireball = ProjectileTypeConfig.builder(Fireball.KEY)
@@ -113,6 +105,7 @@ public final class Projectiles {
                 .leftOwnerImmunity(true)
                 .syncInterval(0).velocitySyncInterval(1) // no position teleports (minemen doesn't): pure velocity prediction
                 .removeOnEntityHit(true).removeOnBlockHit(true)
+                .selfHit(ProjectileTypeConfig.HitResponse.PASS_THROUGH) // your own fireball never hits you; a deflect reassigns ownership
                 .damage(CONTACT_DAMAGE)
                 .knockback(Knockback.explosionHurt())
                 .knockbackSource(ProjectileTypeConfig.KnockbackSource.PROJECTILE)
@@ -125,9 +118,10 @@ public final class Projectiles {
                 .syncInterval(0).velocitySyncInterval(0)
                 .build();
         // rod: fully client-predicted silent wire (lockstep spawn on the 1.8 grid).
-        // capture 2026-07-06: spread collapsed onto the magnitude - speed 1.5*(1+N(0,0.0075)), direction exact
+        // capture 2026-07-28: CONSTANT 1.5*1.0075, direction exact, zero spread (9 identical axis casts, wire
+        // 12090 = 1.51125; the 07-06 gaussian read was sample noise)
         ProjectileTypeConfig bobber = ProjectileTypeConfig.builder(base.typeConfig(FishingBobber.KEY))
-                .speed(ctx -> 1.5 * (1 + ThreadLocalRandom.current().nextGaussian() * 0.007499999832361937))
+                .speed(1.51125)
                 .spread(0.0)
                 .syncInterval(0).velocitySyncInterval(0)
                 .behavior(ctx -> new PseudoHook())
@@ -142,7 +136,10 @@ public final class Projectiles {
         ProjectileTypeConfig egg = thrown(ProjectileTypeConfig.builder(Egg.KEY));
         ProjectileTypeConfig pearl = thrown(ProjectileTypeConfig.builder(base.typeConfig(Pearl.KEY))
                 .behavior(PEARL_TELEPORT));
+        // capture 2026-07-28 (78 arrows): deterministic - the vanilla spread gaussian pinned to +1 (dir += 0.0075
+        // per axis pre-scale; 3 consecutive same-aim shots byte-identical, straight-up = (+179, 24179, +179) wire)
         ProjectileTypeConfig arrow = ProjectileTypeConfig.builder(base.typeConfig(Arrow.KEY))
+                .spread(0.0).spreadBias(0.0075)
                 .knockback(Knockback.arrow()).build();
         return ProjectileConfig.builder(base)
                 // the 0.05 wire motY floor is universal on minemen projectiles, so make it the generic default every type inherits
