@@ -71,6 +71,7 @@ public final class Bow implements Shootable {
             arrow.setPickup(keepArrow ? ArrowEntity.Pickup.CREATIVE_ONLY : ArrowEntity.Pickup.ALLOWED);
             TippedArrows.apply(arrow, arrowItem);
         }
+        system.firstStep(proj);
     }
 
     private static boolean rollCrit(double chance) {

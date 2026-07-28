@@ -29,6 +29,7 @@ import net.minestom.server.event.entity.projectile.ProjectileCollideWithBlockEve
 import net.minestom.server.event.entity.projectile.ProjectileCollideWithEntityEvent;
 import net.minestom.server.event.entity.projectile.ProjectileUncollideEvent;
 import net.minestom.server.instance.block.Block;
+import net.minestom.server.instance.block.BlockFace;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.network.packet.server.SendablePacket;
@@ -105,12 +106,18 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     /** Knockback origin: vanilla uses the shooter, not the projectile. */
     protected Pos shooterOriginPos;
     protected @Nullable Entity shooter;
-    /** Spawn position on the wire grid. */
+    /** Launch position (wire-grid-quantized under lockstep); the first-tick spawn packet carries it. */
     private @Nullable Pos spawnPosition;
 
     // stuck state: collisionDirection != null means stuck
     /** Single-axis face normal of the hit surface (signed travel direction on the hit axis). */
     protected @Nullable Vec collisionDirection;
+    /** The clipped contact position on the hit tick (centre just short of the face/entity); getPosition() at impact
+     *  time is still the PRE-MOVE position (vanilla pearl semantics), so target-reshaping behaviors floor THIS. */
+    private @Nullable Pos impactPosition;
+    /** The face struck by the current BLOCK impact (TOP = landed on a floor); null for entity hits. Unlike
+     *  {@link #collisionDirection} it is latched for break-on-hit projectiles too. */
+    private @Nullable BlockFace impactFace;
     protected @Nullable Point stuckCollisionPoint;
     private @Nullable Pos stuckPlacement;
     private long stuckSyncCounter;
@@ -207,6 +214,12 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     public void setShooterOriginPos(@NotNull Pos pos) { this.shooterOriginPos = pos; }
 
     public boolean isStuck() { return collisionDirection != null; }
+
+    /** The clipped contact position of the current hit (block or entity), null before any contact. */
+    public @Nullable Pos impactPosition() { return impactPosition; }
+
+    /** The face struck by the current block impact ({@code TOP} = landed on a floor), null for entity hits. */
+    public @Nullable BlockFace impactFace() { return impactFace; }
 
     /** The wire-grid spawn position, or {@code null} before launch. */
     public @Nullable Pos getSpawnPosition() { return spawnPosition; }
@@ -422,6 +435,7 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
                 var event = new ProjectileCollideWithEntityEvent(this, hit.collisionPoint().asPos(), hit.entity());
                 EventDispatcher.call(event);
                 if (!event.isCancelled()) {
+                    this.impactPosition = hit.collisionPoint().asPos();
                     // the hitter is CONSUMED by a deflect even if its own hit would bounce (vanilla: the arrow
                     // die()s on a returned-true damageEntity)
                     boolean deflected = hit.entity() instanceof ProjectileEntity target && target.deflectBy(getShooter());
@@ -443,6 +457,7 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
 
         this.justBecameStuck = false;
         if (blockContact) {
+            this.impactPosition = newPosition;
             for (int axis = 0; axis < 3; axis++) {
                 if (physics.collisionShapes()[axis] instanceof ShapeImpl) {
                     Point hitPoint = physics.collisionPoints()[axis];
@@ -544,6 +559,12 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
             case 1 -> new Vec(0, Math.signum(velocityBt.y()), 0);
             case 2 -> new Vec(0, 0, Math.signum(velocityBt.z()));
             default -> velocityBt.normalize();
+        };
+        this.impactFace = switch (hitAxis) { // before onStuck(): the impact pipeline runs inside it
+            case 0 -> velocityBt.x() > 0 ? BlockFace.WEST : BlockFace.EAST;
+            case 1 -> velocityBt.y() > 0 ? BlockFace.BOTTOM : BlockFace.TOP;
+            case 2 -> velocityBt.z() > 0 ? BlockFace.NORTH : BlockFace.SOUTH;
+            default -> null;
         };
 
         // onStuck() returns removeOnBlockHit: true = break (throwables), false = stick (arrow). Decide before entering the stuck state.
@@ -757,7 +778,8 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     @Override
     public void updateNewViewer(@NotNull Player player) {
         int data = shooter != null ? shooter.getEntityId() : 0;
-        Pos pos = getPosition();
+        // viewers attach after the first move: the spawn packet must carry the launch position (the client predicts from it)
+        Pos pos = getAliveTicks() <= 1 && spawnPosition != null ? spawnPosition : getPosition();
         player.sendPacket(new SpawnEntityPacket(getEntityId(), getUuid(), getEntityType(), pos, pos.yaw(), data, wireVelocityFor(player)));
         player.sendPacket(getMetadataPacket());
         // no spawn velocity dup: the Via chain already re-emits it as the 1.8 S12

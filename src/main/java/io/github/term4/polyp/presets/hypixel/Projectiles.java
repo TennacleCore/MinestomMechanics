@@ -4,11 +4,13 @@ import io.github.term4.polyp.mechanics.projectile.ProjectileBehavior;
 import io.github.term4.polyp.mechanics.projectile.ProjectileConfig;
 import io.github.term4.polyp.mechanics.projectile.entities.FireballEntity;
 import io.github.term4.polyp.mechanics.projectile.entities.ManagedProjectile;
+import io.github.term4.polyp.mechanics.projectile.entities.PearlEntity;
 import io.github.term4.polyp.mechanics.projectile.types.Fireball;
 import io.github.term4.polyp.mechanics.projectile.types.Pearl;
 import io.github.term4.polyp.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.polyp.presets.vanilla18.Vanilla18;
 import net.minestom.server.coordinate.Point;
+import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.instance.Instance;
 
@@ -43,6 +45,18 @@ public final class Projectiles {
         }
     };
 
+    // BedWars pearl teleport, captured 2026-07-27 (130 tps): the centre of the block ABOVE the pearl's block,
+    // y = floor+1 exactly, no solidity search (the ceiling clip-in is authentic), same rule on entity hits.
+    // Floor the CONTACT centre (short of the face, like their capture) - the pre-move getPosition() lags a step.
+    private static final ProjectileBehavior BW_PEARL_TELEPORT = new ProjectileBehavior() {
+        @Override public void onImpact(ManagedProjectile p, Entity hit) {
+            if (p instanceof PearlEntity pearl) {
+                Point at = pearl.impactPosition() != null ? pearl.impactPosition() : pearl.getPosition();
+                pearl.teleportShooter(new Pos(Math.floor(at.x()) + 0.5, Math.floor(at.y()) + 1, Math.floor(at.z()) + 0.5));
+            }
+        }
+    };
+
     public static ProjectileConfig config() {
         ProjectileTypeConfig bwFireball = ProjectileTypeConfig.builder(Fireball.KEY)
                 .boundingBox(1, 1, 1) // EntityFireball.setSize(1,1): the box OTHERS hit to deflect it; its own detonation stays a point
@@ -62,6 +76,8 @@ public final class Projectiles {
                 .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0) // at the eye
                 .boundingBox(0.1, 0.1, 0.1)
                 .spread(0.0)
+                .behavior(BW_PEARL_TELEPORT)
+                .teleportDamage(0.0) // BedWars pearls deal none; SkyWars keep vanilla 5 - per-mode configs differ in knobs
                 .build();
         return ProjectileConfig.builder(Vanilla18.projectiles())
                 .typeConfigs(bwFireball, bwPearl)

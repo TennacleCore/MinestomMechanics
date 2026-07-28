@@ -1,5 +1,6 @@
 package io.github.term4.polyp.mechanics.projectile.entities;
 
+import io.github.term4.polyp.api.event.projectile.PearlTeleportEvent;
 import io.github.term4.polyp.world.MechanicsWorld;
 import io.github.term4.polyp.world.WorldPolicy;
 import io.github.term4.polyp.Services;
@@ -15,17 +16,17 @@ import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.RelativeFlags;
+import net.minestom.server.event.EventDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Ender pearl projectile: on impact (entity or block) it teleports the shooter to the impact point and deals
- * {@code teleportDamage} fall damage to a player shooter (vanilla 5). Vanilla 1.8 ignores hits on the shooter, wired
- * via {@code selfHit(PASS_THROUGH)}. The teleport target is the pre-move position (1.8 {@code EntityEnderPearl.a()}).
+ * Ender pearl: impact teleports the shooter there and deals {@code teleportDamage} fall damage (vanilla 5).
+ * 1.8 ignores self-hits, wired via {@code selfHit(PASS_THROUGH)}. A configured behavior OWNS the teleport
+ * (like the fireball's detonation) and calls {@link #teleportShooter} with its own target.
  *
- * <p>{@link WorldPolicy#canAffect} gates the teleport - the world-abstraction analog of vanilla's same-dimension
- * check. A stasis-style cross-world reach is a policy override, plus {@link #setCrossInstanceTeleport} when it also
- * crosses instances.
+ * <p>{@link WorldPolicy#canAffect} gates the teleport (vanilla's same-dimension check); a stasis-style
+ * cross-world reach is a policy override plus {@link #setCrossInstanceTeleport}.
  */
 public class PearlEntity extends ManagedProjectile {
 
@@ -46,19 +47,47 @@ public class PearlEntity extends ManagedProjectile {
 
     @Override
     protected void onImpact(@Nullable Entity hitEntity) {
+        if (hasBehavior()) return; // the behavior owns the teleport
+        teleportShooter(getPosition()); // pre-move position (1.8 EntityEnderPearl)
+    }
+
+    /** Behavior entry point: full pearl gating (world policy, instance, view-preserving wire, fall reset,
+     *  {@code teleportDamage}). {@link PearlTeleportEvent} cancel = the pearl is consumed, nobody moves. */
+    public void teleportShooter(@NotNull Pos target) {
         Entity shooter = getShooter();
         if (shooter == null || shooter.isRemoved()) return;
         if (!WorldPolicy.canAffect(this, shooter)) return; // a cross-world pearl (e.g. a replayed one) never yanks the thrower
         // vanilla only teleports within the pearl's world (1.8 entityplayer.world == this.world)
         boolean sameInstance = shooter.getInstance() == getInstance();
         if (!sameInstance && (!crossInstanceTeleport || getInstance() == null)) return;
+        PearlTeleportEvent event = new PearlTeleportEvent(this, shooter, target);
+        EventDispatcher.call(event);
+        if (event.isCancelled()) return;
+        target = event.target();
         // RELATIVE-view teleport so the camera isn't snapped; the cross-instance spawn can't carry relative flags
         if (sameInstance) {
-            shooter.teleport(getPosition().withView(0f, 0f), null, RelativeFlags.VIEW);
+            shooter.teleport(target.withView(0f, 0f), null, RelativeFlags.VIEW);
         } else {
             Pos view = shooter.getPosition();
-            MechanicsWorld.of(this).spawn(shooter, getPosition().withView(view.yaw(), view.pitch()));
+            MechanicsWorld.of(this).spawn(shooter, target.withView(view.yaw(), view.pitch()));
         }
+        landingEffects(shooter);
+        // TODO(endermite): vanilla 5% endermite spawn on teleport (cosmetic, deferred)
+    }
+
+    /** Refused teleport: the pearl still lands on the shooter (fall reset + {@code teleportDamage}, no movement)
+     *  with a real position echo on the wire - a silent refusal desyncs the falling client's prediction. */
+    public void consumeOnShooter() {
+        Entity shooter = getShooter();
+        if (shooter == null || shooter.isRemoved()) return;
+        if (!WorldPolicy.canAffect(this, shooter)) return;
+        if (shooter.getInstance() == getInstance()) {
+            shooter.teleport(shooter.getPosition().withView(0f, 0f), null, RelativeFlags.VIEW);
+        }
+        landingEffects(shooter);
+    }
+
+    private void landingEffects(Entity shooter) {
         // before the damage below, so the teleport drop adds no extra fall damage
         FallDamage.resetFallDistance(shooter);
         if (teleportDamage > 0 && shooter instanceof Player) {
@@ -68,6 +97,5 @@ public class PearlEntity extends ManagedProjectile {
                 s.damage().apply(DamageSnapshot.of(shooter, GenericDamage.INSTANCE).withAmount(teleportDamage).withSource(this));
             }
         }
-        // TODO(endermite): vanilla 5% endermite spawn on teleport (cosmetic, deferred)
     }
 }

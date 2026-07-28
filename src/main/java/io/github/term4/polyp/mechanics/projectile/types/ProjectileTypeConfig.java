@@ -167,7 +167,8 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
     public final @Nullable FieldValue<ProjectileContext, Double> critChance;
     /** Fall damage dealt to a player shooter when the ender pearl lands (vanilla {@code 5}); {@code 0} = none. Ender-pearl only. */
     public final @Nullable FieldValue<ProjectileContext, Double> teleportDamage;
-    /** Pluggable {@link ProjectileBehavior} layered over the built-in effects (no subclassing). Default {@link ProjectileBehavior#NONE}. */
+    /** Pluggable {@link ProjectileBehavior} layered over the built-in effects (no subclassing); on fireball/pearl it
+     *  OWNS the impact effect. Default {@link ProjectileBehavior#NONE}. */
     public final @Nullable FieldValue<ProjectileContext, ProjectileBehavior> behavior;
     /** Splash-potion particle palette for MODERN viewers: {@code true} = the 1.8 liquid colors, {@code false} (default) = modern. Legacy viewers always get the raw 1.8 potion value (their client picks its own colors). */
     public final @Nullable FieldValue<ProjectileContext, Boolean> legacyPotionColors;

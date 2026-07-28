@@ -7,7 +7,9 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Pluggable per-projectile behavior: changes what a projectile does on impact/stick/unstick/tick without subclassing -
  * the projectile analog of the attack {@code Ruleset}. Attach via the {@code behavior} config knob or per-launch
- * ({@link ProjectileSnapshot#withBehavior}). Every hook is a no-op by default and additive (built-in effects still run).
+ * ({@link ProjectileSnapshot#withBehavior}). Every hook is a no-op by default and additive (built-in effects still
+ * run) - EXCEPT on fireball and pearl, where a behavior OWNS the impact effect (same-tick detonation / the shooter
+ * teleport) and {@link #onImpact} provides the replacement.
  */
 public interface ProjectileBehavior {
 

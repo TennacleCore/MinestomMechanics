@@ -81,10 +81,11 @@ public abstract class ThrowableItemType extends ProjectileType {
         p.setTag(LAST_THROW_AGE, age);
         Key sound = throwSound();
         if (sound != null && polyp != null) Fx.play(polyp.services(), sound, FxContext.of(p));
-        system.launch(ProjectileSnapshot.of(p, this).withItem(item));
+        var proj = system.launch(ProjectileSnapshot.of(p, this).withItem(item));
         if (p.getGameMode() != GameMode.CREATIVE) {
             p.setItemInHand(hand, item.withAmount(item.amount() - 1));
         }
+        system.firstStep(proj);
     }
 
     @Override

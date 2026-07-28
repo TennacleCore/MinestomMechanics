@@ -107,6 +107,13 @@ public final class ProjectileSystem implements MechanicsModule {
         return launch(ctx.snap(), effectiveConfig, flight);
     }
 
+    /** First flight step, run by click handlers in the click's own tick (1.8 drains use-item before the entity
+     *  update, so a point-blank pearl impacts on the throw tick). Call after any post-launch stamps; no-op while
+     *  the spawn is still resolving (unloaded chunk). */
+    public void firstStep(@Nullable ProjectileEntity entity) {
+        if (entity != null && !entity.isRemoved() && entity.getInstance() != null) entity.tick(System.currentTimeMillis());
+    }
+
     /** The flight values {@link #launch} would use for {@code snap} - a launcher reading one knob (the bow's {@code critChance}) without re-resolving by hand. */
     public ResolvedFlight resolveFlight(ProjectileSnapshot snap) {
         ProjectileContext ctx = contextFor(snap);

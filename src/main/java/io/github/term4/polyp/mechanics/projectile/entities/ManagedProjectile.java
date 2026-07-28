@@ -47,7 +47,7 @@ public class ManagedProjectile extends ProjectileEntity {
 
     public void setBehavior(@Nullable ProjectileBehavior behavior) { this.behavior = behavior != null ? behavior : ProjectileBehavior.NONE; }
 
-    /** A fireball reads this: a bare one detonates itself, one carrying a behavior lets that behavior own the timing. */
+    /** Fireball/pearl read this: bare = the built-in impact effect, carrying a behavior = that behavior owns it. */
     protected boolean hasBehavior() { return behavior != ProjectileBehavior.NONE; }
 
     /** {@code target} is the struck entity, or {@code null} for a block hit. */
