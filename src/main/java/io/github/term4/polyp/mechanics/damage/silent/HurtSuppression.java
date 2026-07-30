@@ -20,15 +20,11 @@ import org.jetbrains.annotations.NotNull;
 public final class HurtSuppression {
 
     private static final Tag<Boolean> SUPPRESS = Tag.Transient("polyp:suppress-health-packets");
-    private static volatile boolean installed = false;
 
     private HurtSuppression() {}
 
-    /** Installs the packet-out listener once, under the damage system's node. Safe to call from every {@code DamageSystem.install}. */
-    public static synchronized void install(EventNode<@NotNull Event> parent) {
-        if (installed) return;
-        installed = true;
-
+    /** Installs the packet-out listener under the damage system's node (so it lives and dies with the install). */
+    public static void install(EventNode<@NotNull Event> parent) {
         EventNode<@NotNull PlayerEvent> node = EventNode.type("polyp:hurt-suppression", EventFilter.PLAYER);
         node.addListener(PlayerPacketOutEvent.class, e -> {
             Player player = e.getPlayer();

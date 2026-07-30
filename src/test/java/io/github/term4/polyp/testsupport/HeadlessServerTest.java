@@ -23,9 +23,10 @@ import net.minestom.server.network.NetworkBuffer;
 import org.junit.jupiter.api.BeforeAll;
 
 /**
- * Headless harness: one {@link MinecraftServer} process (registries + dispatcher, no socket) and the vanilla-1.8
- * {@link Polyp} systems per JVM, plus a loaded flat instance. Nothing ticks - the calculators under test
- * are pure functions of entity/config state. See docs/attributes-design.md (step 0 harness).
+ * Headless harness: one {@link MinecraftServer} process (registries + dispatcher, no socket) per JVM, plus a
+ * loaded flat instance. Modules reset per class - the vanilla-1.8 base trio is reinstalled and each class adds
+ * its own. Nothing ticks - the calculators under test are pure functions of entity/config state.
+ * See docs/attributes-design.md (step 0 harness).
  */
 public abstract class HeadlessServerTest {
 
@@ -35,24 +36,26 @@ public abstract class HeadlessServerTest {
 
     @BeforeAll
     static void boot() {
-        if (polyp != null) return; // one server per JVM, shared by every subclass
+        if (polyp == null) { // one server per JVM, shared by every subclass
+            MinecraftServer.init();
+            // entity registration/ticking partition threads (as EnvImpl does); lets setInstance(...).join() complete
+            MinecraftServer.process().dispatcher().start();
 
-        MinecraftServer.init();
-        // entity registration/ticking partition threads (as EnvImpl does); lets setInstance(...).join() complete
-        MinecraftServer.process().dispatcher().start();
+            polyp = Polyp.getInstance();
+            polyp.init();
+            services = polyp.services();
 
-        polyp = Polyp.getInstance();
-        polyp.init();
+            instance = MinecraftServer.getInstanceManager().createInstanceContainer();
+            instance.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
+            instance.loadChunk(0, 0).join();
+            // item stats resolve from the profile: scope them here so a test swapping the GLOBAL profile doesn't wipe them
+            polyp.profiles().setInstance(instance, MechanicsProfile.builder().set(MechanicsKeys.ITEMS, Items.registry()).build());
+        }
+        // fresh module set per class (install throws on duplicates): the vanilla-1.8 base trio plus whatever the class installs
+        polyp.unregisterAll();
         DamageSystem.install(polyp, Damage.config());
         KnockbackSystem.install(polyp, Knockback.melee());
         AttributeSystem.install(polyp, Attributes.config());
-        services = polyp.services();
-
-        instance = MinecraftServer.getInstanceManager().createInstanceContainer();
-        instance.setGenerator(unit -> unit.modifier().fillHeight(0, 64, Block.STONE));
-        instance.loadChunk(0, 0).join();
-        // item stats resolve from the profile: scope them here so a test swapping the GLOBAL profile doesn't wipe them
-        polyp.profiles().setInstance(instance, MechanicsProfile.builder().set(MechanicsKeys.ITEMS, Items.registry()).build());
     }
 
     /** A fresh loaded stone-floor instance, with {@code profile} scoped onto it when non-null. */

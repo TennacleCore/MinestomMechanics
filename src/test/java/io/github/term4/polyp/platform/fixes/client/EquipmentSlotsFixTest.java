@@ -24,14 +24,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The empty-slot strip on the GROUPED viewer-send path: it must happen before Minestom wraps the packet in a
  * {@code CachedPacket} the per-viewer transform can't unwrap.
  */
-class LegacyEquipmentFixTest extends HeadlessServerTest {
+class EquipmentSlotsFixTest extends HeadlessServerTest {
 
     private static FakePlayer wearer;
     private static FakePlayer viewer;
 
     @BeforeAll
     static void setUp() {
-        LegacyEquipmentFix.install();
+        EquipmentSlotsFix.install();
         wearer = FakePlayer.connect(instance, new Pos(0.5, 64, 0.5), "Wearer");
         viewer = FakePlayer.connect(instance, new Pos(1.5, 64, 1.5), "Viewer");
         wearer.player.addViewer(viewer.player);
@@ -49,7 +49,7 @@ class LegacyEquipmentFixTest extends HeadlessServerTest {
         wearer.player.sendPacketToViewers(new EntityEquipmentPacket(wearer.player.getEntityId(), bulk));
 
         EntityEquipmentPacket received = viewer.sent.stream()
-                .map(LegacyEquipmentFixTest::asEquipment)
+                .map(EquipmentSlotsFixTest::asEquipment)
                 .filter(p -> p != null && p.entityId() == wearer.player.getEntityId())
                 .reduce((a, b) -> b).orElseThrow();
 

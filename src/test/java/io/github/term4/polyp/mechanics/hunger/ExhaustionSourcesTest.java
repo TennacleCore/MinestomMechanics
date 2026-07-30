@@ -74,6 +74,25 @@ class ExhaustionSourcesTest extends HeadlessServerTest {
         assertEquals(0f, HungerSystem.exhaustion(p), 1e-6, "modern walking is free (unpriced key)");
     }
 
+    /** Vanilla gates every charge on invulnerable abilities ({@code applyExhaustion}), so creative and
+     *  spectator never build exhaustion - their hunger can't drain. */
+    @Test
+    void invulnerableGameModesNeverCharge() {
+        Instance inst = legacyInstance();
+        for (GameMode mode : new GameMode[]{GameMode.CREATIVE, GameMode.SPECTATOR}) {
+            Player p = player(inst, "Free" + mode.name());
+            p.setGameMode(mode);
+            p.setSprinting(true);
+            move(p, 5, 0, 0, true);
+            assertEquals(0f, HungerSystem.exhaustion(p), 1e-6, mode + " never charges exhaustion");
+        }
+        Player survival = player(inst, "PaysHisWay");
+        survival.setGameMode(GameMode.SURVIVAL);
+        survival.setSprinting(true);
+        move(survival, 5, 0, 0, true);
+        assertEquals(0.099999994f * 5, HungerSystem.exhaustion(survival), 1e-6, "survival still charges");
+    }
+
     @Test
     void sprintChargesPerMeter() {
         Player p = player(legacyInstance(), "Sprinter");

@@ -5,7 +5,7 @@ import io.github.term4.polyp.MechanicsProfile;
 import io.github.term4.polyp.Polyp;
 import io.github.term4.polyp.mechanics.consumable.ConsumableConfigResolver.ConsumableContext;
 import io.github.term4.polyp.platform.fixes.FixesConfig;
-import io.github.term4.polyp.platform.fixes.client.LegacyConsumeFixConfig;
+import io.github.term4.polyp.platform.fixes.FixToggleConfig;
 import io.github.term4.polyp.presets.vanilla18.Consumables;
 import io.github.term4.polyp.mechanics.consumable.catalog.VanillaConsumables;
 import io.github.term4.polyp.testsupport.FakePlayer;
@@ -128,7 +128,7 @@ class ConsumableGateTest extends HeadlessServerTest {
 
         // Fix ON + legacy client: the re-use is refused
         polyp.profiles().setGlobal(MechanicsProfile.builder()
-                .set(MechanicsKeys.FIXES, FixesConfig.builder().legacyConsume(LegacyConsumeFixConfig.builder().enabled(true).build()).build())
+                .set(MechanicsKeys.FIXES, FixesConfig.builder().legacyConsume(FixToggleConfig.on()).build())
                 .build());
         player.player.refreshItemUse(PlayerHand.MAIN, 32);
         var on = new PlayerUseItemEvent(player.player, PlayerHand.MAIN, ItemStack.of(Material.GOLDEN_APPLE), 32);
@@ -160,7 +160,7 @@ class ConsumableGateTest extends HeadlessServerTest {
     void legacyFinishPacesCountModernDoesNot() {
         player.player.setGameMode(GameMode.SURVIVAL);
         polyp.profiles().setGlobal(MechanicsProfile.builder()
-                .set(MechanicsKeys.FIXES, FixesConfig.builder().legacyConsume(LegacyConsumeFixConfig.builder().enabled(true).build()).build())
+                .set(MechanicsKeys.FIXES, FixesConfig.builder().legacyConsume(FixToggleConfig.on()).build())
                 .build());
         int slot = player.player.getHeldSlot();
 

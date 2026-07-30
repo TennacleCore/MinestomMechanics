@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  * <p>The cost is that a GROUPED send ({@code sendPacketToViewers} wraps every packet) is invisible here, so a
  * per-viewer rewrite silently no-ops on it. Senders that need one must deliver bare - {@code PerViewerInventory} for
  * slot refreshes, {@code OptimizedPlayer.sendPacketToViewers} for equipment. A viewer-independent rewrite can instead
- * run sender-side before grouping ({@code LegacyEquipmentFix}). Miss that and the bug reads as intermittent: the
+ * run sender-side before grouping ({@code EquipmentSlotsFix}). Miss that and the bug reads as intermittent: the
  * new-viewer send is bare and rewrites, the change broadcast is cached and does not.
  */
 public final class PacketShapes {

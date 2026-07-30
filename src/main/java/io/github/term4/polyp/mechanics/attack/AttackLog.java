@@ -44,11 +44,13 @@ public final class AttackLog {
 
     private static final Tag<Boolean> DIGGING = Tag.Transient("polyp:digging");
     private static final AtomicBoolean DIG_TRACKING = new AtomicBoolean();
+    private static final AtomicBoolean REACH_GUARD = new AtomicBoolean();
 
     private AttackLog() {}
 
-    /** Installs the reach guard: cancels a hit whose lower-bound reach exceeds {@code maxReach}. */
+    /** Installs the reach guard: cancels a hit whose lower-bound reach exceeds {@code maxReach}. Once only. */
     public static void install(Polyp polyp, double maxReach) {
+        if (!REACH_GUARD.compareAndSet(false, true)) throw new IllegalStateException("reach guard is already installed");
         ClientInfoTracker clientInfo = polyp.clientInfo();
         EventNode<@NotNull Event> node = EventNode.all("polyp:reach-guard");
         node.addListener(PreAttackEvent.class, e -> {

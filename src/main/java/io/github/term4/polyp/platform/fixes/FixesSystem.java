@@ -3,10 +3,11 @@ package io.github.term4.polyp.platform.fixes;
 import io.github.term4.polyp.MechanicsKeys;
 import io.github.term4.polyp.MechanicsModule;
 import io.github.term4.polyp.Polyp;
+import io.github.term4.polyp.platform.fixes.client.EquipmentSlotsFix;
 import io.github.term4.polyp.platform.fixes.client.InventorySync;
-import io.github.term4.polyp.platform.fixes.client.LegacyEquipmentFix;
+import io.github.term4.polyp.platform.fixes.client.LegacyFireDouseFix;
+import io.github.term4.polyp.platform.fixes.client.LegacySelfPlacementFix;
 import io.github.term4.polyp.platform.fixes.client.LegacyTabCompleteFix;
-import io.github.term4.polyp.platform.fixes.client.SelfPlacementFix;
 import io.github.term4.polyp.platform.fixes.visuals.VisualsConfig;
 import io.github.term4.polyp.platform.fixes.visuals.legacy_1_8.LegacyArrowVisibility;
 import io.github.term4.polyp.platform.fixes.visuals.legacy_1_8.LegacyArrowVisibilityConfig;
@@ -72,18 +73,19 @@ public final class FixesSystem implements MechanicsModule {
         FixesSystem system = new FixesSystem(polyp, cfg);
         polyp.register(system);
         system.legacyArrowVisibility.install(system.node);
+        LegacyFireDouseFix.install(system.node, system);
         // Below ride server-wide listeners / send overrides, so they gate on the install config and cannot vary per scope.
         // Self-placement wraps the STOCK placement listener; an app that replaces that listener re-installs LAST with
         // its own as the delegate.
-        if (enabled(cfg.selfPlacement())) SelfPlacementFix.install();
-        if (enabled(cfg.legacyEquipmentFix())) LegacyEquipmentFix.install();
+        if (enabled(cfg.legacySelfPlacement())) LegacySelfPlacementFix.install();
+        if (enabled(cfg.equipmentFix())) EquipmentSlotsFix.install();
         if (enabled(cfg.legacyTabCompleteFix())) LegacyTabCompleteFix.install();
         if (enabled(cfg.inventorySync())) InventorySync.install(system.node);
         polyp.install(system.node);
         return system;
     }
 
-    private static boolean enabled(@Nullable FixToggle cfg) {
-        return cfg != null && Boolean.TRUE.equals(cfg.enabled());
+    private static boolean enabled(@Nullable FixToggleConfig cfg) {
+        return cfg != null && cfg.enabled();
     }
 }

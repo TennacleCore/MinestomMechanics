@@ -247,6 +247,7 @@ public final class ProjectileSystem implements MechanicsModule {
         entity.setBoundingBox(flight.boundingBox().width(), flight.boundingBox().height(), flight.boundingBox().depth());
         entity.setAerodynamics(new Aerodynamics(flight.gravity(), flight.horizontalDrag(), flight.verticalDrag()));
         entity.setWaterPhysics(flight.waterDrag(), flight.waterPush(), flight.waterModel());
+        entity.setLegacyBlockRay(flight.legacyBlockRay());
         entity.setBroadcastMovement(flight.broadcastMovement());
         entity.setSynchronizationTicks(TickScaler.clientTicks(scope, flight.syncInterval()));
         entity.setVelocitySyncInterval(TickScaler.clientTicks(scope, flight.velocitySyncInterval()));

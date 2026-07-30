@@ -2,6 +2,7 @@ package io.github.term4.polyp.mechanics.explosion;
 
 import io.github.term4.polyp.mechanics.explosion.ExplosionConfigResolver.ExplosionContext;
 import io.github.term4.polyp.entity.DroppedItemEntity;
+import io.github.term4.polyp.world.FireSupport;
 import io.github.term4.polyp.world.MechanicsWorld;
 import net.minestom.server.coordinate.BlockVec;
 import net.minestom.server.coordinate.Point;
@@ -283,12 +284,8 @@ final class ExplosionBlocks {
             world.setBlock(pos, Block.AIR);
             broken.add(pos);
         }
-        // orphaned fire: vanilla's neighbor updates remove fire whose support broke; Minestom runs none
-        for (Point pos : broken) {
-            Point above = pos.add(0, 1, 0);
-            Block block = world.getBlock(above, Block.Getter.Condition.TYPE);
-            if (block.compare(Block.FIRE) || block.compare(Block.SOUL_FIRE)) world.setBlock(above, Block.AIR);
-        }
+        // fire the blast left unsupported: vanilla's neighbor updates; Minestom runs none
+        for (Point pos : broken) FireSupport.sweep(world, pos);
         return broken;
     }
 

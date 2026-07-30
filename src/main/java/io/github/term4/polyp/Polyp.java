@@ -29,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -78,9 +79,20 @@ public final class Polyp {
 
     /** Registers an installed system; later retrievable via {@link #module(Class)}. Called from each system's {@code install}. */
     public <M extends MechanicsModule> void register(M module) {
-        MechanicsModule previous = modules.put(module.getClass(), module);
-        // a re-install replaces the listeners, not stacks them
+        MechanicsModule previous = modules.putIfAbsent(module.getClass(), module);
+        if (previous != null) throw new IllegalStateException(
+                module.getClass().getSimpleName() + " is already installed - install once, or unregister(...) first to swap configs");
+    }
+
+    /** Tears down an installed system (its node comes off the tree) so a fresh install may run. */
+    public void unregister(Class<? extends MechanicsModule> type) {
+        MechanicsModule previous = modules.remove(type);
         if (previous != null && previous.node() != null) uninstall(previous.node());
+    }
+
+    /** {@link #unregister} for every installed system (full teardown; the test harness resets per class). */
+    public void unregisterAll() {
+        for (Class<? extends MechanicsModule> type : List.copyOf(modules.keySet())) unregister(type);
     }
 
     public <M extends MechanicsModule> @Nullable M module(Class<M> type) {

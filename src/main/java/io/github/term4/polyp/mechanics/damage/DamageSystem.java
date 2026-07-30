@@ -48,6 +48,7 @@ import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.ListenerHandle;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.event.entity.EntityDamageEvent;
 import net.minestom.server.event.entity.EntityDeathEvent;
 import net.minestom.server.event.player.PlayerRespawnEvent;
 import net.minestom.server.event.player.PlayerSpawnEvent;
@@ -106,6 +107,11 @@ public final class DamageSystem implements MechanicsModule {
         this.registry = new DamageTypeRegistry(this, polyp).registerVanillaDefaults();
         // window stamps ride the victim's per-instance clock; the TickState future-guard misses a coinciding long-lived instance
         this.node.addListener(PlayerSpawnEvent.class, e -> clearDamageWindow(e.getPlayer()));
+        // the hurt sound is CLIENT-side off the hurt animation in both eras (1.8 handleStatusUpdate(2), modern
+        // handleDamageEvent), so Minestom's extra sound packet plays it twice. Drop it whenever the animation goes out.
+        this.node.addListener(EntityDamageEvent.class, e -> {
+            if (e.shouldAnimate()) e.setSound(null);
+        });
         if (CLOCK_RESET.compareAndSet(false, true)) {
             TickSystem.onClockChange(e -> {
                 if (e instanceof LivingEntity le) clearDamageWindow(le);

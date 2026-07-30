@@ -74,7 +74,7 @@ public final class CompatMovement {
         // skip the knockback i-frame window: a hit's velocity would be clamped away
         if (!speed || clientInfo.isLegacy(player) || DamageSystem.isInvulnerableToDamage(player)) return;
         // OLD_FLUID_PHYSICS clients already move at 1.8 speed natively; the dampen would fight the 1.8 current
-        if (c.restrictSwimSpeed() && player.isSprinting() && inWater(player, world)
+        if (c.restrictSwimSpeed() && player.isSprinting() && ClientEye.feetInWater(player, world)
                 && !c.handlesNatively(AnimatiumFeature.OLD_FLUID_PHYSICS)) {
             dampenSwim(player, c, from, to);
             return;
@@ -110,16 +110,6 @@ public final class CompatMovement {
         player.sendPacket(new EntityVelocityPacket(player.getEntityId(), velocity));
     }
 
-    /** Feet in water; 1.8 slows all in-water movement, so this also covers surface swimming + wading. */
-    private static boolean inWater(Player p, MechanicsWorld world) {
-        Pos pos = p.getPosition();
-        try {
-            Block b = world.getBlock(pos.blockX(), pos.blockY(), pos.blockZ(), Block.Getter.Condition.TYPE);
-            return b != null && b.compare(Block.WATER);
-        } catch (Exception ignored) {
-            return false; // unloaded chunk
-        }
-    }
 
     /**
      * Whether the move newly puts {@code box} into a solid block it wasn't already overlapping at {@code from} - a block it

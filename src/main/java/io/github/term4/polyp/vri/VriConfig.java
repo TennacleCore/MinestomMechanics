@@ -16,8 +16,8 @@ public final class VriConfig {
     public final boolean itemPickup;
     /** Q / drag-out. Default off. */
     public final boolean itemDrop;
-    /** 1.8 face douse: any dig-start extinguishes fire on the clicked face. Default off. */
-    public final boolean fireDouse;
+    /** Fire parity on breaks: direct-break fizz + orphaned-fire removal. Default off. */
+    public final boolean fireBreaks;
 
     private VriConfig(Builder b) {
         blockBreakProgress = b.blockBreakProgress;
@@ -25,7 +25,7 @@ public final class VriConfig {
         itemPhysics = b.itemPhysics;
         itemPickup = b.itemPickup;
         itemDrop = b.itemDrop;
-        fireDouse = b.fireDouse;
+        fireBreaks = b.fireBreaks;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -33,7 +33,7 @@ public final class VriConfig {
     /** Everything on: {@link BlockDrops#VANILLA} drops, item physics from the profile. */
     public static VriConfig all() {
         return builder().blockBreakProgress(true)
-                .blockDrops(BlockDrops.VANILLA).itemPickup(true).itemDrop(true).fireDouse(true).build();
+                .blockDrops(BlockDrops.VANILLA).itemPickup(true).itemDrop(true).fireBreaks(true).build();
     }
 
     public static final class Builder {
@@ -42,7 +42,7 @@ public final class VriConfig {
         private @Nullable DroppedItemEntity.Model itemPhysics;
         private boolean itemPickup;
         private boolean itemDrop;
-        private boolean fireDouse;
+        private boolean fireBreaks;
 
         Builder() {}
 
@@ -51,7 +51,7 @@ public final class VriConfig {
         public Builder itemPhysics(@Nullable DroppedItemEntity.Model v) { itemPhysics = v; return this; }
         public Builder itemPickup(boolean v) { itemPickup = v; return this; }
         public Builder itemDrop(boolean v) { itemDrop = v; return this; }
-        public Builder fireDouse(boolean v) { fireDouse = v; return this; }
+        public Builder fireBreaks(boolean v) { fireBreaks = v; return this; }
 
         public VriConfig build() { return new VriConfig(this); }
     }

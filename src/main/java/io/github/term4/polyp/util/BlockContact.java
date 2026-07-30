@@ -15,9 +15,9 @@ import java.util.function.Predicate;
 /**
  * Block occupancy / collision-shape contact tests for hazard producers.
  *
- * <p>{@link #scan}/{@link #touching} walk full block cells - for fluids and fire, which fill the cell but often have no
- * collision shape. {@link #scanShapes}/{@link #touchingShapes} test registry collision shapes - for cactus and similar,
- * whose damage hitbox is smaller than the cell. Unloaded chunks and out-of-range Y are skipped.
+ * <p>{@link #scan}/{@link #touching} walk full block cells - for fluids, fire, and 1.8 {@code doBlockCollisions}
+ * contacts (cactus). {@link #scanShapes}/{@link #touchingShapes} test real registry collision shapes only
+ * (shapeless fluids/fire never contact) - for box-fit queries. Unloaded chunks and out-of-range Y are skipped.
  */
 public final class BlockContact {
 
@@ -133,13 +133,9 @@ public final class BlockContact {
             Point relative = position.sub(blockOrigin);
             Shape shape = block.registry().collisionShape();
 
-            boolean hit = shape != null && shape.intersectBox(relative, box);
-            if (!hit) {
-                // missing shape: treat as a full cube
-                hit = intersects(ex0, ey0, ez0, ex1, ey1, ez1,
-                        x, y, z, x + 1.0, y + 1.0, z + 1.0);
-            }
-            if (!hit) continue;
+            // real collision shapes only: shapeless blocks (fire, fluids) never contact - cell semantics live in scan()
+            if (shape == null || shape.relativeStart().samePoint(shape.relativeEnd())) continue;
+            if (!shape.intersectBox(relative, box)) continue;
 
             BlockFace face = contactFace(ex0, ey0, ez0, ex1, ey1, ez1, shape, blockOrigin);
             if (visitor.test(new BlockContactHit(x, y, z, block, face))) return true;

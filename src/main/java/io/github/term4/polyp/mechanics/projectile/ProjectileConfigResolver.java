@@ -74,6 +74,8 @@ public final class ProjectileConfigResolver {
                 FieldValue.resolve(tc.waterDrag, ctx, 0.8), // vanilla throwable/fireball; arrows override 0.6
                 FieldValue.resolve(tc.waterPush, ctx, 0.014), // 1.8 Entity.W() current
                 FieldValue.resolve(tc.waterModel, ctx, ProjectileTypeConfig.WaterModel.LEGACY),
+                FieldValue.resolve(tc.legacyBlockRay, ctx, Boolean.FALSE), // 1.8 selection-box ray for >1-tall blocks
+
                 FieldValue.resolve(tc.spawnOffsetForward, ctx, 0.0),
                 FieldValue.resolve(tc.spawnOffsetVertical, ctx, 0.0),
                 FieldValue.resolve(tc.spawnOffsetSideways, ctx, 0.0),
@@ -131,6 +133,7 @@ public final class ProjectileConfigResolver {
             double waterDrag,
             double waterPush,
             ProjectileTypeConfig.WaterModel waterModel,
+            boolean legacyBlockRay,
             double spawnOffsetForward,
             double spawnOffsetVertical,
             double spawnOffsetSideways,

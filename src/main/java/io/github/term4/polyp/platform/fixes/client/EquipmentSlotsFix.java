@@ -17,11 +17,11 @@ import java.util.Map;
  * clients. Applied to ALL clients: a legacy gate leaks through the join window (equipment is sent before the viewer's
  * protocol resolves). Temporary: upstream branch {@code fix/skip-empty-equipment-slots}.
  */
-public final class LegacyEquipmentFix {
+public final class EquipmentSlotsFix {
 
     private static volatile boolean enabled;
 
-    private LegacyEquipmentFix() {}
+    private EquipmentSlotsFix() {}
 
     public static void install() {
         enabled = true;

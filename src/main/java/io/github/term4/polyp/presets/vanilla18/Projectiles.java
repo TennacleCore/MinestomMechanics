@@ -51,6 +51,7 @@ public final class Projectiles {
                 .spawnOffsetVertical(-0.1).spawnOffsetSideways(0.16)
                 .shooterImmunityTicks(5)
                 .entityHitGrow(0.3)
+                .legacyBlockRay(true) // 1.8 rayTraceBlocks: fences/walls ray as SELECTION boxes (envelope, 1.0 tall)
                 // 1.8 EntityTracker throwable row (64, 10, true)
                 .syncInterval(10).velocitySyncInterval(10)
                 .knockback(Knockback.projectile())

@@ -23,33 +23,38 @@ import java.util.function.Supplier;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** Re-install must replace listeners, not stack them - the stacking bug was doubled consume restores. */
+/** Install is once-only: a duplicate throws instead of stacking listeners; unregister allows an explicit swap. */
 class ModuleReinstallTest extends HeadlessServerTest {
 
-    private record Case(String name, Supplier<MechanicsModule> install) {}
+    private record Case(String name, Class<? extends MechanicsModule> type, Supplier<MechanicsModule> install) {}
 
     @Test
-    void reinstallDetachesThePredecessorsNode() {
+    void duplicateInstallThrowsAndUnregisterAllowsAFreshOne() {
         List<Case> cases = List.of(
-                new Case("damage", () -> DamageSystem.install(polyp, Damage.config())),
-                new Case("knockback", () -> KnockbackSystem.install(polyp, Knockback.melee())),
-                new Case("attributes", () -> AttributeSystem.install(polyp, Attributes.config())),
-                new Case("attack", () -> AttackSystem.install(polyp)),
-                new Case("hunger", () -> HungerSystem.install(polyp)),
-                new Case("consumable", () -> ConsumableSystem.install(polyp)),
-                new Case("blocking", () -> BlockingSystem.install(polyp)),
-                new Case("projectile", () -> ProjectileSystem.install(polyp)),
-                new Case("explosion", () -> ExplosionSystem.install(polyp)),
-                new Case("durability", () -> DurabilitySystem.install(polyp)),
-                new Case("fixes", () -> FixesSystem.install(polyp)));
+                new Case("damage", DamageSystem.class, () -> DamageSystem.install(polyp, Damage.config())),
+                new Case("knockback", KnockbackSystem.class, () -> KnockbackSystem.install(polyp, Knockback.melee())),
+                new Case("attributes", AttributeSystem.class, () -> AttributeSystem.install(polyp, Attributes.config())),
+                new Case("attack", AttackSystem.class, () -> AttackSystem.install(polyp)),
+                new Case("hunger", HungerSystem.class, () -> HungerSystem.install(polyp)),
+                new Case("consumable", ConsumableSystem.class, () -> ConsumableSystem.install(polyp)),
+                new Case("blocking", BlockingSystem.class, () -> BlockingSystem.install(polyp)),
+                new Case("projectile", ProjectileSystem.class, () -> ProjectileSystem.install(polyp)),
+                new Case("explosion", ExplosionSystem.class, () -> ExplosionSystem.install(polyp)),
+                new Case("durability", DurabilitySystem.class, () -> DurabilitySystem.install(polyp)),
+                new Case("fixes", FixesSystem.class, () -> FixesSystem.install(polyp)));
         for (Case c : cases) {
+            polyp.unregister(c.type()); // the harness pre-installs damage/knockback/attributes
             MechanicsModule first = c.install().get();
+            assertNotNull(first.node().getParent(), c.name() + ": install attaches the node");
+            assertThrows(IllegalStateException.class, () -> c.install().get(), c.name() + ": duplicate install throws");
+            assertSame(first, polyp.module(c.type()), c.name() + ": the registry keeps the live install");
+            polyp.unregister(c.type());
+            assertNull(first.node().getParent(), c.name() + ": unregister detaches the node");
+            assertNull(polyp.module(c.type()), c.name() + ": unregister empties the registry slot");
             MechanicsModule second = c.install().get();
-            assertNotNull(first.node(), c.name() + ": module exposes its node");
-            assertNull(first.node().getParent(), c.name() + ": the replaced install's node is detached");
-            assertNotNull(second.node().getParent(), c.name() + ": the live install's node is attached");
-            assertSame(second, polyp.module(second.getClass()), c.name() + ": the registry holds the live install");
+            assertNotNull(second.node().getParent(), c.name() + ": a fresh install works after unregister");
         }
     }
 }

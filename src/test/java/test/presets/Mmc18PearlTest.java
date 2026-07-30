@@ -22,10 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * MineMen pearl teleport, captured 2026-07-27 (~110 teleports incl. a four-face pillar): the pearl's CONTINUOUS
- * position with only the collision axis resolved to the hit face plus a pushback - horizontal 0.4 outward (mirrored
- * .4/.6 fractions on opposite faces), floor 0 (feet exactly on the face), ceiling 2 below; entity hits project to
- * the ground below the impact.
+ * MineMen pearl teleport law (the replay tests pin the captured arenas): walk back from the ray contact to
+ * the first spot the player box fits - lateral 0.4 off the face, floor y = plane, ceiling plane - 2, nothing
+ * fits = refusal echo; entity hits land one block off the victim toward the pearl.
  */
 class Mmc18PearlTest extends HeadlessServerTest {
 
@@ -54,29 +53,30 @@ class Mmc18PearlTest extends HeadlessServerTest {
         }
     }
 
-    /** Opposite pillar faces push out by 0.4 in mirrored directions (the four-face capture's .4/.6 signature). */
+    /** A wall hit with a clear column lands EXACTLY 0.4 off the face - the walk-back's first candidate, the
+     *  flight point where the hit axis sits 0.4 clear (staircase capture: every row snapped plane - 0.4). */
     @Test
-    void wallHitPushesOutPointFourFromTheFace() {
+    void wallHitLandsExactlyPointFourOffTheFace() {
         int px = 420, pz = 420; // pillar columns x=420..421
         for (int x = px; x <= px + 1; x++)
             for (int y = 64; y <= 70; y++)
                 for (int z = pz - 1; z <= pz + 1; z++) instance.setBlock(x, y, z, Block.STONE);
         FakePlayer shooter = FakePlayer.connect(instance, new Pos(425.5, 65, 420.5, 90f, 0f), "MmcPearlWall");
         try {
-            Pos east = pearlLanding(shooter, new Pos(425.5, 65, 420.5, 90f, 0f));   // yaw 90 = -x, into the east face at 422.0
-            assertEquals(422.4, east.x(), 1e-9, "east face + 0.4 out: " + east);
-            Pos west = pearlLanding(shooter, new Pos(416.5, 65, 420.5, -90f, 0f));  // yaw -90 = +x, into the west face at 420.0
-            assertEquals(419.6, west.x(), 1e-9, "west face - 0.4 out: " + west);
-            assertTrue(east.y() % 1 != 0.0 && west.y() % 1 != 0.0, "y stays the pearl's continuous height");
+            Pos east = pearlLanding(shooter, new Pos(425.5, 65, 420.5, 90f, 0f));   // yaw 90 = -x into the east face at 422.0
+            assertEquals(422.4, east.x(), 1e-6, "exactly 0.4 off the face: " + east);
+            Pos west = pearlLanding(shooter, new Pos(416.5, 65, 420.5, -90f, 0f));  // mirrored into the west face at 420.0
+            assertEquals(419.6, west.x(), 1e-6, "mirrored: " + west);
+            assertTrue(east.y() % 1 != 0.0 && west.y() % 1 != 0.0, "y stays the pearl's continuous flight height");
         } finally {
             shooter.player.remove();
         }
     }
 
-    /** A wall hit also pushes 0.4 back along the FREE horizontal axis, opposite the travel: of two near-mirrored
-     *  throws into the same face, the +z-travel one lands at LOWER z (without the shift it would land higher). */
+    /** The free horizontal axis follows the flight line: mirrored-drift throws land symmetric around the
+     *  spawn line (drift preserved, no artificial shove). */
     @Test
-    void wallHitPushesBackAlongTheFreeAxis() {
+    void wallHitFreeAxisKeepsTheTickStartDrift() {
         int px = 430, pz = 430; // pillar columns x=430..431
         for (int x = px; x <= px + 1; x++)
             for (int y = 64; y <= 70; y++)
@@ -85,10 +85,9 @@ class Mmc18PearlTest extends HeadlessServerTest {
         try {
             Pos plusZ = pearlLanding(shooter, new Pos(435.5, 65, 430.5, 88f, 0f));   // toward -x, drifting +z
             Pos minusZ = pearlLanding(shooter, new Pos(435.5, 65, 430.5, 92f, 0f));  // mirrored, drifting -z
-            assertEquals(432.4, plusZ.x(), 1e-9, "east face + 0.4 out: " + plusZ);
             // mirror center = throw line shifted by the vanilla sideways spawn offset (-sin(yaw)*0.16)
-            assertEquals(430.34, (plusZ.z() + minusZ.z()) / 2, 0.01, "mirrored contacts around the spawn line");
-            assertTrue(plusZ.z() < minusZ.z(), "the 0.4 push-back crosses the mirrored landings: " + plusZ + " vs " + minusZ);
+            assertEquals(430.34, (plusZ.z() + minusZ.z()) / 2, 0.01, "mirrored drifts around the spawn line");
+            assertTrue(plusZ.z() >= minusZ.z(), "drift preserved, not shoved across: " + plusZ + " vs " + minusZ);
         } finally {
             shooter.player.remove();
         }
@@ -110,15 +109,51 @@ class Mmc18PearlTest extends HeadlessServerTest {
         }
     }
 
-    /** A refused target (blocked feet..head column - mmcgeometryclip, 96/96) leaves the thrower unmoved. */
+    /** 1.8 rays fences at SELECTION height 1.0, not collision 1.5: a pearl crossing in the 1.0-1.5 band flies
+     *  OVER the fence (mmcfencespearl: gap-column pearls at fence-top height sailed on to the structure). */
     @Test
-    void blockedColumnRefusesTheTeleport() {
+    void fenceTopBandFliesOverLikeThe18Ray() {
+        int fx = 470, fz = 470;
+        for (int z = fz - 2; z <= fz + 2; z++) instance.setBlock(fx, 64, z, Block.OAK_FENCE); // ray top 65.0, shape top 65.5
+        Pos from = new Pos(fx - 3.5, 64, fz + 0.34, -90f, 0f); // flat throw crosses the fence line at ~65.45 (the band)
+        FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlBand");
+        try {
+            Pos landed = pearlLanding(shooter, from);
+            assertTrue(landed.x() > fx + 0.7, "flew over the fence, landed beyond: " + landed);
+            assertEquals(64.0, landed.y(), 1e-9, "floor law on the far side: " + landed);
+        } finally {
+            shooter.player.remove();
+        }
+    }
+
+    /** Water never blocks a teleport: a pearl dropped into a pool lands feet on the pool floor (shapeless
+     *  fluids don't contact the fit test). */
+    @Test
+    void waterPoolLandsFeetOnThePoolFloor() {
+        int px = 560, pz = 460;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++) instance.setBlock(px + dx, 63, pz + dz, Block.WATER);
+        Pos from = new Pos(px + 0.3, 70, pz + 0.3, 0f, 90f); // straight down into the pool
+        FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlPool");
+        try {
+            Pos landed = pearlLanding(shooter, from);
+            assertEquals(63.0, landed.y(), 1e-9, "feet on the pool floor, standing in the water: " + landed);
+            assertTrue(Math.abs(landed.x() - from.x()) < 0.25, "not refused or displaced: " + landed);
+        } finally {
+            shooter.player.remove();
+        }
+    }
+
+    /** Refusal anchors at the THROWER: standing under a low roof (the spawn's head-span crosses it) refuses
+     *  (mmcgeometryclip climb-stop = spawn-blocked rows; flown targets never refuse - mmcpillarpearl3). */
+    @Test
+    void spawnUnderTheRoofRefusesTheTeleport() {
         int wz = 525, roofY = 66;
         for (int x = 516; x <= 524; x++) {
             for (int y = 64; y <= 70; y++) instance.setBlock(x, y, wz, Block.STONE); // wall
             for (int z = 521; z < wz; z++) instance.setBlock(x, roofY, z, Block.STONE); // roof in front of it
         }
-        Pos from = new Pos(520.5, 64, 520.5, 0f, 0f); // flat throw under the roof into the wall: head into roof
+        Pos from = new Pos(520.5, 64, 523.5, 0f, 0f); // STANDING under the roof, flat throw into the wall
         FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlRoof");
         try {
             Pos landed = pearlLanding(shooter, from);
@@ -129,19 +164,61 @@ class Mmc18PearlTest extends HeadlessServerTest {
         }
     }
 
-    /** The refusal checks the block COLUMN only, not the 0.6-wide box: a ceiling target hugging a side wall
-     *  still teleports (the corpus's one full-box mismatch, allowed by minemen). */
+    /** Acceptance is the plain player-box fit: a ceiling target whose box overlaps the side wall REFUSES
+     *  (mmcwallAGAIN - hug-climb spam refuses at hug distance < 0.3, teleports at >= 0.3; 0/27 tps overlap). */
     @Test
-    void wallHuggingCeilingTargetStillTeleports() {
+    void wallHuggingCeilingTargetRefusesTheOverlap() {
         int cx = 540, cz = 540, ceilY = 75;
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -2; dz <= 2; dz++) instance.setBlock(cx + dx, ceilY, cz + dz, Block.STONE);
         for (int y = 64; y < ceilY; y++) instance.setBlock(cx + 1, y, cz, Block.STONE); // side wall beside the throw column
-        Pos from = new Pos(cx + 0.9, 65, cz + 0.3, 0f, -90f); // straight up, pearl column hugs the side wall
+        Pos from = new Pos(cx + 0.9, 65, cz + 0.3, 0f, -90f); // straight up, box 0.2 into the wall the whole flight
         FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlHug");
         try {
             Pos landed = pearlLanding(shooter, from);
-            assertEquals(73.0, landed.y(), 1e-9, "ceiling rule fires despite the box overlapping the side wall: " + landed);
+            assertEquals(65.0, landed.y(), 1e-9, "no candidate fits - refusal echo: " + landed);
+        } finally {
+            shooter.player.remove();
+        }
+    }
+
+    /** A fence side hit is a lateral hit like any wall: lands short of the line, never refuses
+     *  (mmcfencespearl - fence-line tps scatter short of the posts). */
+    @Test
+    void fenceSideHitBacksUpShortOfTheFence() {
+        int fx = 464, fz = 464;
+        for (int z = fz - 2; z <= fz + 2; z++) {
+            instance.setBlock(fx, 64, z, Block.OAK_FENCE);
+            instance.setBlock(fx, 65, z, Block.OAK_FENCE); // two high, like the capture wall
+        }
+        // unconnected fences are bare 0.25 posts; aim through the post center (sideways spawn offset +0.16 on z)
+        Pos from = new Pos(fx - 3.5, 64, fz + 0.34, -90f, 0f); // flat throw +x into the fence side
+        FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlFence");
+        try {
+            Pos landed = pearlLanding(shooter, from);
+            assertTrue(landed.x() > from.x() + 0.5, "not refused, moved toward the fence: " + landed);
+            assertTrue(landed.x() < fx + 0.375, "pre-move position: short of the fence face: " + landed);
+            assertTrue(landed.y() > 64.9 && landed.y() < 66.0, "y stays the pearl's continuous height: " + landed);
+        } finally {
+            shooter.player.remove();
+        }
+    }
+
+    /** A ceiling hit grazing a side wall still teleports (stomceilingclip pearl 497): the walk lands the
+     *  last spot the box fits, beside the wall at face - 2. */
+    @Test
+    void ceilingCornerWallGrazeStillTeleports() {
+        int wx = 474, cz = 470, ceilY = 70;
+        for (int y = 64; y <= ceilY; y++)
+            for (int z = cz - 2; z <= cz + 2; z++) instance.setBlock(wx, y, z, Block.STONE); // wall
+        for (int x = wx - 4; x <= wx; x++)
+            for (int z = cz - 2; z <= cz + 2; z++) instance.setBlock(x, ceilY, z, Block.STONE); // ceiling
+        Pos from = new Pos(wx - 0.5, 64, cz + 0.5, -90f, -87f); // near-vertical, drifting into the wall corner
+        FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlCorner");
+        try {
+            Pos landed = pearlLanding(shooter, from);
+            assertEquals(68.0, landed.y(), 1e-9, "ceiling rule: feet = face - 2: " + landed);
+            assertTrue(landed.x() > wx - 1 && landed.x() < wx, "continuous x beside the wall: " + landed);
         } finally {
             shooter.player.remove();
         }
@@ -156,7 +233,7 @@ class Mmc18PearlTest extends HeadlessServerTest {
             for (int y = 64; y <= 70; y++) instance.setBlock(x, y, wz, Block.STONE); // wall
             for (int z = 561; z < wz; z++) instance.setBlock(x, roofY, z, Block.STONE); // roof in front of it
         }
-        Pos from = new Pos(560.5, 64, 560.5, 0f, 0f); // flat throw under the roof into the wall: head into roof
+        Pos from = new Pos(560.5, 64, 563.5, 0f, 0f); // STANDING under the roof (spawn-blocked), flat throw at the wall
         FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlEcho");
         try {
             shooter.player.teleport(from).join();

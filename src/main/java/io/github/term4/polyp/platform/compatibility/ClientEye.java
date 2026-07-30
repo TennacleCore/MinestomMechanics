@@ -43,7 +43,8 @@ public final class ClientEye {
             case FALL_FLYING, SWIMMING, SPIN_ATTACK -> POSE_EYE; // crawl / elytra / riptide
             case SNEAKING -> oldSneakHeight(player) ? LEGACY_SNEAKING : MODERN_CROUCH;
             // Minestom never computes the swim pose (no client signal), so detect sprint-swimming directly
-            default -> player.isSprinting() && inWater(player) ? POSE_EYE : STANDING;
+            default -> player.isSprinting() && player.getInstance() != null
+                    && feetInWater(player, MechanicsWorld.viewed(player)) ? POSE_EYE : STANDING;
         };
     }
 
@@ -51,11 +52,11 @@ public final class ClientEye {
         return player instanceof OptimizedPlayer op && op.compat().handlesNatively(AnimatiumFeature.OLD_SNEAK_HEIGHT);
     }
 
-    private static boolean inWater(Player player) {
-        if (player.getInstance() == null) return false;
+    /** Feet cell (not eye): 1.8 slows wading too, and the swim pose starts at the surface. */
+    static boolean feetInWater(Player player, MechanicsWorld world) {
         Pos p = player.getPosition();
         try {
-            Block block = MechanicsWorld.viewed(player).getBlock(p.blockX(), p.blockY(), p.blockZ(), Block.Getter.Condition.TYPE);
+            Block block = world.getBlock(p.blockX(), p.blockY(), p.blockZ(), Block.Getter.Condition.TYPE);
             return block != null && block.compare(Block.WATER);
         } catch (Exception ignored) {
             return false; // unloaded chunk

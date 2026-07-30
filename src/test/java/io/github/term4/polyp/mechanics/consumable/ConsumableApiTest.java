@@ -57,6 +57,11 @@ class ConsumableApiTest extends HeadlessServerTest {
         return hooks;
     }
 
+    private static void swapConsumables(ConsumableConfig cfg) {
+        polyp.unregister(ConsumableSystem.class);
+        ConsumableSystem.install(polyp, cfg);
+    }
+
     private static void finish(Material material) {
         EventDispatcher.call(new PlayerFinishItemUseEvent(p, PlayerHand.MAIN, ItemStack.of(material), 32L));
     }
@@ -74,13 +79,13 @@ class ConsumableApiTest extends HeadlessServerTest {
     void componentFloorCanBeDisabled() {
         var cfg = ConsumableConfig.builder(Consumables.config())
                 .componentFoods(false).build();
-        ConsumableSystem.install(polyp, cfg);
+        swapConsumables(cfg);
         try {
             p.setFood(10);
             finish(Material.BREAD);
             assertEquals(10, p.getFood(), "floor off: bread is not a consumable");
         } finally {
-            ConsumableSystem.install(polyp, Consumables.config());
+            swapConsumables(Consumables.config());
         }
     }
 
@@ -127,12 +132,12 @@ class ConsumableApiTest extends HeadlessServerTest {
         assertEquals(3, p.getEffect(PotionEffect.POISON).potion().amplifier(), "1.8: Poison IV");
         p.clearEffects();
 
-        ConsumableSystem.install(polyp, io.github.term4.polyp.presets.vanilla.Consumables.config());
+        swapConsumables(io.github.term4.polyp.presets.vanilla.Consumables.config());
         try {
             finish(Material.PUFFERFISH);
             assertEquals(1, p.getEffect(PotionEffect.POISON).potion().amplifier(), "modern: Poison II");
         } finally {
-            ConsumableSystem.install(polyp, Consumables.config());
+            swapConsumables(Consumables.config());
         }
     }
 

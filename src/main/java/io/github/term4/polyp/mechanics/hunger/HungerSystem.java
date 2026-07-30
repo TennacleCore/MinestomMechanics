@@ -117,6 +117,8 @@ public final class HungerSystem implements MechanicsModule {
     }
 
     private static void exhaust(Player player, HungerConfig cfg, Key source, float quantity) {
+        // vanilla applyExhaustion / causeFoodExhaustion: invulnerable abilities (creative, spectator) never charge
+        if (player.getGameMode().invulnerable()) return;
         ExhaustionCost rule = cfg.exhaustionCost(source);
         float global = cfg.exhaustionScale() != null ? cfg.exhaustionScale() : 1f;
         float cost = (rule != null ? rule.cost(quantity) : quantity) * global;

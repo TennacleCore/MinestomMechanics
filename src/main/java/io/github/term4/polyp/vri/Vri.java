@@ -12,8 +12,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * VRI (Vanilla Re-Implemented): world behaviors Minestom omits - crack overlay, block drops, item pickup/drop
- * (chests, deaths later). Each behavior reads {@link #configFor} per event, so a scope can enable one the install
+ * VRI (Vanilla Re-Implemented): world behaviors Minestom omits - crack overlay, block drops, item pickup/drop,
+ * fire-break parity (chests, deaths later). Each behavior reads {@link #configFor} per event, so a scope can enable one the install
  * config left off. Drop spawns fire {@link ItemSpawnEvent}. Break FX (world event 2001) is native in
  * {@code breakBlock} - don't re-add it.
  */
@@ -49,7 +49,7 @@ public final class Vri implements MechanicsModule {
         BlockDrops.install(system.node, system);
         ItemPickup.install(system.node, system);
         ItemDrop.install(system.node, system);
-        FireDouse.install(system.node, system);
+        FireBreaks.install(system.node, system);
         polyp.register(system);
         polyp.install(system.node);
         return system;

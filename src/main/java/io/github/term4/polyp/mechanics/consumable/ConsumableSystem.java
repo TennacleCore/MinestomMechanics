@@ -12,8 +12,8 @@ import io.github.term4.polyp.fx.FxContext;
 import io.github.term4.polyp.fx.Fx;
 import io.github.term4.polyp.mechanics.consumable.ConsumableConfigResolver.ConsumableContext;
 import io.github.term4.polyp.mechanics.consumable.ConsumableConfigResolver.ResolvedConsumable;
+import io.github.term4.polyp.platform.fixes.FixToggleConfig;
 import io.github.term4.polyp.platform.fixes.FixesConfig;
-import io.github.term4.polyp.platform.fixes.client.LegacyConsumeFixConfig;
 import io.github.term4.polyp.util.tick.TickPhase;
 import io.github.term4.polyp.util.tick.TickSystem;
 import net.kyori.adventure.key.Key;
@@ -181,8 +181,8 @@ public final class ConsumableSystem implements MechanicsModule {
     /** {@link FixesConfig#legacyConsume()} enabled in {@code p}'s scope AND a legacy client. */
     private boolean legacyConsumeEnabled(Player p) {
         FixesConfig fixes = polyp.profiles().resolve(p, MechanicsKeys.FIXES);
-        LegacyConsumeFixConfig c = fixes != null ? fixes.legacyConsume() : null;
-        return c != null && Boolean.TRUE.equals(c.enabled()) && polyp.clientInfo().isLegacy(p);
+        FixToggleConfig c = fixes != null ? fixes.legacyConsume() : null;
+        return c != null && c.enabled() && polyp.clientInfo().isLegacy(p);
     }
 
     private void onCancel(PlayerCancelItemUseEvent e) {
@@ -223,7 +223,7 @@ public final class ConsumableSystem implements MechanicsModule {
 
     public static ConsumableSystem install(Polyp polyp, ConsumableConfig cfg) {
         ConsumableSystem system = new ConsumableSystem(polyp, cfg);
-        polyp.register(system); // detaches a replaced install's node
+        polyp.register(system);
         for (Consumable c : cfg.types()) system.register(c);
         polyp.install(system.node);
         // Registered once for the JVM (TickSystem has no removal); dispatches through the live registry so a re-install is picked up.

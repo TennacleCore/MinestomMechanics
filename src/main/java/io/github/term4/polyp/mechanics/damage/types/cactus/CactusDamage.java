@@ -50,7 +50,8 @@ public final class CactusDamage extends DamageType implements EnvironmentalTickP
 
     @Override
     public void tick(LivingEntity living, DamageSystem sys) {
-        if (!BlockContact.touchingShapes(living, b -> b.compare(Block.CACTUS))) return;
+        // cell contact, not the 1/16-inset shape: 1.8 doBlockCollisions walks CELLS (bounds only gate movement)
+        if (!BlockContact.touching(living, b -> b.compare(Block.CACTUS))) return;
         DamageProducers.emit(sys, living, this);
     }
 }

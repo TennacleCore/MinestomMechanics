@@ -17,9 +17,9 @@ import java.util.function.BiConsumer;
  * only, and only for PASSABLE blocks (stricter than 1.8: a motion-blocking block into your own hitbox is never a legit
  * clutch). Wraps the stock listener; an app that replaces the placement listener re-installs with it as the delegate, LAST.
  */
-public final class SelfPlacementFix {
+public final class LegacySelfPlacementFix {
 
-    private SelfPlacementFix() {}
+    private LegacySelfPlacementFix() {}
 
     /** Installs the stock placement listener wrapped with the 1.8 self-placement exclusion. */
     public static void install() {

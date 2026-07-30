@@ -7,7 +7,7 @@ import io.github.term4.polyp.mechanics.projectile.ProjectileConfig;
 import io.github.term4.polyp.platform.compatibility.CompatState;
 import io.github.term4.polyp.platform.fixes.RefreshPositionFix;
 import io.github.term4.polyp.platform.fixes.client.InventorySync;
-import io.github.term4.polyp.platform.fixes.client.LegacyEquipmentFix;
+import io.github.term4.polyp.platform.fixes.client.EquipmentSlotsFix;
 import io.github.term4.polyp.platform.fixes.client.SelfMetaFilter;
 import io.github.term4.polyp.util.tick.TickScaler;
 import io.github.term4.polyp.world.ExternallyTickable;
@@ -124,7 +124,7 @@ public class OptimizedPlayer extends Player implements ExternallyTickable {
 
     @Override
     public void sendPacket(@NotNull SendablePacket packet) {
-        SendablePacket p = LegacyEquipmentFix.rewrite(compat.rewriteItems(packet));
+        SendablePacket p = EquipmentSlotsFix.rewrite(compat.rewriteItems(packet));
         if (InventorySync.enabled()) {
             p = inventorySync.filter(p);
             if (p == null) return; // redundant slot echo: the client already shows it
@@ -136,7 +136,7 @@ public class OptimizedPlayer extends Player implements ExternallyTickable {
     // so strip empty slots before grouping - else BODY=AIR reaches ViaBackwards and hides the chestplate
     @Override
     public void sendPacketToViewers(@NotNull SendablePacket packet) {
-        SendablePacket rewritten = LegacyEquipmentFix.rewrite(packet);
+        SendablePacket rewritten = EquipmentSlotsFix.rewrite(packet);
         // The blocking-pose stamp is per-VIEWER (a modern client poses the block off ITS copy of the held item), so
         // equipment must arrive bare for each viewer's own item view to apply - grouping would share one CachedPacket.
         if (rewritten instanceof EntityEquipmentPacket && anyViewerRewritesItems()) {
@@ -251,7 +251,7 @@ public class OptimizedPlayer extends Player implements ExternallyTickable {
         return cfg != null && Boolean.TRUE.equals(cfg.experimentalAimSync);
     }
 
-    /** Armed by {@code SelfPlacementFix} while this player's own placement is processed; lets a passable block into their body. */
+    /** Armed by {@code LegacySelfPlacementFix} while this player's own placement is processed; lets a passable block into their body. */
     public void setSelfPlacing(boolean value) {
         this.selfPlacing = value;
     }

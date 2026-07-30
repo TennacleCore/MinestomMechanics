@@ -14,12 +14,20 @@ import io.github.term4.polyp.mechanics.projectile.types.Snowball;
 import io.github.term4.polyp.mechanics.projectile.types.SplashPotion;
 import io.github.term4.polyp.presets.vanilla18.Vanilla18;
 import io.github.term4.polyp.world.MechanicsWorld;
-import net.minestom.server.coordinate.BlockVec;
+import net.minestom.server.collision.BoundingBox;
+import net.minestom.server.collision.Shape;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Pos;
+import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.instance.block.BlockFace;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * mmc18 projectiles: the 1.8 baseline plus the minemen fireball (FIRE_CHARGE, self-propelled, no gravity, power 2),
@@ -44,13 +52,15 @@ public final class Projectiles {
     // every minemen projectile floors |motY| to 0.05 on the wire (sim untouched); vertical-launch types (splash) just hid it
     private static final double WIRE_MOTY_FLOOR = 0.05;
 
-    // pearl teleport (2026-07-27 captures, ~110 tps + the 96-throw geometry corpus + fireball catches): the
-    // pearl's CONTINUOUS position, collision axis resolved to face + 0.4 out (floor 0, ceiling -2); a WALL hit
-    // also pushes 0.4 back along the free horizontal axis, opposite the travel (floor/ceiling get no horizontal
-    // shift); an entity hit lands ONE block off the struck entity, horizontally toward the pearl, at the entity's
-    // y (fb-catch wire: tp y == fb y to /32, horizontal fits mean 0.11 - the block-to-the-side self-catch feel;
-    // grounded victims still land you on their ground). Look untouched. Teleport damage is per-mode: the
-    // bedwars-adjacent modes set teleportDamage(0) on their variant config.
+    private static final Logger LOG = LoggerFactory.getLogger(Projectiles.class);
+    private static final BoundingBox PLAYER_BOX = new BoundingBox(0.6, 1.8, 0.6);
+
+    // minemen pearl (capture-fitted: geometry corpus + pillar/low-arm/fence/staircase arenas): the teleport
+    // walks BACK from the ray contact and takes the first spot the player box fits. Lateral hits try the
+    // 0.4-off-the-face flight point first (extrapolates behind the spawn at point-blank - the corpus's exact
+    // .4/.6), floors/ceilings pin y to plane / plane-2; then prior tick-starts back to the spawn. Nothing
+    // fits = refusal echo, so refusals depend on where the THROWER stands. Entity hits land one block off
+    // the victim toward the pearl at the victim's y (fireball-catch wire-proven).
     private static final ProjectileBehavior PEARL_TELEPORT = new ProjectileBehavior() {
         @Override public void onImpact(ManagedProjectile p, Entity hit) {
             if (!(p instanceof PearlEntity pearl)) return;
@@ -62,36 +72,80 @@ public final class Projectiles {
                 double dx = at.x() - e.x(), dz = at.z() - e.z();
                 double m = Math.hypot(dx, dz);
                 target = m > 1e-6 ? new Pos(e.x() + dx / m, e.y(), e.z() + dz / m) : new Pos(e.x(), e.y(), e.z());
-            } else if (face == null) {
+            } else if (face == null || pearl.impactCell() == null || pearl.impactShape() == null) {
                 target = new Pos(at.x(), at.y(), at.z());
             } else {
-                Point spawn = pearl.getSpawnPosition() != null ? pearl.getSpawnPosition() : at;
-                target = switch (face) {
-                    case TOP -> new Pos(at.x(), Math.round(at.y()), at.z());
-                    case BOTTOM -> new Pos(at.x(), Math.round(at.y()) - 2, at.z());
-                    case EAST, WEST -> new Pos(Math.round(at.x()) + face.toDirection().normalX() * 0.4, at.y(),
-                            at.z() - 0.4 * Math.signum(at.z() - spawn.z()));
-                    case NORTH, SOUTH -> new Pos(at.x() - 0.4 * Math.signum(at.x() - spawn.x()), at.y(),
-                            Math.round(at.z()) + face.toDirection().normalZ() * 0.4);
-                };
+                target = walkBack(pearl, at, face);
             }
-            // refusal (geometry corpus 96/96): the target's BLOCK COLUMN feet..head must be free - not the
-            // 0.6-wide box (a wall-hugging target 0.03 from a face was allowed)
-            if (columnFree(pearl, target)) pearl.teleportShooter(target);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("pearl impact {} face {} -> {}", at, face, target == null ? "REFUSED" : target);
+            }
+            if (target != null) pearl.teleportShooter(target);
             else pearl.consumeOnShooter();
         }
     };
 
-    /** The target's block column from feet to head, non-solid throughout (unloaded = blocked). */
-    private static boolean columnFree(ManagedProjectile p, Pos at) {
-        MechanicsWorld world = MechanicsWorld.of(p);
-        int x = (int) Math.floor(at.x()), z = (int) Math.floor(at.z());
-        int head = (int) Math.floor(at.y() + 1.79);
-        for (int y = (int) Math.floor(at.y()); y <= head; y++) {
-            BlockVec pos = new BlockVec(x, y, z);
-            if (!world.isChunkLoaded(pos)) return false;
-            if (world.getBlock(pos, Block.Getter.Condition.TYPE).isSolid()) return false;
+    private static @Nullable Pos walkBack(PearlEntity pearl, Point at, BlockFace face) {
+        // face plane from the struck cell + shape; impactPosition() clips on the contact side
+        Point cell = pearl.impactCell();
+        Shape shape = pearl.impactShape();
+        double plane = switch (face) {
+            case TOP -> cell.y() + shape.relativeEnd().y();
+            case BOTTOM -> cell.y() + shape.relativeStart().y();
+            case EAST -> cell.x() + shape.relativeEnd().x();
+            case WEST -> cell.x() + shape.relativeStart().x();
+            case SOUTH -> cell.z() + shape.relativeEnd().z();
+            case NORTH -> cell.z() + shape.relativeStart().z();
+        };
+        Pos pre = pearl.getPosition();
+        List<Pos> walk = new ArrayList<>();
+        if (face == BlockFace.TOP || face == BlockFace.BOTTOM) {
+            double y = face == BlockFace.TOP ? plane : plane - 2;
+            walk.add(new Pos(pre.x(), y, pre.z()));
+            for (Pos h : pearl.stepHistory()) walk.add(new Pos(h.x(), y, h.z()));
+        } else {
+            int normal = face == BlockFace.EAST || face == BlockFace.WEST
+                    ? face.toDirection().normalX() : face.toDirection().normalZ();
+            Pos spot = clearSpot(pre, at, face, plane + normal * 0.4);
+            if (spot != null) walk.add(spot);
+            walk.add(pre);
+            for (Pos h : pearl.stepHistory()) walk.add(h);
         }
+        MechanicsWorld world = MechanicsWorld.of(pearl);
+        for (Pos c : walk) {
+            if (boxFits(world, c.x(), c.y(), c.z())) return c;
+        }
+        return null;
+    }
+
+    /** x/z extrapolated along the impact segment until the hit axis sits at {@code coord}; y at the contact
+     *  (a flight-aligned y is ill-conditioned on steep hug-climbs). Null when degenerate. */
+    private static @Nullable Pos clearSpot(Pos pre, Point at, BlockFace face, double coord) {
+        double dx = at.x() - pre.x(), dz = at.z() - pre.z();
+        if (dx * dx + dz * dz < 1e-12) return null; // clipped at the spawn (started inside)
+        boolean xAxis = face == BlockFace.EAST || face == BlockFace.WEST;
+        double d = xAxis ? dx : dz;
+        if (Math.abs(d) < 1e-9) return null;
+        double t = (coord - (xAxis ? pre.x() : pre.z())) / d;
+        return new Pos(pre.x() + dx * t, at.y(), pre.z() + dz * t);
+    }
+
+    // acceptance in full: the player box fits against every collision shape (staircase capture: 0/27 mmc tps
+    // overlap anything; hug-distance centimeters decide teleport-vs-refusal). Unloaded = no fit.
+    private static boolean boxFits(MechanicsWorld world, double x, double y, double z) {
+        int x0 = (int) Math.floor(x - 0.3), x1 = (int) Math.floor(x + 0.3);
+        int z0 = (int) Math.floor(z - 0.3), z1 = (int) Math.floor(z + 0.3);
+        int y0 = (int) Math.floor(y), y1 = (int) Math.ceil(y + 1.8) - 1;
+        for (int cx = x0; cx <= x1; cx++)
+            for (int cz = z0; cz <= z1; cz++) {
+                if (!world.isChunkLoaded(cx >> 4, cz >> 4)) return false;
+                for (int cy = y0; cy <= y1; cy++) {
+                    Block block = world.getBlock(cx, cy, cz, Block.Getter.Condition.TYPE);
+                    if (block.isAir()) continue;
+                    Shape s = block.registry().collisionShape();
+                    if (s != null && s.intersectBox(new Vec(x - cx, y - cy, z - cz), PLAYER_BOX)) return false;
+                }
+            }
         return true;
     }
 

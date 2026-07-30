@@ -44,7 +44,7 @@ import java.util.Set;
  * mirror, so a wrong guess costs a redundant echo, never a stuck desync. The full {@link WindowItemsPacket}
  * re-baselines everything.
  *
- * <p><b>Experimental</b> ({@link InventorySyncFixConfig}): a port of Minestom's click model, so a click-logic change
+ * <p><b>Experimental</b> ({@code FixesConfig#inventorySync}): a port of Minestom's click model, so a click-logic change
  * upstream can drift it.
  */
 public final class InventorySync {

@@ -133,7 +133,7 @@ public interface MechanicsWorld extends Block.Getter, ForwardingAudience, Taggab
     }
 
     /**
-     * Entity -> virtual world. Default reads {@link #ENTITY_TAG}; an external world system (e.g. ShardKit)
+     * Entity -> virtual world. Default reads {@link #ENTITY_TAG}; an external world system (e.g. Archipelago)
      * re-points it at its own binding. {@code null} = unbound - never fall back to the instance here (actors
      * may be world-less mid-action).
      */

@@ -1,10 +1,5 @@
 package io.github.term4.polyp.platform.fixes;
 
-import io.github.term4.polyp.platform.fixes.client.InventorySyncFixConfig;
-import io.github.term4.polyp.platform.fixes.client.LegacyConsumeFixConfig;
-import io.github.term4.polyp.platform.fixes.client.LegacyEquipmentFixConfig;
-import io.github.term4.polyp.platform.fixes.client.LegacyTabCompleteFixConfig;
-import io.github.term4.polyp.platform.fixes.client.SelfPlacementFixConfig;
 import io.github.term4.polyp.platform.fixes.visuals.VisualsConfig;
 import org.jetbrains.annotations.Nullable;
 
@@ -16,43 +11,63 @@ import org.jetbrains.annotations.Nullable;
 public final class FixesConfig {
 
     private final @Nullable VisualsConfig visuals;
-    private final @Nullable SelfPlacementFixConfig selfPlacement;
-    private final @Nullable LegacyEquipmentFixConfig legacyEquipmentFix;
-    private final @Nullable LegacyTabCompleteFixConfig legacyTabCompleteFix;
-    private final @Nullable LegacyConsumeFixConfig legacyConsume;
-    private final @Nullable InventorySyncFixConfig inventorySync;
+    private final @Nullable FixToggleConfig legacySelfPlacement;
+    private final @Nullable FixToggleConfig equipmentFix;
+    private final @Nullable FixToggleConfig legacyTabCompleteFix;
+    private final @Nullable FixToggleConfig legacyConsume;
+    private final @Nullable FixToggleConfig legacyFireDouse;
+    private final @Nullable FixToggleConfig inventorySync;
 
     private FixesConfig(Builder b) {
         this.visuals = b.visuals;
-        this.selfPlacement = b.selfPlacement;
-        this.legacyEquipmentFix = b.legacyEquipmentFix;
+        this.legacySelfPlacement = b.legacySelfPlacement;
+        this.equipmentFix = b.equipmentFix;
         this.legacyTabCompleteFix = b.legacyTabCompleteFix;
         this.legacyConsume = b.legacyConsume;
+        this.legacyFireDouse = b.legacyFireDouse;
         this.inventorySync = b.inventorySync;
     }
 
     public @Nullable VisualsConfig visuals() { return visuals; }
-    public @Nullable SelfPlacementFixConfig selfPlacement() { return selfPlacement; }
-    public @Nullable LegacyEquipmentFixConfig legacyEquipmentFix() { return legacyEquipmentFix; }
-    public @Nullable LegacyTabCompleteFixConfig legacyTabCompleteFix() { return legacyTabCompleteFix; }
-    public @Nullable LegacyConsumeFixConfig legacyConsume() { return legacyConsume; }
-    public @Nullable InventorySyncFixConfig inventorySync() { return inventorySync; }
+
+    /** 1.8 self-placement (passable blocks into your own body, {@code LegacySelfPlacementFix}); wraps the server-wide placement listener - install-level, not per-scope. */
+    public @Nullable FixToggleConfig legacySelfPlacement() { return legacySelfPlacement; }
+
+    /** Strips empty slots from outgoing equipment packets, vanilla parity for every version ({@code EquipmentSlotsFix}); install-level. */
+    public @Nullable FixToggleConfig equipmentFix() { return equipmentFix; }
+
+    /** Command-name tab completion for legacy clients ({@code LegacyTabCompleteFix}); replaces the packet listener - install-level. */
+    public @Nullable FixToggleConfig legacyTabCompleteFix() { return legacyTabCompleteFix; }
+
+    /**
+     * The legacy 1.8/Via consume fix (eating under lag): a 1.8 client neither gates its own consumption nor learns
+     * the eaten count, so {@code ConsumableSystem} refuses a re-use mid-use, decrements the held slot silently, and
+     * confirms each finish. Per-scope; legacy clients only.
+     */
+    public @Nullable FixToggleConfig legacyConsume() { return legacyConsume; }
+
+    /** 1.8 face douse - dig-starts extinguish fire on the clicked face ({@code LegacyFireDouseFix}). Per-scope. */
+    public @Nullable FixToggleConfig legacyFireDouse() { return legacyFireDouse; }
+
+    /** Remote-slot echo suppression ({@code InventorySync}); EXPERIMENTAL; server-wide - install config only. */
+    public @Nullable FixToggleConfig inventorySync() { return inventorySync; }
 
     /** Merges this config over {@code base} (each member: this if set, else base; both set -&gt; member-merged). */
     public FixesConfig fromBase(FixesConfig base) {
         VisualsConfig v = visuals == null ? base.visuals
                 : base.visuals == null ? visuals : visuals.fromBase(base.visuals);
-        SelfPlacementFixConfig sp = selfPlacement == null ? base.selfPlacement
-                : base.selfPlacement == null ? selfPlacement : selfPlacement.fromBase(base.selfPlacement);
-        LegacyEquipmentFixConfig le = legacyEquipmentFix == null ? base.legacyEquipmentFix
-                : base.legacyEquipmentFix == null ? legacyEquipmentFix : legacyEquipmentFix.fromBase(base.legacyEquipmentFix);
-        LegacyTabCompleteFixConfig ltc = legacyTabCompleteFix == null ? base.legacyTabCompleteFix
-                : base.legacyTabCompleteFix == null ? legacyTabCompleteFix : legacyTabCompleteFix.fromBase(base.legacyTabCompleteFix);
-        LegacyConsumeFixConfig lc = legacyConsume == null ? base.legacyConsume
-                : base.legacyConsume == null ? legacyConsume : legacyConsume.fromBase(base.legacyConsume);
-        InventorySyncFixConfig is = inventorySync == null ? base.inventorySync
-                : base.inventorySync == null ? inventorySync : inventorySync.fromBase(base.inventorySync);
-        return new Builder().visuals(v).selfPlacement(sp).legacyEquipmentFix(le).legacyTabCompleteFix(ltc).legacyConsume(lc).inventorySync(is).build();
+        return new Builder().visuals(v)
+                .legacySelfPlacement(merge(legacySelfPlacement, base.legacySelfPlacement))
+                .equipmentFix(merge(equipmentFix, base.equipmentFix))
+                .legacyTabCompleteFix(merge(legacyTabCompleteFix, base.legacyTabCompleteFix))
+                .legacyConsume(merge(legacyConsume, base.legacyConsume))
+                .legacyFireDouse(merge(legacyFireDouse, base.legacyFireDouse))
+                .inventorySync(merge(inventorySync, base.inventorySync))
+                .build();
+    }
+
+    private static @Nullable FixToggleConfig merge(@Nullable FixToggleConfig over, @Nullable FixToggleConfig base) {
+        return over != null ? over : base;
     }
 
     public Builder toBuilder() { return new Builder(this); }
@@ -61,21 +76,23 @@ public final class FixesConfig {
 
     public static final class Builder {
         private @Nullable VisualsConfig visuals;
-        private @Nullable SelfPlacementFixConfig selfPlacement;
-        private @Nullable LegacyEquipmentFixConfig legacyEquipmentFix;
-        private @Nullable LegacyTabCompleteFixConfig legacyTabCompleteFix;
-        private @Nullable LegacyConsumeFixConfig legacyConsume;
-        private @Nullable InventorySyncFixConfig inventorySync;
+        private @Nullable FixToggleConfig legacySelfPlacement;
+        private @Nullable FixToggleConfig equipmentFix;
+        private @Nullable FixToggleConfig legacyTabCompleteFix;
+        private @Nullable FixToggleConfig legacyConsume;
+        private @Nullable FixToggleConfig legacyFireDouse;
+        private @Nullable FixToggleConfig inventorySync;
 
         Builder() {}
-        Builder(FixesConfig c) { visuals = c.visuals; selfPlacement = c.selfPlacement; legacyEquipmentFix = c.legacyEquipmentFix; legacyTabCompleteFix = c.legacyTabCompleteFix; legacyConsume = c.legacyConsume; inventorySync = c.inventorySync; }
+        Builder(FixesConfig c) { visuals = c.visuals; legacySelfPlacement = c.legacySelfPlacement; equipmentFix = c.equipmentFix; legacyTabCompleteFix = c.legacyTabCompleteFix; legacyConsume = c.legacyConsume; legacyFireDouse = c.legacyFireDouse; inventorySync = c.inventorySync; }
 
         public Builder visuals(@Nullable VisualsConfig v) { this.visuals = v; return this; }
-        public Builder selfPlacement(@Nullable SelfPlacementFixConfig v) { this.selfPlacement = v; return this; }
-        public Builder legacyEquipmentFix(@Nullable LegacyEquipmentFixConfig v) { this.legacyEquipmentFix = v; return this; }
-        public Builder legacyTabCompleteFix(@Nullable LegacyTabCompleteFixConfig v) { this.legacyTabCompleteFix = v; return this; }
-        public Builder legacyConsume(@Nullable LegacyConsumeFixConfig v) { this.legacyConsume = v; return this; }
-        public Builder inventorySync(@Nullable InventorySyncFixConfig v) { this.inventorySync = v; return this; }
+        public Builder legacySelfPlacement(@Nullable FixToggleConfig v) { this.legacySelfPlacement = v; return this; }
+        public Builder equipmentFix(@Nullable FixToggleConfig v) { this.equipmentFix = v; return this; }
+        public Builder legacyTabCompleteFix(@Nullable FixToggleConfig v) { this.legacyTabCompleteFix = v; return this; }
+        public Builder legacyConsume(@Nullable FixToggleConfig v) { this.legacyConsume = v; return this; }
+        public Builder legacyFireDouse(@Nullable FixToggleConfig v) { this.legacyFireDouse = v; return this; }
+        public Builder inventorySync(@Nullable FixToggleConfig v) { this.inventorySync = v; return this; }
 
         public FixesConfig build() { return new FixesConfig(this); }
     }

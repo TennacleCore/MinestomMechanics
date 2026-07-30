@@ -14,6 +14,7 @@ import net.minestom.server.collision.CollisionUtils;
 import net.minestom.server.collision.BoundingBox;
 import net.minestom.server.collision.EntityCollisionResult;
 import net.minestom.server.collision.PhysicsResult;
+import net.minestom.server.collision.Shape;
 import net.minestom.server.collision.ShapeImpl;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Pos;
@@ -42,6 +43,7 @@ import net.minestom.server.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayDeque;
 import java.util.Collection;
 
 /**
@@ -100,6 +102,7 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     private double waterDrag = 1.0;
     private double waterPush;
     private ProjectileTypeConfig.WaterModel waterModel = ProjectileTypeConfig.WaterModel.LEGACY;
+    private boolean legacyBlockRay = false;
     private boolean inWater;
     /** Added before drag (vanilla fireball {@code mot += dir; mot *= drag}); ZERO for ballistic projectiles. */
     protected Vec acceleration = Vec.ZERO;
@@ -118,6 +121,9 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     /** The face struck by the current BLOCK impact (TOP = landed on a floor); null for entity hits. Unlike
      *  {@link #collisionDirection} it is latched for break-on-hit projectiles too. */
     private @Nullable BlockFace impactFace;
+    private @Nullable Point impactCell;
+    private @Nullable Shape impactShape;
+    private final ArrayDeque<Pos> stepHistory = new ArrayDeque<>();
     protected @Nullable Point stuckCollisionPoint;
     private @Nullable Pos stuckPlacement;
     private long stuckSyncCounter;
@@ -223,6 +229,17 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     /** The face struck by the current block impact ({@code TOP} = landed on a floor), null for entity hits. */
     public @Nullable BlockFace impactFace() { return impactFace; }
 
+    /** Cell of the struck block; face planes derive from cell + {@link #impactShape()}, not from the
+     *  clipped {@link #impactPosition()}. */
+    public @Nullable Point impactCell() { return impactCell; }
+
+    /** Collision shape of the struck block, null before any block contact. */
+    public @Nullable Shape impactShape() { return impactShape; }
+
+    /** Prior tick-start positions, most recent first (the current one is {@code getPosition()} at impact
+     *  time); bounded, oldest = the spawn. */
+    public Iterable<Pos> stepHistory() { return stepHistory; }
+
     /** The wire-grid spawn position, or {@code null} before launch. */
     public @Nullable Pos getSpawnPosition() { return spawnPosition; }
     public void setSpawnPosition(@NotNull Pos pos) { this.spawnPosition = pos; }
@@ -260,6 +277,10 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     }
 
     public void setBroadcastMovement(boolean v) { this.broadcastMovement = v; }
+
+    public void setLegacyBlockRay(boolean v) { this.legacyBlockRay = v; }
+
+    /** Box swept against BLOCKS instead of the collision box; entity hits keep the collision box + grow. */
 
     public void setPhysicsOrder(@NotNull ProjectileTypeConfig.PhysicsOrder order) { this.physicsOrder = order; }
 
@@ -412,7 +433,9 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
 
         // 26.1 applies drag/gravity before the move (1.8 after); a coasting projectile skips both (constant velocity)
         if (physicsOrder == ProjectileTypeConfig.PhysicsOrder.DRAG_BEFORE_MOVE && !coasting()) applyDragGravity(nativeStep);
-        PhysicsResult physics = world.sweepLoaded(collisionBox(), position, velocityBt, previousPhysicsResult, true);
+        PhysicsResult physics = legacyBlockRay
+                ? LegacyBlockRay.sweep(world, collisionBox(), position, velocityBt, previousPhysicsResult)
+                : world.sweepLoaded(collisionBox(), position, velocityBt, previousPhysicsResult, true);
         boolean blockContact = physics.hasCollision() && stickOnBlockContact();
         BoundingBox moveBox = moveBox();
         if (moveBox != collisionBox() && !blockContact) {
@@ -463,7 +486,11 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
             for (int axis = 0; axis < 3; axis++) {
                 if (physics.collisionShapes()[axis] instanceof ShapeImpl) {
                     Point hitPoint = physics.collisionPoints()[axis];
-                    Block hitBlock = world.getBlock(hitPoint.sub(0, Vec.EPSILON, 0), Block.Getter.Condition.TYPE);
+                    this.impactCell = physics.collisionShapePositions()[axis];
+                    this.impactShape = physics.collisionShapes()[axis];
+                    Block hitBlock = impactCell != null
+                            ? world.getBlock(impactCell, Block.Getter.Condition.TYPE)
+                            : world.getBlock(hitPoint.sub(0, Vec.EPSILON, 0), Block.Getter.Condition.TYPE);
                     stick(hitBlock, hitPoint, axis, newPosition);
                     if (isRemoved() || pendingRemove) return;
                     break;
@@ -496,6 +523,8 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
         // the physics-resolved position, not the collision point - modern clients saw the projectile float in
         // front of the block face
         Pos place = justBecameStuck && stuckPlacement != null ? stuckPlacement : newPosition;
+        stepHistory.addFirst(position);
+        if (stepHistory.size() > 64) stepHistory.removeLast();
         refreshPosition(place.withView(yaw, pitch), false, broadcastMovement);
         // frozen stick only: resyncStuck owns the broadcast. A live halt keeps lastSynced so the send threshold accumulates.
         if (justBecameStuck && isStuck()) this.lastSyncedPosition = getPosition();

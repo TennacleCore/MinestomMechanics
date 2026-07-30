@@ -113,6 +113,12 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
 
     /** 1.8 {@code Entity.W()} inset-box sensing vs 26.1 {@code EntityFluidInteraction} height sampling. */
     public enum WaterModel { LEGACY, MODERN }
+
+    /** 1.8 {@code rayTraceBlocks} parity: blocks with collision taller than 1 (fences, walls, gates) ray as their
+     *  SELECTION box - the connection envelope at height 1.0 - so projectiles fly over the 1.0-1.5 band and die on
+     *  envelope corners the exact shapes let through. {@code false} (default) = exact collision shapes (modern). */
+    public final @Nullable FieldValue<ProjectileContext, Boolean> legacyBlockRay;
+
     /** Forward spawn offset along the shooter's look direction (blocks). */
     public final @Nullable FieldValue<ProjectileContext, Double> spawnOffsetForward;
     /** Vertical spawn offset from the shooter's eye height (blocks). */
@@ -221,6 +227,7 @@ public final class ProjectileTypeConfig extends TypeConfig<ProjectileContext, Pr
         waterDrag = b.waterDrag;
         waterPush = b.waterPush;
         waterModel = b.waterModel;
+        legacyBlockRay = b.legacyBlockRay;
         spawnOffsetForward = b.spawnOffsetForward;
         spawnOffsetVertical = b.spawnOffsetVertical;
         spawnOffsetSideways = b.spawnOffsetSideways;
