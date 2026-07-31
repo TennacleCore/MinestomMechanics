@@ -20,12 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pearling out of an inside corner, from mcpearl10 / mmcpearl11: MineMen refuses NONE of these (0/48 and 0/19)
- * while pinning the teleport 0.400 off the contact on BOTH horizontal axes - the struck face, and the wall the
- * player box rests against on the free axis, signed away from it (mmcpearl11 -0.400, mcpearl10's mirror +0.400).
- *
- * <p>Walking the hit axis alone leaves the free axis inside the perpendicular wall, so every candidate fails the
- * fit and the throw refuses; stompearl10 refused 31 of 75 that way.
+ * Pearling out of tight geometry, from the corner (mcpearl10 / mmcpearl11) and tunnel captures. MineMen refuses
+ * none of these: corners take a 0.400 standoff on BOTH horizontal axes, and a thrower wedged under a low roof
+ * rises to the top of their own feet cell instead of walking back.
  */
 class Mmc18PearlCornerTest extends HeadlessServerTest {
 
@@ -98,7 +95,7 @@ class Mmc18PearlCornerTest extends HeadlessServerTest {
         return inst;
     }
 
-    /** mmctunnelpearl: flat WHOLE-block ground under a 2-high roof, MineMen leaves you put (26/32). */
+    /** Flat whole-block ground under a 2-high roof: air at the feet, so no lift (mmctunnelpearl, 26/32). */
     @Test
     void flatGroundUnderALowRoofStaysPut() {
         int bx = 4, by = 70, bz = 4;
@@ -107,8 +104,7 @@ class Mmc18PearlCornerTest extends HeadlessServerTest {
         assertEquals(by, after.y(), 1e-9, "whole-block stance must not be lifted: " + after);
     }
 
-    /** mmctunnelslab&trapdoorpearl: the SAME corridor and aim from a part-block stance lifts to the block
-     *  level, 16/16 - feet 70.1875 -> 71.0000. The split is the foot height, so the rule is ceil, not +1. */
+    /** Same corridor and aim from a part-block stance: standing IN the slab lifts to its top (16/16). */
     @Test
     void partBlockStanceUnderALowRoofLiftsToTheBlockLevel() {
         int bx = 30, by = 70, bz = 4;
@@ -119,8 +115,7 @@ class Mmc18PearlCornerTest extends HeadlessServerTest {
         assertEquals(stance.z(), after.z(), 1e-9, "x/z stay the thrower's: " + after);
     }
 
-    /** Submerged, the SAME whole-block stance that stays put on land is lifted a full block
-     *  (waterweirdmmcpearl 30/32 and mmcwaterpearlvariiedwater from 70.0000; the dry corridor stays 26/32). */
+    /** Water is just another block in the feet cell: submerged lifts where the same dry stance stays. */
     @Test
     void submergedWholeBlockStanceIsLiftedWhereTheDryOneStays() {
         Pos dryStance = new Pos(50 + 0.5, 70, 4 + 0.5, -90f, 0f);
@@ -129,8 +124,7 @@ class Mmc18PearlCornerTest extends HeadlessServerTest {
         assertEquals(71, pearlFrom(corridor(70, 70, 4, true, false), wetStance).y(), 1e-9, "submerged lifts");
     }
 
-    /** mmctunnelpearl: flat ground, pearl into the ROOF. A ceiling hit resolves two below the plane - the
-     *  thrower's own level - so the boxed-in path must not fire. */
+    /** Pearl into the roof: a ceiling hit resolves to plane-2, the thrower's own level, so no lift. */
     @Test
     void ceilingHitUnderALowRoofLeavesTheThrowerPut() {
         int bx = 90, by = 70, bz = 4;
@@ -144,8 +138,7 @@ class Mmc18PearlCornerTest extends HeadlessServerTest {
         assertEquals(by, pearlFrom(inst, stance).y(), 1e-9, "a ceiling hit stays at the thrower's level");
     }
 
-    /** Throwing AWAY down an open lane, the pearl lands on the distant floor and the walk-back would drop the
-     *  thrower there; a part-block stance under a low roof is lifted instead (mmctunnelslab&trapdoorpearl). */
+    /** Thrown away down an open lane the walk-back would drop you at the far floor; wedged, you rise instead. */
     @Test
     void openLaneFromAPartBlockStanceLiftsInstead() {
         InstanceContainer inst = flatInstance(null);

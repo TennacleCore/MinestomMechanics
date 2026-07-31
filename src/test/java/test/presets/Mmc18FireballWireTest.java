@@ -40,10 +40,8 @@ class Mmc18FireballWireTest extends HeadlessServerTest {
             shooter.remove();
             viewer.sent.clear();
 
-            // the FIRST correction lands on the tick after spawn: 1.8's tracker increments updateCounter after the
-            // check, so counter 0 sends. Captured at +51ms on every mmc fireball - and a fireball that hits a wall
-            // in ~6 ticks has no other chance to be corrected, so getting this wrong strands the client's copy at
-            // the muzzle while the blast goes off downrange
+            // 1.8 increments updateCounter after the check, so counter 0 sends: the first correction lands the
+            // tick after spawn. A fireball that hits a wall in ~6 ticks gets no other chance to be corrected.
             fb.tick(50L);
             assertEquals(1, viewer.packetsFor(fb.getEntityId()).stream()
                     .filter(p -> p instanceof EntityTeleportPacket).count(), "first teleport on the tick after spawn");

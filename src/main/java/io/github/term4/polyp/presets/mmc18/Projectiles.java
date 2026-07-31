@@ -55,15 +55,9 @@ public final class Projectiles {
     private static final Logger LOG = LoggerFactory.getLogger(Projectiles.class);
     private static final BoundingBox PLAYER_BOX = new BoundingBox(0.6, 1.8, 0.6);
     private static final double[] FREE_AXIS_STANDOFF = {-0.4, 0.4};
-    private static final double GROUND_PROBE = 0.02;
-    private static final BoundingBox FOOT_PROBE = new BoundingBox(0.6, GROUND_PROBE, 0.6);
 
-    // minemen pearl (capture-fitted: geometry corpus + pillar/low-arm/fence/staircase arenas): the teleport
-    // walks BACK from the ray contact and takes the first spot the player box fits. Lateral hits try the
-    // 0.4-off-the-face flight point first (extrapolates behind the spawn at point-blank - the corpus's exact
-    // .4/.6), floors/ceilings pin y to plane / plane-2; then prior tick-starts back to the spawn. Nothing
-    // fits = refusal echo, so refusals depend on where the THROWER stands. Entity hits land one block off
-    // the victim toward the pearl at the victim's y (fireball-catch wire-proven).
+    // minemen pearl, capture-fitted. Wedged throwers short-circuit (boxedIn); otherwise walk back from the
+    // contact to the first spot the player box fits, and refuse if there is none.
     private static final ProjectileBehavior PEARL_TELEPORT = new ProjectileBehavior() {
         @Override public void onImpact(ManagedProjectile p, Entity hit) {
             if (!(p instanceof PearlEntity pearl)) return;
@@ -78,7 +72,6 @@ public final class Projectiles {
             } else if (face == null || pearl.impactCell() == null || pearl.impactShape() == null) {
                 target = new Pos(at.x(), at.y(), at.z());
             } else {
-                // a thrower with no room to stand a block higher never walks back at all - see boxedIn
                 target = boxedIn(pearl, face);
                 if (target == null) target = walkBack(pearl, at, face);
             }
@@ -91,54 +84,21 @@ public final class Projectiles {
     };
 
     /**
-     * A STANDING thrower with no room to stand a block higher doesn't walk back at all: MineMen puts them at
-     * their own x/z (exact to 10 decimals) with y rounded UP to the block level. Identical throws down identical
-     * 2-high tunnels split on foot height alone - mmctunnelpearl from a whole 70.0000 stays put 26/32, while
-     * mmctunnelslab&trapdoorpearl from a trapdoor's 70.1875 lifts to 71.0000 16/16 - so it is ceil, not +1.
-     * Submerged is the exception: the same whole-block stance lifts a full level (see inWater).
-     * Airborne throws refuse: all 73 corpus refusals are fractional mid-jump feet, none of its 6 whole-y ones.
+     * A thrower with no room to stand a block higher skips the walk-back entirely and rises to the top of their
+     * own feet cell, x/z untouched - but only while standing INSIDE something. Slabs, trapdoors and water all
+     * qualify; flat ground (air at the feet, block below) does not, and mid-jump refuses for the same reason.
      */
     private static @Nullable Pos boxedIn(PearlEntity pearl, BlockFace face) {
-        // a ceiling hit already lands feet-first two below the plane, which is exactly the room a low roof leaves
-        // (mmctunnelpearl: 26/32 stay put, and that IS the walk-back's answer, not a lift)
-        if (face == BlockFace.BOTTOM) return null;
+        if (face == BlockFace.BOTTOM) return null; // a ceiling hit already resolves to plane-2, the same spot
         Entity shooter = pearl.getShooter();
         if (shooter == null) return null;
         Pos from = shooter.getPosition();
         MechanicsWorld world = MechanicsWorld.of(pearl);
-        if (!supported(world, from.x(), from.y(), from.z())) return null;              // airborne -> refusal echo
-        if (boxFits(world, from.x(), from.y() + 1, from.z())) return null;             // room to walk back
-        // submerged, the lift is always a full block level; on land a whole-block stance is already at one
-        double y = inWater(world, from) ? Math.floor(from.y()) + 1 : Math.ceil(from.y());
-        return new Pos(from.x(), y, from.z());
-    }
-
-    /** Feet or eye in water. Submerged throws lift a full block where a dry whole-block stance stays put
-     *  (waterweirdmmcpearl 30/32 and mmcwaterpearlvariiedwater lift from 70.0000; mmctunnelpearl, the same
-     *  corridor dry, stays 26/32). */
-    private static boolean inWater(MechanicsWorld world, Pos from) {
-        return water(world, from.x(), from.y(), from.z()) || water(world, from.x(), from.y() + 1.52, from.z());
-    }
-
-    private static boolean water(MechanicsWorld world, double x, double y, double z) {
-        int cx = (int) Math.floor(x), cy = (int) Math.floor(y), cz = (int) Math.floor(z);
-        if (!world.isChunkLoaded(cx >> 4, cz >> 4)) return false;
-        return world.getBlock(cx, cy, cz, Block.Getter.Condition.TYPE).compare(Block.WATER);
-    }
-
-    /** Something solid directly under the feet (the thrower is standing, not mid-jump). */
-    private static boolean supported(MechanicsWorld world, double x, double y, double z) {
-        double probeY = y - GROUND_PROBE;
-        int cy = (int) Math.floor(probeY);
-        for (int cx = (int) Math.floor(x - 0.3); cx <= (int) Math.floor(x + 0.3); cx++)
-            for (int cz = (int) Math.floor(z - 0.3); cz <= (int) Math.floor(z + 0.3); cz++) {
-                if (!world.isChunkLoaded(cx >> 4, cz >> 4)) continue;
-                Block block = world.getBlock(cx, cy, cz, Block.Getter.Condition.TYPE);
-                if (block.isAir()) continue;
-                Shape s = block.registry().collisionShape();
-                if (s != null && s.intersectBox(new Vec(x - cx, probeY - cy, z - cz), FOOT_PROBE)) return true;
-            }
-        return false;
+        if (boxFits(world, from.x(), from.y() + 1, from.z())) return null;
+        int cy = (int) Math.floor(from.y());
+        if (world.getBlock((int) Math.floor(from.x()), cy, (int) Math.floor(from.z()),
+                Block.Getter.Condition.TYPE).isAir()) return null;
+        return new Pos(from.x(), cy + 1, from.z());
     }
 
     private static @Nullable Pos walkBack(PearlEntity pearl, Point at, BlockFace face) {
@@ -165,9 +125,8 @@ public final class Projectiles {
             Pos spot = clearSpot(pre, at, face, plane + normal * 0.4);
             if (spot != null) {
                 walk.add(spot);
-                // the OTHER horizontal axis is backed off the same 0.4 when the box rests against a wall there,
-                // measured from the contact and signed away from it (mmcpearl11 19/19 at -0.400, mcpearl10's
-                // mirrored corner +0.400). Only the blocked sign fits, so the order between them doesn't decide.
+                // the free axis takes the same 0.4 off a wall it rests against, measured from the contact.
+                // Only the sign pointing away from that wall fits, so trying both is not a choice.
                 boolean xAxis = face == BlockFace.EAST || face == BlockFace.WEST;
                 for (double s : FREE_AXIS_STANDOFF) {
                     walk.add(xAxis ? new Pos(spot.x(), spot.y(), at.z() + s)
@@ -196,8 +155,8 @@ public final class Projectiles {
         return new Pos(pre.x() + dx * t, at.y(), pre.z() + dz * t);
     }
 
-    // acceptance in full: the player box fits against every collision shape (staircase capture: 0/27 mmc tps
-    // overlap anything; hug-distance centimeters decide teleport-vs-refusal). Unloaded = no fit.
+    // no mmc teleport ever overlaps a collision shape; hug-distance centimetres decide teleport vs refusal.
+    // Unloaded = no fit.
     private static boolean boxFits(MechanicsWorld world, double x, double y, double z) {
         int x0 = (int) Math.floor(x - 0.3), x1 = (int) Math.floor(x + 0.3);
         int z0 = (int) Math.floor(z - 0.3), z1 = (int) Math.floor(z + 0.3);

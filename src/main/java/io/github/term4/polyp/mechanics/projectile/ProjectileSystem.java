@@ -252,7 +252,7 @@ public final class ProjectileSystem implements MechanicsModule {
         entity.setSynchronizationTicks(TickScaler.clientTicks(scope, flight.syncInterval()));
         entity.setVelocitySyncInterval(TickScaler.clientTicks(scope, flight.velocitySyncInterval()));
         // Minestom seeds nextSynchronizationTick at 20 and setSynchronizationTicks doesn't reset it - a denser
-        // cadence would stay silent until tick 20 (the fireball froze ~1s, then snapped downrange)
+        // cadence would stay silent until tick 20
         if (flight.syncInterval() > 0 || flight.velocitySyncInterval() > 0) entity.synchronizeNextTick();
         entity.setShooterImmunityTicks(TickScaler.duration(scope, flight.shooterImmunityTicks(), KEY));
         entity.setEntityHitGrow(flight.entityHitGrow());

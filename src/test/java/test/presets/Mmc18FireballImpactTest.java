@@ -30,13 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Where a MineMen fireball blows: at the PRE-MOVE position, so the blast lands on one of the flight's tick-start
- * positions and stands off the wall by whatever was left of the step.
- *
- * <p>Pinned by mmcfbupimpact - ceiling shots detonating at three heights spaced 0.536 and 1.046, the launch and
- * cruise steps exactly. mmcfbimpact3's constant 0.250 wall gap is the same law seen from a fixed stance, NOT a box
- * stopping flush: hypixelfbimpact, fired the same way, gives an equally constant 0.567, which is no box at all.
- * KB falloff and the block-break rays measure from this centre.
+ * A MineMen fireball blows at the PRE-MOVE position, so the blast always lands on one of the flight's tick-start
+ * positions. Pinned by mmcfbupimpact: ceiling shots detonate at three heights spaced by the launch and cruise
+ * steps exactly. A constant wall gap from a fixed stance is NOT evidence of a collision box - hypixel's is 0.567,
+ * which matches no box. KB falloff and the block-break rays both measure from this centre.
  */
 class Mmc18FireballImpactTest extends HeadlessServerTest {
 

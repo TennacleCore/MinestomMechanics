@@ -127,10 +127,9 @@ public abstract class ProjectileEntity extends Entity implements ExternallyTicka
     protected @Nullable Point stuckCollisionPoint;
     private @Nullable Pos stuckPlacement;
     private long stuckSyncCounter;
-    /** Throttles the in-flight teleport to {@code syncInterval} (a per-tick teleport shakes the client). Seeded at
-     *  0, not 1: 1.8's tracker fires on {@code updateCounter % updateFrequency == 0}, true at counter 0, so the
-     *  first correction lands the tick AFTER spawn (mmc capture: +51ms on every fireball). A seed of 1 pushed it a
-     *  full interval out, and a projectile that dies inside one interval reached the client with no position at all. */
+    /** Throttles the in-flight teleport to {@code syncInterval}. Seeded at 0, not 1: 1.8's tracker fires on
+     *  {@code updateCounter % updateFrequency == 0}, true at counter 0, so the first correction lands the tick
+     *  after spawn - a projectile that dies inside one interval otherwise reaches the client with no position. */
     private long flightSyncCounter;
 
     private @Nullable PhysicsResult previousPhysicsResult;

@@ -13,10 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Delta movement on a teleport is a client-era question, not a preset one. Minestom's 3-arg teleport always
- * declares it RELATIVE, and ViaBackwards answers that with a synthetic explosion at (0, 20000, 0) - stompearl10
- * carries exactly one per teleport, refusals included, where mcpearl10 shows MineMen sends none. A 1.8 client
- * needs none of it: an absolute position packet already zeroes its motion.
+ * Delta movement on a teleport is a client-era question, not a preset one: 1.8 zeroes its own motion on an
+ * absolute position packet, while 26.x asks for {@code Relative.DELTA}.
  */
 class LegacyTeleportTest extends HeadlessServerTest {
 
