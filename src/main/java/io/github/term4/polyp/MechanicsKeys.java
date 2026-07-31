@@ -19,6 +19,7 @@ import io.github.term4.polyp.platform.fixes.FixesConfig;
 import io.github.term4.polyp.platform.player.PlayerConfig;
 import io.github.term4.polyp.tracking.motion.VelocityRule;
 import io.github.term4.polyp.entity.DroppedItemEntity;
+import io.github.term4.polyp.mechanics.item.ItemDamageConfig;
 import io.github.term4.polyp.vri.VriConfig;
 import io.github.term4.polyp.util.tick.TickScalingConfig;
 
@@ -48,6 +49,8 @@ public final class MechanicsKeys {
     public static final ConfigKey<VriConfig> VRI = ConfigKey.of("polyp:vri", VriConfig.class);
     /** Dropped-item environment physics: 1.8 sink vs 26.1 float. */
     public static final ConfigKey<DroppedItemEntity.Model> ITEM_PHYSICS = ConfigKey.of("polyp:item-physics", DroppedItemEntity.Model.class);
+    /** What destroys a dropped item: explosions, fire, lava, cactus, the void. */
+    public static final ConfigKey<ItemDamageConfig> ITEM_DAMAGE = ConfigKey.of("polyp:item-damage", ItemDamageConfig.class);
     public static final ConfigKey<ExplosionConfig> EXPLOSION = ConfigKey.of("polyp:explosion", ExplosionConfig.class);
     public static final ConfigKey<CompatConfig> COMPAT = ConfigKey.of("polyp:compat", CompatConfig.class);
     public static final ConfigKey<ItemRegistry> ITEMS = ConfigKey.of("polyp:items", ItemRegistry.class);

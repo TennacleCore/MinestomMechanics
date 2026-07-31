@@ -523,12 +523,13 @@ class FishingBobberTest extends HeadlessServerTest {
         viewer.sent.clear();
         ProjectileEntity bobber = launch(Vanilla18.projectiles(), shooter);
         int id = bobber.getEntityId();
-        for (int tick = 1; tick <= 7; tick++) {
-            if (tick == 5) assertEquals(3, viewer.packetsFor(id).size(), "spawn + meta + m=0 velocity until the tick-5 correction");
+        for (int tick = 1; tick <= 5; tick++) {
+            if (tick == 1) assertEquals(2, viewer.packetsFor(id).size(), "spawn + meta before the first physics tick");
             bobber.tick(tick * 50L);
         }
+        // 1.8 EntityTrackerEntry: the counter increments AFTER the check, so counter 0 sends on the tick after spawn
         List<ServerPacket> forBobber = viewer.packetsFor(id);
-        assertEquals(4, forBobber.size(), "one correction teleport at tick 5: " + forBobber);
+        assertEquals(4, forBobber.size(), "one correction teleport, on the tick after spawn: " + forBobber);
         SpawnEntityPacket spawn = assertInstanceOf(SpawnEntityPacket.class, forBobber.get(0));
         assertEquals(shooter.getEntityId(), spawn.data(), "spawn data = the owner id (drives the 1.8 line)");
         assertTrue(spawn.velocity().lengthSquared() > 0, "the tracker spawn carries the launch velocity");

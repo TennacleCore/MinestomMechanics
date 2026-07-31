@@ -10,6 +10,7 @@ import io.github.term4.polyp.fx.FxContext;
 import io.github.term4.polyp.mechanics.attribute.defense.Bypass;
 import io.github.term4.polyp.mechanics.damage.DamageSnapshot;
 import io.github.term4.polyp.mechanics.damage.DamageSystem;
+import io.github.term4.polyp.mechanics.item.ItemDamageSystem;
 import io.github.term4.polyp.mechanics.damage.types.explosion.ExplosionDamage;
 import io.github.term4.polyp.mechanics.explosion.ExplosionConfigResolver.ExplosionContext;
 import io.github.term4.polyp.mechanics.explosion.ExplosionConfigResolver.ResolvedExplosionConfig;
@@ -27,6 +28,7 @@ import net.minestom.server.ServerFlag;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.ItemEntity;
 import net.minestom.server.entity.LivingEntity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
@@ -85,7 +87,7 @@ public final class ExplosionSystem implements MechanicsModule {
 
     /** {@code directHit} = the entity the projectile struck (or {@code null}); only it is subject to the {@link ExplosionConfig#knockbackImpactFloor knockback impact gate}. */
     public void explode(@NotNull MechanicsWorld world, @NotNull Point center, float power, @Nullable Entity source, @Nullable Entity directHit) {
-        detonate(world, center, power, source, directHit, resolve(world, center, source));
+        detonate(world, center, power, source, directHit, resolve(world, center, source, (double) power));
     }
 
     /** Per-player explosion using the configured (or default) radius. */
@@ -101,7 +103,8 @@ public final class ExplosionSystem implements MechanicsModule {
         ExplosionEvent event = computeAndFire(world, center, power, source, resolved);
         if (event == null) return;
         applyEffects(world, center, power, source, directHit, event.targets(), resolved);
-        // power >= 2 = the 1.8 client's hugeexplosion gate; our wire radius is 0 through Via, so it never self-picks
+        // 1.8 gates hugeexplosion on strength >= 2 (Explosion.doExplosionB), but the field is gone from the 1.21.2+
+        // packet and ViaBackwards hardcodes 0 downgrading it, so the client can only ever self-pick the small one
         if (power >= 2.0f) Fx.play(services, Fx.EXPLOSION_EMITTER, FxContext.at(world, center, source));
         // AFTER the damage pass, per vanilla (ServerExplosion.explode: select -> hurtEntities -> interactWithBlocks)
         if (resolved.blockBreaking() != null && !event.blocks().isEmpty()) {
@@ -123,7 +126,7 @@ public final class ExplosionSystem implements MechanicsModule {
     public void explodeUniform(@NotNull Instance instance, @NotNull Point center, float power,
                                @Nullable Entity source, @Nullable Vec knockback) {
         MechanicsWorld world = MechanicsWorld.of(instance);
-        ResolvedExplosionConfig resolved = resolve(world, center, source);
+        ResolvedExplosionConfig resolved = resolve(world, center, source, (double) power);
         ExplosionEvent event = computeAndFire(world, center, power, source, resolved);
         if (event == null) return;
         applyDamage(source, center, event.targets(), resolved.damageBypass());
@@ -131,10 +134,20 @@ public final class ExplosionSystem implements MechanicsModule {
         if (power >= 2.0f) Fx.play(services, Fx.EXPLOSION_EMITTER, FxContext.at(world, center, source));
     }
 
-    /** Config: the source's scope chain (player -&gt; instance -&gt; global) over the install config. */
+    /** Config: the source's scope chain (player -&gt; world -&gt; instance -&gt; global) over the install config. A
+     *  SOURCELESS blast still belongs to a world, so it resolves that chain rather than dropping to the install
+     *  config - otherwise a world-scoped preset silently reverted to vanilla (one-shotting its own ground loot). */
     private ResolvedExplosionConfig resolve(MechanicsWorld world, Point center, @Nullable Entity source) {
-        ExplosionConfig scoped = services.profiles().resolve(source, MechanicsKeys.EXPLOSION);
-        return ExplosionConfigResolver.resolve(scoped != null ? scoped : config, ExplosionContext.of(world.instance(), center, source, services));
+        return resolve(world, center, source, null);
+    }
+
+    private ResolvedExplosionConfig resolve(MechanicsWorld world, Point center, @Nullable Entity source,
+                                            @Nullable Double power) {
+        ExplosionConfig scoped = source != null
+                ? services.profiles().resolve(source, MechanicsKeys.EXPLOSION)
+                : services.profiles().resolveWorld(world, MechanicsKeys.EXPLOSION);
+        return ExplosionConfigResolver.resolve(scoped != null ? scoped : config,
+                ExplosionContext.of(world.instance(), center, source, services, power));
     }
 
     /** Builds the per-entity result set, fires the event, and returns the (possibly listener-edited) targets, or {@code null} if cancelled. */
@@ -179,7 +192,10 @@ public final class ExplosionSystem implements MechanicsModule {
             ExplosionCalculator.Hit hit = ExplosionCalculator.compute(center, power, eyeOrigin, distance, exposure,
                     resolved.damageConstant(), resolved.floorDamage(), resolved.knockbackMultiplier());
             if (hit == null) continue;
-            float damage = !living ? 0f : (resolved.flatDamage() != null ? resolved.flatDamage().floatValue() : hit.damage());
+            // a dropped item takes the blast like anything else (vanilla EntityItem.damageEntity); its own
+            // health/pricing lives in the item-damage config, so the raw curve amount is what it receives
+            float damage = entity instanceof ItemEntity ? hit.damage()
+                    : !living ? 0f : (resolved.flatDamage() != null ? resolved.flatDamage().floatValue() : hit.damage());
             damage *= (float) resolved.damageScale(); // post-floor, so a scaled vanilla curve stays step-quantized (MineMen FBF)
             Vec push = kbTarget ? hit.knockback() : null; // a non-KB target (mob) still takes damage, no push
             targets.add(new ExplosionEvent.Target(entity, distance, exposure, push, damage));
@@ -204,7 +220,7 @@ public final class ExplosionSystem implements MechanicsModule {
         for (ExplosionEvent.Target target : targets) {
             Entity entity = target.entity();
             Vec push = target.knockback();
-            DamageSystem.DamageOutcome outcome = damageTarget(damage, target, source, center, resolved.damageBypass());
+            DamageSystem.DamageOutcome outcome = damageTarget(damage, target, source, center, resolved.damageBypass(), resolved);
             if (entity instanceof Player player) {
                 if (DamageSystem.isImmune(player) || gatedByImpactFloor(player, directHit, target, power, resolved)) continue;
                 queuePlayerKnockback(player, push, outcome, center, source, resolved, knockback, packetPush, velocitySends);
@@ -220,6 +236,19 @@ public final class ExplosionSystem implements MechanicsModule {
     /** {@code BLOCKED} for a non-living target or no damage. */
     private DamageSystem.DamageOutcome damageTarget(@Nullable DamageSystem damage, ExplosionEvent.Target target,
                                                     @Nullable Entity source, Point center, @Nullable Bypass bypass) {
+        return damageTarget(damage, target, source, center, bypass, null);
+    }
+
+    private DamageSystem.DamageOutcome damageTarget(@Nullable DamageSystem damage, ExplosionEvent.Target target,
+                                                    @Nullable Entity source, Point center, @Nullable Bypass bypass,
+                                                    @Nullable ResolvedExplosionConfig resolved) {
+        if (target.entity() instanceof ItemEntity item && target.damage() > 0f) {
+            ItemDamageSystem items = services.items();
+            // per-blast item price (MineMen: fireball 2, TNT 3 against vanilla health 5); unset = the curve
+            if (items != null) items.hurt(item, ItemDamageSystem.EXPLOSION,
+                    resolved != null && resolved.itemDamage() != null ? resolved.itemDamage().floatValue() : target.damage());
+            return DamageSystem.DamageOutcome.BLOCKED; // items never enter the living damage pipeline
+        }
         if (damage == null || !(target.entity() instanceof LivingEntity) || target.damage() <= 0f) return DamageSystem.DamageOutcome.BLOCKED;
         return damage.apply(explosionDamage(target.entity(), source, center, target.damage(), bypass));
     }

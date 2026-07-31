@@ -5,6 +5,7 @@ import io.github.term4.polyp.mechanics.attribute.AttributeSystem;
 import io.github.term4.polyp.mechanics.blocking.BlockingSystem;
 import io.github.term4.polyp.mechanics.consumable.ConsumableSystem;
 import io.github.term4.polyp.mechanics.damage.DamageSystem;
+import io.github.term4.polyp.mechanics.item.ItemDamageSystem;
 import io.github.term4.polyp.mechanics.durability.DurabilitySystem;
 import io.github.term4.polyp.mechanics.explosion.ExplosionSystem;
 import io.github.term4.polyp.mechanics.hunger.HungerSystem;
@@ -24,6 +25,7 @@ public record Services(Polyp polyp) {
     public @Nullable AttackSystem attack() { return polyp.module(AttackSystem.class); }
     public @Nullable KnockbackSystem knockback() { return polyp.module(KnockbackSystem.class); }
     public @Nullable DamageSystem damage() { return polyp.module(DamageSystem.class); }
+    public @Nullable ItemDamageSystem items() { return polyp.module(ItemDamageSystem.class); }
     public @Nullable ProjectileSystem projectiles() { return polyp.module(ProjectileSystem.class); }
     public @Nullable ExplosionSystem explosion() { return polyp.module(ExplosionSystem.class); }
     public @Nullable FixesSystem fixes() { return polyp.module(FixesSystem.class); }

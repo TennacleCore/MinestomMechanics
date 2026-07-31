@@ -144,10 +144,10 @@ class Mmc18PearlTest extends HeadlessServerTest {
         }
     }
 
-    /** Refusal anchors at the THROWER: standing under a low roof (the spawn's head-span crosses it) refuses
-     *  (mmcgeometryclip climb-stop = spawn-blocked rows; flown targets never refuse - mmcpillarpearl3). */
+    /** Standing under a low roof with nowhere to walk back to: MineMen keeps the thrower's x/z and drops y to
+     *  the contact's block level rather than refusing (mmctunnelpearl / mmcwaterpearlvariiedwater, 0 refusals). */
     @Test
-    void spawnUnderTheRoofRefusesTheTeleport() {
+    void spawnUnderTheRoofSnapsToTheContactLevel() {
         int wz = 525, roofY = 66;
         for (int x = 516; x <= 524; x++) {
             for (int y = 64; y <= 70; y++) instance.setBlock(x, y, wz, Block.STONE); // wall
@@ -157,15 +157,17 @@ class Mmc18PearlTest extends HeadlessServerTest {
         FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlRoof");
         try {
             Pos landed = pearlLanding(shooter, from);
-            assertEquals(520.5, landed.x(), 1e-6, "unmoved: " + landed);
-            assertEquals(64.0, landed.y(), 1e-6, "unmoved: " + landed);
+            assertEquals(520.5, landed.x(), 1e-6, "x/z stay the thrower's: " + landed);
+            assertEquals(523.5, landed.z(), 1e-6, "x/z stay the thrower's: " + landed);
+            assertEquals(Math.floor(landed.y()), landed.y(), 1e-9, "y is the contact's block level: " + landed);
         } finally {
             shooter.player.remove();
         }
     }
 
     /** Acceptance is the plain player-box fit: a ceiling target whose box overlaps the side wall REFUSES
-     *  (mmcwallAGAIN - hug-climb spam refuses at hug distance < 0.3, teleports at >= 0.3; 0/27 tps overlap). */
+     *  (mmcwallAGAIN - hug-climb spam refuses at hug distance < 0.3, teleports at >= 0.3; 0/27 tps overlap).
+     *  A ceiling hit never takes the boxed-in lift - it already lands two below the plane. */
     @Test
     void wallHuggingCeilingTargetRefusesTheOverlap() {
         int cx = 540, cz = 540, ceilY = 75;
@@ -228,12 +230,13 @@ class Mmc18PearlTest extends HeadlessServerTest {
      *  position echo (re-syncing its prediction) even though nobody moves. */
     @Test
     void refusalEchoesThePositionOnTheWire() {
-        int wz = 565, roofY = 66;
+        int wz = 565, roofY = 67;
         for (int x = 556; x <= 564; x++) {
             for (int y = 64; y <= 70; y++) instance.setBlock(x, y, wz, Block.STONE); // wall
             for (int z = 561; z < wz; z++) instance.setBlock(x, roofY, z, Block.STONE); // roof in front of it
         }
-        Pos from = new Pos(560.5, 64, 563.5, 0f, 0f); // STANDING under the roof (spawn-blocked), flat throw at the wall
+        // AIRBORNE under the roof: mid-jump is what actually refuses (73/73 corpus refusals are fractional feet.y)
+        Pos from = new Pos(560.5, 64.5, 563.5, 0f, 0f);
         FakePlayer shooter = FakePlayer.connect(instance, from, "MmcPearlEcho");
         try {
             shooter.player.teleport(from).join();

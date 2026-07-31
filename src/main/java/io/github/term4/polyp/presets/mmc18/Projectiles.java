@@ -54,6 +54,9 @@ public final class Projectiles {
 
     private static final Logger LOG = LoggerFactory.getLogger(Projectiles.class);
     private static final BoundingBox PLAYER_BOX = new BoundingBox(0.6, 1.8, 0.6);
+    private static final double[] FREE_AXIS_STANDOFF = {-0.4, 0.4};
+    private static final double GROUND_PROBE = 0.02;
+    private static final BoundingBox FOOT_PROBE = new BoundingBox(0.6, GROUND_PROBE, 0.6);
 
     // minemen pearl (capture-fitted: geometry corpus + pillar/low-arm/fence/staircase arenas): the teleport
     // walks BACK from the ray contact and takes the first spot the player box fits. Lateral hits try the
@@ -75,7 +78,9 @@ public final class Projectiles {
             } else if (face == null || pearl.impactCell() == null || pearl.impactShape() == null) {
                 target = new Pos(at.x(), at.y(), at.z());
             } else {
-                target = walkBack(pearl, at, face);
+                // a thrower with no room to stand a block higher never walks back at all - see boxedIn
+                target = boxedIn(pearl, face);
+                if (target == null) target = walkBack(pearl, at, face);
             }
             if (LOG.isDebugEnabled()) {
                 LOG.debug("pearl impact {} face {} -> {}", at, face, target == null ? "REFUSED" : target);
@@ -84,6 +89,57 @@ public final class Projectiles {
             else pearl.consumeOnShooter();
         }
     };
+
+    /**
+     * A STANDING thrower with no room to stand a block higher doesn't walk back at all: MineMen puts them at
+     * their own x/z (exact to 10 decimals) with y rounded UP to the block level. Identical throws down identical
+     * 2-high tunnels split on foot height alone - mmctunnelpearl from a whole 70.0000 stays put 26/32, while
+     * mmctunnelslab&trapdoorpearl from a trapdoor's 70.1875 lifts to 71.0000 16/16 - so it is ceil, not +1.
+     * Submerged is the exception: the same whole-block stance lifts a full level (see inWater).
+     * Airborne throws refuse: all 73 corpus refusals are fractional mid-jump feet, none of its 6 whole-y ones.
+     */
+    private static @Nullable Pos boxedIn(PearlEntity pearl, BlockFace face) {
+        // a ceiling hit already lands feet-first two below the plane, which is exactly the room a low roof leaves
+        // (mmctunnelpearl: 26/32 stay put, and that IS the walk-back's answer, not a lift)
+        if (face == BlockFace.BOTTOM) return null;
+        Entity shooter = pearl.getShooter();
+        if (shooter == null) return null;
+        Pos from = shooter.getPosition();
+        MechanicsWorld world = MechanicsWorld.of(pearl);
+        if (!supported(world, from.x(), from.y(), from.z())) return null;              // airborne -> refusal echo
+        if (boxFits(world, from.x(), from.y() + 1, from.z())) return null;             // room to walk back
+        // submerged, the lift is always a full block level; on land a whole-block stance is already at one
+        double y = inWater(world, from) ? Math.floor(from.y()) + 1 : Math.ceil(from.y());
+        return new Pos(from.x(), y, from.z());
+    }
+
+    /** Feet or eye in water. Submerged throws lift a full block where a dry whole-block stance stays put
+     *  (waterweirdmmcpearl 30/32 and mmcwaterpearlvariiedwater lift from 70.0000; mmctunnelpearl, the same
+     *  corridor dry, stays 26/32). */
+    private static boolean inWater(MechanicsWorld world, Pos from) {
+        return water(world, from.x(), from.y(), from.z()) || water(world, from.x(), from.y() + 1.52, from.z());
+    }
+
+    private static boolean water(MechanicsWorld world, double x, double y, double z) {
+        int cx = (int) Math.floor(x), cy = (int) Math.floor(y), cz = (int) Math.floor(z);
+        if (!world.isChunkLoaded(cx >> 4, cz >> 4)) return false;
+        return world.getBlock(cx, cy, cz, Block.Getter.Condition.TYPE).compare(Block.WATER);
+    }
+
+    /** Something solid directly under the feet (the thrower is standing, not mid-jump). */
+    private static boolean supported(MechanicsWorld world, double x, double y, double z) {
+        double probeY = y - GROUND_PROBE;
+        int cy = (int) Math.floor(probeY);
+        for (int cx = (int) Math.floor(x - 0.3); cx <= (int) Math.floor(x + 0.3); cx++)
+            for (int cz = (int) Math.floor(z - 0.3); cz <= (int) Math.floor(z + 0.3); cz++) {
+                if (!world.isChunkLoaded(cx >> 4, cz >> 4)) continue;
+                Block block = world.getBlock(cx, cy, cz, Block.Getter.Condition.TYPE);
+                if (block.isAir()) continue;
+                Shape s = block.registry().collisionShape();
+                if (s != null && s.intersectBox(new Vec(x - cx, probeY - cy, z - cz), FOOT_PROBE)) return true;
+            }
+        return false;
+    }
 
     private static @Nullable Pos walkBack(PearlEntity pearl, Point at, BlockFace face) {
         // face plane from the struck cell + shape; impactPosition() clips on the contact side
@@ -107,7 +163,17 @@ public final class Projectiles {
             int normal = face == BlockFace.EAST || face == BlockFace.WEST
                     ? face.toDirection().normalX() : face.toDirection().normalZ();
             Pos spot = clearSpot(pre, at, face, plane + normal * 0.4);
-            if (spot != null) walk.add(spot);
+            if (spot != null) {
+                walk.add(spot);
+                // the OTHER horizontal axis is backed off the same 0.4 when the box rests against a wall there,
+                // measured from the contact and signed away from it (mmcpearl11 19/19 at -0.400, mcpearl10's
+                // mirrored corner +0.400). Only the blocked sign fits, so the order between them doesn't decide.
+                boolean xAxis = face == BlockFace.EAST || face == BlockFace.WEST;
+                for (double s : FREE_AXIS_STANDOFF) {
+                    walk.add(xAxis ? new Pos(spot.x(), spot.y(), at.z() + s)
+                                   : new Pos(at.x() + s, spot.y(), spot.z()));
+                }
+            }
             walk.add(pre);
             for (Pos h : pearl.stepHistory()) walk.add(h);
         }
@@ -157,7 +223,10 @@ public final class Projectiles {
                 .speed(LAUNCH).coastTicks(1).cruiseSpeed(CRUISE).spread(0.0) // coast one tick at launch, then ignite to cruise
                 .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0)
                 .leftOwnerImmunity(true)
-                .syncInterval(0).velocitySyncInterval(1) // no position teleports (minemen doesn't): pure velocity prediction
+                // captured wire (mmcfbdflct1 + 3 older sessions, 139 fireballs): absolute teleports on the
+                // vanilla 10-tick tracker cadence and NEVER an entity_velocity - the 1.8 tracker only sends
+                // velocity when velocityChanged, which a fireball never sets
+                .syncInterval(10).velocitySyncInterval(0)
                 .removeOnEntityHit(true).removeOnBlockHit(true)
                 .selfHit(ProjectileTypeConfig.HitResponse.PASS_THROUGH) // your own fireball never hits you; a deflect reassigns ownership
                 .damage(CONTACT_DAMAGE)

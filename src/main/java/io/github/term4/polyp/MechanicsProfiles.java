@@ -116,6 +116,21 @@ public final class MechanicsProfiles {
         return memberOf(global, key);
     }
 
+    /** The effective value of {@code key} for a WORLD with no entity in hand - a sourceless explosion, a
+     *  block-driven effect. Walks the same chain minus the player: shard/world -&gt; instance -&gt; global. */
+    public <C> @Nullable C resolveWorld(@Nullable MechanicsWorld world, ConfigKey<C> key) {
+        if (world != null) {
+            C v = memberOf(world.getTag(PROFILE), key);
+            if (v != null) return v;
+            Instance in = world.instance();
+            if (in != null) {
+                v = memberOf(in.getTag(PROFILE), key);
+                if (v != null) return v;
+            }
+        }
+        return memberOf(global, key);
+    }
+
     /** {@link #resolve} with a fallback: the effective value of {@code key} for {@code subject}, else {@code fallback}. */
     public <C> C resolveOr(@Nullable Entity subject, ConfigKey<C> key, C fallback) {
         C scoped = resolve(subject, key);

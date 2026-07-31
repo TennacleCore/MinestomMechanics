@@ -18,9 +18,16 @@ public final class ExplosionConfigResolver {
     private ExplosionConfigResolver() {}
 
     /** Resolution context for one explosion (not per-victim: power/exposure falloff are computed by the system per entity). */
-    public record ExplosionContext(Instance instance, Point center, @Nullable Entity source, Services services) {
+    public record ExplosionContext(Instance instance, Point center, @Nullable Entity source, Services services,
+                                   @Nullable Double power) {
+        /** Power-less: only for calls that derive the radius FROM the config being resolved. */
         public static ExplosionContext of(Instance instance, Point center, @Nullable Entity source, Services services) {
-            return new ExplosionContext(instance, center, source, services);
+            return of(instance, center, source, services, null);
+        }
+
+        public static ExplosionContext of(Instance instance, Point center, @Nullable Entity source, Services services,
+                                          @Nullable Double power) {
+            return new ExplosionContext(instance, center, source, services, power);
         }
     }
 
@@ -32,6 +39,7 @@ public final class ExplosionConfigResolver {
                 FieldValue.resolve(cfg != null ? cfg.damageConstant : null, ctx, 7.0),
                 FieldValue.resolve(cfg != null ? cfg.floorDamage : null, ctx, false),
                 FieldValue.resolve(cfg != null ? cfg.flatDamage : null, ctx),
+                FieldValue.resolve(cfg != null ? cfg.itemDamage : null, ctx),
                 FieldValue.resolve(cfg != null ? cfg.damageScale : null, ctx, 1.0),
                 cfg != null ? cfg.damageBypass : null,
                 FieldValue.resolve(cfg != null ? cfg.knockbackMultiplier : null, ctx, 1.0),
@@ -56,6 +64,7 @@ public final class ExplosionConfigResolver {
             double damageConstant,
             boolean floorDamage,
             @Nullable Double flatDamage,
+            @Nullable Double itemDamage,
             double damageScale,
             @Nullable Bypass damageBypass,
             double knockbackMultiplier,

@@ -28,6 +28,7 @@ public final class Mmc18 {
                 .set(MechanicsKeys.VELOCITY, VelocityRule.simulated(
                         VelocityConfig.builder().motYOnMovePacket(true).build()))
                 .set(MechanicsKeys.EXPLOSION, Explosion.fireballFight())
+                .set(MechanicsKeys.ITEM_DAMAGE, Items.damage())
                 .set(MechanicsKeys.PROJECTILES, Projectiles.config())
                 // arrow hit-marker ding to the shooter; vanilla presets don't
                 .set(MechanicsKeys.FX, Fx.vanilla18().register(Fx.ARROW_HIT_PLAYER, Fx.arrowHitMarker()))

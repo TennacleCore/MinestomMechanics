@@ -80,13 +80,15 @@ class SplashPotionLockstepTest extends HeadlessServerTest {
         assertNotNull(potion);
         awaitSpawn(potion);
         int id = potion.getEntityId();
-        for (int tick = 1; tick <= 12; tick++) {
-            if (tick == 10) assertEquals(3, viewer.packetsFor(id).size(), "silent until the tick-10 correction");
+        for (int tick = 1; tick <= 10; tick++) {
+            if (tick == 1) assertEquals(2, viewer.packetsFor(id).size(), "spawn + meta before the first physics tick");
             potion.tick(tick * 50L);
         }
 
+        // 1.8 EntityTrackerEntry: the counter increments AFTER the check, so counter 0 sends on the tick after
+        // spawn (and at counter 0 a non-arrow skips the rel-move branch, so it is an absolute teleport)
         List<ServerPacket> forPotion = viewer.packetsFor(id);
-        assertEquals(4, forPotion.size(), "spawn + meta + m=0 velocity, then ONLY the tick-10 teleport carrying velocity: " + forPotion);
+        assertEquals(4, forPotion.size(), "spawn + meta + m=0 velocity, then ONLY the first-tick teleport carrying velocity: " + forPotion);
         assertInstanceOf(SpawnEntityPacket.class, forPotion.get(0), "spawn must be first: " + forPotion);
         assertInstanceOf(EntityMetaDataPacket.class, forPotion.get(1), "item metadata must immediately follow the spawn: " + forPotion);
         assertTrue(((EntityMetaDataPacket) forPotion.get(1)).entries().values().stream()

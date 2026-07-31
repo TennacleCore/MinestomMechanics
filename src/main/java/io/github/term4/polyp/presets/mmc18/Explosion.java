@@ -16,6 +16,9 @@ import net.minestom.server.entity.Player;
  */
 public final class Explosion {
 
+    /** Fireball blast radius (mmc18 {@code Projectiles.POWER}); anything bigger is TNT-scale. */
+    private static final double FIREBALL_POWER = 2.0;
+
     private Explosion() {}
 
     // radial push, wire-exact from the point-blank sweep; near but NOT exactly melee B/0.4 = 1.3185
@@ -84,6 +87,12 @@ public final class Explosion {
                 .pushEye(Explosion::pushEye)
                 .exposure(ExplosionExposure.Rays.LEGACY_1_8_FULL_CUBE) // MineMen gates off-flat blasts (full-cube), unlike singleplayer 1.8
                 .fire(false) // MineMen fireballs never ignite (overrides vanilla18's fireball incendiary); fireballFight() inherits this
+                // ground loot: captured 3 fireballs / 2 TNT to clear, distance-independent, against vanilla
+                // health 5 (mmcfbitemdestroy 10/10 at n=3, mmctntdestroy 12/12 at n=2). Keyed on the blast's
+                // POWER, not the source class, so a sourceless or app-triggered blast is priced the same
+                .itemDamage(ctx -> ctx.power() != null
+                        ? (ctx.power() <= FIREBALL_POWER ? 2.0 : 3.0)
+                        : (ctx.source() instanceof FireballEntity ? 2.0 : 3.0))
                 .build();
     }
 

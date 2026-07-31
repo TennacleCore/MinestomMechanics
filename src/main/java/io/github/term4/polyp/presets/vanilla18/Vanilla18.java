@@ -32,6 +32,7 @@ public final class Vanilla18 {
                 .set(MechanicsKeys.PLAYER, Player.config())
                 .set(MechanicsKeys.VELOCITY, Movement.velocity())
                 .set(MechanicsKeys.ITEM_PHYSICS, DroppedItemEntity.Model.LEGACY)
+                .set(MechanicsKeys.ITEM_DAMAGE, Items.damage())
                 .set(MechanicsKeys.PROJECTILES, Projectiles.config())
                 .set(MechanicsKeys.ATTRIBUTES, Attributes.config())
                 .set(MechanicsKeys.CONSUMABLES, Consumables.config())

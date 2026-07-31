@@ -66,7 +66,7 @@ public class FireballEntity extends ManagedProjectile {
         if (deflector == null || deflector == shooter) return false;
         // vanilla EntityFireball.damageEntity / 26.1 AIM_DEFLECT: motion = the deflector's look, propulsion re-latches
         Vec look = deflector.getPosition().direction();
-        setVelocity(look.mul(ServerFlag.SERVER_TICKS_PER_SECOND)); // b/s; unit look = 1.0 b/t, like vanilla ap()
+        redirect(look); // unit look = 1.0 b/t, like vanilla ap()
         setAcceleration(look.mul(SELF_PROPULSION));
         reassignShooter(deflector);
         rearmShooterImmunity(); // don't let the redirected fireball detonate on its new owner
@@ -85,9 +85,16 @@ public class FireballEntity extends ManagedProjectile {
         if (isStuck() || isRemoved()) return;
         if (wasCoasting && ++moves == coastTicks && cruiseSpeed > 0.0) {
             Vec v = velocityBt();
-            // broadcast the ignition so the cruise value shows on the wire before the next tick propels past it
-            if (v.lengthSquared() > 1.0e-12) setVelocity(v.normalize().mul(cruiseSpeed * ServerFlag.SERVER_TICKS_PER_SECOND));
+            if (v.lengthSquared() > 1.0e-12) redirect(v.normalize().mul(cruiseSpeed));
         }
+    }
+
+    /** A flight-velocity change in b/t. It reaches the wire only when the type broadcasts velocity at all:
+     *  a teleport-tracked fireball (mmc18 - captured at 139 fireballs, 0 entity_velocity) shows redirects on
+     *  its next tracker sync, exactly like 1.8, where the tracker only sends velocity on {@code velocityChanged}. */
+    private void redirect(Vec bt) {
+        if (velocitySyncInterval > 0) setVelocity(bt.mul(ServerFlag.SERVER_TICKS_PER_SECOND));
+        else setVelocityBt(bt);
     }
 
     @Override

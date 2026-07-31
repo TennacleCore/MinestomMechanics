@@ -23,6 +23,7 @@ public final class Vanilla {
                 .set(MechanicsKeys.CONSUMABLES, Consumables.config())
                 .set(MechanicsKeys.VELOCITY, Movement.velocity())
                 .set(MechanicsKeys.ITEM_PHYSICS, DroppedItemEntity.Model.MODERN)
+                .set(MechanicsKeys.ITEM_DAMAGE, io.github.term4.polyp.presets.vanilla18.Items.damage())
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.HUNGER, Hunger.config())
                 .set(MechanicsKeys.ITEMS, Items.registry())

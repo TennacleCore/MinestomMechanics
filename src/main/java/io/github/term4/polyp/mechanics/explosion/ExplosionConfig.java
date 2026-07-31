@@ -38,6 +38,8 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
     public final FieldValue<ExplosionContext, Boolean> floorDamage;
     /** Flat damage to every in-range target, overriding the falloff curve (Hypixel/BedWars = 2.0). {@code null} = use the curve. */
     public final FieldValue<ExplosionContext, Double> flatDamage;
+    /** Damage this blast deals to a DROPPED ITEM; unset = the same curve amount a player takes. */
+    public final FieldValue<ExplosionContext, Double> itemDamage;
     /** Scale on the final damage, applied AFTER the floor (MineMen Fireball-Fight = the vanilla floored curve × 0.05). Default 1.0. */
     public final FieldValue<ExplosionContext, Double> damageScale;
     /** Mitigation the explosion damage skips (e.g. armor points only); {@code null} = normal mitigation. */
@@ -78,6 +80,7 @@ public final class ExplosionConfig extends Config<ExplosionContext, ExplosionCon
         damageConstant = b.damageConstant;
         floorDamage = b.floorDamage;
         flatDamage = b.flatDamage;
+        itemDamage = b.itemDamage;
         damageScale = b.damageScale;
         damageBypass = b.damageBypass;
         blockBreaking = b.blockBreaking;

@@ -11,6 +11,7 @@ import io.github.term4.polyp.mechanics.damage.types.generic.GenericDamage;
 import io.github.term4.polyp.mechanics.projectile.ProjectileConfigResolver.ProjectileContext;
 import io.github.term4.polyp.mechanics.projectile.ProjectileSnapshot;
 import io.github.term4.polyp.mechanics.projectile.types.ProjectileTypeConfig;
+import io.github.term4.polyp.util.Teleports;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.EntityType;
@@ -32,7 +33,6 @@ public class PearlEntity extends ManagedProjectile {
 
     /** Vanilla 5. */
     private final float teleportDamage;
-
     private boolean crossInstanceTeleport = false;
 
     public PearlEntity(@Nullable Entity shooter, @NotNull EntityType entityType,
@@ -66,7 +66,7 @@ public class PearlEntity extends ManagedProjectile {
         target = event.target();
         // RELATIVE-view teleport so the camera isn't snapped; the cross-instance spawn can't carry relative flags
         if (sameInstance) {
-            shooter.teleport(target.withView(0f, 0f), null, RelativeFlags.VIEW);
+            Teleports.place(shooter, target.withView(0f, 0f), RelativeFlags.VIEW);
         } else {
             Pos view = shooter.getPosition();
             MechanicsWorld.of(this).spawn(shooter, target.withView(view.yaw(), view.pitch()));
@@ -82,7 +82,7 @@ public class PearlEntity extends ManagedProjectile {
         if (shooter == null || shooter.isRemoved()) return;
         if (!WorldPolicy.canAffect(this, shooter)) return;
         if (shooter.getInstance() == getInstance()) {
-            shooter.teleport(shooter.getPosition().withView(0f, 0f), null, RelativeFlags.VIEW);
+            Teleports.place(shooter, shooter.getPosition().withView(0f, 0f), RelativeFlags.VIEW);
         }
         landingEffects(shooter);
     }
