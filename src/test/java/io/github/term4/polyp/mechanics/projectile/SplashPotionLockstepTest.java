@@ -160,4 +160,32 @@ class SplashPotionLockstepTest extends HeadlessServerTest {
         }
         potion.remove();
     }
+
+    /** The entity is rendered FROM its item metadata on modern clients, so it must never go out empty -
+     *  a snapshot with no item spawned an invisible potion that only legacy viewers saw (Via substitutes one). */
+    @Test
+    void itemMetadataIsSentEvenWithoutASourceStack() {
+        var viewer = FakePlayer.connect(instance, new Pos(84.5, 150, 84.5), "SplashNoItem");
+        LivingEntity shooter = looseZombie();
+        shooter.setInstance(instance, new Pos(84.5, 150, 86.5, 0.0f, 0.0f)).join();
+        var config = Vanilla18.projectiles();
+        viewer.sent.clear();
+        ProjectileEntity potion = new ProjectileSystem(Polyp.getInstance(), config)
+                .launch(ProjectileSnapshot.of(shooter, SplashPotion.INSTANCE).withConfig(config));
+        assertNotNull(potion);
+        awaitSpawn(potion);
+        potion.tick(50L);
+        try {
+            boolean carriesItem = viewer.packetsFor(potion.getEntityId()).stream()
+                    .filter(p -> p instanceof EntityMetaDataPacket)
+                    .map(p -> (EntityMetaDataPacket) p)
+                    .anyMatch(p -> p.entries().values().stream().anyMatch(e -> e.value() instanceof ItemStack s
+                            && s.material() == Material.SPLASH_POTION));
+            assertTrue(carriesItem, "modern viewers need an item to render: " + viewer.packetsFor(potion.getEntityId()));
+        } finally {
+            viewer.player.remove();
+            potion.remove();
+            shooter.remove();
+        }
+    }
 }

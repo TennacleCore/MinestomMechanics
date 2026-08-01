@@ -3,9 +3,11 @@ package io.github.term4.polyp.presets.mmc18;
 import io.github.term4.polyp.mechanics.explosion.BlockBreaking;
 import io.github.term4.polyp.mechanics.explosion.ExplosionConfig;
 import io.github.term4.polyp.mechanics.explosion.ExplosionExposure;
+import io.github.term4.polyp.mechanics.explosion.ExplosionSystem;
 import io.github.term4.polyp.mechanics.projectile.entities.FireballEntity;
 import io.github.term4.polyp.presets.vanilla18.Vanilla18;
 import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.ItemEntity;
 import net.minestom.server.entity.Player;
 
 /**
@@ -93,6 +95,9 @@ public final class Explosion {
                 .itemDamage(ctx -> ctx.power() != null
                         ? (ctx.power() <= FIREBALL_POWER ? 2.0 : 3.0)
                         : (ctx.source() instanceof FireballEntity ? 2.0 : 3.0))
+                // ...and it never SHOVES that loot: a MineMen blast either destroys a dropped stack or leaves it
+                // exactly where it lay. Vanilla rides items out on the radial push like any other physics entity
+                .knockbackTargets(e -> !(e instanceof ItemEntity) && ExplosionSystem.defaultKnockbackTarget(e))
                 .build();
     }
 

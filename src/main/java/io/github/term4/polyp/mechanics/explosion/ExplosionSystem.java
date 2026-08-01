@@ -172,7 +172,9 @@ public final class ExplosionSystem implements MechanicsModule {
             if (source != null ? !WorldPolicy.canAffect(source, entity) : !MechanicsWorld.of(entity).equals(world)) continue;
             boolean living = entity instanceof LivingEntity;
             boolean kbTarget = isKnockbackTarget(entity, resolved);
-            if (!living && !kbTarget) continue;
+            // reach is the DEFAULT rule, not the configured one: narrowing knockbackTargets says "don't push
+            // this", not "the blast can't touch it" - such an entity still lands below with a null push
+            if (!living && !defaultKnockbackTarget(entity)) continue;
             if (entity == source && !resolved.affectsSource()) continue;
             double distance = entity.getPosition().distance(center);
             if (distance > doubleRadius) continue;
@@ -203,11 +205,16 @@ public final class ExplosionSystem implements MechanicsModule {
         return targets;
     }
 
-    /** Default explosion-KB targeting: players + non-living physics entities (TNT, falling blocks, items). Overridable via {@link ExplosionConfig#knockbackTargets}. */
+    /** Default explosion-KB targeting: players + non-living physics entities (TNT, falling blocks, items).
+     *  Compose with it rather than restating it when a preset only carves out a type. */
+    public static boolean defaultKnockbackTarget(@NotNull Entity entity) {
+        return entity instanceof Player || (!(entity instanceof LivingEntity) && entity.hasPhysics());
+    }
+
+    /** {@link #defaultKnockbackTarget} unless {@link ExplosionConfig#knockbackTargets} overrides it. */
     private static boolean isKnockbackTarget(Entity entity, ResolvedExplosionConfig resolved) {
         Predicate<Entity> targets = resolved.knockbackTargets();
-        if (targets != null) return targets.test(entity);
-        return entity instanceof Player || (!(entity instanceof LivingEntity) && entity.hasPhysics());
+        return targets != null ? targets.test(entity) : defaultKnockbackTarget(entity);
     }
 
     private void applyEffects(MechanicsWorld world, Point center, float power, @Nullable Entity source,

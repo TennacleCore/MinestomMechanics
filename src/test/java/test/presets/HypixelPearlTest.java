@@ -41,11 +41,14 @@ class HypixelPearlTest extends HeadlessServerTest {
     void floorHitSnapsToBlockCentreAbove() {
         FakePlayer shooter = FakePlayer.connect(instance, new Pos(300.3, 80, 300.3, 0f, 90f), "PearlBw");
         try {
-            Pos landed = pearlLanding(shooter, new Pos(300.3, 80, 300.3, 0f, 90f), Projectiles.config());
-            // straight down onto the stone surface at y=64: pearl block column (300, 64, 300) -> centre, floor+1
-            assertEquals(300.5, landed.x(), 1e-9);
+            Pos landed = pearlLanding(shooter, new Pos(300.5, 80, 300.5, 0f, 90f), Projectiles.config());
+            // straight down onto the stone surface at y=64 -> that column's centre, floor+1. The column itself is
+            // not pinned: the 1.8 launch spread drifts the pearl, so assert the snap, not which block it snapped to
+            assertEquals(0.5, Math.abs(landed.x() % 1), 1e-9);
+            assertEquals(0.5, Math.abs(landed.z() % 1), 1e-9);
             assertEquals(65.0, landed.y(), 1e-9);
-            assertEquals(300.5, landed.z(), 1e-9);
+            assertTrue(Math.abs(landed.x() - 300.5) <= 1.0 && Math.abs(landed.z() - 300.5) <= 1.0,
+                    "a straight-down pearl lands in or beside the thrower's column, got " + landed);
         } finally {
             shooter.player.remove();
         }

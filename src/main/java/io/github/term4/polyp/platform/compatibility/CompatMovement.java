@@ -89,7 +89,10 @@ public final class CompatMovement {
      * the tracker stays clean.
      */
     private static void restrictSprint(Player player, CompatState c, @Nullable SprintTracker sprintTracker) {
-        if (!SprintTracker.isClientSprinting(sprintTracker, player)) return;
+        if (!SprintTracker.isClientSprinting(sprintTracker, player)) {
+            c.setSprintStripped(false); // the sprint we stripped is over; a stale flag would restore the NEXT one
+            return;
+        }
         // skip what Animatium fixes natively (forces sprint off client-side, no rubber-band)
         boolean strip = (c.restrictSprintSneak() && player.isSneaking() && !c.handlesNatively(AnimatiumFeature.FIX_SPRINT_SNEAKING))
                 || (c.restrictSprintUse() && player.isUsingItem() && !c.handlesNatively(AnimatiumFeature.FIX_SPRINT_ITEM_USE));

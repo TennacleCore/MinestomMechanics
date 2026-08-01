@@ -45,9 +45,10 @@ public final class Projectiles {
         }
     };
 
-    // BedWars pearl teleport, captured 2026-07-27 (130 tps): the centre of the block ABOVE the pearl's block,
-    // y = floor+1 exactly, no solidity search (the ceiling clip-in is authentic), same rule on entity hits.
-    // Floor the CONTACT centre (short of the face, like their capture) - the pre-move getPosition() lags a step.
+    // BedWars pearl teleport, captured 2026-07-27 (130 tps), re-confirmed by hypixelALLPROJECTILES: the centre of
+    // the block ABOVE the pearl's block, y = floor+1 exactly, no solidity search (the ceiling clip-in is
+    // authentic), same rule on entity hits. Floor the CONTACT centre (short of the face, like their capture) -
+    // the pre-move getPosition() lags a step.
     private static final ProjectileBehavior BW_PEARL_TELEPORT = new ProjectileBehavior() {
         @Override public void onImpact(ManagedProjectile p, Entity hit) {
             if (p instanceof PearlEntity pearl) {
@@ -58,6 +59,7 @@ public final class Projectiles {
     };
 
     public static ProjectileConfig config() {
+        ProjectileConfig base = Vanilla18.projectiles();
         ProjectileTypeConfig bwFireball = ProjectileTypeConfig.builder(Fireball.KEY)
                 .boundingBox(1, 1, 1) // EntityFireball.setSize(1,1): the box OTHERS hit to deflect it; its own detonation stays a point
                 .gravity(0.0).horizontalDrag(0.95).verticalDrag(0.95)
@@ -73,14 +75,16 @@ public final class Projectiles {
                 .invulnHit(ProjectileTypeConfig.HitResponse.DESTROY)
                 .behavior(BW_FIREBALL_DETONATION)
                 .build();
-        ProjectileTypeConfig bwPearl = ProjectileTypeConfig.builder(Pearl.KEY)
-                .spawnOffsetForward(0.0).spawnOffsetVertical(0.0).spawnOffsetSideways(0.0) // at the eye
+        // rebased on vanilla18's pearl, not a bare builder: a type entry REPLACES the base map entry, so a bare
+        // one drops the 1.8 self-pass-through. Launch is stock 1.8 - hypixelALLPROJECTILES (103 pearls) puts
+        // their spread at the same 1.5 +/- 0.0117 as their snowballs and the spawn at the same eye-relative
+        // offset, so only the teleport target is Hypixel's own.
+        ProjectileTypeConfig bwPearl = ProjectileTypeConfig.builder(base.typeConfig(Pearl.KEY))
                 .boundingBox(0.1, 0.1, 0.1)
-                .spread(0.0)
                 .behavior(BW_PEARL_TELEPORT)
                 .teleportDamage(0.0) // BedWars pearls deal none; SkyWars keep vanilla 5 - per-mode configs differ in knobs
                 .build();
-        return ProjectileConfig.builder(Vanilla18.projectiles())
+        return ProjectileConfig.builder(base)
                 .typeConfigs(bwFireball, bwPearl)
                 .build();
     }

@@ -20,6 +20,7 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.entity.metadata.item.SplashPotionMeta;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.item.ItemStack;
+import net.minestom.server.item.Material;
 import net.minestom.server.item.component.PotionContents;
 import net.minestom.server.network.packet.server.play.WorldEventPacket;
 import net.minestom.server.potion.CustomPotionEffect;
@@ -52,9 +53,10 @@ public class SplashPotionEntity extends ManagedProjectile {
     public SplashPotionEntity(@Nullable Entity shooter, @NotNull EntityType entityType,
                               ProjectileSnapshot snap, ProjectileTypeConfig effectiveConfig) {
         super(shooter, entityType, snap, effectiveConfig);
+        // a modern client renders the whole entity from this item, so an empty one spawns an invisible potion
         ItemStack item = snap.item();
-        // the client renders the liquid color from the meta item
-        if (item != null) ((SplashPotionMeta) getEntityMeta()).setItem(item);
+        ((SplashPotionMeta) getEntityMeta()).setItem(
+                item != null && !item.isAir() ? item : ItemStack.of(Material.SPLASH_POTION));
         var ctx = ProjectileConfigResolver.ProjectileContext.of(snap, services());
         this.legacyPalette = FieldValue.resolve(effectiveConfig.legacyPotionColors, ctx, Boolean.FALSE);
         this.modernModel = FieldValue.resolve(effectiveConfig.modernSplash, ctx, Boolean.FALSE);

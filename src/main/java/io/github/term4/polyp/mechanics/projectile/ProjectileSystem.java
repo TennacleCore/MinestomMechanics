@@ -111,7 +111,8 @@ public final class ProjectileSystem implements MechanicsModule {
      *  update, so a point-blank pearl impacts on the throw tick). Call after any post-launch stamps; no-op while
      *  the spawn is still resolving (unloaded chunk). */
     public void firstStep(@Nullable ProjectileEntity entity) {
-        if (entity != null && !entity.isRemoved() && entity.getInstance() != null) entity.tick(System.currentTimeMillis());
+        // nanos: the unit every other tick of this entity gets from the server dispatcher
+        if (entity != null && !entity.isRemoved() && entity.getInstance() != null) entity.tick(System.nanoTime());
     }
 
     /** The flight values {@link #launch} would use for {@code snap} - a launcher reading one knob (the bow's {@code critChance}) without re-resolving by hand. */
