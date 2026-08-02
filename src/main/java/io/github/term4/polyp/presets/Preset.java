@@ -14,6 +14,8 @@ import java.util.function.Supplier;
  */
 public enum Preset {
     HYPIXEL(Hypixel::profile, io.github.term4.polyp.presets.hypixel.Tnt.CONFIG),
+    /** {@link #HYPIXEL} with the BedWars-only quirks (the game-wide pearl landing). */
+    HYPIXEL_BEDWARS(Hypixel::bedwars, io.github.term4.polyp.presets.hypixel.Tnt.CONFIG),
     MMC18(Mmc18::profile, io.github.term4.polyp.presets.mmc18.Tnt.CONFIG);
 
     private final Supplier<MechanicsProfile> profile;

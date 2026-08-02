@@ -252,7 +252,7 @@ class Mmc18PearlTest extends HeadlessServerTest {
                     .filter(p -> p instanceof PlayerPositionAndLookPacket)
                     .map(p -> (PlayerPositionAndLookPacket) p).toList();
             assertEquals(1, echoes.size(), "the refusal sends one position echo: " + echoes);
-            assertEquals(from.withView(0f, 0f), Pos.fromPoint(echoes.getFirst().position()).withView(0f, 0f), "echo = the unmoved position");
+            assertEquals(from.withView(0f, 0f), echoes.getFirst().position().asPos().withView(0f, 0f), "echo = the unmoved position");
             assertEquals(from.x(), shooter.player.getPosition().x(), 1e-6, "nobody moves");
         } finally {
             shooter.player.remove();

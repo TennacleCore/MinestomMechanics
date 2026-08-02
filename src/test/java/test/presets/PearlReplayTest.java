@@ -17,13 +17,22 @@ import net.minestom.server.coordinate.Pos;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
 /** Replays a captured minemen pearl session ({@code {throws:[{feet,yaw,pitch,tp}]}}) through the mmc18 pearl. */
 abstract class PearlReplayTest extends HeadlessServerTest {
 
     record Replay(int n, int ok, int falseRefusal, int posOff, String summary) {}
 
+    /**
+     * Loads a capture corpus, or SKIPS the test when it isn't on the classpath. Some corpora are gitignored, so a
+     * clone (CI included) has the tests but not their fixtures - skipping says that, where reading through a null
+     * stream just NPEs.
+     */
     static JsonObject corpus(String resource) throws Exception {
-        try (var in = new InputStreamReader(PearlReplayTest.class.getResourceAsStream(resource), StandardCharsets.UTF_8)) {
+        var stream = PearlReplayTest.class.getResourceAsStream(resource);
+        assumeTrue(stream != null, () -> "capture corpus " + resource + " is not on the classpath (gitignored)");
+        try (var in = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             return new Gson().fromJson(in, JsonObject.class);
         }
     }

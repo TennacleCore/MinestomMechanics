@@ -1,6 +1,7 @@
 package io.github.term4.polyp.presets.hypixel;
 
 import io.github.term4.polyp.MechanicsKeys;
+import io.github.term4.polyp.fx.FxRegistry;
 import io.github.term4.polyp.MechanicsProfile;
 import io.github.term4.polyp.fx.Fx;
 import io.github.term4.polyp.fx.FxHandler;
@@ -24,9 +25,26 @@ public final class Hypixel {
                 .set(MechanicsKeys.EXPLOSION, Explosion.config())
                 .set(MechanicsKeys.PROJECTILES, Projectiles.config())
                 // arrow hit-marker ding to the shooter; vanilla presets don't. No fireball launch sound on Hypixel.
-                .set(MechanicsKeys.FX, Fx.vanilla18()
-                        .register(Fx.ARROW_HIT_PLAYER, Fx.arrowHitMarker())
-                        .register(Fx.THROW_FIREBALL, FxHandler.NONE))
+                .set(MechanicsKeys.FX, fx())
+                .build();
+    }
+
+    /** Hypixel's shared fx: the pearl landing is positional here, as it is in SkyWars and everywhere but BedWars. */
+    public static FxRegistry fx() {
+        return Fx.vanilla18()
+                .register(Fx.ARROW_HIT_PLAYER, Fx.arrowHitMarker())
+                .register(Fx.THROW_FIREBALL, FxHandler.NONE)
+                .register(Fx.PEARL_TELEPORT, Fx.pearlTeleport());
+    }
+
+    /**
+     * BedWars: {@link #profile()} with the pearl landing going out game-wide at full volume instead of positionally
+     * - the one mode where every player hears a pearl land no matter the distance. Also the mode the measured
+     * fireball and pearl-snap in this package came from.
+     */
+    public static MechanicsProfile bedwars() {
+        return profile().toBuilder()
+                .set(MechanicsKeys.FX, fx().register(Fx.PEARL_TELEPORT, Fx.pearlTeleportGameWide()))
                 .build();
     }
 }

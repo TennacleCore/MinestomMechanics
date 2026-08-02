@@ -1,6 +1,8 @@
 package io.github.term4.polyp.mechanics.projectile.entities;
 
 import io.github.term4.polyp.api.event.projectile.PearlTeleportEvent;
+import io.github.term4.polyp.fx.Fx;
+import io.github.term4.polyp.fx.FxContext;
 import io.github.term4.polyp.world.MechanicsWorld;
 import io.github.term4.polyp.world.WorldPolicy;
 import io.github.term4.polyp.Services;
@@ -70,6 +72,12 @@ public class PearlEntity extends ManagedProjectile {
         } else {
             Pos view = shooter.getPosition();
             MechanicsWorld.of(this).spawn(shooter, target.withView(view.yaw(), view.pitch()));
+        }
+        // at the DESTINATION, like ThrownEnderpearl.playSound(level, teleportPos) - only on a real move, so a
+        // refused pearl (consumeOnShooter) stays silent
+        Services fxServices = services();
+        if (fxServices != null) {
+            Fx.play(fxServices, Fx.PEARL_TELEPORT, FxContext.at(MechanicsWorld.of(shooter), target, shooter));
         }
         landingEffects(shooter);
         // TODO(endermite): vanilla 5% endermite spawn on teleport (cosmetic, deferred)

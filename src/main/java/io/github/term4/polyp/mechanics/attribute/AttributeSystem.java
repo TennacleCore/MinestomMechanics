@@ -70,6 +70,8 @@ public final class AttributeSystem implements MechanicsModule {
     private final EventNode<@NotNull EntityEvent> node;
     /** Re-entry guard: the re-added potion fires the add event again. */
     private final ThreadLocal<Boolean> rescaling = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    /** The potion a refresh is swapping IN, held across Minestom's internal remove; see {@link #onPotionAdd}. */
+    private final ThreadLocal<Potion> replacing = new ThreadLocal<>();
     /** Per-entity {@code armorEnchantKey -> worn level}, driving {@link ArmorSource} behavior transitions + ticking. */
     private static final Tag<Map<Key, Integer>> WORN_ARMOR = Tag.Transient("polyp:worn-armor-sources");
     /** Last-reconciled {@code [helmet, chest, legs, boots, mainhand]}. */
@@ -81,7 +83,7 @@ public final class AttributeSystem implements MechanicsModule {
         this.node = EventNode.type("polyp:attributes", EventFilter.ENTITY);
         for (Source source : this.config.sources()) registry.register(source);
         node.addListener(EntityPotionAddEvent.class, this::onPotionAdd);
-        node.addListener(EntityPotionRemoveEvent.class, e -> onPotion(e.getEntity(), e.getPotion(), false));
+        node.addListener(EntityPotionRemoveEvent.class, this::onPotionRemove);
         node.addListener(EntityTickEvent.class, this::onEntityTick);
         node.addListener(EntityEquipEvent.class, this::onEntityEquip);
         node.addListener(PlayerChangeHeldSlotEvent.class, this::onHeldSlotChange);
@@ -140,7 +142,26 @@ public final class AttributeSystem implements MechanicsModule {
                 return;
             }
         }
+        // A refresh reaches us BEFORE the removeEffect Minestom does inside addEffect, so the removal that
+        // follows would strip the push below. Levels usually differ and modifierId keeps them apart, but a
+        // same-level refresh (speed II over speed II) collides: re-drive the add holding the incoming potion,
+        // so onPotionRemove can tell that removal from a real expiry.
+        if (replacing.get() == null && e.getEntity().hasEffect(p.effect())) {
+            e.setCancelled(true);
+            replacing.set(p);
+            try { e.getEntity().addEffect(p); }
+            finally { replacing.remove(); }
+            return;
+        }
         onPotion(e.getEntity(), p, true);
+    }
+
+    /** The swap's own removal carries the same effect AND level as the incoming potion; anything else is real. */
+    private void onPotionRemove(EntityPotionRemoveEvent e) {
+        Potion incoming = replacing.get();
+        Potion gone = e.getPotion();
+        if (incoming != null && incoming.effect() == gone.effect() && incoming.amplifier() == gone.amplifier()) return;
+        onPotion(e.getEntity(), gone, false);
     }
 
     private void onPotion(Entity entity, Potion potion, boolean added) {

@@ -41,6 +41,3 @@ bin/
 
 ### Markdown (scratch docs / session handoffs; already-tracked .md stay tracked) ###
 *.md
-src/test/resources/mmc-pillar3-corpus.json
-src/test/resources/mmc-staircase-corpus.json
-src/test/resources/mmc-lowarm-corpus.json

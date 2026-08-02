@@ -10,6 +10,7 @@ import io.github.term4.polyp.mechanics.projectile.types.Egg;
 import io.github.term4.polyp.mechanics.projectile.types.FishingBobber;
 import io.github.term4.polyp.mechanics.projectile.types.Pearl;
 import io.github.term4.polyp.mechanics.projectile.types.ProjectileType;
+import io.github.term4.polyp.mechanics.projectile.types.ProjectileTypeConfig;
 import io.github.term4.polyp.mechanics.projectile.types.Snowball;
 import io.github.term4.polyp.mechanics.projectile.types.SplashPotion;
 import io.github.term4.polyp.presets.vanilla18.Vanilla18;
@@ -40,6 +41,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and zero {@code entity_relative_move} across snowball, arrow, pearl and bobber.
  */
 class Scrims18ProjectileTest extends HeadlessServerTest {
+
+    /**
+     * scrims18 with 1.8's launch speeds put back. The reference has to keep everything else - the silent wire
+     * snaps the launch velocity onto the client's decode grid, which shaves it, so a vanilla18 config would be
+     * measuring the quantizer as much as the speed.
+     */
+    private static final ProjectileConfig SCRIMS_AT_VANILLA_SPEED = ProjectileConfig.builder(Scrims18.projectiles())
+            .defaults(ProjectileTypeConfig.builder(Scrims18.projectiles().defaults()).speed(1.5).build())
+            .typeConfigs(ProjectileTypeConfig.builder(
+                    Scrims18.projectiles().typeConfig(FishingBobber.KEY)).speed(1.5).build())
+            .build();
 
     private record Wire(long teleports, long velocities) {}
 
@@ -111,12 +123,9 @@ class Scrims18ProjectileTest extends HeadlessServerTest {
                 assertEquals(1, launched.size(), type.key() + ": one aim must launch one vector, got " + launched);
 
                 double scrimsSpeed = launched.iterator().next().length();
-                // vanilla still carries its gaussian, so one sample is a coin flip - average it out
-                double vanillaSpeed = 0;
-                for (int i = 0; i < 40; i++) {
-                    vanillaSpeed += launchOnce(shooter, stance, Vanilla18.projectiles(), type).length() / 40;
-                }
-                assertEquals(probe.getValue(), scrimsSpeed / vanillaSpeed, 3.0e-3,
+                // same config at 1.8's speed, so the ratio isolates the constant from the wire snap
+                double vanillaSpeed = launchOnce(shooter, stance, SCRIMS_AT_VANILLA_SPEED, type).length();
+                assertEquals(probe.getValue(), scrimsSpeed / vanillaSpeed, 1.0e-3,
                         type.key() + ": launches under vanilla, " + scrimsSpeed + " vs " + vanillaSpeed);
             }
         } finally {

@@ -35,6 +35,10 @@ import io.github.term4.polyp.util.tick.TickScaler;
 import io.github.term4.polyp.util.tick.TickState;
 import io.github.term4.polyp.presets.vanilla18.Vanilla18;
 import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
+import net.minestom.server.adventure.AdventurePacketConvertor;
+import net.minestom.server.coordinate.Pos;
+import net.minestom.server.sound.SoundEvent;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.GameMode;
@@ -107,10 +111,23 @@ public final class DamageSystem implements MechanicsModule {
         this.registry = new DamageTypeRegistry(this, polyp).registerVanillaDefaults();
         // window stamps ride the victim's per-instance clock; the TickState future-guard misses a coinciding long-lived instance
         this.node.addListener(PlayerSpawnEvent.class, e -> clearDamageWindow(e.getPlayer()));
-        // the hurt sound is CLIENT-side off the hurt animation in both eras (1.8 handleStatusUpdate(2), modern
-        // handleDamageEvent), so Minestom's extra sound packet plays it twice. Drop it whenever the animation goes out.
+        // Vanilla sends the hurt sound to everyone EXCEPT the victim (1.8 EntityHuman.makeSound -> the
+        // sendPacketNearby overload that skips them; modern Player.playSound passes itself as the excluded
+        // player). The victim's own client covers it: EntityPlayerSP/LocalPlayer override playSound to play
+        // directly, so the animation packet they also receive is enough. A REMOTE entity's hurt sound is NOT
+        // predicted - that playSound sinks into a no-op in both eras (1.8 RenderGlobal.playSound is an empty
+        // stub, modern ClientLevel.playSeededSound only fires when the excluded player is the local one).
+        // Minestom sends it to viewers AND self, so the victim heard it twice; re-emit to viewers only rather
+        // than dropping it, or an attacker never hears the hit land.
         this.node.addListener(EntityDamageEvent.class, e -> {
-            if (e.shouldAnimate()) e.setSound(null);
+            SoundEvent sound = e.getSound();
+            if (sound == null || !e.shouldAnimate()) return;
+            e.setSound(null);
+            Entity victim = e.getEntity();
+            Pos at = victim.getPosition();
+            Sound.Source category = victim instanceof Player ? Sound.Source.PLAYER : Sound.Source.HOSTILE;
+            victim.sendPacketToViewers(AdventurePacketConvertor.createSoundPacket(
+                    Sound.sound(sound, category, 1.0f, 1.0f), at.x(), at.y(), at.z()));
         });
         if (CLOCK_RESET.compareAndSet(false, true)) {
             TickSystem.onClockChange(e -> {

@@ -73,12 +73,15 @@ class HypixelPearlTest extends HeadlessServerTest {
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -2; dz <= 2; dz++)
                 instance.setBlock(cx + dx, ceilY, cz + dz, Block.STONE);
-        FakePlayer shooter = FakePlayer.connect(instance, new Pos(cx + 0.3, 65, cz + 0.3, 0f, -90f), "PearlUp");
+        FakePlayer shooter = FakePlayer.connect(instance, new Pos(cx + 0.5, 65, cz + 0.5, 0f, -90f), "PearlUp");
         try {
-            Pos landed = pearlLanding(shooter, new Pos(cx + 0.3, 65, cz + 0.3, 0f, -90f), Projectiles.config());
-            assertEquals(cx + 0.5, landed.x(), 1e-9);
+            Pos landed = pearlLanding(shooter, new Pos(cx + 0.5, 65, cz + 0.5, 0f, -90f), Projectiles.config());
             assertEquals(ceilY, landed.y(), 1e-9, "feet inside the ceiling layer - no safe-spot search");
-            assertEquals(cz + 0.5, landed.z(), 1e-9);
+            // the 1.8 launch spread drifts the pearl, so pin the block snap, not which block it snapped to
+            assertEquals(0.5, Math.abs(landed.x() % 1), 1e-9);
+            assertEquals(0.5, Math.abs(landed.z() % 1), 1e-9);
+            assertTrue(Math.abs(landed.x() - (cx + 0.5)) <= 1.0 && Math.abs(landed.z() - (cz + 0.5)) <= 1.0,
+                    "a straight-up pearl lands in or beside the thrower's column, got " + landed);
         } finally {
             shooter.player.remove();
         }

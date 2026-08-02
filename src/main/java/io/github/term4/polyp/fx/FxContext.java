@@ -83,6 +83,18 @@ public final class FxContext {
             p.sendPacket(new SoundEffectPacket(sound, src, source.getPosition(), volume, pitch, ThreadLocalRandom.current().nextLong()));
     }
 
+    /**
+     * The sound to EVERY player in the world at full volume, positioned at each listener so distance never
+     * attenuates it - a game-wide announcement rather than a thing that happened somewhere (Hypixel BedWars
+     * pearls). One shared seed, so variant-picking sounds still pick the same variant for everyone.
+     */
+    public void globalSound(@NotNull SoundEvent sound, @NotNull Sound.Source src, float volume, float pitch) {
+        long seed = ThreadLocalRandom.current().nextLong();
+        for (Player p : world.players()) {
+            p.sendPacket(new SoundEffectPacket(sound, src, p.getPosition(), volume, pitch, seed));
+        }
+    }
+
     /** A particle burst at {@link #position()} to the shard audience. */
     public void particle(@NotNull Particle particle, int count, double offsetX, double offsetY, double offsetZ, float speed) {
         world.broadcast(new ParticlePacket(particle, position.x(), position.y(), position.z(),

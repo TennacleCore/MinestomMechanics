@@ -81,6 +81,35 @@ class PotionLifecycleTest extends HeadlessServerTest {
         assertEquals(base, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
     }
 
+    /**
+     * Refreshing an effect at the SAME level used to leave it modifier-less: Minestom fires the add event before
+     * the removeEffect it does internally, so the removal stripped the push the add had just made and a speed II
+     * player on a speed II splash ran at base speed with the effect still showing.
+     */
+    @Test
+    void refreshingAtTheSameLevelKeepsTheModifier() {
+        LivingEntity e = zombie(new Pos(0, 64, 67));
+        double base = e.getAttributeValue(Attribute.MOVEMENT_SPEED);
+        PotionEffect speed = PotionEffect.fromKey(Speed.KEY);
+        assertNotNull(speed, "speed effect");
+        try {
+            e.addEffect(new Potion(speed, 1, 600));                  // Speed II
+            assertEquals(base * 1.4, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9);
+
+            e.addEffect(new Potion(speed, 1, 1800));                 // the splash: same level, longer
+            assertEquals(base * 1.4, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9,
+                    "a same-level refresh keeps the speed it already had");
+
+            e.addEffect(new Potion(speed, 0, 1800));                 // down a level: the II push must go
+            assertEquals(base * 1.2, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9,
+                    "a level change still swaps the modifier");
+        } finally {
+            e.removeEffect(speed);
+        }
+        assertEquals(base, e.getAttributeValue(Attribute.MOVEMENT_SPEED), 1e-9,
+                "and the refreshed effect still cleans up on removal");
+    }
+
     @Test
     void invisibilityTogglesTheFlag() {
         LivingEntity e = zombie(new Pos(0, 64, 62));

@@ -48,6 +48,9 @@ public final class Fx {
     public static final Key THROW_SNOWBALL = Key.key("polyp:throw_snowball");
     public static final Key THROW_EGG = Key.key("polyp:throw_egg");
     public static final Key THROW_PEARL = Key.key("polyp:throw_pearl");
+    /** Pearl landed and moved its thrower. 1.8 has none ({@code EntityEnderPearl} is silent; {@code mob.endermen.portal}
+     *  is the enderman's own), so this is a server addition there - unregistered in {@link #vanilla18()}. */
+    public static final Key PEARL_TELEPORT = Key.key("polyp:pearl_teleport");
     /** Fire charge thrown from the hand. */
     public static final Key THROW_FIREBALL = Key.key("polyp:throw_fireball");
     /** Bow released (arrow shot). */
@@ -123,7 +126,23 @@ public final class Fx {
     public static @NotNull FxRegistry modern() {
         return vanilla18()
                 .register(CRIT, FxHandler.hitAnimation(EntityAnimationPacket.Animation.CRITICAL_EFFECT)
-                        .and(FxHandler.sound(SoundEvent.ENTITY_PLAYER_ATTACK_CRIT, Sound.Source.PLAYER, 1.0f, 1.0f)));
+                        .and(FxHandler.sound(SoundEvent.ENTITY_PLAYER_ATTACK_CRIT, Sound.Source.PLAYER, 1.0f, 1.0f)))
+                // ThrownEnderpearl.playSound: positional at the destination, PLAYERS category
+                .register(PEARL_TELEPORT, pearlTeleport());
+    }
+
+    /** The vanilla pearl landing: positional at the destination, so it fades with distance. */
+    public static @NotNull FxHandler pearlTeleport() {
+        return ctx -> ctx.sound(SoundEvent.ENTITY_PLAYER_TELEPORT, Sound.Source.PLAYER, 1.0f, 1.0f);
+    }
+
+    /**
+     * Hypixel BEDWARS only: the pearl landing reaches the whole lobby at full volume, however far away the thrower
+     * is - an audible tell that someone pearled. SkyWars and their other modes keep the positional
+     * {@link #pearlTeleport()}, so this belongs on a per-mode registry, not the shared Hypixel one.
+     */
+    public static @NotNull FxHandler pearlTeleportGameWide() {
+        return ctx -> ctx.globalSound(SoundEvent.ENTITY_PLAYER_TELEPORT, Sound.Source.PLAYER, 1.0f, 1.0f);
     }
 
     /**
