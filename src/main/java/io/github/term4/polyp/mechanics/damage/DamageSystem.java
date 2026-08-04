@@ -111,14 +111,9 @@ public final class DamageSystem implements MechanicsModule {
         this.registry = new DamageTypeRegistry(this, polyp).registerVanillaDefaults();
         // window stamps ride the victim's per-instance clock; the TickState future-guard misses a coinciding long-lived instance
         this.node.addListener(PlayerSpawnEvent.class, e -> clearDamageWindow(e.getPlayer()));
-        // Vanilla sends the hurt sound to everyone EXCEPT the victim (1.8 EntityHuman.makeSound -> the
-        // sendPacketNearby overload that skips them; modern Player.playSound passes itself as the excluded
-        // player). The victim's own client covers it: EntityPlayerSP/LocalPlayer override playSound to play
-        // directly, so the animation packet they also receive is enough. A REMOTE entity's hurt sound is NOT
-        // predicted - that playSound sinks into a no-op in both eras (1.8 RenderGlobal.playSound is an empty
-        // stub, modern ClientLevel.playSeededSound only fires when the excluded player is the local one).
-        // Minestom sends it to viewers AND self, so the victim heard it twice; re-emit to viewers only rather
-        // than dropping it, or an attacker never hears the hit land.
+        // vanilla sends the hurt sound to everyone EXCEPT the victim, whose own client predicts it
+        // (EntityPlayerSP/LocalPlayer override playSound; a remote entity's playSound is a client no-op in both
+        // eras). Minestom sends viewers AND self - re-emit to viewers only, or the victim doubles / attackers hear nothing
         this.node.addListener(EntityDamageEvent.class, e -> {
             SoundEvent sound = e.getSound();
             if (sound == null || !e.shouldAnimate()) return;

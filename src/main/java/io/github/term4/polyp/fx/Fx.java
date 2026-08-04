@@ -48,8 +48,7 @@ public final class Fx {
     public static final Key THROW_SNOWBALL = Key.key("polyp:throw_snowball");
     public static final Key THROW_EGG = Key.key("polyp:throw_egg");
     public static final Key THROW_PEARL = Key.key("polyp:throw_pearl");
-    /** Pearl landed and moved its thrower. 1.8 has none ({@code EntityEnderPearl} is silent; {@code mob.endermen.portal}
-     *  is the enderman's own), so this is a server addition there - unregistered in {@link #vanilla18()}. */
+    /** Pearl landed and moved its thrower. 1.8 has no pearl sound, so {@link #vanilla18()} leaves it unregistered. */
     public static final Key PEARL_TELEPORT = Key.key("polyp:pearl_teleport");
     /** Fire charge thrown from the hand. */
     public static final Key THROW_FIREBALL = Key.key("polyp:throw_fireball");
@@ -136,11 +135,8 @@ public final class Fx {
         return ctx -> ctx.sound(SoundEvent.ENTITY_PLAYER_TELEPORT, Sound.Source.PLAYER, 1.0f, 1.0f);
     }
 
-    /**
-     * Hypixel BEDWARS only: the pearl landing reaches the whole lobby at full volume, however far away the thrower
-     * is - an audible tell that someone pearled. SkyWars and their other modes keep the positional
-     * {@link #pearlTeleport()}, so this belongs on a per-mode registry, not the shared Hypixel one.
-     */
+    /** Hypixel BEDWARS only (their other modes stay positional): the landing reaches the whole game at full
+     *  volume regardless of distance, so it rides a per-mode registry, not the shared Hypixel one. */
     public static @NotNull FxHandler pearlTeleportGameWide() {
         return ctx -> ctx.globalSound(SoundEvent.ENTITY_PLAYER_TELEPORT, Sound.Source.PLAYER, 1.0f, 1.0f);
     }
