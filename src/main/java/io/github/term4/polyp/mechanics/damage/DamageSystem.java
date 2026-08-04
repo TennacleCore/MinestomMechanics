@@ -100,6 +100,8 @@ public final class DamageSystem implements MechanicsModule {
     private final DamageCalculator calc;
     private final DamageTypeRegistry registry;
     private final Services services;
+
+    public Services services() { return services; }
     private final EventNode<@NotNull Event> node;
 
     public DamageSystem(Polyp polyp, DamageConfig config) {
@@ -270,6 +272,9 @@ public final class DamageSystem implements MechanicsModule {
             living.setTag(LAST_DAMAGE, Math.max(event.stored(), amount));
             living.setTag(LAST_DAMAGE_TYPE, type);
             applyDamage(living, type, finalSnap, applied, replacementSilent);
+            // vanilla runs the post-hit enchant effects on ANY landed hit - an overdamage refresh included
+            // (EntityHuman.attack applies fire aspect whenever damageEntity returns true)
+            dispatchWeaponOnHit(living, finalSnap);
             fireDamageApplied(finalSnap, applied, DamageOutcome.OVERDAMAGE);
             return DamageOutcome.OVERDAMAGE;
         }

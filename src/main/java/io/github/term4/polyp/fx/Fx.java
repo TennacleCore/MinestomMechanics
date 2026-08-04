@@ -61,6 +61,8 @@ public final class Fx {
     public static final Key ARROW_HIT = Key.key("polyp:arrow_hit");
     /** Arrow struck a target - the hit-marker "ding" to the SHOOTER only. Unregistered by default; a PvP preset registers it. */
     public static final Key ARROW_HIT_PLAYER = Key.key("polyp:arrow_hit_player");
+    /** A burning entity doused by water (1.8 {@code random.fizz}); heard by viewers, never the doused player. */
+    public static final Key FIRE_EXTINGUISH = Key.key("polyp:fire_extinguish");
     /** TNT ignited (primed TNT spawned). */
     public static final Key TNT_PRIME = Key.key("polyp:tnt_prime");
     /** The big explosion flash; played for power &gt;= 2 (the 1.8 client's hugeexplosion-vs-explode gate). */
@@ -105,6 +107,9 @@ public final class Fx {
                 // 1.8 item pickup
                 .register(ITEM_PICKUP, ctx -> ctx.sound(SoundEvent.ENTITY_ITEM_PICKUP, Sound.Source.PLAYER, 0.2f,
                         jitterPitch(0.7f) * 2.0f))
+                // 1.8 random.fizz 0.7F / 1.6F +- 0.4 dual-rand
+                .register(FIRE_EXTINGUISH, ctx -> ctx.viewerSound(SoundEvent.ENTITY_GENERIC_EXTINGUISH_FIRE,
+                        Sound.Source.NEUTRAL, 0.7f, 0.6f + jitterPitch(0.4f)))
                 .register(THROW_SNOWBALL, throwSound(SoundEvent.ENTITY_SNOWBALL_THROW, Sound.Source.NEUTRAL))
                 .register(THROW_EGG, throwSound(SoundEvent.ENTITY_EGG_THROW, Sound.Source.PLAYER))
                 .register(THROW_PEARL, throwSound(SoundEvent.ENTITY_ENDER_PEARL_THROW, Sound.Source.NEUTRAL))
