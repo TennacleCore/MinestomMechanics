@@ -63,8 +63,9 @@ final class ExplosionBlocks {
         return hit;
     }
 
-    /** The blast-proof (shadow-casting) cells within reach, box-indexed for O(1) lookup; {@code null} when there are
-     *  none. Reads the world directly, not where random rays landed, so the shadow is deterministic across detonations. */
+    /** The shadow-casting cells within reach (whatever the rule refuses to break), box-indexed for O(1) lookup;
+     *  {@code null} when there are none. Reads the world directly, not where random rays landed, so the shadow is
+     *  deterministic across detonations. */
     private static @Nullable Seal scanSeals(MechanicsWorld world, Point center, float power,
                                             BlockBreaking cfg, ExplosionContext ctx) {
         int cx = (int) Math.floor(center.x()), cy = (int) Math.floor(center.y()), cz = (int) Math.floor(center.z());
@@ -76,8 +77,9 @@ final class ExplosionBlocks {
                 for (int dz = -r; dz <= r; dz++) {
                     if (dx * dx + dy * dy + dz * dz > rSq) continue;
                     int x = cx + dx, y = cy + dy, z = cz + dz;
-                    Block block = loadedBlock(world, new BlockVec(x, y, z));
-                    if (block == null || !cfg.castsShadow(block)) continue;
+                    BlockVec pos = new BlockVec(x, y, z);
+                    Block block = loadedBlock(world, pos);
+                    if (block == null || block.isAir() || cfg.canBreak(block, pos, ctx)) continue;
                     if (mask == null) mask = new boolean[side * side * side];
                     mask[(x - minX) + side * ((y - minY) + side * (z - minZ))] = true;
                 }

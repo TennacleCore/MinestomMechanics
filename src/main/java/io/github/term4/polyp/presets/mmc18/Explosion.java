@@ -61,6 +61,8 @@ public final class Explosion {
                     .originLift(0) // the table's extraction frame
                     .build();
 
+    public static BlockBreaking tntBlockBreaking() { return TNT_RAYS; }
+
     /** The default fireball config (per-shot rolls). */
     public static BlockBreaking fireballBlockBreaking() { return FIREBALL_RAYS; }
 
