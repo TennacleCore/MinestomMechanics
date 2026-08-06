@@ -184,6 +184,11 @@ public final class FallDamage extends DamageType {
     }
 
 
+    private static boolean flyAbilityExempt(DamageContext ctx) {
+        Boolean knob = ctx.typeConfig() instanceof FallDamageConfig f ? f.flyAbilityExempt(ctx) : null;
+        return knob == null || knob;
+    }
+
     /** Slime bounce negates fall damage unless the entity is sneaking - the damage half of the 1.8 {@code BlockSlime} bounce
      *  ({@link io.github.term4.polyp.tracking.motion.MotionTracker} does the velocity half); the block is under the landing feet. */
     private static boolean bounceNegatesFall(LivingEntity living, Point pos) {
@@ -201,6 +206,9 @@ public final class FallDamage extends DamageType {
         if (bounceNegatesFall(living, pos)) return;
         DamageSnapshot snap = DamageSnapshot.of(living, this).withDetail(FallDetail.of(distance));
         DamageContext ctx = sys.contextFor(snap);
+        // the fly ABILITY blocks fall damage even when not flying (1.8 EntityHuman.e !canFly, 26.1 mayfly);
+        // gated at landing, so revoking it mid-fall still lands the accrued damage (vanilla)
+        if (flyAbilityExempt(ctx) && living instanceof Player p && p.isAllowFlying()) return;
         if (!ctx.typeConfig().enabled(ctx)) return;
         // skip below-threshold landings before any event fires
         if (ctx.baseAmount() <= 0) return;
